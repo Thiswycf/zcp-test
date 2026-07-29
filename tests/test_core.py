@@ -21,7 +21,7 @@ def test_jsonl_merge_and_partial_recovery(tmp_path):
 
 def test_spaces_and_cache_keys():
     load_builtin_spaces()
-    expected = {"nb201_topology", "nats_size", "nb101_dag", "darts", "darts_toy_legacy", "transnas_micro", "transnas_macro", "autoformer", "pit", "ofa_proxyless_mbv2", "ofa_mbv3"}
+    expected = {"nb201_topology", "nats_size", "nb101_dag", "nb101_toy_legacy", "darts", "darts_toy_legacy", "transnas_micro", "transnas_macro", "autoformer", "pit", "ofa_proxyless_mbv2", "ofa_mbv3"}
     assert expected == set(SPACES.names())
     architecture = SPACES.create("darts").sample(1)
     assert cache_key(architecture, "er", "cifar10", 1, "x") != cache_key(architecture, "er", "cifar100", 1, "x")
