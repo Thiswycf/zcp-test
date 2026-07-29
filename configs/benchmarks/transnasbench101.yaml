@@ -1,0 +1,9 @@
+benchmark_id: transnasbench101
+search_space_id: transnas_micro
+space: micro
+version: v10141024
+path: /path/to/data/transnasbench101/converted/transnas-bench_v10141024.jsonl
+source:
+  path: /path/to/data/transnasbench101/transnas-bench_v10141024.pth
+  trusted_conversion_required: true
+tasks: [class_object, class_scene, autoencoder, room_layout, jigsaw, segmentsemantic, normal]

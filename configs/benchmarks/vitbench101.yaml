@@ -1,0 +1,17 @@
+benchmark_id: vitbench101
+version: auto-prox-90ed458
+source_commit: 90ed458
+slices:
+  autoformer_main:
+    search_space_id: autoformer
+    path: /path/to/data/vitbench101/converted/gt_autoformer.jsonl
+    source_path: /path/to/data/vitbench101/gt_autoformer.pth
+  autoformer_ext:
+    search_space_id: autoformer
+    path: /path/to/data/vitbench101/converted/gt_autoformer_2.jsonl
+    source_path: /path/to/data/vitbench101/gt_autoformer_2.pth
+  pit:
+    search_space_id: pit
+    path: /path/to/data/vitbench101/converted/gt_pit.jsonl
+    source_path: /path/to/data/vitbench101/gt_pit.pth
+trusted_conversion_required: true

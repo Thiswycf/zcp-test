@@ -1,0 +1,13 @@
+space: autoformer
+dataset: imagenet1k
+input_size: 224
+epochs: 300
+optimizer: adamw
+learning_rate: 0.0005
+weight_decay: 0.05
+scheduler: cosine
+warmup_epochs: 20
+batch_size: 512
+label_smoothing: 0.1
+amp: true
+

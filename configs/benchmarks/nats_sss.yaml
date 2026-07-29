@@ -1,0 +1,6 @@
+benchmark_id: nats_sss
+search_space_id: nats_size
+version: "1.0"
+path: /path/to/data/nats_bench/NATS-sss-v1_0-50262-simple
+api_type: sss
+epoch_budgets: [12, 90]

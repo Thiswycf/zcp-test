@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "zcp-test"
+version = "0.1.0"
+description = "Reproducible zero-cost proxy evaluation and NAS toolkit"
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+license = {text = "MIT"}
+dependencies = [
+  "numpy>=1.26,<2",
+  "scipy>=1.11,<1.14",
+  "PyYAML>=6,<7",
+  "tqdm>=4.66,<5",
+  "pillow>=10,<12",
+  "matplotlib>=3.8,<4",
+  "pandas>=2.1,<3",
+  "tabulate>=0.9,<1",
+  "nats-bench==1.8",
+  "h5py>=3.10,<4",
+  "thop>=0.1.1",
+  "timm>=1.0,<2",
+]
+
+[project.optional-dependencies]
+nb301 = ["nasbench301==0.3", "ConfigSpace>=0.6,<1", "xgboost>=2,<3", "lightgbm>=4,<5"]
+transnas = ["scikit-image>=0.22,<1", "transforms3d>=0.4,<1", "yacs>=0.1.8,<1"]
+dev = ["pytest>=8,<9", "pytest-cov>=5,<6", "ruff>=0.6,<1"]
+
+[project.scripts]
+zcp-test = "zcp_test.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+extend-exclude = ["src/zcp_test/vendor"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "B"]

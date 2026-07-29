@@ -1,0 +1,8 @@
+benchmark_id: nasbench101
+search_space_id: nb101_dag
+version: full
+path: /path/to/data/nasbench101/converted/full/manifest.json
+source:
+  path: /path/to/data/nasbench101/nasbench_full.tfrecord
+  url: https://storage.googleapis.com/nasbench/nasbench_full.tfrecord
+  conversion_required: true

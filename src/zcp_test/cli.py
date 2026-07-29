@@ -1,0 +1,1059 @@
+from __future__ import annotations
+
+import argparse
+import inspect
+import json
+import os
+import sys
+import time
+from contextlib import ExitStack, contextmanager
+from pathlib import Path
+from typing import Any
+
+from zcp_test.artifacts import (
+    JsonlWriter,
+    RunContext,
+    read_jsonl,
+    read_score_records,
+    score_component,
+)
+from zcp_test.benchmarks import BENCHMARKS, load_builtin_benchmarks
+from zcp_test.config import load_config
+from zcp_test.doctor import diagnostics
+from zcp_test.data import DataAsset, DataRegistry, convert_vitbench101, vitbench101_release_parser
+from zcp_test.gpu import (
+    GPULockError,
+    NoGPUError,
+    configure_cuda,
+    enumerate_gpus,
+    gpu_lock,
+    select_gpu,
+)
+from zcp_test.inputs import make_input_batch
+from zcp_test.legacy import import_pickle
+from zcp_test.proxies import PROXIES, load_builtin_proxies
+from zcp_test.proxies.evaluator import evaluate_proxy
+from zcp_test.reporting import correlation_summary, curve_plot, jsonl_to_csv, static_html
+from zcp_test.reporting.analysis import (
+    build_report_bundle,
+    correlation_table,
+    plot_search,
+    plot_sensitivity,
+    plot_training,
+    proxy_cost_pareto,
+    rank_aggregation,
+    read_scores,
+    sample_size_convergence,
+    top_k_comparison,
+    transfer_correlation_table,
+)
+from zcp_test.reporting.monitor import refresh_once
+from zcp_test.search import EvolutionSearch
+from zcp_test.spaces import SPACES, load_builtin_spaces
+from zcp_test.training import TrainingConfig, train_model
+from zcp_test.types import MetricSpec
+
+
+def _json(value: Any) -> None:
+    print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+
+
+def _args_config(args: argparse.Namespace) -> dict[str, Any]:
+    return {
+        key: value
+        for key, value in vars(args).items()
+        if key != "function" and not key.startswith("_")
+    }
+
+
+def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
+    if getattr(args, "data_root", None):
+        return str(args.data_root)
+    catalog = getattr(args, "catalog", None)
+    if not catalog:
+        return None
+    asset_id = f"dataset_{'cifar10' if dataset == 'cifar10-valid' else dataset}"
+    registry = DataRegistry(catalog)
+    try:
+        asset = registry.get(asset_id)
+    except KeyError:
+        return None
+    verification = registry.verify(asset_id)
+    if not verification["valid"]:
+        raise FileNotFoundError(f"Registered dataset asset is invalid: {asset_id}")
+    return asset.path
+
+
+def _device(name: str) -> Any:
+    import torch
+
+    if name.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError("CUDA requested but unavailable")
+    return torch.device(name)
+
+
+@contextmanager
+def _selected_device(args: argparse.Namespace):
+    requested_device = getattr(args, "device", None)
+    if requested_device:
+        yield _device(requested_device), None
+        return
+    selection = _prepare_gpu(args)
+    candidates = [selection]
+    if str(getattr(args, "gpu", "auto")).casefold() == "auto":
+        remaining = [
+            gpu for gpu in enumerate_gpus() if str(gpu["uuid"]) != str(selection["uuid"])
+        ]
+        while remaining:
+            try:
+                alternative = select_gpu(
+                    "auto",
+                    model=getattr(args, "gpu_model", None),
+                    min_free_mb=getattr(args, "min_free_memory", 0),
+                    gpus=remaining,
+                )
+            except NoGPUError:
+                break
+            candidates.append(alternative)
+            remaining = [
+                gpu for gpu in remaining if str(gpu["uuid"]) != str(alternative["uuid"])
+            ]
+    last_error = None
+    lock_timeout = getattr(args, "gpu_lock_timeout", 0.0)
+    deadline = None if lock_timeout is None else time.monotonic() + lock_timeout
+    for candidate in candidates:
+        remaining_timeout = (
+            None if deadline is None else max(0.0, deadline - time.monotonic())
+        )
+        stack = ExitStack()
+        try:
+            stack.enter_context(gpu_lock(candidate, timeout=remaining_timeout))
+        except GPULockError as error:
+            stack.close()
+            last_error = error
+            continue
+        with stack:
+            configured = configure_cuda(candidate)
+            configured["selection_strategy"] = (
+                "auto" if str(getattr(args, "gpu", "auto")).casefold() == "auto" else "explicit"
+            )
+            configured["nvidia_smi_index"] = configured["index"]
+            configured["torch_logical_index"] = 0
+            args._gpu_selection = configured
+            device = _device("cuda:0")
+            yield device, configured
+            return
+    if last_error is not None:
+        raise GPULockError("All matching GPUs are locked by other zcp-test processes") from last_error
+
+
+def _prepare_gpu(args: argparse.Namespace) -> dict[str, Any] | None:
+    if getattr(args, "device", None):
+        return None
+    existing = getattr(args, "_gpu_selection", None)
+    if existing is not None:
+        return existing
+    selection = select_gpu(
+        getattr(args, "gpu", "auto"),
+        model=getattr(args, "gpu_model", None),
+        min_free_mb=getattr(args, "min_free_memory", 0),
+    )
+    args._gpu_selection = selection
+    return selection
+
+
+def _add_gpu_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--gpu",
+        default="auto",
+        help="auto, nvidia-smi index, GPU UUID, PCI bus ID, or model substring",
+    )
+    parser.add_argument("--gpu-model")
+    parser.add_argument("--min-free-memory", type=int, default=0, metavar="MIB")
+    parser.add_argument("--gpu-lock-timeout", type=float, default=0.0)
+    parser.add_argument(
+        "--device",
+        help="advanced compatibility override such as cpu or cuda:0; bypasses GPU selection",
+    )
+
+
+def _synthetic_loader(batch_size: int, input_size: int, classes: int, batches: int = 2) -> Any:
+    import torch
+
+    dataset = torch.utils.data.TensorDataset(torch.randn(batch_size * batches, 3, input_size, input_size), torch.randint(classes, (batch_size * batches,)))
+    return torch.utils.data.DataLoader(dataset, batch_size=batch_size)
+
+
+def _real_loaders(
+    dataset: str,
+    root: str,
+    batch_size: int,
+    input_size: int,
+    workers: int,
+    config: dict[str, Any],
+) -> tuple[Any, Any]:
+    import torch
+    from torchvision import datasets, transforms
+
+    if dataset in {"cifar10", "cifar100"}:
+        statistics = {
+            "cifar10": ((0.4914, 0.4822, 0.4465), (0.2470, 0.2435, 0.2616)),
+            "cifar100": ((0.5071, 0.4867, 0.4408), (0.2675, 0.2565, 0.2761)),
+        }
+        mean, standard_deviation = statistics[dataset]
+        train_steps: list[Any] = [
+            transforms.RandomCrop(input_size, padding=4),
+            transforms.RandomHorizontalFlip(),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, standard_deviation),
+        ]
+        if int(config.get("cutout_length", 0)):
+            train_steps.append(Cutout(int(config["cutout_length"])))
+        train_transform = transforms.Compose(train_steps)
+        valid_transform = transforms.Compose(
+            [transforms.ToTensor(), transforms.Normalize(mean, standard_deviation)]
+        )
+        dataset_type = datasets.CIFAR10 if dataset == "cifar10" else datasets.CIFAR100
+        train_set = dataset_type(root, train=True, transform=train_transform, download=False)
+        valid_set = dataset_type(root, train=False, transform=valid_transform, download=False)
+    else:
+        train_transform = transforms.Compose(
+            [
+                transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0)),
+                transforms.RandomHorizontalFlip(),
+                transforms.ColorJitter(0.4, 0.4, 0.4, 0.2),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+                ),
+            ]
+        )
+        valid_transform = transforms.Compose(
+            [
+                transforms.Resize(round(input_size / 0.875)),
+                transforms.CenterCrop(input_size),
+                transforms.ToTensor(),
+                transforms.Normalize(
+                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+                ),
+            ]
+        )
+        root_path = Path(root)
+        train_set = datasets.ImageFolder(root_path / "train", train_transform)
+        validation_directory = root_path / "val" if (root_path / "val").exists() else root_path / "test"
+        valid_set = datasets.ImageFolder(validation_directory, valid_transform)
+    common = {"batch_size": batch_size, "num_workers": workers, "pin_memory": True, "persistent_workers": workers > 0}
+    return torch.utils.data.DataLoader(train_set, shuffle=True, **common), torch.utils.data.DataLoader(valid_set, shuffle=False, **common)
+
+
+class Cutout:
+    def __init__(self, length: int) -> None:
+        self.length = length
+
+    def __call__(self, image: Any) -> Any:
+        import torch
+
+        height, width = image.shape[1:]
+        center_y = int(torch.randint(height, (1,)).item())
+        center_x = int(torch.randint(width, (1,)).item())
+        half = self.length // 2
+        image[:, max(0, center_y - half) : min(height, center_y + half), max(0, center_x - half) : min(width, center_x + half)] = 0
+        return image
+
+
+def command_doctor(args: argparse.Namespace) -> None:
+    _json(diagnostics(args.catalog))
+
+
+def command_gpu(args: argparse.Namespace) -> None:
+    visible = [value.strip() for value in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if value.strip()]
+    rows = enumerate_gpus()
+    for pci_order, row in enumerate(rows):
+        row["pci_order"] = pci_order
+        row["visible_logical_index"] = (
+            visible.index(row["uuid"]) if row["uuid"] in visible else None
+        )
+    _json(rows)
+
+
+def command_proxy(args: argparse.Namespace) -> None:
+    if args.action in {"list", "inspect", "matrix", "validate"}:
+        load_builtin_proxies()
+    if args.action == "list":
+        _json(PROXIES.names())
+        return
+    if args.action == "inspect":
+        _json(PROXIES.create(args.name).capability.__dict__)
+        return
+    if args.action == "matrix":
+        _json([PROXIES.create(name).capability.__dict__ for name in PROXIES.names()])
+        return
+    if args.action == "scaffold":
+        _scaffold_proxy(args.name)
+        return
+    _validate_proxy(args.name)
+
+
+def _scaffold_proxy(name: str) -> None:
+    if not name.isidentifier() or name.startswith("_"):
+        raise ValueError("Proxy name must be a public Python identifier")
+    root = Path(__file__).resolve().parents[1]
+    module = root / "zcp_test" / "proxies" / "custom" / f"{name}.py"
+    test = root.parent / "tests" / f"test_proxy_{name}.py"
+    if module.exists() or test.exists():
+        raise FileExistsError(f"Custom proxy {name!r} already exists")
+    module.write_text(
+        "from __future__ import annotations\n\n"
+        "from typing import Any\n\n"
+        "from zcp_test.proxies import PROXIES\n"
+        "from zcp_test.proxies.builtin import FunctionProxy\n"
+        "from zcp_test.types import ProxyCapability\n\n\n"
+        f"def compute_{name}(model: Any, inputs: Any, labels: Any, loss_fn: Any) -> float:\n"
+        "    raise NotImplementedError(\"implement the proxy formula\")\n\n\n"
+        f"CAPABILITY = ProxyCapability(\"{name}\", version=\"custom-v1\")\n"
+        f"PROXIES.register(\"{name}\", lambda: FunctionProxy(CAPABILITY, compute_{name}))\n",
+        encoding="utf-8",
+    )
+    test.write_text(
+        "import torch\n\n"
+        "from zcp_test.proxies.evaluator import evaluate_proxy\n\n\n"
+        f"def test_{name}_contract():\n"
+        "    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(12, 2))\n"
+        f"    result = evaluate_proxy(\"{name}\", model, torch.randn(2, 3, 2, 2))\n"
+        "    assert result.status.value == \"ok\"\n",
+        encoding="utf-8",
+    )
+    _json({"module": str(module), "test": str(test), "next": f"zcp-test proxy validate {name}"})
+
+
+def _validate_proxy(name: str) -> None:
+    import torch
+
+    proxy = PROXIES.create(name)
+    model = torch.nn.Sequential(
+        torch.nn.Conv2d(3, 4, 3, padding=1),
+        torch.nn.ReLU(),
+        torch.nn.AdaptiveAvgPool2d(1),
+        torch.nn.Flatten(),
+        torch.nn.Linear(4, 3),
+    )
+    state = {key: value.clone() for key, value in model.state_dict().items()}
+    hooks = sum(len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules())
+    result = evaluate_proxy(
+        name,
+        model,
+        torch.randn(2, 3, 8, 8),
+        torch.tensor([0, 1]),
+        torch.nn.CrossEntropyLoss(),
+    )
+    unchanged = all(torch.equal(state[key], value) for key, value in model.state_dict().items())
+    hooks_after = sum(len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules())
+    report = {
+        "proxy": name,
+        "status": result.status.value,
+        "score": result.score,
+        "primary_component": result.primary_component,
+        "components": result.components,
+        "model_state_unchanged": unchanged,
+        "hooks_clean": hooks == hooks_after,
+        "capability": proxy.capability.__dict__,
+        "error": result.error_message,
+    }
+    _json(report)
+    if result.status.value != "ok" or not unchanged or hooks != hooks_after:
+        raise RuntimeError(f"Proxy validation failed: {report}")
+
+
+def command_registry(args: argparse.Namespace, registry: str) -> None:
+    if registry == "benchmark":
+        load_builtin_benchmarks()
+        target = BENCHMARKS
+    elif registry == "space":
+        load_builtin_spaces()
+        target = SPACES
+    else:
+        load_builtin_proxies()
+        target = PROXIES
+    if args.action == "list":
+        _json(target.names())
+        return
+    if registry == "benchmark" and not getattr(args, "path", None):
+        factory = dict(target.items())[args.name]
+        _json({"benchmark_id": args.name, "factory": f"{factory.__module__}.{factory.__name__}", "constructor": str(inspect.signature(factory)), "requires_data_path": True})
+        return
+    kwargs: dict[str, Any] = {}
+    if registry == "benchmark":
+        if args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
+            raise PermissionError(
+                f"{args.name} uses a native serialized format; pass --trusted only for a verified source"
+            )
+        kwargs["path"] = args.path
+        if args.version:
+            kwargs["version"] = args.version
+        if args.name == "vitbench101":
+            kwargs["slice_id"] = args.slice_id
+        if args.name == "transnasbench101":
+            kwargs["space"] = args.transnas_space
+        if args.name == "nasbench301_surrogate":
+            kwargs["architecture_path"] = args.architecture_path
+    instance = target.create(args.name, **kwargs)
+    if registry == "benchmark":
+        _json({"metadata": instance.metadata(), "capabilities": instance.capabilities()})
+    elif registry == "proxy":
+        _json(instance.capability.__dict__)
+    else:
+        _json({"search_space_id": instance.search_space_id, "model_family": instance.model_family, "model_fidelity": getattr(instance, "model_fidelity", "unspecified"), "sample": instance.sample(args.seed).to_dict()})
+
+
+def command_data(args: argparse.Namespace) -> None:
+    registry = DataRegistry(args.catalog)
+    if args.action == "list":
+        _json([asset.__dict__ for asset in registry.list()])
+    elif args.action == "register":
+        registry.register(DataAsset(args.asset_id, str(Path(args.path).expanduser().resolve()), args.version, args.sha256, args.source_url, args.protocol, args.trusted), replace=args.replace)
+        _json(registry.get(args.asset_id).__dict__)
+    elif args.action == "verify":
+        _json(registry.verify(args.asset_id))
+    elif args.action == "fetch":
+        _json({"path": str(registry.fetch(args.asset_id, args.destination))})
+    elif args.action == "convert-vit":
+        path = convert_vitbench101(args.source, args.output, slice_id=args.slice_id, parser=vitbench101_release_parser, trusted=args.trusted)
+        _json({"path": str(path), "slice_id": args.slice_id})
+
+
+def command_evaluate(args: argparse.Namespace) -> None:
+    _prepare_gpu(args)
+    load_builtin_spaces()
+    load_builtin_benchmarks()
+    adapter = None
+    if args.benchmark:
+        if args.benchmark in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
+            raise PermissionError(
+                f"{args.benchmark} uses a native serialized format; pass --trusted only for a verified source"
+            )
+        kwargs: dict[str, Any] = {"path": args.benchmark_path}
+        if args.benchmark in {"nasbench201", "nats_tss", "nats_sss"}:
+            kwargs["version"] = args.benchmark_version
+        elif args.benchmark == "vitbench101":
+            kwargs["slice_id"] = args.slice_id
+        elif args.benchmark == "transnasbench101":
+            kwargs["space"] = args.transnas_space
+            kwargs["version"] = args.benchmark_version
+        elif args.benchmark == "nasbench101":
+            kwargs["version"] = args.benchmark_version
+        elif args.benchmark == "nasbench301_surrogate":
+            kwargs["architecture_path"] = args.architecture_path
+        adapter = BENCHMARKS.create(args.benchmark, **kwargs)
+        space = SPACES.create(adapter.search_space_id)
+        architectures = list(adapter.iter_architectures(args.start, args.start + args.count))
+    else:
+        space = SPACES.create(args.space)
+        architectures = [space.sample(args.seed + index) for index in range(args.count)]
+    with _selected_device(args) as (device, selection):
+        import torch
+
+        batch = make_input_batch(
+            args.input_source,
+            args.dataset,
+            args.batch_size,
+            args.input_size,
+            args.classes,
+            args.seed,
+            device,
+            _resolve_data_root(args, args.dataset),
+        )
+        run_config = {**_args_config(args), "input_protocol": batch.protocol}
+        runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
+        with RunContext(args.output, sys.argv, run_config, runtime=runtime) as run:
+            writer = JsonlWriter(run.directory / "scores.jsonl", fsync_every=1)
+            loss_fn = torch.nn.CrossEntropyLoss()
+            calls = succeeded = failed = 0
+            primary_components: dict[str, str] = {}
+            for architecture in architectures:
+                model = (
+                    adapter.build_model(architecture, args.dataset)
+                    if adapter
+                    else space.build_model(architecture, args.classes)
+                ).to(device)
+                target = None
+                if adapter and args.target_metric:
+                    target = adapter.query_metrics(
+                        architecture,
+                        MetricSpec(
+                            args.dataset,
+                            args.target_split,
+                            args.target_metric,
+                            args.epoch_budget,
+                            args.metric_seed,
+                            benchmark_version=args.benchmark_version,
+                            surrogate_noise=args.surrogate_noise,
+                        ),
+                    ).get(args.target_metric)
+                for proxy_name in args.proxies.split(","):
+                    proxy_id = proxy_name.strip().lower()
+                    result = evaluate_proxy(
+                        proxy_id,
+                        model,
+                        batch.inputs,
+                        batch.labels,
+                        loss_fn,
+                        space.model_family,
+                    )
+                    calls += 1
+                    succeeded += result.status.value == "ok"
+                    failed += result.status.value != "ok"
+                    primary_components[proxy_id] = result.primary_component
+                    writer.append(
+                        {
+                            "schema_version": "2.0",
+                            "run_id": run.run_id,
+                            "benchmark_id": adapter.benchmark_id if adapter else None,
+                            "benchmark_version": args.benchmark_version if adapter else None,
+                            "search_space_id": space.search_space_id,
+                            "architecture_id": architecture.architecture_id,
+                            "architecture": architecture.spec,
+                            "benchmark_index": architecture.benchmark_index,
+                            "dataset": args.dataset,
+                            "proxy_id": proxy_id,
+                            "proxy_version": result.proxy_version,
+                            "direction": result.direction.value,
+                            "primary_component": result.primary_component,
+                            "score": result.score,
+                            "components": result.components,
+                            "target_metric": args.target_metric,
+                            "target_split": args.target_split,
+                            "target_value": target,
+                            "status": result.status.value,
+                            "error_type": result.error_type,
+                            "error_message": result.error_message,
+                            "seed": args.seed,
+                            "duration_seconds": result.duration_seconds,
+                            "peak_memory_mb": result.peak_memory_mb,
+                            "input_source": args.input_source,
+                            "input_fingerprint": batch.fingerprint,
+                            "input_protocol": batch.protocol,
+                        }
+                    )
+                del model
+            _json(
+                {
+                    "run": str(run.directory),
+                    "architectures": len(architectures),
+                    "proxy_calls": calls,
+                    "score_rows": calls,
+                    "succeeded": succeeded,
+                    "failed": failed,
+                    "primary_components": primary_components,
+                }
+            )
+
+
+def command_correlate(args: argparse.Namespace) -> None:
+    scores = {
+        (row[args.id_field], row.get("proxy_id")): score_component(row, args.component)
+        for row in read_score_records(args.scores)
+        if row.get("status", "ok") == "ok"
+    }
+    targets = {
+        row[args.id_field]: row[args.target_field]
+        for row in read_jsonl(args.targets)
+        if row.get(args.target_field) is not None
+    }
+    groups: dict[str, tuple[list[float], list[float]]] = {}
+    for (architecture_id, proxy_id), score in scores.items():
+        if architecture_id in targets and score is not None:
+            target_values, score_values = groups.setdefault(str(proxy_id), ([], []))
+            target_values.append(float(targets[architecture_id]))
+            score_values.append(float(score))
+    writer = JsonlWriter(args.output, fsync_every=1)
+    records = []
+    for proxy_id, (target_values, score_values) in groups.items():
+        record = {
+            "proxy_id": proxy_id,
+            "component": args.component or "primary",
+            "target_field": args.target_field,
+            **correlation_summary(target_values, score_values, args.ndcg_k),
+        }
+        writer.append(record)
+        records.append(record)
+    _json({"correlations": records, "rows": len(records), "output": args.output})
+
+
+def command_search(args: argparse.Namespace) -> None:
+    _prepare_gpu(args)
+    load_builtin_spaces()
+    space = SPACES.create(args.space)
+    with _selected_device(args) as (device, selection):
+        import torch
+
+        batch = make_input_batch(
+            args.input_source,
+            args.dataset,
+            args.batch_size,
+            args.input_size,
+            args.classes,
+            args.seed,
+            device,
+            _resolve_data_root(args, args.dataset),
+        )
+        loss_fn = torch.nn.CrossEntropyLoss()
+        runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
+        config = {**_args_config(args), "input_protocol": batch.protocol}
+        with RunContext(args.output, sys.argv, config, runtime=runtime) as run:
+            def evaluator(architecture: Any) -> float:
+                model = space.build_model(architecture, args.classes).to(device)
+                result = evaluate_proxy(
+                    args.proxy,
+                    model,
+                    batch.inputs,
+                    batch.labels,
+                    loss_fn,
+                    space.model_family,
+                )
+                if result.status.value != "ok" or result.score is None:
+                    raise RuntimeError(result.error_message or "proxy did not return a primary score")
+                return result.score if result.direction.value == "maximize" else -result.score
+
+            search = EvolutionSearch(
+                space,
+                evaluator,
+                JsonlWriter(run.directory / "search.jsonl", 1),
+                args.population,
+                args.elite_ratio,
+                args.seed,
+            )
+            best = search.run(args.generations)
+            (run.directory / "best_architecture.json").write_text(
+                json.dumps(best.architecture.to_dict(), indent=2), encoding="utf-8"
+            )
+            _json(
+                {
+                    "run": str(run.directory),
+                    "best_score": best.score,
+                    "architecture": best.architecture.to_dict(),
+                }
+            )
+
+
+def command_train(args: argparse.Namespace) -> None:
+    config = load_config(args.config)
+    _prepare_gpu(args)
+    load_builtin_spaces()
+    space = SPACES.create(config["space"])
+    architecture = (
+        space.sample(args.seed)
+        if args.architecture is None
+        else space.canonicalize(json.loads(Path(args.architecture).read_text())["spec"])
+    )
+    epochs = args.epochs if args.epochs is not None else int(config["epochs"])
+    dataset = str(config["dataset"])
+    classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
+    batch_size = args.batch_size or int(config.get("batch_size", 8))
+    input_size = args.input_size or int(config.get("input_size", 32))
+    training = TrainingConfig(
+        epochs=epochs,
+        optimizer=str(config["optimizer"]),
+        learning_rate=float(config["learning_rate"]),
+        weight_decay=float(config["weight_decay"]),
+        scheduler=str(config.get("scheduler", "cosine")),
+        warmup_epochs=int(config.get("warmup_epochs", 0)),
+        label_smoothing=float(config.get("label_smoothing", 0)),
+        amp=bool(config.get("amp", True)),
+        momentum=float(config.get("momentum", 0.9)),
+        nesterov=bool(config.get("nesterov", True)),
+        auxiliary_weight=float(config.get("auxiliary_weight", 0.0)),
+        drop_path_prob=float(config.get("drop_path_prob", 0.0)),
+        grad_clip=None if config.get("grad_clip") is None else float(config["grad_clip"]),
+        amp_initial_scale=float(config.get("amp_initial_scale", 65536.0)),
+    )
+    with _selected_device(args) as (device, selection):
+        model = _build_training_model(space, architecture, classes, config)
+        resolved = {
+            **config,
+            "architecture": architecture.to_dict(),
+            "smoke": args.smoke,
+            "classes": classes,
+            "batch_size": batch_size,
+            "input_size": input_size,
+        }
+        with RunContext(args.output, sys.argv, resolved, runtime={"gpu_selection": selection}) as run:
+            batch = min(batch_size, 2 if dataset == "imagenet1k" else 4) if args.smoke else batch_size
+            size = input_size if dataset == "imagenet1k" else min(input_size, 64) if args.smoke else input_size
+            if args.smoke:
+                train_loader = _synthetic_loader(batch, size, classes, 2)
+                valid_loader = _synthetic_loader(batch, size, classes, 1)
+            else:
+                data_root = _resolve_data_root(args, dataset)
+                if not data_root:
+                    raise ValueError(
+                        "Formal training requires --data-root; synthetic data is restricted to --smoke"
+                    )
+                train_loader, valid_loader = _real_loaders(
+                    dataset, data_root, batch, size, args.workers, config
+                )
+            result = train_model(
+                model,
+                train_loader,
+                valid_loader,
+                training,
+                run.directory,
+                device,
+                args.resume,
+                resume_trusted=args.trusted,
+            )
+            _json({"run": str(run.directory), **result})
+
+
+def _build_training_model(space: Any, architecture: Any, classes: int, config: dict[str, Any]) -> Any:
+    if space.search_space_id == "darts":
+        return space.build_model(architecture, classes, profile=config.get("model_profile"))
+    if hasattr(space, "build_training_model"):
+        return space.build_training_model(architecture, classes, config)
+    return space.build_model(architecture, classes)
+
+def command_report(args: argparse.Namespace) -> None:
+    if args.action == "bundle":
+        _json(_report_bundle(args.runs, args.output, args.title, args.bootstrap_samples))
+        return
+    if not args.source or not args.output:
+        raise ValueError("Legacy report mode requires --source and --output")
+    if args.format == "csv":
+        count = jsonl_to_csv(args.source, args.output)
+    elif args.format == "html":
+        count = static_html(args.source, args.output, args.title)
+    else:
+        count = curve_plot(args.source, args.output, args.kind)
+    _json({"rows": count, "output": args.output})
+
+
+def _report_bundle(
+    runs: list[str], output: str, title: str, bootstrap_samples: int
+) -> dict[str, Any]:
+    import pandas as pd
+
+    score_runs = [
+        run
+        for run in runs
+        if (Path(run) / "scores.jsonl").exists()
+        or (Path(run).is_file() and Path(run).name == "scores.jsonl")
+    ]
+    frames = [read_scores(run, include_failed=True) for run in score_runs]
+    scores = (
+        pd.concat(frames, ignore_index=True)
+        if len(frames) > 1
+        else frames[0] if frames else pd.DataFrame()
+    )
+    search_files = [
+        Path(run) if Path(run).is_file() else Path(run) / "search.jsonl"
+        for run in runs
+        if (Path(run).is_file() and Path(run).name == "search.jsonl")
+        or (Path(run) / "search.jsonl").exists()
+    ]
+    training_files = [
+        Path(run) if Path(run).is_file() else Path(run) / "training.jsonl"
+        for run in runs
+        if (Path(run).is_file() and Path(run).name == "training.jsonl")
+        or (Path(run) / "training.jsonl").exists()
+    ]
+    return build_report_bundle(
+        scores,
+        output,
+        search=search_files or None,
+        training=training_files or None,
+        title=title,
+        bootstrap_samples=bootstrap_samples,
+    )
+
+
+def command_analyze(args: argparse.Namespace) -> None:
+    import matplotlib.pyplot as plt
+
+    output = Path(args.output)
+    output.mkdir(parents=True, exist_ok=True)
+    if args.action in {"correlation", "compare", "sensitivity"}:
+        frame = read_scores(args.scores)
+        if args.component:
+            frame = frame[frame["component"] == args.component]
+        if args.action == "correlation":
+            table = correlation_table(frame, bootstrap_samples=args.bootstrap_samples)
+            table.to_csv(output / "correlations.csv", index=False)
+        elif args.action == "compare":
+            table = top_k_comparison(frame, k=args.top_k)
+            table.to_csv(output / "top_k.csv", index=False)
+            rank_aggregation(frame).to_csv(output / "rank_aggregation.csv", index=False)
+            proxy_cost_pareto(frame).to_csv(output / "proxy_cost_pareto.csv", index=False)
+            transfer_correlation_table(frame).to_csv(output / "transfer.csv", index=False)
+        else:
+            sample_size_convergence(frame).to_csv(
+                output / "sample_size_convergence.csv", index=False
+            )
+            for suffix in ("png", "svg"):
+                figure = plot_sensitivity(
+                    frame, output / f"sensitivity.{suffix}", parameter=args.parameter
+                )
+                plt.close(figure)
+        result = build_report_bundle(
+            frame,
+            output,
+            title=f"zcp-test {args.action}",
+            bootstrap_samples=args.bootstrap_samples,
+            top_k=args.top_k,
+            sensitivity_parameter=getattr(args, "parameter", "seed"),
+        )
+    else:
+        plotter = plot_search if args.action == "search" else plot_training
+        artifacts = []
+        for suffix in ("png", "svg"):
+            path = output / f"{args.action}.{suffix}"
+            figure = plotter(args.source, path)
+            plt.close(figure)
+            artifacts.append(str(path))
+        result = {"output_directory": str(output), "artifacts": artifacts}
+    _json(result)
+
+
+def command_monitor(args: argparse.Namespace) -> None:
+    destination = args.output or str(Path(args.run) / "reports" / "monitor.html")
+    offset = 0
+    history: list[dict[str, Any]] = []
+    while True:
+        try:
+            result = refresh_once(
+                args.run,
+                destination,
+                offset=offset,
+                title=args.title,
+                history=history,
+            )
+        except ValueError as error:
+            if "offset must be between" not in str(error):
+                raise
+            offset = 0
+            history.clear()
+            result = refresh_once(args.run, destination, title=args.title, history=history)
+        history.extend(result["rows"])
+        offset = result["next_offset"]
+        _json({key: value for key, value in result.items() if key != "rows"})
+        if args.once:
+            return
+        time.sleep(args.interval)
+
+
+def command_legacy(args: argparse.Namespace) -> None:
+    _json({"records": import_pickle(args.source, args.output, args.trusted), "output": args.output})
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="zcp-test")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    doctor = subparsers.add_parser("doctor")
+    doctor.add_argument("--catalog")
+    doctor.set_defaults(function=command_doctor)
+    gpu = subparsers.add_parser("gpu")
+    gpu_actions = gpu.add_subparsers(dest="action", required=True)
+    gpu_list = gpu_actions.add_parser("list")
+    gpu_list.set_defaults(function=command_gpu)
+    data = subparsers.add_parser("data")
+    data_actions = data.add_subparsers(dest="action", required=True)
+    data_default = str(Path.home() / ".config" / "zcp-test" / "data.json")
+    data_list = data_actions.add_parser("list")
+    data_list.add_argument("--catalog", default=data_default)
+    data_list.set_defaults(function=command_data)
+    data_register = data_actions.add_parser("register")
+    data_register.add_argument("asset_id")
+    data_register.add_argument("path")
+    data_register.add_argument("--catalog", default=data_default)
+    data_register.add_argument("--version", required=True)
+    data_register.add_argument("--sha256")
+    data_register.add_argument("--source-url")
+    data_register.add_argument("--protocol")
+    data_register.add_argument("--trusted", action="store_true")
+    data_register.add_argument("--replace", action="store_true")
+    data_register.set_defaults(function=command_data)
+    for data_command in ("verify", "fetch"):
+        data_parser = data_actions.add_parser(data_command)
+        data_parser.add_argument("asset_id")
+        data_parser.add_argument("--catalog", default=data_default)
+        if data_command == "fetch":
+            data_parser.add_argument("--destination")
+        data_parser.set_defaults(function=command_data)
+    convert_vit = data_actions.add_parser("convert-vit")
+    convert_vit.add_argument("--source", required=True)
+    convert_vit.add_argument("--output", required=True)
+    convert_vit.add_argument("--slice-id", choices=("autoformer_main", "autoformer_ext", "pit"), required=True)
+    convert_vit.add_argument("--trusted", action="store_true")
+    convert_vit.add_argument("--catalog", default=data_default)
+    convert_vit.set_defaults(function=command_data)
+    for command, registry in (("benchmark", "benchmark"), ("space", "space")):
+        group = subparsers.add_parser(command)
+        actions = group.add_subparsers(dest="action", required=True)
+        listing = actions.add_parser("list")
+        listing.set_defaults(function=lambda args, name=registry: command_registry(args, name))
+        inspect = actions.add_parser("inspect")
+        inspect.add_argument("name")
+        inspect.add_argument("--seed", type=int, default=42)
+        if registry == "benchmark":
+            inspect.add_argument("--path")
+            inspect.add_argument("--trusted", action="store_true")
+            inspect.add_argument("--version")
+            inspect.add_argument("--slice-id", default="autoformer_main")
+            inspect.add_argument("--transnas-space", default="micro")
+            inspect.add_argument("--architecture-path")
+        inspect.set_defaults(function=lambda args, name=registry: command_registry(args, name))
+    proxy = subparsers.add_parser("proxy")
+    proxy_actions = proxy.add_subparsers(dest="action", required=True)
+    for action in ("list", "matrix"):
+        proxy_parser = proxy_actions.add_parser(action)
+        proxy_parser.set_defaults(function=command_proxy)
+    for action in ("inspect", "validate", "scaffold"):
+        proxy_parser = proxy_actions.add_parser(action)
+        proxy_parser.add_argument("name")
+        proxy_parser.set_defaults(function=command_proxy)
+    evaluate = subparsers.add_parser("evaluate")
+    evaluate.add_argument("--config")
+    evaluate_identity = evaluate.add_mutually_exclusive_group(required=True)
+    evaluate_identity.add_argument("--space")
+    evaluate_identity.add_argument("--benchmark")
+    evaluate.add_argument("--benchmark-path")
+    evaluate.add_argument("--trusted", action="store_true")
+    evaluate.add_argument("--benchmark-version", default="1.0")
+    evaluate.add_argument("--architecture-path")
+    evaluate.add_argument("--slice-id", default="autoformer_main")
+    evaluate.add_argument("--transnas-space", default="micro")
+    evaluate.add_argument("--start", type=int, default=0)
+    evaluate.add_argument("--dataset", default="cifar10")
+    evaluate.add_argument("--target-metric")
+    evaluate.add_argument("--target-split", default="valid")
+    evaluate.add_argument("--epoch-budget", type=int)
+    evaluate.add_argument("--metric-seed", type=int)
+    evaluate.add_argument("--surrogate-noise", action="store_true")
+    evaluate.add_argument("--proxies", default="er,naswot,synflow,gradnorm,params,flops")
+    evaluate.add_argument("--count", type=int, default=1)
+    evaluate.add_argument("--seed", type=int, default=42)
+    _add_gpu_arguments(evaluate)
+    evaluate.add_argument("--batch-size", type=int, default=4)
+    evaluate.add_argument("--input-size", type=int, default=32)
+    evaluate.add_argument("--classes", type=int, default=10)
+    evaluate.add_argument("--input-source", choices=("dataset", "random", "noise"), default="dataset")
+    evaluate.add_argument("--data-root")
+    evaluate.add_argument("--catalog", default="configs/data.example.json")
+    evaluate.add_argument("--output", default="runs/evaluate")
+    evaluate.set_defaults(function=command_evaluate)
+    correlate = subparsers.add_parser("correlate")
+    correlate.add_argument("--config")
+    correlate.add_argument("--scores", required=True)
+    correlate.add_argument("--targets", required=True)
+    correlate.add_argument("--output", required=True)
+    correlate.add_argument("--id-field", default="architecture_id")
+    correlate.add_argument("--score-field", default="score")
+    correlate.add_argument("--component")
+    correlate.add_argument("--target-field", required=True)
+    correlate.add_argument("--ndcg-k", type=int, default=10)
+    correlate.set_defaults(function=command_correlate)
+    search = subparsers.add_parser("search")
+    search.add_argument("--config")
+    search.add_argument("--space", required=True)
+    search.add_argument("--proxy", default="er")
+    search.add_argument("--population", type=int, default=10)
+    search.add_argument("--generations", type=int, default=3)
+    search.add_argument("--elite-ratio", type=float, default=0.2)
+    search.add_argument("--seed", type=int, default=42)
+    _add_gpu_arguments(search)
+    search.add_argument("--batch-size", type=int, default=4)
+    search.add_argument("--input-size", type=int, default=32)
+    search.add_argument("--classes", type=int, default=10)
+    search.add_argument("--dataset", default="cifar10")
+    search.add_argument("--input-source", choices=("dataset", "random", "noise"), default="dataset")
+    search.add_argument("--data-root")
+    search.add_argument("--catalog", default="configs/data.example.json")
+    search.add_argument("--output", default="runs/search")
+    search.set_defaults(function=command_search)
+    train = subparsers.add_parser("train")
+    train.add_argument("--config", required=True)
+    train.add_argument("--architecture")
+    train.add_argument("--resume")
+    train.add_argument(
+        "--trusted",
+        action="store_true",
+        help="allow loading the explicitly supplied trusted checkpoint",
+    )
+    train.add_argument("--epochs", type=int)
+    train.add_argument("--seed", type=int, default=42)
+    _add_gpu_arguments(train)
+    train.add_argument("--batch-size", type=int)
+    train.add_argument("--input-size", type=int)
+    train.add_argument("--classes", type=int)
+    train.add_argument("--data-root")
+    train.add_argument("--catalog", default="configs/data.example.json")
+    train.add_argument("--workers", type=int, default=4)
+    train.add_argument("--output", default="runs/training")
+    train.add_argument("--smoke", action="store_true")
+    train.set_defaults(function=command_train)
+    report = subparsers.add_parser("report")
+    report.set_defaults(action="legacy")
+    report.add_argument("--config")
+    report.add_argument("--source")
+    report.add_argument("--output")
+    report.add_argument("--format", choices=("csv", "html", "plot"), default="csv")
+    report.add_argument("--kind", choices=("training", "search"), default="training")
+    report.add_argument("--title", default="zcp-test report")
+    report.set_defaults(function=command_report)
+    report_actions = report.add_subparsers(dest="action")
+    report_bundle = report_actions.add_parser("bundle")
+    report_bundle.add_argument("runs", nargs="+")
+    report_bundle.add_argument("--output", required=True)
+    report_bundle.add_argument("--title", default="zcp-test report bundle")
+    report_bundle.add_argument("--bootstrap-samples", type=int, default=1000)
+    report_bundle.set_defaults(function=command_report)
+    analyze = subparsers.add_parser("analyze")
+    analyze_actions = analyze.add_subparsers(dest="action", required=True)
+    for action in ("correlation", "compare", "sensitivity"):
+        analysis = analyze_actions.add_parser(action)
+        analysis.add_argument("--scores", required=True)
+        analysis.add_argument("--output", required=True)
+        analysis.add_argument("--component")
+        analysis.add_argument("--bootstrap-samples", type=int, default=1000)
+        analysis.add_argument("--top-k", type=int, nargs="+", default=[1, 5, 10])
+        if action == "sensitivity":
+            analysis.add_argument("--parameter", default="seed")
+        analysis.set_defaults(function=command_analyze)
+    for action in ("search", "training"):
+        analysis = analyze_actions.add_parser(action)
+        analysis.add_argument("--source", required=True)
+        analysis.add_argument("--output", required=True)
+        analysis.set_defaults(function=command_analyze)
+    monitor = subparsers.add_parser("monitor")
+    monitor.add_argument("run")
+    monitor.add_argument("--output")
+    monitor.add_argument("--interval", type=float, default=5.0)
+    monitor.add_argument("--title", default="zcp-test monitor")
+    monitor.add_argument("--once", action="store_true")
+    monitor.set_defaults(function=command_monitor)
+    legacy = subparsers.add_parser("legacy")
+    legacy_actions = legacy.add_subparsers(dest="action", required=True)
+    legacy_import = legacy_actions.add_parser("import")
+    legacy_import.add_argument("--source", required=True)
+    legacy_import.add_argument("--output", required=True)
+    legacy_import.add_argument("--trusted", action="store_true")
+    legacy_import.set_defaults(function=command_legacy)
+    return parser
+
+
+def main(argv: list[str] | None = None) -> None:
+    raw_arguments = list(sys.argv[1:] if argv is None else argv)
+    args = build_parser().parse_args(raw_arguments)
+    config_path = getattr(args, "config", None)
+    if config_path:
+        loaded = load_config(config_path)
+        values = loaded.get(args.command, loaded)
+        if not isinstance(values, dict):
+            raise ValueError(f"Config section {args.command!r} must be a mapping")
+        explicitly_set = {argument[2:].replace("-", "_") for argument in raw_arguments if argument.startswith("--")}
+        for key, value in values.items():
+            if key not in explicitly_set and hasattr(args, key):
+                setattr(args, key, value)
+    args.function(args)
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,6 @@
+benchmark_id: nats_tss
+search_space_id: nb201_topology
+version: "1.0"
+path: /path/to/data/nats_bench/NATS-tss-v1_0-3ffb9-simple
+api_type: tss
+epoch_budgets: [12, 200]

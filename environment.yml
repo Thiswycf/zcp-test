@@ -1,0 +1,17 @@
+name: zcp-test
+variables:
+  CUDA_DEVICE_ORDER: PCI_BUS_ID
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.10
+  - pytorch=2.4.1
+  - torchvision=0.19.1
+  - pytorch-cuda=12.1
+  - numpy=1.26.4
+  - pip>=24
+  - pip:
+      - -e .[nb301,transnas,dev]
