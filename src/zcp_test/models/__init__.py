@@ -15,6 +15,7 @@ from zcp_test.models.darts import (
     Zero,
     drop_path,
 )
+from zcp_test.models.nb101 import Network as NasBench101Network
 
 __all__ = [
     "OPS",
@@ -28,6 +29,7 @@ __all__ = [
     "Identity",
     "NetworkCIFAR",
     "NetworkImageNet",
+    "NasBench101Network",
     "ReLUConvBN",
     "SepConv",
     "Zero",

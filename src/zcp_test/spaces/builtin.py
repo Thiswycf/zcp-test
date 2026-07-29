@@ -9,6 +9,7 @@ from typing import Any, Mapping
 from zcp_test.spaces import SPACES
 from zcp_test.spaces.base import SearchSpace
 from zcp_test.spaces.darts import DartsSpace
+from zcp_test.spaces.nb101 import Nb101Space
 from zcp_test.types import Architecture
 
 
@@ -123,9 +124,9 @@ class DartsToyLegacySpace(DiscreteSpace):
         super().__init__("darts_toy_legacy", {"width": [16, 24, 36], "depth": [8, 14, 20], "op": ["sep3", "sep5", "dil3"]})
 
 
-class Nb101Space(DiscreteSpace):
+class Nb101ToyLegacySpace(DiscreteSpace):
     def __init__(self) -> None:
-        super().__init__("nb101_dag", {"width": [16, 32, 64], "depth": [3, 5, 7], "op": ["conv1", "conv3", "maxpool3"]})
+        super().__init__("nb101_toy_legacy", {"width": [16, 32, 64], "depth": [3, 5, 7], "op": ["conv1", "conv3", "maxpool3"]})
 
 
 class TransNasSpace(DiscreteSpace):
@@ -243,6 +244,7 @@ class MobileSpace(SearchSpace):
 SPACES.register("nb201_topology", Nb201TopologySpace)
 SPACES.register("nats_size", NatsSizeSpace)
 SPACES.register("nb101_dag", Nb101Space)
+SPACES.register("nb101_toy_legacy", Nb101ToyLegacySpace)
 SPACES.register("darts", lambda: DartsSpace("zcp"))
 SPACES.register("darts_toy_legacy", DartsToyLegacySpace)
 SPACES.register("transnas_micro", lambda: TransNasSpace("micro"))

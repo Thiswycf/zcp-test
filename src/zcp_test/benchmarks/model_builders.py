@@ -69,37 +69,9 @@ def nb201_model(architecture: Architecture, dataset: str) -> Any:
 
 
 def nb101_model(architecture: Architecture, dataset: str) -> Any:
-    import torch.nn as nn
+    from zcp_test.models.nb101 import Network
 
-    matrix = architecture.spec["matrix"]
-    operations = architecture.spec["operations"]
-    channels = 32
-
-    def operation(name: str) -> nn.Module:
-        if name == "conv1x1-bn-relu":
-            return nn.Sequential(nn.Conv2d(channels, channels, 1, bias=False), nn.BatchNorm2d(channels), nn.ReLU())
-        if name == "conv3x3-bn-relu":
-            return nn.Sequential(nn.Conv2d(channels, channels, 3, padding=1, bias=False), nn.BatchNorm2d(channels), nn.ReLU())
-        if name == "maxpool3x3":
-            return nn.MaxPool2d(3, 1, 1)
-        return nn.Identity()
-
-    class Network(nn.Module):
-        def __init__(self) -> None:
-            super().__init__()
-            self.stem = nn.Conv2d(3, channels, 3, padding=1)
-            self.vertices = nn.ModuleList([operation(name) for name in operations])
-            self.head = nn.Sequential(nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(channels, num_classes(dataset)))
-
-        def forward(self, inputs: Any) -> Any:
-            states = [self.stem(inputs)]
-            for target in range(1, len(matrix)):
-                sources = [states[source] for source in range(target) if matrix[source][target]]
-                value = sum(sources) if sources else states[-1].mul(0)
-                states.append(self.vertices[target](value))
-            return self.head(states[-1])
-
-    return Network()
+    return Network(architecture.spec, num_classes(dataset))
 
 
 def registered_space_model(architecture: Architecture, dataset: str) -> Any:

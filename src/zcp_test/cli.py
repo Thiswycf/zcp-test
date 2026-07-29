@@ -20,7 +20,16 @@ from zcp_test.artifacts import (
 from zcp_test.benchmarks import BENCHMARKS, load_builtin_benchmarks
 from zcp_test.config import load_config
 from zcp_test.doctor import diagnostics
-from zcp_test.data import DataAsset, DataRegistry, convert_vitbench101, vitbench101_release_parser
+from zcp_test.data import (
+    DataAsset,
+    DataRegistry,
+    bootstrap_benchmarks,
+    convert_vitbench101,
+    data_checklist,
+    export_data_manifest,
+    verify_data_manifest,
+    vitbench101_release_parser,
+)
 from zcp_test.gpu import (
     GPULockError,
     NoGPUError,
@@ -82,6 +91,39 @@ def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
     if not verification["valid"]:
         raise FileNotFoundError(f"Registered dataset asset is invalid: {asset_id}")
     return asset.path
+
+
+def _resolve_benchmark_path(args: argparse.Namespace) -> str:
+    if args.benchmark_path:
+        path = Path(args.benchmark_path).expanduser()
+        if path.exists():
+            return str(path)
+    catalog_ids = {
+        "nasbench101": "nasbench101",
+        "nasbench201": "nasbench201",
+        "nats_tss": "nats_tss",
+        "nats_sss": "nats_sss",
+        "transnasbench101": "transnasbench101_0"
+        if args.transnas_space == "micro"
+        else "transnasbench101_1",
+        "vitbench101": {
+            "autoformer_main": "vitbench101_0",
+            "autoformer_ext": "vitbench101_1",
+            "pit": "vitbench101_2",
+        }.get(args.slice_id, "vitbench101_0"),
+    }
+    try:
+        asset = DataRegistry(args.catalog).get(catalog_ids[args.benchmark])
+        if Path(asset.path).expanduser().exists():
+            return asset.path
+    except (KeyError, FileNotFoundError, ValueError):
+        pass
+    root = args.data_root or os.environ.get("ZCP_DATA_ROOT", "/path/to/data")
+    raise FileNotFoundError(
+        f"{args.benchmark} standard-answer data is unavailable. Run: "
+        f"zcp-test data checklist --root {root} && "
+        f"zcp-test data bootstrap --root {root} --benchmarks {args.benchmark}"
+    )
 
 
 def _device(name: str) -> Any:
@@ -262,7 +304,10 @@ class Cutout:
 
 
 def command_doctor(args: argparse.Namespace) -> None:
-    _json(diagnostics(args.catalog))
+    report = diagnostics(args.catalog)
+    if args.data_root:
+        report["benchmark_data"] = data_checklist(args.data_root, args.catalog)
+    _json(report)
 
 
 def command_gpu(args: argparse.Namespace) -> None:
@@ -406,6 +451,73 @@ def command_registry(args: argparse.Namespace, registry: str) -> None:
 
 
 def command_data(args: argparse.Namespace) -> None:
+    if args.action == "checklist":
+        records = data_checklist(args.root, args.catalog)
+        if args.json:
+            _json(records)
+        else:
+            from tabulate import tabulate
+
+            print(
+                tabulate(
+                    [
+                        [
+                            record["benchmark_id"],
+                            record["version"],
+                            record["state"],
+                            record["catalog_state"],
+                            f"{record['estimated_bytes'] / 1024**3:.2f} GiB",
+                            record["remediation"] or "-",
+                        ]
+                        for record in records
+                    ],
+                    headers=(
+                        "benchmark",
+                        "version",
+                        "state",
+                        "catalog",
+                        "estimated",
+                        "remediation",
+                    ),
+                    tablefmt="github",
+                )
+            )
+        return
+    if args.action == "bootstrap":
+        benchmarks = list(data_checklist(args.root, args.catalog)) if args.all else None
+        selected = (
+            [record["benchmark_id"] for record in benchmarks]
+            if benchmarks is not None
+            else [value.strip() for value in args.benchmarks.split(",") if value.strip()]
+        )
+        if not selected:
+            raise ValueError("Specify --benchmarks or --all")
+        total = sum(
+            record["estimated_bytes"]
+            for record in data_checklist(args.root, args.catalog)
+            if record["benchmark_id"] in selected and record["state"] != "ready"
+        )
+        if not args.yes:
+            if not sys.stdin.isatty():
+                raise RuntimeError("Non-interactive bootstrap requires --yes")
+            answer = input(
+                f"Download/prepare {', '.join(selected)} under {args.root} "
+                f"(up to {total / 1024**3:.2f} GiB)? [y/N] "
+            )
+            if answer.strip().lower() not in {"y", "yes"}:
+                raise RuntimeError("Data bootstrap cancelled")
+        _json(bootstrap_benchmarks(args.root, selected, catalog=args.catalog))
+        return
+    if args.action == "export-manifest":
+        selected = [value.strip() for value in args.benchmarks.split(",") if value.strip()]
+        _json({"manifest": str(export_data_manifest(args.root, args.output, selected))})
+        return
+    if args.action == "import-manifest":
+        result = verify_data_manifest(args.root, args.manifest)
+        _json(result)
+        if not result["valid"]:
+            raise RuntimeError("Transferred benchmark data failed manifest verification")
+        return
     registry = DataRegistry(args.catalog)
     if args.action == "list":
         _json([asset.__dict__ for asset in registry.list()])
@@ -413,7 +525,13 @@ def command_data(args: argparse.Namespace) -> None:
         registry.register(DataAsset(args.asset_id, str(Path(args.path).expanduser().resolve()), args.version, args.sha256, args.source_url, args.protocol, args.trusted), replace=args.replace)
         _json(registry.get(args.asset_id).__dict__)
     elif args.action == "verify":
-        _json(registry.verify(args.asset_id))
+        if args.all:
+            records = data_checklist(args.root, args.catalog)
+            _json(records)
+            if any(record["state"] != "ready" for record in records):
+                raise RuntimeError("One or more benchmark data groups are not ready")
+        else:
+            _json(registry.verify(args.asset_id))
     elif args.action == "fetch":
         _json({"path": str(registry.fetch(args.asset_id, args.destination))})
     elif args.action == "convert-vit":
@@ -431,7 +549,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
             raise PermissionError(
                 f"{args.benchmark} uses a native serialized format; pass --trusted only for a verified source"
             )
-        kwargs: dict[str, Any] = {"path": args.benchmark_path}
+        kwargs: dict[str, Any] = {"path": _resolve_benchmark_path(args)}
         if args.benchmark in {"nasbench201", "nats_tss", "nats_sss"}:
             kwargs["version"] = args.benchmark_version
         elif args.benchmark == "vitbench101":
@@ -848,6 +966,7 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     doctor = subparsers.add_parser("doctor")
     doctor.add_argument("--catalog")
+    doctor.add_argument("--data-root")
     doctor.set_defaults(function=command_doctor)
     gpu = subparsers.add_parser("gpu")
     gpu_actions = gpu.add_subparsers(dest="action", required=True)
@@ -870,13 +989,40 @@ def build_parser() -> argparse.ArgumentParser:
     data_register.add_argument("--trusted", action="store_true")
     data_register.add_argument("--replace", action="store_true")
     data_register.set_defaults(function=command_data)
-    for data_command in ("verify", "fetch"):
-        data_parser = data_actions.add_parser(data_command)
-        data_parser.add_argument("asset_id")
-        data_parser.add_argument("--catalog", default=data_default)
-        if data_command == "fetch":
-            data_parser.add_argument("--destination")
-        data_parser.set_defaults(function=command_data)
+    data_verify = data_actions.add_parser("verify")
+    data_verify.add_argument("asset_id", nargs="?")
+    data_verify.add_argument("--all", action="store_true")
+    data_verify.add_argument("--root", default=str(Path.home() / "zcp-test-data"))
+    data_verify.add_argument("--catalog", default=data_default)
+    data_verify.set_defaults(function=command_data)
+    data_fetch = data_actions.add_parser("fetch")
+    data_fetch.add_argument("asset_id")
+    data_fetch.add_argument("--catalog", default=data_default)
+    data_fetch.add_argument("--destination")
+    data_fetch.set_defaults(function=command_data)
+    data_check = data_actions.add_parser("checklist")
+    data_check.add_argument("--root", required=True)
+    data_check.add_argument("--json", action="store_true")
+    data_check.add_argument("--catalog", default=data_default)
+    data_check.set_defaults(function=command_data)
+    data_bootstrap = data_actions.add_parser("bootstrap")
+    data_bootstrap.add_argument("--root", required=True)
+    data_bootstrap.add_argument("--benchmarks")
+    data_bootstrap.add_argument("--all", action="store_true")
+    data_bootstrap.add_argument("--yes", action="store_true")
+    data_bootstrap.add_argument("--catalog", default=data_default)
+    data_bootstrap.set_defaults(function=command_data)
+    data_export = data_actions.add_parser("export-manifest")
+    data_export.add_argument("--root", required=True)
+    data_export.add_argument("--benchmarks", required=True)
+    data_export.add_argument("--output", required=True)
+    data_export.add_argument("--catalog", default=data_default)
+    data_export.set_defaults(function=command_data)
+    data_import = data_actions.add_parser("import-manifest")
+    data_import.add_argument("--root", required=True)
+    data_import.add_argument("--manifest", required=True)
+    data_import.add_argument("--catalog", default=data_default)
+    data_import.set_defaults(function=command_data)
     convert_vit = data_actions.add_parser("convert-vit")
     convert_vit.add_argument("--source", required=True)
     convert_vit.add_argument("--output", required=True)
@@ -936,7 +1082,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--classes", type=int, default=10)
     evaluate.add_argument("--input-source", choices=("dataset", "random", "noise"), default="dataset")
     evaluate.add_argument("--data-root")
-    evaluate.add_argument("--catalog", default="configs/data.example.json")
+    evaluate.add_argument("--catalog", default=data_default)
     evaluate.add_argument("--output", default="runs/evaluate")
     evaluate.set_defaults(function=command_evaluate)
     correlate = subparsers.add_parser("correlate")

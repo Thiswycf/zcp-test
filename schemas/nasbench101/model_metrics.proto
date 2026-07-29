@@ -1,0 +1,20 @@
+// Metrics stored per evaluation of each ModelSpec.
+// Source: google-research/nasbench@b94247037ee470418a3e56dcb83814e9be83f3a8.
+syntax = "proto2";
+
+package nasbench;
+
+message ModelMetrics {
+  repeated EvaluationData evaluation_data = 1;
+  optional int32 trainable_parameters = 2;
+  optional double total_time = 3;
+}
+
+message EvaluationData {
+  optional double current_epoch = 1;
+  optional double training_time = 2;
+  optional double train_accuracy = 3;
+  optional double validation_accuracy = 4;
+  optional double test_accuracy = 5;
+  optional string checkpoint_path = 6;
+}

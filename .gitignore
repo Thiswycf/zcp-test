@@ -6,8 +6,8 @@ __pycache__/
 .coverage
 build/
 dist/
-data/
-runs/
+/data/
+/runs/
 *.pt
 *.pth
 *.pkl
@@ -17,9 +17,12 @@ runs/
 *.tar
 *.tar.gz
 *.part
+*.invalid-*
 *.bin
+*.sqlite3
 conversion-state.json
 hash-index.json
+architectures-*.jsonl
 offsets.bin
 .env
 *.secret

@@ -8,5 +8,6 @@
 - PiT: source notices identify NAVER and Apache-2.0.
 - DARTS: upstream implementation is MIT licensed.
 - NAS-Bench and NATS benchmark data may have separate distribution terms. `zcp-test` does not redistribute large benchmark files.
+- NAS-Bench-101 `model_metrics.proto` and its generated compatibility module derive from `google-research/nasbench@b94247037ee470418a3e56dcb83814e9be83f3a8`, Apache-2.0. The full TFRecord remains external data and is never committed.
 
 Before redistributing converted ViT-Bench-101 data, confirm the data-specific permission with the Auto-Prox authors; the release does not contain a separate data manifest.
