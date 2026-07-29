@@ -5,6 +5,8 @@
 See the [benchmark data bootstrap guide](docs/DATA_BOOTSTRAP.md) before the first benchmark
 evaluation. The [operations and research guide](docs/OPERATIONS.md) covers GPU selection,
 evaluation semantics, custom proxies, analysis, monitoring, and DARTS training.
+Benchmark-specific budget, topology, size, task-transfer, and ViT structure studies are documented
+in the [benchmark research guide](docs/BENCHMARK_STUDIES.md).
 
 ## Environment
 

@@ -26,6 +26,7 @@ zcp-test doctor --catalog configs/data.example.json
 详细手册：
 
 - [Benchmark 数据自举与离线迁移](docs/DATA_BOOTSTRAP_CN.md)
+- [Benchmark 定制研究：预算、拓扑、size、任务迁移与 ViT 结构](docs/BENCHMARK_STUDIES_CN.md)
 - [GPU 选择](docs/GPU_CN.md)
 - [ZCP 评估与结果行数](docs/EVALUATE_CN.md)
 - [新增代理](docs/ADD_PROXY_CN.md)
