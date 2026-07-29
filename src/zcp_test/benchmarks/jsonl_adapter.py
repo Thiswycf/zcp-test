@@ -139,6 +139,13 @@ class JsonlBenchmarkAdapter(BenchmarkAdapter):
             matches.append(candidate)
         if not matches:
             raise KeyError(f"No metric matching explicit protocol: {metric}")
+        matched_budgets = {
+            int(candidate["epoch_budget"])
+            for candidate in matches
+            if candidate.get("epoch_budget") is not None
+        }
+        if metric.epoch_budget is None and len(matched_budgets) > 1:
+            raise ValueError("Metric matches multiple epoch budgets; specify epoch_budget")
         values = [float(candidate["value"]) for candidate in matches]
         if metric.seed is None and len(values) > 1:
             if metric.seed_reduction == "mean":

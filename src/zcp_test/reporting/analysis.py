@@ -34,6 +34,10 @@ _SCORE_FIELDS: dict[str, tuple[str, ...]] = {
         "benchmark.metric",
     ),
     "target_split": ("target_split", "target.split"),
+    "target_direction": ("target_direction", "target.direction"),
+    "target_epoch_budget": ("target_epoch_budget", "target.epoch_budget"),
+    "target_seed": ("target_seed", "target.seed"),
+    "target_seed_reduction": ("target_seed_reduction", "target.seed_reduction"),
     "target_value": (
         "target_value",
         "target.value",
@@ -54,6 +58,8 @@ _SCORE_FIELDS: dict[str, tuple[str, ...]] = {
     "benchmark_id": ("benchmark_id", "benchmark.id"),
     "benchmark_index": ("benchmark_index", "benchmark.index"),
     "benchmark_version": ("benchmark_version", "benchmark.version"),
+    "benchmark_variant": ("benchmark_variant", "benchmark.variant"),
+    "benchmark_protocol": ("benchmark_protocol", "benchmark.protocol"),
     "seed": ("seed", "evaluation.seed"),
 }
 
@@ -164,7 +170,35 @@ def _direction_adjusted(frame: pd.DataFrame) -> pd.DataFrame:
         return adjusted
     minimize = adjusted["direction"].astype(str).str.casefold().eq("minimize")
     adjusted.loc[minimize, "score"] = -adjusted.loc[minimize, "score"]
+    if "target_direction" in adjusted:
+        target_minimize = adjusted["target_direction"].astype(str).str.casefold().eq("minimize")
+        adjusted.loc[target_minimize, "target_value"] = -adjusted.loc[
+            target_minimize, "target_value"
+        ]
     return adjusted
+
+
+PROTOCOL_FIELDS = (
+    "benchmark_id",
+    "benchmark_version",
+    "benchmark_variant",
+    "benchmark_protocol",
+    "search_space_id",
+    "dataset",
+    "target_metric",
+    "target_split",
+    "target_direction",
+    "target_epoch_budget",
+    "target_seed_reduction",
+)
+
+
+def protocol_group_fields(frame: pd.DataFrame, base: Sequence[str]) -> tuple[str, ...]:
+    fields = list(base)
+    for field in PROTOCOL_FIELDS:
+        if field in frame and frame[field].notna().any() and field not in fields:
+            fields.append(field)
+    return tuple(fields)
 
 
 def _paired_values(
@@ -235,13 +269,15 @@ def bootstrap_correlation(
 def correlation_table(
     source: ScoreSource,
     *,
-    group_by: Sequence[str] = ("proxy_id", "component"),
+    group_by: Sequence[str] | None = None,
     methods: Sequence[str] = ("spearman", "kendall_tau_b", "pearson"),
     bootstrap_samples: int = 0,
     confidence: float = 0.95,
     seed: int | None = 0,
 ) -> pd.DataFrame:
     frame = _direction_adjusted(read_scores(source))
+    if group_by is None:
+        group_by = protocol_group_fields(frame, ("proxy_id", "component"))
     required = [*group_by, "target_value", "score"]
     missing = [field for field in required if field not in frame]
     if missing:
@@ -366,7 +402,10 @@ def top_k_comparison(source: ScoreSource, *, k: int | Sequence[int] = 10) -> pd.
     )
     requested = [k] if isinstance(k, int) else list(k)
     records: list[dict[str, Any]] = []
-    for label, group in frame.groupby(["proxy_id", "component"], dropna=False):
+    group_fields = protocol_group_fields(frame, ("proxy_id", "component"))
+    for label, group in frame.groupby(list(group_fields), dropna=False):
+        labels = label if isinstance(label, tuple) else (label,)
+        group_identity = dict(zip(group_fields, labels, strict=True))
         for size in requested:
             actual_size = min(max(int(size), 0), len(group))
             target_top = set(group.nlargest(actual_size, "target_value").index)
@@ -374,8 +413,7 @@ def top_k_comparison(source: ScoreSource, *, k: int | Sequence[int] = 10) -> pd.
             overlap = len(target_top & score_top)
             records.append(
                 {
-                    "proxy_id": label[0],
-                    "component": label[1],
+                    **group_identity,
                     "k": actual_size,
                     "overlap": overlap,
                     "overlap_fraction": overlap / actual_size if actual_size else float("nan"),

@@ -211,6 +211,7 @@ class NasBench101Adapter(BenchmarkAdapter):
 
     def _metric_values(self, record: Mapping[str, Any], metric: MetricSpec) -> list[float]:
         values = []
+        matched_budgets: set[int] = set()
         for item in record.get("metrics", []):
             if item.get("dataset") != metric.dataset or item.get("split") != metric.split:
                 continue
@@ -220,7 +221,13 @@ class NasBench101Adapter(BenchmarkAdapter):
                 continue
             if metric.seed is not None and item.get("seed") != metric.seed:
                 continue
+            if item.get("epoch_budget") is not None:
+                matched_budgets.add(int(item["epoch_budget"]))
             values.append(float(item["value"]))
+        if metric.epoch_budget is None and len(matched_budgets) > 1:
+            raise ValueError(
+                "NAS-Bench-101 metric matches multiple epoch budgets; specify epoch_budget"
+            )
         return values
 
     def query_metrics(self, architecture: Architecture, metric: MetricSpec) -> Mapping[str, float]:

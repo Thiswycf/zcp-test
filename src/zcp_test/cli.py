@@ -56,6 +56,14 @@ from zcp_test.reporting.analysis import (
     top_k_comparison,
     transfer_correlation_table,
 )
+from zcp_test.reporting.benchmark_budget import nasbench101_budget_study
+from zcp_test.reporting.benchmark_report import write_benchmark_study
+from zcp_test.reporting.benchmark_studies import (
+    nats_size_study,
+    topology_study,
+    transnas_transfer_study,
+    vit_architecture_study,
+)
 from zcp_test.reporting.monitor import refresh_once
 from zcp_test.search import EvolutionSearch
 from zcp_test.spaces import SPACES, load_builtin_spaces
@@ -567,6 +575,37 @@ def command_evaluate(args: argparse.Namespace) -> None:
     else:
         space = SPACES.create(args.space)
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
+    target_epoch_budget = args.epoch_budget
+    target_seed_reduction = args.metric_seed_reduction
+    target_direction = args.target_direction
+    benchmark_variant = None
+    benchmark_protocol = None
+    if adapter:
+        metadata = adapter.metadata()
+        benchmark_protocol = metadata.get("protocol") or metadata.get("format")
+        if args.benchmark == "vitbench101":
+            benchmark_variant = args.slice_id
+        elif args.benchmark == "transnasbench101":
+            benchmark_variant = args.transnas_space
+        if args.target_metric and target_epoch_budget is None:
+            default_budget = getattr(adapter, "default_epoch_budget", None)
+            budgets = tuple(adapter.capabilities().get("epoch_budgets", ()))
+            if default_budget is not None:
+                target_epoch_budget = int(default_budget)
+            elif len(budgets) == 1:
+                target_epoch_budget = int(budgets[0])
+            elif len(budgets) > 1:
+                raise ValueError(
+                    f"{args.benchmark} target metric has multiple epoch budgets {budgets}; "
+                    "specify --epoch-budget"
+                )
+    if target_direction == "auto":
+        metric_name = str(args.target_metric or "").casefold()
+        target_direction = (
+            "minimize"
+            if any(token in metric_name for token in ("loss", "error", "time", "latency"))
+            else "maximize"
+        )
     with _selected_device(args) as (device, selection):
         import torch
 
@@ -601,8 +640,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             args.dataset,
                             args.target_split,
                             args.target_metric,
-                            args.epoch_budget,
+                            target_epoch_budget,
                             args.metric_seed,
+                            target_seed_reduction,
                             benchmark_version=args.benchmark_version,
                             surrogate_noise=args.surrogate_noise,
                         ),
@@ -623,7 +663,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     primary_components[proxy_id] = result.primary_component
                     writer.append(
                         {
-                            "schema_version": "2.0",
+                            "schema_version": "2.1",
                             "run_id": run.run_id,
                             "benchmark_id": adapter.benchmark_id if adapter else None,
                             "benchmark_version": args.benchmark_version if adapter else None,
@@ -641,6 +681,12 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "target_metric": args.target_metric,
                             "target_split": args.target_split,
                             "target_value": target,
+                            "target_direction": target_direction,
+                            "target_epoch_budget": target_epoch_budget,
+                            "target_seed": args.metric_seed,
+                            "target_seed_reduction": target_seed_reduction,
+                            "benchmark_variant": benchmark_variant,
+                            "benchmark_protocol": benchmark_protocol,
                             "status": result.status.value,
                             "error_type": result.error_type,
                             "error_message": result.error_message,
@@ -930,6 +976,112 @@ def command_analyze(args: argparse.Namespace) -> None:
     _json(result)
 
 
+def _benchmark_study_frame(args: argparse.Namespace) -> Any:
+    import pandas as pd
+
+    frames = [read_scores(source) for source in args.scores]
+    frame = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    filters = {
+        "component": args.component,
+        "dataset": args.dataset,
+        "target_metric": args.target_metric,
+        "target_split": args.target_split,
+        "benchmark_variant": args.benchmark_variant,
+    }
+    for field, value in filters.items():
+        if value is not None:
+            if field not in frame:
+                raise ValueError(f"Score data does not contain filter field {field}")
+            frame = frame[frame[field].astype(str).eq(str(value))]
+    if args.target_epoch_budget is not None:
+        frame = frame[
+            pd.to_numeric(frame["target_epoch_budget"], errors="coerce").eq(
+                args.target_epoch_budget
+            )
+        ]
+    if frame.empty:
+        raise ValueError("Benchmark analysis filters selected no successful score rows")
+    if "target_direction" in frame:
+        minimize = frame["target_direction"].astype(str).str.casefold().eq("minimize")
+        frame = frame.copy()
+        frame.loc[minimize, "target_value"] = -pd.to_numeric(
+            frame.loc[minimize, "target_value"], errors="coerce"
+        )
+        frame.loc[minimize, "target_direction"] = "maximize"
+    return frame.reset_index(drop=True)
+
+
+def command_analyze_benchmark(args: argparse.Namespace) -> None:
+    frame = _benchmark_study_frame(args)
+    available = sorted(
+        value for value in frame["benchmark_id"].dropna().astype(str).unique() if value
+    )
+    if args.benchmark == "auto":
+        if len(available) != 1:
+            raise ValueError(
+                "--benchmark auto requires exactly one benchmark_id after filtering; "
+                f"found {available}"
+            )
+        benchmark_id = available[0]
+    else:
+        benchmark_id = args.benchmark
+        frame = frame[frame["benchmark_id"].astype(str).eq(benchmark_id)].reset_index(drop=True)
+        if frame.empty:
+            raise ValueError(f"No score rows match benchmark_id={benchmark_id}")
+    default_views = {
+        "nasbench101": "budget",
+        "nasbench201": "topology",
+        "nats_tss": "topology",
+        "nats_sss": "size",
+        "transnasbench101": "transfer",
+        "vitbench101": "architecture",
+    }
+    view = default_views.get(benchmark_id) if args.view == "auto" else args.view
+    if view is None:
+        raise ValueError(f"No automatic benchmark study is registered for {benchmark_id}")
+    if view == "budget":
+        if benchmark_id != "nasbench101":
+            raise ValueError("The budget view currently supports only nasbench101")
+        if not args.benchmark_path:
+            raise ValueError("NAS-Bench-101 budget study requires --benchmark-path")
+        load_builtin_benchmarks()
+        adapter = BENCHMARKS.create(
+            "nasbench101", path=args.benchmark_path, version=args.benchmark_version
+        )
+        tables = nasbench101_budget_study(
+            frame,
+            adapter,
+            budgets=args.budgets,
+            dataset=args.study_dataset,
+            split=args.study_split,
+            metric_name=args.study_metric,
+            repeat_index=args.repeat_index,
+            seed_reduction=args.seed_reduction,
+            target_direction=args.study_target_direction,
+            bootstrap_samples=args.bootstrap_samples,
+            top_k=args.top_k,
+        )
+    elif view == "topology":
+        if benchmark_id not in {"nasbench201", "nats_tss"}:
+            raise ValueError("The topology view supports nasbench201 and nats_tss")
+        tables = topology_study(frame)
+    elif view == "size":
+        if benchmark_id != "nats_sss":
+            raise ValueError("The size view supports nats_sss")
+        tables = nats_size_study(frame)
+    elif view == "architecture":
+        if benchmark_id != "vitbench101":
+            raise ValueError("The architecture view currently supports vitbench101")
+        tables = vit_architecture_study(frame)
+    elif view == "transfer":
+        if benchmark_id != "transnasbench101":
+            raise ValueError("The transfer view currently supports transnasbench101")
+        tables = transnas_transfer_study(frame)
+    else:
+        raise ValueError(f"Unsupported benchmark study view: {view}")
+    _json(write_benchmark_study(tables, args.output, view=view, benchmark_id=benchmark_id))
+
+
 def command_monitor(args: argparse.Namespace) -> None:
     destination = args.output or str(Path(args.run) / "reports" / "monitor.html")
     offset = 0
@@ -1072,6 +1224,12 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--target-split", default="valid")
     evaluate.add_argument("--epoch-budget", type=int)
     evaluate.add_argument("--metric-seed", type=int)
+    evaluate.add_argument(
+        "--metric-seed-reduction", choices=("mean", "min", "max"), default="mean"
+    )
+    evaluate.add_argument(
+        "--target-direction", choices=("auto", "maximize", "minimize"), default="auto"
+    )
     evaluate.add_argument("--surrogate-noise", action="store_true")
     evaluate.add_argument("--proxies", default="er,naswot,synflow,gradnorm,params,flops")
     evaluate.add_argument("--count", type=int, default=1)
@@ -1168,6 +1326,45 @@ def build_parser() -> argparse.ArgumentParser:
         analysis.add_argument("--source", required=True)
         analysis.add_argument("--output", required=True)
         analysis.set_defaults(function=command_analyze)
+    benchmark_analysis = analyze_actions.add_parser("benchmark")
+    benchmark_analysis.add_argument("--scores", nargs="+", required=True)
+    benchmark_analysis.add_argument("--output", required=True)
+    benchmark_analysis.add_argument(
+        "--benchmark",
+        default="auto",
+        choices=(
+            "auto",
+            "nasbench101",
+            "nasbench201",
+            "nats_tss",
+            "nats_sss",
+            "transnasbench101",
+            "vitbench101",
+        ),
+    )
+    benchmark_analysis.add_argument(
+        "--view", default="auto", choices=("auto", "budget", "topology", "size", "architecture", "transfer")
+    )
+    benchmark_analysis.add_argument("--component")
+    benchmark_analysis.add_argument("--dataset")
+    benchmark_analysis.add_argument("--target-metric")
+    benchmark_analysis.add_argument("--target-split")
+    benchmark_analysis.add_argument("--target-epoch-budget", type=int)
+    benchmark_analysis.add_argument("--benchmark-variant")
+    benchmark_analysis.add_argument("--bootstrap-samples", type=int, default=1000)
+    benchmark_analysis.add_argument("--top-k", type=int, nargs="+", default=[5, 10, 50])
+    benchmark_analysis.add_argument("--benchmark-path")
+    benchmark_analysis.add_argument("--benchmark-version", default="full")
+    benchmark_analysis.add_argument("--budgets", type=int, nargs="+", default=[4, 12, 36, 108])
+    benchmark_analysis.add_argument("--study-dataset", default="cifar10")
+    benchmark_analysis.add_argument("--study-split", default="valid")
+    benchmark_analysis.add_argument("--study-metric", default="final_accuracy")
+    benchmark_analysis.add_argument("--repeat-index", type=int)
+    benchmark_analysis.add_argument("--seed-reduction", choices=("mean", "min", "max"), default="mean")
+    benchmark_analysis.add_argument(
+        "--study-target-direction", choices=("maximize", "minimize"), default="maximize"
+    )
+    benchmark_analysis.set_defaults(function=command_analyze_benchmark)
     monitor = subparsers.add_parser("monitor")
     monitor.add_argument("run")
     monitor.add_argument("--output")
