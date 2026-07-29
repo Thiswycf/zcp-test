@@ -1,7 +1,7 @@
 {"schema_version":1,"assets":[
   {"asset_id":"nasbench201","path":"/path/to/data/nasbench201/NAS-Bench-201-v1_1-096897.pth","version":"1.1","sha256":null,"source_url":null,"protocol":"official-v1.1","trusted":true},
-  {"asset_id":"nats_tss","path":"/path/to/data/NATS-Bench/NATS-tss-v1_0-3ffb9-simple","version":"1.0","sha256":null,"source_url":null,"protocol":"tss-200","trusted":true},
-  {"asset_id":"nats_sss","path":"/path/to/data/NATS-Bench/NATS-sss-v1_0-50262-simple","version":"1.0","sha256":null,"source_url":null,"protocol":"sss-90","trusted":true},
+  {"asset_id":"nats_tss","path":"/path/to/data/natsbench/NATS-tss-v1_0-3ffb9-simple","version":"1.0","sha256":null,"source_url":null,"protocol":"tss-200","trusted":true},
+  {"asset_id":"nats_sss","path":"/path/to/data/natsbench/NATS-sss-v1_0-50262-simple","version":"1.0","sha256":null,"source_url":null,"protocol":"sss-90","trusted":true},
   {"asset_id":"transnasbench101","path":"/path/to/data/TranNASBench101/transnas-bench_v10141024.pth","version":"v10141024","sha256":null,"source_url":null,"protocol":"official-release","trusted":true},
   {"asset_id":"vitbench101_autoformer_main","path":"/path/to/data/vitbench101/gt_autoformer.pth","version":"auto-prox-90ed458","sha256":"712ad277546d9f7f565ce07885be7e0b98dcd8d0724fdd1120f595b517436eca","source_url":null,"protocol":"autoformer-main","trusted":true},
   {"asset_id":"vitbench101_autoformer_ext","path":"/path/to/data/vitbench101/gt_autoformer_2.pth","version":"auto-prox-90ed458","sha256":"05f5df6a41f338fb5f47eafebfc8758c75e451606856b278ccda1c60b26e7bca","source_url":null,"protocol":"autoformer-extension-unmerged","trusted":true},

@@ -2,7 +2,9 @@
 
 `zcp-test` is an independent, reproducible zero-cost proxy evaluation and neural architecture search toolkit. It separates benchmark identity from search-space identity, stores append-only JSONL artifacts, and never modifies the source projects used for reference.
 
-See the [operations and research guide](docs/OPERATIONS.md) for GPU selection, evaluation semantics, custom proxies, analysis, monitoring and DARTS training.
+See the [benchmark data bootstrap guide](docs/DATA_BOOTSTRAP.md) before the first benchmark
+evaluation. The [operations and research guide](docs/OPERATIONS.md) covers GPU selection,
+evaluation semantics, custom proxies, analysis, monitoring, and DARTS training.
 
 ## Environment
 
@@ -16,6 +18,49 @@ The environment intentionally excludes TensorFlow, torchaudio, PyG, Jupyter, ROC
 
 Native serialized benchmarks and resumed checkpoints require an explicit `--trusted` acknowledgement. Use it only after verifying the source and checksum; the flag does not perform verification itself.
 
+## First use: prepare benchmark data explicitly
+
+`evaluate` never downloads benchmark or training data implicitly. Run data preparation as a
+separate, auditable workflow. `ready` means that every expected raw path passes the available
+checksum/existence checks and every declared runtime path exists; `catalog_state` is reported
+separately. Native pickle/PyTorch files are not deserialized by a read-only checklist, so run the
+documented adapter smoke before research use.
+
+```bash
+# 1. Plan and inspect source, size, paths, partial downloads, and free space.
+zcp-test data checklist --root /path/to/data
+
+# 2. Download and convert only the benchmark needed.
+zcp-test data bootstrap \
+  --root /path/to/data \
+  --benchmarks nasbench101 \
+  --catalog /path/to/data/catalog.json \
+  --yes
+
+# 3. Verify installation state, then run the benchmark-specific smoke.
+zcp-test data checklist --root /path/to/data --json \
+  > /path/to/data/checklist-after.json
+zcp-test benchmark inspect nasbench101 \
+  --path /path/to/data/nasbench101/converted/full/manifest.json \
+  --version full
+
+# 4. Hash runtime data before an offline transfer.
+zcp-test data export-manifest \
+  --root /path/to/data \
+  --benchmarks nasbench101 \
+  --output /path/to/data/transfer/manifest.json
+
+# 5. On the destination, verify files copied under the same relative paths.
+zcp-test data import-manifest \
+  --root /path/to/data/offline \
+  --manifest /path/to/data/transfer/manifest.json
+```
+
+`export-manifest` does not copy data, and `import-manifest` only verifies the transferred tree;
+it does not copy files or register a catalog. The detailed guide documents per-benchmark sources,
+planning sizes, pinned and missing checksums, protocol boundaries, Google Drive quota and resume,
+corruption and disk recovery, offline transfer, and the dedicated NAS-Bench-101 safe interface.
+
 ## Key commands
 
 ```bash
@@ -26,12 +71,12 @@ zcp-test space list
 zcp-test proxy list
 zcp-test gpu list
 
-zcp-test evaluate --space darts --proxies er,naswot,synflow,gradnorm --count 5 --data-root DATA/cifar10
+zcp-test evaluate --space darts --proxies er,naswot,synflow,gradnorm --count 5 --data-root /path/to/data/cifar10
 zcp-test search --space ofa_proxyless_mbv2 --proxy er --population 20 --generations 10
 zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
-zcp-test report --source RUN/scores.jsonl --output RUN/reports/scores.csv
-zcp-test report bundle RUN --output RUN/reports/bundle
-zcp-test monitor RUN --interval 5
+zcp-test report --source /path/to/data/runs/scores.jsonl --output /path/to/data/runs/reports/scores.csv
+zcp-test report bundle /path/to/data/runs --output /path/to/data/runs/reports/bundle
+zcp-test monitor /path/to/data/runs --interval 5
 ```
 
 ## Benchmark identities
@@ -54,8 +99,8 @@ Runtime adapters read JSONL. Pickle/PyTorch benchmark conversion is opt-in and r
 
 ```bash
 zcp-test data convert-vit \
-  --source /path/to/Auto-Prox-AAAI24/gt_results/gt_autoformer.pth \
-  --output data/vitbench101/autoformer-main.jsonl \
+  --source /path/to/data/Auto-Prox-AAAI24/gt_results/gt_autoformer.pth \
+  --output /path/to/data/vitbench101/autoformer-main.jsonl \
   --slice-id autoformer_main --trusted
 ```
 
