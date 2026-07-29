@@ -34,6 +34,8 @@ def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):
     run = next(output.iterdir())
     rows = [json.loads(line) for line in (run / "scores.jsonl").read_text().splitlines()]
     assert len(rows) == 6
+    assert all(row["schema_version"] == "2.1" for row in rows)
+    assert all("target_epoch_budget" in row for row in rows)
     er_rows = [row for row in rows if row["proxy_id"] == "er"]
     assert all(row["primary_component"] == "mean" for row in er_rows)
     assert all(set(row["components"]) == {"mean", "sum"} for row in er_rows)

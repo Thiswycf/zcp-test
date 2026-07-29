@@ -15,6 +15,7 @@ from zcp_test.reporting.analysis import (
     rank_aggregation,
     read_scores,
     sample_size_convergence,
+    top_k_comparison,
     transfer_correlation_table,
 )
 from zcp_test.reporting.monitor import read_jsonl_tolerant, refresh_once
@@ -181,6 +182,35 @@ def test_ranking_and_correlation_respect_minimize_direction() -> None:
 
     assert correlations.loc[0, "spearman"] == pytest.approx(1.0)
     assert list(aggregation["architecture_id"]) == ["a3", "a2", "a1"]
+
+
+def test_correlations_separate_target_protocol_and_respect_target_direction() -> None:
+    rows = []
+    for budget in (4, 108):
+        for index in range(1, 4):
+            rows.append(
+                {
+                    "architecture_id": f"a{index}",
+                    "proxy_id": "proxy",
+                    "component": "score",
+                    "score": float(index),
+                    "direction": "maximize",
+                    "target_value": float(4 - index),
+                    "target_direction": "minimize",
+                    "target_epoch_budget": budget,
+                    "benchmark_id": "nasbench101",
+                    "status": "ok",
+                }
+            )
+
+    correlations = correlation_table(rows)
+    top_k = top_k_comparison(rows, k=1)
+
+    assert len(correlations) == 2
+    assert correlations["spearman"].eq(1.0).all()
+    assert set(correlations["target_epoch_budget"]) == {4, 108}
+    assert len(top_k) == 2
+    assert top_k["overlap_fraction"].eq(1.0).all()
 
 
 def test_bundle_supports_search_only_and_training_only_runs(tmp_path: Path) -> None:

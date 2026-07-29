@@ -43,10 +43,10 @@ def _model_metrics(test_accuracy=0.91):
     return bytes(message)
 
 
-def _record(module_hash, test_accuracy=0.91):
+def _record(module_hash, test_accuracy=0.91, epochs=108):
     payload = [
         module_hash,
-        108,
+        epochs,
         "010001000",
         "input,conv1x1-bn-relu,output",
         base64.b64encode(_model_metrics(test_accuracy)).decode("ascii"),
@@ -176,3 +176,24 @@ def test_converted_manifest_supports_unified_and_native_queries(tmp_path):
     assert native_from_architecture == native
     assert native["trainable_parameters"] == 12345
     assert adapter.is_valid(specification)
+
+
+def test_nb101_query_requires_explicit_budget_when_multiple_match(tmp_path):
+    specification = {
+        "matrix": [[0, 1, 0], [0, 0, 1], [0, 0, 0]],
+        "operations": ["input", "conv1x1-bn-relu", "output"],
+    }
+    module_hash = Nb101Space().canonicalize(specification).architecture_id
+    source = tmp_path / "fixture.tfrecord"
+    nb101.write_tfrecord(
+        [_record(module_hash, 0.5, epochs=4), _record(module_hash, 0.9, epochs=108)], source
+    )
+    manifest = nb101.convert_nasbench101(source, tmp_path / "converted", commit_every=1)
+    adapter = NasBench101Adapter(str(manifest), version="full")
+    architecture = next(adapter.iter_architectures())
+
+    with pytest.raises(ValueError, match="multiple epoch budgets"):
+        adapter.query_metrics(
+            architecture,
+            MetricSpec("cifar10", "test", "final_accuracy", seed_reduction="mean"),
+        )
