@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from zcp_test.artifacts import JsonlWriter
+from zcp_test.artifacts import JsonlWriter, read_jsonl
 from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint, restore_rng, rng_state
 
 
@@ -36,6 +36,36 @@ class TrainingConfig:
     mixup_switch_probability: float = 0.5
     mixup_mode: str = "batch"
     gradient_accumulation_steps: int = 1
+
+
+def _restore_training_log(
+    writer: JsonlWriter | None,
+    source_training_log: str | Path | None,
+    checkpoint_epoch: int,
+    training_history: list[dict[str, Any]] | None = None,
+) -> int:
+    if writer is None:
+        return 0
+    source_records: Any = training_history or []
+    if source_training_log:
+        source = Path(source_training_log)
+        if source.exists():
+            if source.resolve() == writer.path.resolve():
+                return 0
+            source_records = read_jsonl(source)
+    existing_epochs = {
+        int(record["epoch"])
+        for record in read_jsonl(writer.path)
+        if record.get("epoch") is not None
+    }
+    restored_rows = 0
+    for record in source_records:
+        epoch = int(record["epoch"])
+        if epoch <= checkpoint_epoch and epoch not in existing_epochs:
+            writer.append(record)
+            existing_epochs.add(epoch)
+            restored_rows += 1
+    return restored_rows
 
 
 def train_model(
@@ -127,6 +157,7 @@ def train_model(
             enabled=scaler_enabled, init_scale=config.amp_initial_scale
         )
     start_epoch, best_accuracy = 0, float("-inf")
+    resumed_training_rows = 0
     if resume:
         checkpoint = load_checkpoint(resume, trusted=resume_trusted)
         if checkpoint.get("config") != config.__dict__:
@@ -139,6 +170,12 @@ def train_model(
         scaler.load_state_dict(checkpoint["scaler"])
         restore_rng(checkpoint["rng"])
         start_epoch, best_accuracy = checkpoint["epoch"] + 1, checkpoint["best_accuracy"]
+        resumed_training_rows = _restore_training_log(
+            writer,
+            checkpoint.get("training_log"),
+            int(checkpoint["epoch"]),
+            checkpoint.get("training_history"),
+        )
     for epoch in range(start_epoch, config.epochs):
         for loader in (train_loader, valid_loader):
             sampler = getattr(loader, "sampler", None)
@@ -187,13 +224,17 @@ def train_model(
             writer.append(record)
         best_accuracy = max(best_accuracy, valid_accuracy)
         if primary_process:
-            payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": unwrapped_model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), "rng": rng_state(), "config": config.__dict__, "run_identity": run_identity}
+            payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": unwrapped_model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), "rng": rng_state(), "config": config.__dict__, "run_identity": run_identity, "training_log": str(writer.path.resolve()), "training_history": list(read_jsonl(writer.path)), "run_directory": str(output.resolve())}
             atomic_torch_save(payload, output / "checkpoints" / "last.pt")
             if record["best"]:
                 atomic_torch_save(payload, output / "checkpoints" / "best.pt")
         if distributed:
             torch.distributed.barrier()
-    return {"best_accuracy": best_accuracy, "last_epoch": config.epochs - 1}
+    return {
+        "best_accuracy": best_accuracy,
+        "last_epoch": config.epochs - 1,
+        "resumed_training_rows": resumed_training_rows,
+    }
 
 
 def _epoch(

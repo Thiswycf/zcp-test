@@ -41,4 +41,4 @@ implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c
 implementation_commit: 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47
 formal_training_ready: false
 formal_training_blockers:
-  - full-dataset DDP resume and distributed failure-injection acceptance are not completed
+  - full ImageNet-1k dual 1% acceptance protocols are not completed

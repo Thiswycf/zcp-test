@@ -69,6 +69,51 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
     },
 }
 
+CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
+    "aznas-autoformer-scratch": {
+        "space": "autoformer",
+        "dataset": "imagenet1k",
+        "input_size": 224,
+        "epochs": 500,
+        "optimizer": "adamw",
+        "learning_rate": 0.0005,
+        "learning_rate_scaling": "linear_global_batch",
+        "learning_rate_reference_batch_size": 512,
+        "target_global_batch_size": 2048,
+        "gradient_accumulation_steps": "auto",
+        "weight_decay": 0.05,
+        "scheduler": "cosine",
+        "warmup_epochs": 20,
+        "batch_size": 256,
+        "label_smoothing": 0.1,
+        "amp": True,
+        "drop_path_prob": 0.1,
+        "color_jitter": 0.4,
+        "auto_augment": "rand-m9-mstd0.5-inc1",
+        "train_interpolation": "bicubic",
+        "random_erase_probability": 0.25,
+        "random_erase_mode": "pixel",
+        "random_erase_count": 1,
+        "mixup": 0.8,
+        "cutmix": 1.0,
+        "mixup_probability": 1.0,
+        "mixup_switch_probability": 0.5,
+        "mixup_mode": "batch",
+        "repeated_augmentation": True,
+        "repeated_augmentation_repeats": 3,
+        "repeated_augmentation_selected_round": 256,
+        "repeated_augmentation_selected_ratio": 0,
+        "reference_world_size": 8,
+        "reference_global_batch_size": 2048,
+        "relative_position": True,
+        "max_relative_position": 14,
+        "change_qkv": True,
+        "global_pool": True,
+        "implementation_source": "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer",
+        "implementation_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
+    }
+}
+
 
 def scale_learning_rate(
     base_learning_rate: float,
@@ -139,9 +184,31 @@ def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
     return protocol
 
 
+def validate_candidate_training_protocol(config: Mapping[str, Any]) -> str:
+    protocol = str(config.get("protocol", ""))
+    expected = CANDIDATE_TRAINING_PROTOCOLS.get(protocol)
+    if expected is None:
+        raise NotImplementedError(
+            f"Acceptance training protocol {protocol!r} is not approved by this zcp-test version"
+        )
+    mismatches = [
+        f"{field}={config.get(field)!r} (expected {value!r})"
+        for field, value in expected.items()
+        if config.get(field) != value
+    ]
+    if mismatches:
+        raise ValueError(
+            f"Acceptance training protocol {protocol!r} does not match its candidate profile: "
+            + "; ".join(mismatches)
+        )
+    return protocol
+
+
 __all__ = [
+    "CANDIDATE_TRAINING_PROTOCOLS",
     "FORMAL_TRAINING_PROTOCOLS",
     "resolve_gradient_accumulation",
     "scale_learning_rate",
+    "validate_candidate_training_protocol",
     "validate_formal_training_protocol",
 ]

@@ -3,10 +3,12 @@ from pathlib import Path
 
 import pytest
 import torch
+import yaml
 
 from zcp_test.artifacts import normalize_score_records
 from zcp_test.cli import _load_architecture_spec, _stratified_subset, main
 from zcp_test.inputs import make_input_batch
+from zcp_test.training.protocols import validate_candidate_training_protocol
 
 
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):
@@ -174,6 +176,94 @@ def test_approved_formal_protocol_requires_real_data(monkeypatch, tmp_path):
             ]
         )
     assert list(tmp_path.iterdir()) == []
+
+
+def test_autoformer_candidate_training_protocol_is_locked():
+    config = yaml.safe_load(
+        Path("configs/training/autoformer_imagenet.yaml").read_text(encoding="utf-8")
+    )
+    assert validate_candidate_training_protocol(config) == "aznas-autoformer-scratch"
+    config["mixup"] = 0.0
+    with pytest.raises(ValueError, match="mixup"):
+        validate_candidate_training_protocol(config)
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--epochs", "6", "--data-fraction", "1.0"],
+        ["--epochs", "500", "--data-fraction", "0.02"],
+    ],
+)
+def test_autoformer_acceptance_training_rejects_non_one_percent_protocol(arguments):
+    with pytest.raises(ValueError, match="at most 1%"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/autoformer_imagenet.yaml",
+                "--acceptance-smoke",
+                "--device",
+                "cpu",
+                *arguments,
+            ]
+        )
+
+
+@pytest.mark.parametrize(
+    ("option", "value", "message"),
+    [("--batch-size", "128", "batch_size"), ("--input-size", "192", "input_size")],
+)
+def test_autoformer_acceptance_training_rejects_shape_overrides(option, value, message):
+    with pytest.raises(ValueError, match=message):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/autoformer_imagenet.yaml",
+                "--acceptance-smoke",
+                "--device",
+                "cpu",
+                "--epochs",
+                "1",
+                option,
+                value,
+            ]
+        )
+
+
+def test_autoformer_acceptance_training_requires_real_data(monkeypatch, tmp_path):
+    monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
+    with pytest.raises(ValueError, match="data-root"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/autoformer_imagenet.yaml",
+                "--acceptance-smoke",
+                "--device",
+                "cpu",
+                "--epochs",
+                "1",
+                "--output",
+                str(tmp_path),
+            ]
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_training_smoke_modes_are_mutually_exclusive():
+    with pytest.raises(SystemExit) as error:
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/autoformer_imagenet.yaml",
+                "--smoke",
+                "--acceptance-smoke",
+            ]
+        )
+    assert error.value.code == 2
 
 
 @pytest.mark.parametrize(

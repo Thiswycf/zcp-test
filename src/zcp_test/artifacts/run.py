@@ -121,5 +121,9 @@ class RunContext(AbstractContextManager["RunContext"]):
         return self
 
     def __exit__(self, exc_type: Any, exc: BaseException | None, traceback: Any) -> bool:
-        self.close("failed" if exc else "completed", None if exc is None else str(exc))
+        if isinstance(exc, (InterruptedError, KeyboardInterrupt)):
+            status = "interrupted"
+        else:
+            status = "failed" if exc else "completed"
+        self.close(status, None if exc is None else str(exc))
         return False

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
+import signal
 import sys
 import time
 from contextlib import ExitStack, contextmanager
@@ -18,6 +20,7 @@ from zcp_test.artifacts import (
     read_score_records,
     score_component,
 )
+from zcp_test.artifacts.run import file_sha256
 from zcp_test.benchmarks import BENCHMARKS, load_builtin_benchmarks
 from zcp_test.config import load_config
 from zcp_test.doctor import diagnostics
@@ -380,6 +383,42 @@ def _training_device(
 
 
 @contextmanager
+def _training_signal_handlers():
+    previous = {}
+
+    def interrupt(signum: int, frame: Any) -> None:
+        del frame
+        raise InterruptedError(f"Training interrupted by signal {signum}")
+
+    for signum in (signal.SIGINT, signal.SIGTERM):
+        previous[signum] = signal.getsignal(signum)
+        signal.signal(signum, interrupt)
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            signal.signal(signum, handler)
+
+
+def _checkpoint_lineage(checkpoint: str | Path) -> dict[str, Any]:
+    path = Path(checkpoint).expanduser().resolve()
+    if not path.is_file():
+        raise FileNotFoundError(path)
+    source_manifest = path.parent.parent / "manifest.json"
+    source_run_id = None
+    if source_manifest.is_file():
+        try:
+            source_run_id = json.loads(source_manifest.read_text(encoding="utf-8")).get("run_id")
+        except (json.JSONDecodeError, OSError):
+            source_run_id = None
+    return {
+        "checkpoint": str(path),
+        "checkpoint_sha256": file_sha256(path),
+        "source_run_id": source_run_id,
+    }
+
+
+@contextmanager
 def _training_run_context(
     root: str | Path,
     command: list[str],
@@ -389,8 +428,9 @@ def _training_run_context(
     rank: int,
 ):
     if world_size == 1:
-        with RunContext(root, command, config, runtime=runtime) as run:
-            yield run
+        with _training_signal_handlers():
+            with RunContext(root, command, config, runtime=runtime) as run:
+                yield run
         return
     import torch
 
@@ -413,7 +453,8 @@ def _training_run_context(
     )
     caught = None
     try:
-        yield run
+        with _training_signal_handlers():
+            yield run
     except BaseException as error:
         caught = error
         raise
@@ -1257,10 +1298,13 @@ def command_train(args: argparse.Namespace) -> None:
     from zcp_test.training.protocols import (
         resolve_gradient_accumulation,
         scale_learning_rate,
+        validate_candidate_training_protocol,
         validate_formal_training_protocol,
     )
 
     config = load_config(args.config)
+    acceptance_smoke = bool(getattr(args, "acceptance_smoke", False))
+    formal_training = not args.smoke and not acceptance_smoke
     distributed_world_size = int(os.environ.get("WORLD_SIZE", "1"))
     distributed_rank = int(os.environ.get("RANK", "0"))
     distributed_local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -1282,7 +1326,7 @@ def command_train(args: argparse.Namespace) -> None:
     formal_training_ready = bool(
         config.get("formal_training_ready", space.search_space_id == "darts")
     )
-    if not args.smoke and not formal_training_ready:
+    if formal_training and not formal_training_ready:
         blockers = config.get("formal_training_blockers", [])
         suffix = f" Blockers: {', '.join(map(str, blockers))}." if blockers else ""
         raise NotImplementedError(
@@ -1290,18 +1334,35 @@ def command_train(args: argparse.Namespace) -> None:
             "use --smoke only until the declared recipe is implemented and validated."
             f"{suffix}"
         )
-    if not args.smoke:
+    if formal_training:
         validate_formal_training_protocol(config)
         if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
             raise ValueError("Formal training cannot override the accepted batch_size")
         if args.input_size is not None and args.input_size != int(config["input_size"]):
             raise ValueError("Formal training cannot override the accepted input_size")
+    elif acceptance_smoke:
+        validate_candidate_training_protocol(config)
+        if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
+            raise ValueError("Acceptance training cannot override the candidate batch_size")
+        if args.input_size is not None and args.input_size != int(config["input_size"]):
+            raise ValueError("Acceptance training cannot override the candidate input_size")
     architecture = (
         space.sample(args.seed)
         if args.architecture is None
         else space.canonicalize(_load_architecture_spec(args.architecture))
     )
     epochs = args.epochs if args.epochs is not None else int(config["epochs"])
+    if acceptance_smoke:
+        one_percent_epochs = max(1, math.ceil(int(config["epochs"]) * 0.01))
+        full_data_short_schedule = args.data_fraction == 1.0 and epochs <= one_percent_epochs
+        one_percent_data_full_schedule = (
+            args.data_fraction <= 0.01 and epochs == int(config["epochs"])
+        )
+        if not (full_data_short_schedule or one_percent_data_full_schedule):
+            raise ValueError(
+                "Acceptance training must use either full data with at most 1% epochs or "
+                "at most 1% data with the complete epoch schedule"
+            )
     dataset = str(config["dataset"])
     classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
     batch_size = args.batch_size or int(config.get("batch_size", 8))
@@ -1355,7 +1416,7 @@ def command_train(args: argparse.Namespace) -> None:
     data_root = None if args.smoke else _resolve_data_root(args, dataset)
     if not args.smoke and not data_root:
         raise ValueError(
-            "Formal training requires --data-root; synthetic data is restricted to --smoke"
+            "Real-data training requires --data-root; synthetic data is restricted to --smoke"
         )
     with _training_device(
         args,
@@ -1376,7 +1437,17 @@ def command_train(args: argparse.Namespace) -> None:
         resolved = {
             **config,
             "architecture": architecture.to_dict(),
+            "epochs": epochs,
+            "data_fraction": args.data_fraction,
             "smoke": args.smoke,
+            "acceptance_smoke": acceptance_smoke,
+            "training_mode": (
+                "synthetic_smoke"
+                if args.smoke
+                else "acceptance_smoke"
+                if acceptance_smoke
+                else "formal"
+            ),
             "classes": classes,
             "batch_size": batch_size,
             "input_size": input_size,
@@ -1391,11 +1462,18 @@ def command_train(args: argparse.Namespace) -> None:
             "learning_rate_reference_batch_size": learning_rate_reference_batch_size,
             "learning_rate_scaling": config.get("learning_rate_scaling", "none"),
             "model_fidelity": model_fidelity,
-            "implementation_source": model_provenance["implementation_source"],
-            "implementation_commit": model_provenance["implementation_commit"],
+            "implementation_source": config.get("implementation_source")
+            or model_provenance["implementation_source"],
+            "implementation_commit": config.get("implementation_commit")
+            or model_provenance["implementation_commit"],
+            "model_implementation_source": model_provenance["implementation_source"],
+            "model_implementation_commit": model_provenance["implementation_commit"],
+            "training_implementation_source": config.get("implementation_source"),
+            "training_implementation_commit": config.get("implementation_commit"),
         }
         runtime = {
             "gpu_selection": selection,
+            "resume": _checkpoint_lineage(args.resume) if args.resume else None,
             "distributed": {
                 "world_size": distributed_world_size,
                 "backend": "nccl" if distributed_world_size > 1 else None,
@@ -1445,6 +1523,13 @@ def command_train(args: argparse.Namespace) -> None:
                     "classes": classes,
                     "input_size": input_size,
                     "model_fidelity": model_fidelity,
+                    "training_mode": (
+                        "synthetic_smoke"
+                        if args.smoke
+                        else "acceptance_smoke"
+                        if acceptance_smoke
+                        else "formal"
+                    ),
                 },
             )
             if distributed_rank == 0:
@@ -1950,7 +2035,13 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--workers", type=int, default=4)
     train.add_argument("--data-fraction", type=float, default=1.0)
     train.add_argument("--output", default="runs/training")
-    train.add_argument("--smoke", action="store_true")
+    training_mode = train.add_mutually_exclusive_group()
+    training_mode.add_argument("--smoke", action="store_true")
+    training_mode.add_argument(
+        "--acceptance-smoke",
+        action="store_true",
+        help="run a code-approved real-data 1%% acceptance protocol without enabling formal training",
+    )
     train.set_defaults(function=command_train)
     report = subparsers.add_parser("report")
     report.set_defaults(action="legacy")

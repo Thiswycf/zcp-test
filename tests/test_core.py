@@ -1,6 +1,7 @@
 import pytest
 import torch
 import math
+from pathlib import Path
 
 from zcp_test.artifacts import JsonlWriter, merge_jsonl, read_jsonl
 from zcp_test.proxies.evaluator import evaluate_proxy
@@ -9,7 +10,8 @@ from zcp_test.reporting import correlation_summary
 from zcp_test.search import EvolutionSearch, cache_key
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
-from zcp_test.training.checkpoint import load_checkpoint
+from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint
+from zcp_test.training.trainer import _restore_training_log
 
 
 def test_jsonl_merge_and_partial_recovery(tmp_path):
@@ -179,6 +181,20 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
     )
     record = next(read_jsonl(tmp_path / "training.jsonl"))
     assert record["next_learning_rate"] == pytest.approx(0.005)
+    resumed = tmp_path / "resumed"
+    result = train_model(
+        torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)),
+        loader,
+        loader,
+        config,
+        resumed,
+        torch.device("cpu"),
+        tmp_path / "checkpoints" / "last.pt",
+        resume_trusted=True,
+        run_identity=identity,
+    )
+    assert result["resumed_training_rows"] == 1
+    assert [row["epoch"] for row in read_jsonl(resumed / "training.jsonl")] == [0]
     with pytest.raises(ValueError, match="identity"):
         train_model(
             torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)),
@@ -191,6 +207,42 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
             resume_trusted=True,
             run_identity={"architecture_id": "different", "protocol": "test"},
         )
+
+
+def test_restore_training_log_handles_missing_source_duplicates_and_non_primary(tmp_path):
+    source = tmp_path / "source.jsonl"
+    source.write_text(
+        '{"epoch": 0, "valid_accuracy": 1.0}\n'
+        '{"epoch": 1, "valid_accuracy": 2.0}\n'
+        '{"epoch": 2, "valid_accuracy": 3.0}\n',
+        encoding="utf-8",
+    )
+    destination = JsonlWriter(tmp_path / "destination.jsonl", fsync_every=1)
+    destination.append({"epoch": 1, "valid_accuracy": 2.0})
+    assert _restore_training_log(destination, source, checkpoint_epoch=1) == 1
+    assert [row["epoch"] for row in read_jsonl(destination.path)] == [1, 0]
+    assert _restore_training_log(destination, source, checkpoint_epoch=1) == 0
+    assert _restore_training_log(destination, tmp_path / "missing.jsonl", 1) == 0
+    assert _restore_training_log(None, source, 1) == 0
+
+    portable = JsonlWriter(tmp_path / "portable.jsonl", fsync_every=1)
+    history = [{"epoch": 0}, {"epoch": 1}, {"epoch": 2}]
+    assert _restore_training_log(portable, tmp_path / "moved.jsonl", 1, history) == 2
+    assert [row["epoch"] for row in read_jsonl(portable.path)] == [0, 1]
+
+
+def test_atomic_checkpoint_removes_temporary_file_on_failure(monkeypatch, tmp_path):
+    def fail_save(payload, path):
+        del payload
+        Path(path).write_bytes(b"partial")
+        raise InterruptedError("injected")
+
+    monkeypatch.setattr(torch, "save", fail_save)
+    target = tmp_path / "checkpoint.pt"
+    with pytest.raises(InterruptedError, match="injected"):
+        atomic_torch_save({"epoch": 1}, target)
+    assert not target.exists()
+    assert not target.with_suffix(".pt.tmp").exists()
 
 
 def test_training_sets_epoch_on_stateful_samplers(tmp_path):

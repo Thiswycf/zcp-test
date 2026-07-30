@@ -30,10 +30,13 @@ def atomic_torch_save(payload: dict[str, Any], path: str | Path) -> None:
     target = Path(path)
     target.parent.mkdir(parents=True, exist_ok=True)
     temporary = target.with_suffix(target.suffix + ".tmp")
-    torch.save(payload, temporary)
-    with temporary.open("rb") as handle:
-        os.fsync(handle.fileno())
-    temporary.replace(target)
+    try:
+        torch.save(payload, temporary)
+        with temporary.open("rb") as handle:
+            os.fsync(handle.fileno())
+        temporary.replace(target)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def load_checkpoint(path: str | Path, trusted: bool = False) -> dict[str, Any]:
@@ -45,4 +48,3 @@ def load_checkpoint(path: str | Path, trusted: bool = False) -> dict[str, Any]:
     if not isinstance(value, dict):
         raise ValueError("Checkpoint must contain a mapping")
     return value
-

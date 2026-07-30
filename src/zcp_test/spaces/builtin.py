@@ -202,6 +202,7 @@ class AutoFormerSpace(SearchSpace):
     model_family = "transformer"
     model_fidelity = "reference_model"
     implementation_source = "https://github.com/microsoft/Cream/tree/main/AutoFormer"
+    implementation_commit = "b799630a29995163f282b15e2f38701160272fd1"
 
     def canonicalize(self, specification: Mapping[str, Any]) -> Architecture:
         hidden_dim, depth = int(specification["hidden_dim"]), int(specification["depth"])

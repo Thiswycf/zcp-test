@@ -409,6 +409,7 @@ def test_registered_autoformer_and_mobile_spaces_build_distinct_reference_models
     autoformer_architecture = autoformer_space.sample(3)
     autoformer_model = autoformer_space.build_model(autoformer_architecture, 5).eval()
     assert autoformer_space.model_fidelity == "reference_model"
+    assert autoformer_space.implementation_commit == "b799630a29995163f282b15e2f38701160272fd1"
     assert autoformer_model(torch.randn(1, 3, 224, 224)).shape == (1, 5)
 
     plain_space = SPACES.create("zennas_plainnet_mbv2")

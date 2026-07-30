@@ -487,6 +487,27 @@ def test_distributed_run_context_shares_rank_zero_directory(monkeypatch, tmp_pat
     failed_manifest = next(failed_root.glob("*/manifest.json"))
     assert json.loads(failed_manifest.read_text(encoding="utf-8"))["status"] == "failed"
 
+    interrupted_root = tmp_path / "interrupted"
+    with pytest.raises(InterruptedError, match="injected"):
+        with cli._training_run_context(interrupted_root, ["train"], {}, {}, 2, 0):
+            raise InterruptedError("injected")
+    interrupted_manifest = next(interrupted_root.glob("*/manifest.json"))
+    assert json.loads(interrupted_manifest.read_text(encoding="utf-8"))["status"] == "interrupted"
+
+
+def test_checkpoint_lineage_records_hash_and_source_run(tmp_path):
+    run = tmp_path / "source-run"
+    checkpoint = run / "checkpoints" / "last.pt"
+    checkpoint.parent.mkdir(parents=True)
+    checkpoint.write_bytes(b"checkpoint")
+    (run / "manifest.json").write_text('{"run_id": "source-id"}', encoding="utf-8")
+
+    lineage = cli._checkpoint_lineage(checkpoint)
+
+    assert lineage["checkpoint"] == str(checkpoint.resolve())
+    assert lineage["source_run_id"] == "source-id"
+    assert lineage["checkpoint_sha256"] == hashlib.sha256(b"checkpoint").hexdigest()
+
 
 def test_cli_data_lifecycle_control_paths(monkeypatch, capsys, tmp_path):
     records = [{
