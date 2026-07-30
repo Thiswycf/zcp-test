@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 17:19 CST",
+  updatedAt: "2026-07-30 17:29 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -186,9 +186,9 @@ window.ZCP_PANEL_DATA = {
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 14:59", status: "已完成", progress: 100,
-      detail: "页面每 30 秒无整页重载地拉取 data.js，切回页面立即检查，并支持手动刷新；并发触发会合并，失败时恢复旧数据，刷新状态通过原子 live region 提示。",
-      acceptance: ["无 CDN", "任务必填字段齐全", "筛选/搜索/详情可用", "自动与手动刷新可用", "cache-busting 数据请求", "失败保留旧数据", "可访问状态提示", "node --check 通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH"], risks: [], updatedAt: "2026-07-30 15:26"
+      detail: "页面通过 HTTP server 动态加载 data.js，不整页 reload。显眼的立即刷新按钮、自动刷新开关与秒级倒计时可见；自动模式每 30 秒检查，页面恢复可见时立即刷新。请求使用唯一 cache-busting URL，并发触发合并，失败恢复旧数据；重要状态通过原子 live region 宣告，秒级倒计时不重复打扰读屏。",
+      acceptance: ["无 CDN", "任务必填字段齐全", "筛选/搜索/详情可用", "明显的立即刷新按钮", "自动刷新开关与倒计时", "visibility 恢复立即刷新", "cache-busting 数据请求", "并发去重", "失败保留旧数据", "可访问状态提示", "node --check 通过"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS"], risks: [], updatedAt: "2026-07-30 17:29"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
@@ -259,6 +259,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-PANEL-REFRESH-CONTROLS", time: "2026-07-30 17:29", title: "无需 F5 的自动刷新控制增强", result: "保留动态 data.js 加载与旧数据回退，新增显眼的立即刷新按钮、自动刷新开关、30 秒倒计时和隐藏页提示；visibility 恢复立即检查，cache-busting 与并发去重继续生效。HTTP server 下 index.html 与两条不同 refresh URL 均返回 200，两份 data.js 内容一致。", command: "node --check panel/data.js && node --check panel/app.js && node panel/check-data.js && python -m http.server 8768 --bind 127.0.0.1 --directory panel; curl index.html 'data.js?refresh=panel-test-1' 'data.js?refresh=panel-test-2'; git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-TRANSNAS-HEADS", time: "2026-07-30 17:18", title: "TransNAS 七任务 head 官方结构对照", result: "class_scene/object、room_layout、jigsaw、segmentsemantic、normal、autoencoder 的独立输出契约已实现；同一 micro fixture 与官方 commit 6d4231b 的参数量和完整 parameter-shape multiset 七任务全部一致。真实 micro index-0 七任务 build→params 均为 ok；normal+gradnorm 在缺 label provider 时返回 unsupported。", command: "pytest tests/test_reference_topologies.py tests/test_benchmarks_adapters.py; official fixture comparison; seven-task real adapter params sweep", taskIds: ["B2", "G2"] },
     { id: "EV-FULL-GATE-231", time: "2026-07-30 17:19", title: "TransNAS 七任务合入后完整质量 gate", result: "全量 231 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "B2", "G1"] },
     { id: "EV-OFA-BN-REAL", time: "2026-07-30 17:03", title: "真实 ImageNet-1k 确定性 BN smoke", result: "OFA inherited 子网在本机真实 ImageNet-1k 上完成 1 batch×2 samples 的独立 BN recalibration；score row 记录 required=false、batches=1、sample IDs、resize/center-crop transform 与 SHA-256 fingerprint，run 未生成空 checkpoints/parts/reports。协议明确 official_protocol_match=false，不作为 inherited accuracy。", command: "zcp-test evaluate --space ofa_proxyless_mbv2 --weight-mode ofa_inherited --trusted --input-source dataset --dataset imagenet1k --bn-recalibration-batches 1 --bn-recalibration-batch-size 2 --proxies params --count 1 --device cpu", taskIds: ["C3"] },

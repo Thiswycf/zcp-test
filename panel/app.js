@@ -14,6 +14,10 @@
   let dialogOpener = null;
   let refreshPromise = null;
   let refreshRequestId = 0;
+  let autoRefreshEnabled = true;
+  let autoRefreshTimer = null;
+  let nextRefreshAt = null;
+  const refreshIntervalMs = 30_000;
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -437,6 +441,59 @@
     renderAllTaskViews();
   }
 
+  function updateRefreshCountdown() {
+    const countdown = $("#refresh-countdown");
+    if (!autoRefreshEnabled) {
+      countdown.textContent = "自动刷新已暂停";
+    } else if (document.visibilityState !== "visible") {
+      countdown.textContent = "返回页面后立即检查";
+    } else if (refreshPromise) {
+      countdown.textContent = "正在检查";
+    } else if (nextRefreshAt === null) {
+      countdown.textContent = "即将检查";
+    } else {
+      const seconds = Math.max(0, Math.ceil((nextRefreshAt - Date.now()) / 1000));
+      countdown.textContent = `${seconds} 秒后检查`;
+    }
+  }
+
+  function cancelScheduledRefresh() {
+    if (autoRefreshTimer !== null) window.clearTimeout(autoRefreshTimer);
+    autoRefreshTimer = null;
+    nextRefreshAt = null;
+  }
+
+  function scheduleAutoRefresh() {
+    cancelScheduledRefresh();
+    if (!autoRefreshEnabled || document.visibilityState !== "visible") {
+      updateRefreshCountdown();
+      return;
+    }
+    nextRefreshAt = Date.now() + refreshIntervalMs;
+    autoRefreshTimer = window.setTimeout(() => {
+      nextRefreshAt = null;
+      updateRefreshCountdown();
+      refreshData(false).finally(scheduleAutoRefresh);
+    }, refreshIntervalMs);
+    updateRefreshCountdown();
+  }
+
+  function setAutoRefresh(enabled, notify = false) {
+    autoRefreshEnabled = enabled;
+    const toggle = $("#auto-refresh-toggle");
+    toggle.setAttribute("aria-pressed", String(enabled));
+    $("#auto-refresh-label").textContent = `自动刷新：${enabled ? "开" : "关"}`;
+    if (enabled) {
+      $("#refresh-status").textContent = "自动刷新已开启";
+      scheduleAutoRefresh();
+    } else {
+      cancelScheduledRefresh();
+      $("#refresh-status").textContent = "自动刷新已暂停";
+      updateRefreshCountdown();
+    }
+    if (notify) announce(`${enabled ? "已开启" : "已暂停"}自动刷新`);
+  }
+
   function refreshData(manual = false) {
     if (refreshPromise) {
       if (manual) announce("数据刷新正在进行中");
@@ -446,6 +503,8 @@
     const button = $("#refresh-data");
     const status = $("#refresh-status");
     const previousData = data;
+    nextRefreshAt = null;
+    updateRefreshCountdown();
 
     refreshPromise = (async () => {
       button.disabled = true;
@@ -474,6 +533,7 @@
         button.classList.remove("is-refreshing");
         button.disabled = false;
         refreshPromise = null;
+        updateRefreshCountdown();
       }
     })();
 
@@ -481,13 +541,22 @@
   }
 
   function initializeRefresh() {
-    $("#refresh-data").addEventListener("click", () => refreshData(true));
-    window.setInterval(() => {
-      if (document.visibilityState === "visible") refreshData(false);
-    }, 30_000);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") refreshData(false);
+    $("#refresh-data").addEventListener("click", () => {
+      refreshData(true).finally(scheduleAutoRefresh);
     });
+    $("#auto-refresh-toggle").addEventListener("click", () => {
+      setAutoRefresh(!autoRefreshEnabled, true);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        if (autoRefreshEnabled) refreshData(false).finally(scheduleAutoRefresh);
+      } else {
+        cancelScheduledRefresh();
+        updateRefreshCountdown();
+      }
+    });
+    window.setInterval(updateRefreshCountdown, 1000);
+    setAutoRefresh(true);
   }
 
   $("#project-purpose").textContent = data.project.purpose;

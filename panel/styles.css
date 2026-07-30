@@ -59,7 +59,10 @@ button { color: inherit; }
 .hero-copy { max-width: 900px; }
 .hero-actions { display: flex; align-items: start; gap: 10px; }
 .refresh-control { display: grid; justify-items: end; gap: 5px; }
+.refresh-actions, .refresh-meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .refresh-control .muted { font-size: .72rem; font-variant-numeric: tabular-nums; }
+.refresh-primary { border-color: color-mix(in srgb, var(--accent) 65%, var(--line)); background: var(--accent-soft); }
+#auto-refresh-toggle[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
 .button:disabled { cursor: wait; opacity: .6; }
 #refresh-data > [aria-hidden="true"] { display: inline-block; }
 #refresh-data.is-refreshing > [aria-hidden="true"] { animation: refresh-spin .8s linear infinite; }
@@ -185,6 +188,7 @@ dialog::backdrop { background: rgba(4, 12, 8, .62); backdrop-filter: blur(5px); 
   .hero { align-items: start; flex-direction: column; padding-top: 30px; }
   .hero-actions { width: 100%; flex-wrap: wrap; }
   .refresh-control { justify-items: start; }
+  .refresh-actions, .refresh-meta { justify-content: flex-start; flex-wrap: wrap; }
   .two-column, .controls { grid-template-columns: 1fr; }
   .panel { padding: 18px; }
   .section-heading { align-items: start; flex-direction: column; }
