@@ -34,13 +34,24 @@ def _budget_plot_groups(
 
 def _budget_plot_label(fields: list[str], key: Any) -> str:
     values = key if isinstance(key, tuple) else (key,)
+    visible = {"proxy_id", "component", "proxy_version", "seed", "requested_k"}
     labels = []
     for field, value in zip(fields, values, strict=True):
-        text = str(value)
-        if field == "input_fingerprint" and len(text) > 10:
-            text = text[:10]
-        labels.append(f"{field}={text}")
+        if field in visible:
+            if field == "component" and str(value) == "score":
+                continue
+            labels.append(f"{field}={value}")
     return " / ".join(labels)
+
+
+def _budget_series_style(index: int, count: int, plt: Any) -> dict[str, Any]:
+    fraction = index / max(count - 1, 1)
+    markers = ("o", "s", "^", "D", "v", "P", "X")
+    return {
+        "color": plt.get_cmap("turbo")(fraction),
+        "marker": markers[index % len(markers)],
+        "linestyle": ("-", "--", "-.", ":")[(index // len(markers)) % 4],
+    }
 
 
 def _save_figure(figure: Any, output: Path, name: str) -> list[str]:
@@ -58,59 +69,87 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
     table = tables.get("correlations", pd.DataFrame())
     if table.empty or not {"epoch_budget", "spearman"}.issubset(table):
         return []
-    figure, axis = plt.subplots(figsize=(8, 5))
+    figure, axis = plt.subplots(figsize=(12, 6))
     fields, groups = _budget_plot_groups(table)
-    for key, group in groups:
+    series = list(groups)
+    for index, (key, group) in enumerate(series):
         ordered = group.sort_values("epoch_budget")
         axis.plot(
             ordered["epoch_budget"],
             ordered["spearman"],
-            marker="o",
             label=_budget_plot_label(fields, key),
+            **_budget_series_style(index, len(series), plt),
         )
     axis.set(xlabel="Epoch budget", ylabel="Spearman", title="ZCP correlation across budgets")
     axis.set_ylim(-1.05, 1.05)
     axis.grid(alpha=0.25)
-    axis.legend(fontsize="small")
-    figure.tight_layout()
+    handles, labels = axis.get_legend_handles_labels()
+    if handles:
+        figure.legend(handles, labels, loc="center left", bbox_to_anchor=(0.72, 0.5), fontsize="x-small")
+        figure.subplots_adjust(right=0.7)
+    else:
+        figure.tight_layout()
     artifacts = _save_figure(figure, output, "budget_correlation")
     plt.close(figure)
     retrieval = tables.get("top_k_retrieval", pd.DataFrame())
     if not retrieval.empty and {"epoch_budget", "requested_k", "precision_at_k"}.issubset(
         retrieval
     ):
-        figure, axis = plt.subplots(figsize=(8, 5))
-        fields, groups = _budget_plot_groups(retrieval, ("requested_k",))
-        for key, group in groups:
-            ordered = group.sort_values("epoch_budget")
-            axis.plot(
-                ordered["epoch_budget"],
-                ordered["precision_at_k"],
-                marker="o",
-                label=_budget_plot_label(fields, key),
-            )
-        axis.set(
-            xlabel="Epoch budget",
-            ylabel="Precision@K",
-            title="NAS-Bench-101 top-k retrieval across budgets",
+        requested = sorted(int(value) for value in retrieval["requested_k"].dropna().unique())
+        figure, axes = plt.subplots(
+            len(requested),
+            1,
+            figsize=(12, max(5, 3.7 * len(requested))),
+            squeeze=False,
+            sharex=True,
         )
-        axis.set_ylim(-0.05, 1.05)
-        axis.grid(alpha=0.25)
-        axis.legend(fontsize="small")
-        figure.tight_layout()
+        legend_handles: list[Any] = []
+        legend_labels: list[str] = []
+        for row, requested_k in enumerate(requested):
+            axis = axes[row, 0]
+            selected = retrieval[retrieval["requested_k"].eq(requested_k)]
+            fields, groups = _budget_plot_groups(selected)
+            series = list(groups)
+            for index, (key, group) in enumerate(series):
+                ordered = group.sort_values("epoch_budget")
+                axis.plot(
+                    ordered["epoch_budget"],
+                    ordered["precision_at_k"],
+                    label=_budget_plot_label(fields, key),
+                    **_budget_series_style(index, len(series), plt),
+                )
+            axis.set(ylabel=f"Precision@{requested_k}")
+            axis.set_ylim(-0.05, 1.05)
+            axis.grid(alpha=0.25)
+            if row == 0:
+                legend_handles, legend_labels = axis.get_legend_handles_labels()
+        axes[-1, 0].set_xlabel("Epoch budget")
+        figure.suptitle("NAS-Bench-101 top-k retrieval across budgets")
+        if legend_handles:
+            figure.legend(
+                legend_handles,
+                legend_labels,
+                loc="center left",
+                bbox_to_anchor=(0.72, 0.5),
+                fontsize="x-small",
+            )
+            figure.subplots_adjust(right=0.7, hspace=0.28, top=0.94)
+        else:
+            figure.tight_layout()
         artifacts.extend(_save_figure(figure, output, "budget_top_k_retrieval"))
         plt.close(figure)
     controlled = tables.get("structure_controlled_correlations", pd.DataFrame())
     if not controlled.empty and {"epoch_budget", "spearman"}.issubset(controlled):
         figure, axis = plt.subplots(figsize=(10, 6))
         fields, groups = _budget_plot_groups(controlled)
-        for key, group in groups:
+        series = list(groups)
+        for index, (key, group) in enumerate(series):
             ordered = group.sort_values("epoch_budget")
             axis.plot(
                 ordered["epoch_budget"],
                 ordered["spearman"],
-                marker="o",
                 label=_budget_plot_label(fields, key),
+                **_budget_series_style(index, len(series), plt),
             )
         axis.set(
             xlabel="Epoch budget",
@@ -119,8 +158,12 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
         )
         axis.set_ylim(-1.05, 1.05)
         axis.grid(alpha=0.25)
-        axis.legend(fontsize="x-small", ncols=2)
-        figure.tight_layout()
+        handles, labels = axis.get_legend_handles_labels()
+        if handles:
+            figure.legend(handles, labels, loc="center left", bbox_to_anchor=(0.72, 0.5), fontsize="x-small")
+            figure.subplots_adjust(right=0.7)
+        else:
+            figure.tight_layout()
         artifacts.extend(_save_figure(figure, output, "budget_structure_controlled"))
         plt.close(figure)
     neighborhood = tables.get("neighborhood_correlations", pd.DataFrame())
@@ -130,13 +173,14 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
     }.issubset(neighborhood):
         figure, axis = plt.subplots(figsize=(10, 6))
         fields, groups = _budget_plot_groups(neighborhood)
-        for key, group in groups:
+        series = list(groups)
+        for index, (key, group) in enumerate(series):
             ordered = group.sort_values("epoch_budget")
             axis.plot(
                 ordered["epoch_budget"],
                 ordered["direction_agreement_rate"],
-                marker="o",
                 label=_budget_plot_label(fields, key),
+                **_budget_series_style(index, len(series), plt),
             )
         axis.set(
             xlabel="Epoch budget",
@@ -145,8 +189,12 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
         )
         axis.set_ylim(-0.05, 1.05)
         axis.grid(alpha=0.25)
-        axis.legend(fontsize="x-small", ncols=2)
-        figure.tight_layout()
+        handles, labels = axis.get_legend_handles_labels()
+        if handles:
+            figure.legend(handles, labels, loc="center left", bbox_to_anchor=(0.72, 0.5), fontsize="x-small")
+            figure.subplots_adjust(right=0.7)
+        else:
+            figure.tight_layout()
         artifacts.extend(_save_figure(figure, output, "budget_neighborhood_agreement"))
         plt.close(figure)
     return artifacts
