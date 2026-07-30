@@ -396,7 +396,7 @@
   function storedRefreshInterval() {
     try {
       const value = Number(window.localStorage.getItem(refreshIntervalStorageKey));
-      return [15, 30, 60, 300].includes(value) ? value : 30;
+      return [5, 15, 30, 60].includes(value) ? value : 30;
     } catch {
       return 30;
     }

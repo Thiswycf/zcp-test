@@ -7,16 +7,16 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-31 当前工作树：**365 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-31 当前工作树：**380 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
-| 覆盖率 | 第一方 source 总计 **87%**；CLI 80%、analysis/proxy studies 93%、benchmark report 96%、reports 100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
-| H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic surrogate 分别完成 22 代理 seed 2026 和核心 11 代理三 seed；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | ViT 公开文件各 100 条，与论文 500 GT/数据集和无重叠 60/40 划分不闭合，因此不计入正式 H1；TNB101 仍受作者 split/config 与许可输入阻塞 |
+| 覆盖率 | 第一方 source 总计 **87%**；CLI 81%、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
+| H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-365 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
+380 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
 `scores.jsonl` SHA、失败键和相关性摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
@@ -104,7 +104,10 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 - H1 已完成 NATS-SSS 的 CIFAR-10-valid/90-epoch 协议：328 架构 × 22 代理为 7,216 行且全部成功；
   核心 11 代理三 seed 为 10,824 行且全部成功。修复了专属研究把 `run_id` 当协议、导致每 shard
   单独统计的错误；正式 size 表合并为 n=328，并按 evaluation seed 分离。CIFAR-100 与
-  ImageNet16-120 rank transfer 仍待。证据见 `docs/evidence/NATS_SSS_ONE_PERCENT_CN.md`。
+  ImageNet16-120 dataset-specific 扩展也分别完成 328 × 22 = 7,216 行，全部成功且无重复稳定键；
+  三数据集报告将 dataset-specific、固定源 score 的 target-only transfer、proxy 排名稳定性和
+  size/stage 控制相关性分表保存。该扩展只覆盖同一 1% 分层样本和单 seed 2026。证据见
+  `docs/evidence/NATS_SSS_ONE_PERCENT_CN.md` 与 `docs/evidence/NATS_SSS_CROSS_DATASET_CN.md`。
 - H1 已完成 NB101 的正式 1% 既定协议：从 423,624 个架构中按 seed 2026 分层抽取 4,237 个；
   22 代理 seed 2026 为 93,214/93,214 成功，核心 11 代理 seed 2026/2027/2028 为
   139,821/139,821 成功，均无失败或重复任务键。4/12/36/108 epoch 的 repeat `mean/min/max`
@@ -150,8 +153,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
    × 完整 schedule”尚未执行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
-   NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，
-   NATS-SSS 跨数据集、TNB101 正式输入以及 ViT-Bench 500 条全集/60-40 身份仍待，因此完整项目
+   NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，
+   TNB101 正式输入以及 ViT-Bench 500 条全集/60-40 身份仍待，因此完整项目
    H1 尚未完成。ViT 三个公开 100 条切片的 5×22 预验收不能替代该缺口。
 5. NAS-Bench-101 全量评估或 NAS-Bench-301 理论 DARTS 空间穷举。
 6. 多 GPU evaluate 的内置启动/去重合并；训练 DDP 启动与夹具级重启/故障注入已验收，但全数据级别未验收。

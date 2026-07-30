@@ -88,8 +88,9 @@
   },
   "completion": {
     "cifar10_valid_90_epoch_protocol": "complete",
-    "cross_dataset_transfer": "pending",
+    "cross_dataset_transfer": "complete_one_percent_single_seed",
+    "cross_dataset_evidence": "docs/evidence/nats_sss_cross_dataset_summary.json",
     "h1_overall": "in_progress",
-    "remaining_benchmarks": ["nasbench101", "nasbench301_surrogate", "transnasbench101", "vitbench101"]
+    "remaining_benchmarks": ["transnasbench101_formal_inputs", "vitbench101_full_identity_split"]
   }
 }

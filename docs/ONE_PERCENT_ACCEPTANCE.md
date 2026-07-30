@@ -49,7 +49,14 @@ before running `analyze correlation` or `report bundle`.
 
 ## Current status
 
-The scoped NB101, NB201, NATS-TSS, NATS-SSS/CIFAR-10-valid, and locked deterministic NB301 protocols
-are accepted. NATS-SSS cross-dataset transfer remains incomplete. Formal TransNAS input acceptance
+The scoped NB101, NB201, NATS-TSS, NATS-SSS including the accepted CIFAR-100/ImageNet16-120
+cross-dataset extension, and locked deterministic NB301 protocols are accepted. Formal TransNAS input acceptance
 is blocked by the unpublished author split/config and licensed Taskonomy data. ViT has only the
 three public-slice minimum-five preacceptance runs; it is not formal paper-level H1.
+
+The two new dataset-specific sweeps each completed 7,216/7,216 rows with zero failures and duplicate
+keys. The 12-shard size study separates dataset-specific and target-only results into four tables
+with 594/186/9/1,188 rows. This is evidence for the 328-architecture stratified sample at one
+input/initialization seed only, not the full search space, a multi-seed result, or a causal claim. See
+the [human-readable evidence](evidence/NATS_SSS_CROSS_DATASET_CN.md) and
+[machine-readable summary](evidence/nats_sss_cross_dataset_summary.json).

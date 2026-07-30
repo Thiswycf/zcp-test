@@ -98,6 +98,31 @@ zcp-test data import-manifest \
 配额与断点、损坏和磁盘恢复、离线迁移以及 NAS-Bench-101 专有安全接口。本文不声称任何未在
 用户环境中实际验证的下载已经成功。
 
+### NATS-SSS 的 CIFAR-100 与 ImageNet16-120 输入
+
+NATS-SSS benchmark 标准答案与 ZCP 输入数据是两类独立资产。NATS-SSS 原生 API 仍需
+`--trusted`；ImageNet16 原始 batch 本身也是 pickle，不能直接交给运行期。先在可信机器上核对
+官方 MD5，并显式转换为只读 `.npy` shards：
+
+```bash
+CATALOG=/path/to/data/catalog.json
+zcp-test data convert-imagenet16 \
+  --source /path/to/raw/ImageNet16 \
+  --output /path/to/data/datasets/ImageNet16-120-safe \
+  --trusted --register --catalog "$CATALOG"
+zcp-test data verify dataset_imagenet16_120 --catalog "$CATALOG"
+```
+
+正式 `evaluate` 使用 `--dataset ImageNet16-120 --input-source dataset --catalog "$CATALOG"`；
+不要再把 raw pickle 目录传给 `--data-root`。CIFAR-100 与 ImageNet16-120 的 dataset-specific ZCP
+必须分别计算，因为输入、归一化、类别数和 `input_fingerprint` 都不同。只替换 benchmark target、
+复用原 ZCP 的 target-only transfer 是另一协议。当前正式分析使用三数据集共 12 个 score 分片，
+由 `analyze benchmark --benchmark nats_sss --view size` 分别生成 dataset-specific 矩阵和
+target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 与 ImageNet16-120 各自
+7,216/7,216 行成功、重复键 0。完整命令、安全边界和结果见[运维手册](docs/OPERATIONS_CN.md)、
+[1% 验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)与
+[跨数据集证据](docs/evidence/NATS_SSS_CROSS_DATASET_CN.md)。
+
 ## 正式训练
 
 - AutoFormer：AZ-NAS Tiny/Small 为 500 epoch、Base 为 300 epoch；基础 LR `5e-4` 按

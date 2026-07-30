@@ -1,0 +1,163 @@
+{
+  "schema_version": 1,
+  "status": "complete",
+  "benchmark": {
+    "benchmark_id": "nats_sss",
+    "benchmark_version": "1.0",
+    "search_space_id": "nats_size",
+    "target_metric": "accuracy",
+    "target_split": "valid",
+    "target_epoch_budget": 90,
+    "target_seed_reduction": "mean"
+  },
+  "sampling": {
+    "strategy": "proportional_feature_stratified",
+    "population_size": 32768,
+    "sample_count": 328,
+    "seed": 2026,
+    "manifest_artifact": "sampling/nats-sss-1pct-seed2026.json",
+    "manifest_sha256": "07767985afbad7d498acf062620aea5ef7b66b2bfc8b3db3fea3a0fc768e1992"
+  },
+  "raw_acceptance": {
+    "artifact": "preflight/nats_sss_cross_dataset_raw_acceptance.json",
+    "sha256": "96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707",
+    "datasets": {
+      "cifar100": {
+        "input_fingerprint": "ede1d9035544056b23859a9f1339b8c7990026b7c81bd1c74f041511b536240c",
+        "input_size": 32,
+        "classes": 100,
+        "architecture_count": 328,
+        "proxy_count": 22,
+        "row_count": 7216,
+        "successful_count": 7216,
+        "failed_count": 0,
+        "unsupported_count": 0,
+        "duplicate_key_count": 0,
+        "scores_sha256": [
+          "c24e6c4e5bcd3887eccd868dc320355fb2d56096ec7d9edb60d551452b847c89",
+          "07e8d31fd4ee1b9c91ed1d5aa368b21e436a58ca34263797c76186ed8c7e6549",
+          "a062a7200bffe66c3aab9b9727dee86112d765865d65afcf8d9b3c867a45cac9",
+          "ca7f576cc51259efe963725972001bec0883f6b63f7d82f8abb6d21864a109a7"
+        ]
+      },
+      "ImageNet16-120": {
+        "input_fingerprint": "b3df614ef5496e9eea73b5ce8b76cf52eb11c64ad0186b7eaae7219a637e10fe",
+        "input_size": 16,
+        "classes": 120,
+        "architecture_count": 328,
+        "proxy_count": 22,
+        "row_count": 7216,
+        "successful_count": 7216,
+        "failed_count": 0,
+        "unsupported_count": 0,
+        "duplicate_key_count": 0,
+        "scores_sha256": [
+          "0dd11e34f9c46e21404be80987a1e99d63b7c02f3995272b13f9c05baeb9ccab",
+          "52e660b8e8b60098e85cf630831073498aa426721ef83a5250cdea08e5cf9128",
+          "5619f1e0c61f1743db148363a3caa9e2bcbf42c649a20073a0c50890b8c991ea",
+          "d72e684da9b8851adba2e38a64ee3b91db242d514d8de3d1293d6ec6c50c664a"
+        ]
+      }
+    }
+  },
+  "cifar10_valid_source": {
+    "evidence": "docs/evidence/nats_sss_one_percent_summary.json",
+    "input_fingerprint": "5de04e6a61157306b00dc80b673de420ecd45a843b1564f78acaa8bbfab1ceaf",
+    "row_count": 7216,
+    "successful_count": 7216,
+    "duplicate_key_count": 0,
+    "scores_sha256": [
+      "f7f3152874710817ef4405a622f715f8e4ca06cc7e452c3e56fafd6e4388b896",
+      "b92875dd69ad7269fbcf309d68fa72bf6b7eb32009796a84528b0a81a00857d9",
+      "077c9f1d33b446e6b7c2dec71b49655b31c64e51921550fa677c6911e32889a0",
+      "d32bac44a516af22d15e048a9d29821f55ace543dad4f28a02f1bf52dc46e4be"
+    ]
+  },
+  "analysis": {
+    "command_contract": "zcp-test analyze benchmark --scores <12 score shards> --benchmark nats_sss --view size --output <report directory>",
+    "score_shard_count": 12,
+    "report_artifact": "h1-nats-sss-cross-dataset-analysis",
+    "study_artifact": "h1-nats-sss-cross-dataset-analysis/study.json",
+    "study_sha256": "0bc3734543ac77b80c40008285abbe4938668fa052620127b3c58a3a8638c954",
+    "tables": {
+      "dataset_proxy_target_matrix": {
+        "rows": 594,
+        "sha256": "3efc9712673045bfd79cf4e67be0c61487f3629bcfa85dc24895a58f9017213b"
+      },
+      "proxy_dataset_stability": {
+        "rows": 186,
+        "sha256": "53776e11808e2913d1b4add600487fadb96b3243cbf8898d776b0006206dbf20"
+      },
+      "target_dataset_transfer": {
+        "rows": 9,
+        "sha256": "a3961e0ea38297987aaac2a78ec798b59739309fada286e5ab46a101d1f31931"
+      },
+      "controlled_proxy_target_transfer": {
+        "rows": 1188,
+        "sha256": "9c203587a2edb64e74e36a29da3c9df3ca14f28e1e216702c4b5665a2ecbbe74"
+      }
+    }
+  },
+  "target_rank_spearman": [
+    {
+      "dataset_left": "ImageNet16-120",
+      "dataset_right": "cifar10-valid",
+      "sample_count": 328,
+      "correlation": 0.8694386977893958
+    },
+    {
+      "dataset_left": "ImageNet16-120",
+      "dataset_right": "cifar100",
+      "sample_count": 328,
+      "correlation": 0.9245305379855656
+    },
+    {
+      "dataset_left": "cifar10-valid",
+      "dataset_right": "cifar100",
+      "sample_count": 328,
+      "correlation": 0.7722247935031081
+    }
+  ],
+  "dataset_specific_top_spearman": [
+    {
+      "dataset": "cifar10-valid",
+      "proxy_id": "params",
+      "component": "score",
+      "proxy_version": "count-v2",
+      "sample_count": 328,
+      "correlation": 0.8761031438723915
+    },
+    {
+      "dataset": "cifar100",
+      "proxy_id": "synflow",
+      "component": "score",
+      "proxy_version": "double-v2",
+      "sample_count": 328,
+      "correlation": 0.8320932951903499
+    },
+    {
+      "dataset": "cifar100",
+      "proxy_id": "te_nas",
+      "component": "synflow",
+      "proxy_version": "portable-v2",
+      "sample_count": 328,
+      "correlation": 0.8320932951903499
+    },
+    {
+      "dataset": "ImageNet16-120",
+      "proxy_id": "params",
+      "component": "score",
+      "proxy_version": "count-v2",
+      "sample_count": 328,
+      "correlation": 0.8359322216613548
+    }
+  ],
+  "interpretation_boundary": {
+    "sample_scope": "one_percent_stratified_sample_only",
+    "evaluation_seed": 2026,
+    "input_initialization_seed_count": 1,
+    "full_search_space_extrapolation": false,
+    "causal_claim": false,
+    "dataset_specific_and_target_only_reported_separately": true
+  }
+}

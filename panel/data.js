@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 03:02 CST",
+  updatedAt: "2026-07-31 03:48 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -25,9 +25,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "当前全仓 gate 已复跑为 365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 均保留为历史门禁口径。",
+      detail: "当前全仓 gate 已复跑为 380 tests passed、第一方 source coverage 87%；新增 ImageNet16 manifest 路径逃逸回归通过，Ruff、compileall、pip check、panel 与 diff 均通过。379 及更早门禁保留为历史口径。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 02:55"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -52,9 +52,9 @@ window.ZCP_PANEL_DATA = {
       content: "实现 topology、reduction stage 与 stage width 可感知的 PyTorch 模型构建。",
       purpose: "确保架构字段真实进入模型和 ZCP 计算。",
       estimate: "4–8 小时", startedAt: "2026-07-30 12:10", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
-      detail: "NB201、NATS-TSS 和 NATS-SSS 的 native index-0 query→build→params proxy 均通过；NB201/TSS 共享 architecture ID 但 benchmark/API 身份保持独立。NATS 查询的 seed_reduction=min|max 已修复为枚举官方 seed 后显式归约，真实 index-0 得到 mean 81.982667、min 81.616000、max 82.240000；不能枚举时明确失败。",
+      detail: "NB201、NATS-TSS 和 NATS-SSS 的 native query→build→proxy 契约均通过；NB201/TSS 共享 architecture ID 但 benchmark/API 身份保持独立。ImageNet16-120 已完成安全转换与 registry shard 完整性校验，raw acceptance SHA 为 96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707。NATS-SSS CIFAR100 与 ImageNet16-120 各完成 328×22=7,216 行，均全成功。",
       acceptance: ["字段敏感性测试", "native API 架构对照", "真实样本 query→build→proxy"],
-      evidence: ["EV-NB201", "EV-REAL-BENCHMARKS", "EV-NATS-TSS-1PCT-REPORT", "EV-FULL-GATE-286"], risks: [], updatedAt: "2026-07-30 20:41"
+      evidence: ["EV-NB201", "EV-REAL-BENCHMARKS", "EV-NATS-TSS-1PCT-REPORT", "EV-IMAGENET16-SAFE-CONVERSION", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-FULL-GATE-379"], risks: ["R-NATS-SSS-CROSS-SEED"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "B2", phase: "Benchmark", priority: "P1", title: "TransNAS 端到端构模契约",
@@ -141,19 +141,19 @@ window.ZCP_PANEL_DATA = {
       id: "E2", phase: "研究", priority: "P1", title: "通用 ZCP 分析",
       content: "验收互相关、top-k、稳定性、Pareto、transfer 与样本收敛分析。",
       purpose: "形成可复用且不会静默错配的研究报告。",
-      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 83,
-      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 与 NB301 的真实分析均已生成。TransNAS 的 CLI neg_loss direction、micro/macro manifest 校验和 score coverage 表已修复；七任务 target 与 1% manifest 可做离线 preflight，但没有受许可 Taskonomy 输入时不得生成正式 H1 相关性。search/training、Pareto 与跨数据集 transfer 仍待更多真实验收。",
+      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 87,
+      detail: "NB201、NATS-TSS、NB301 及 NATS-SSS 三数据集真实分析已生成；NATS-SSS CIFAR10-valid/CIFAR100/ImageNet16-120 的四类分析表通过 study checksum 验证。TransNAS 七任务仍只可做离线 preflight，没有受许可 Taskonomy 输入时不得生成正式 H1 相关性。search/training、Pareto 与更多跨 benchmark transfer 仍待真实验收。",
       acceptance: ["缺列与重复键明确报错", "coverage/ties/constant/direction 显式报告", "多 run 来源保留", "真实结果可生成全部表格", "search/training 分析真实验收"],
-      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-NB301-STANDARD-ANALYZE", "EV-TRANSNAS-PREFLIGHT", "EV-FULL-GATE-309", "EV-FULL-GATE-342"], risks: ["R-DIRECTION-MIGRATION", "R-TRANSNAS"], updatedAt: "2026-07-31 01:50"
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-NATS-SSS-THREE-DATASET-STUDY", "EV-SHARD-GROUPING-FIX", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-NB301-STANDARD-ANALYZE", "EV-TRANSNAS-PREFLIGHT", "EV-FULL-GATE-379"], risks: ["R-DIRECTION-MIGRATION", "R-TRANSNAS", "R-NATS-SSS-CROSS-SEED"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "E3", phase: "研究", priority: "P2", title: "Benchmark 定制研究",
       content: "按预算、操作、size、任务和 ViT 参数分析结构偏置。",
       purpose: "避免不同 benchmark 只输出同一套泛化统计。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 76,
-      detail: "NB201/NATS-TSS topology 与 NATS-SSS size 专属研究已完成既定范围；NB101/NB301 scoped 研究也已有正式证据。TransNAS micro/macro 的 1% manifest 分别为 41/33 架构、84/81 strata，SHA 4bb5793f…b4863cc / d58a7413…33ede；4,096/3,256 架构的七任务 validation target 完整有限。由于论文 24-building/120K split 与最终 config/transform 未公开且本机无 EULA Taskonomy 数据，当前只能做 contract partial，正式任务/操作交互研究仍受阻。",
+      estimate: "8–16 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 84,
+      detail: "NB201/NATS-TSS topology、NATS-SSS size 及 NB101/NB301 scoped 研究已有正式证据。NATS-SSS 已完成 CIFAR10-valid、CIFAR100、ImageNet16-120 三数据集的四类分析表，study SHA 为 0bc3734543ac77b80c40008285abbe4938668fa052620127b3c58a3a8638c954；跨数据集 1% 单 seed 子项完成。TransNAS 仍因论文 split/config/transform 未公开且本机无 EULA Taskonomy 数据而只能标 contract partial；ViT 完整 identity 研究仍受阻。",
       acceptance: ["各 benchmark 有专属因子", "真实数据生成图表", "结论关联原始字段", "不同 benchmark 协议不混合或外推"],
-      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-SCIENTIFIC-BLOCKER"], risks: ["R-TRANSNAS"], updatedAt: "2026-07-31 01:43"
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-NATS-SSS-THREE-DATASET-STUDY", "EV-SHARD-GROUPING-FIX", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-SCIENTIFIC-BLOCKER"], risks: ["R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-NATS-SSS-CROSS-SEED"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "F1", phase: "文档", priority: "P1", title: "中英文操作手册审计",
@@ -169,9 +169,9 @@ window.ZCP_PANEL_DATA = {
       content: "整理完整、部分、受阻结论及对应命令、文件和运行产物。",
       purpose: "让所有验收判断都能被第三方复核。",
       estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 85,
-      detail: "已链接 NB201、NATS-TSS、NATS-SSS、NB101、NB301 与 ViT 公开 release-slice preacceptance 证据；ViT 阶段提交 43f1a5030deb8cdc8b3fe71177c801b127c9cb4a 已推送并与 origin/main 一致。项目总状态仍为 active：TransNAS 正式输入、ViT 完整 identity、NATS-SSS 跨数据集协议及高成本训练仍未完成。",
+      detail: "已链接 NB201、NATS-TSS、NATS-SSS 三数据集、NB101、NB301 与 ViT 公开 release-slice preacceptance 证据。NATS-SSS CIFAR100/ImageNet16-120 的 1% 单 seed 与三数据集四类分析表已完成。项目总状态仍为 active：TransNAS 正式输入、ViT 完整 identity、TNB101 正式 H1 及高成本训练仍未完成。",
       acceptance: ["每个结论链接证据", "受阻原因明确", "不把 smoke 写成完整训练"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY", "EV-GIT-PUSH-43F1A503"], risks: ["R-TRANSNAS", "R-VIT-H1-IDENTITIES"], updatedAt: "2026-07-31 03:02"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-NATS-SSS-THREE-DATASET-STUDY", "EV-IMAGENET16-SAFE-CONVERSION", "EV-SHARD-GROUPING-FIX", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY", "EV-GIT-PUSH-43F1A503"], risks: ["R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-NATS-SSS-CROSS-SEED"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "F3", phase: "报告", priority: "P1", title: "report/monitor/run 发现",
@@ -196,9 +196,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "当前全仓门禁已复跑为 365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 均作为历史 gate 保留。",
+      detail: "当前全仓门禁已复跑为 380 tests passed、第一方 source coverage 87%；新增 ImageNet16 manifest 路径逃逸回归通过，Ruff、compileall、pip check、panel 与 diff 均通过。379 及更早门禁均作为历史 gate 保留。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 02:55"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -213,10 +213,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid、NB101 与 NB301 当前既定 scoped 协议完成，H1 整体仍进行中。ViT 三个公开切片已完成 bootstrap/runtime SHA 验证与 minimum-5×22 preacceptance：每片 110 行，其中 80 ok、30 unsupported、0 failed；该结果仅标 partial_release_slice_preacceptance。论文完整 500 AutoFormer + 500 PiT 架构身份及无重叠 60/40 development/test identity 未公开，因此正式 ViT H1 未完成。TransNAS 仍受未公开论文 split/config/transform 与 Taskonomy EULA/本机无数据阻断。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 93,
+      detail: "NB201、NATS-TSS、NB101、NB301 与 NATS-SSS 三数据集当前既定 1% 单 seed scoped 协议完成，H1 整体仍进行中。NATS-SSS CIFAR100 和 ImageNet16-120 各 328×22=7,216 行全成功，连同 CIFAR10-valid 已生成三数据集四类分析表；该子项只声明单 seed 完成。ViT 公开切片 preacceptance 已完成，但完整 500+500 identity 与无重叠 60/40 划分未公开；TransNAS/TNB101 正式输入仍受协议与 EULA 数据阻断，高成本训练亦未完成。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-CORE-3SEED-PARTIAL", "EV-NB301-SEED2027-SHARD2-RERUN", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-LOCKED-COMPLETE", "EV-NB301-STANDARD-ANALYZE", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-CONTRACT-PROVIDER", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY", "EV-PIT-TOPOLOGY-PORT", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW", "R-NB301-RUNTIME-COMPAT", "R-DIRECTION-MIGRATION", "R-TRANSNAS", "R-VIT-H1-IDENTITIES"], updatedAt: "2026-07-31 02:55"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-NATS-SSS-THREE-DATASET-STUDY", "EV-IMAGENET16-SAFE-CONVERSION", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-CORE-3SEED-PARTIAL", "EV-NB301-SEED2027-SHARD2-RERUN", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-LOCKED-COMPLETE", "EV-NB301-STANDARD-ANALYZE", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-CONTRACT-PROVIDER", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY", "EV-PIT-TOPOLOGY-PORT", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW", "R-NB301-RUNTIME-COMPAT", "R-DIRECTION-MIGRATION", "R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-NATS-SSS-CROSS-SEED"], updatedAt: "2026-07-31 03:40"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -241,9 +241,9 @@ window.ZCP_PANEL_DATA = {
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
       estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 78,
-      detail: "NB301 scoped H1 阶段提交 28943b4 已推送；ViT release-slice preacceptance 已提交为 43f1a5030deb8cdc8b3fe71177c801b127c9cb4a（Complete ViT release-slice preacceptance）并推送，origin/main 已一致且提交后工作树干净。项目总状态仍为 active；完整发布仍等待 TransNAS 正式输入、ViT 完整 identity、NATS-SSS 跨数据集协议及其余高成本训练验收。",
+      detail: "NB301 scoped H1 与 ViT release-slice preacceptance 已分阶段提交并推送。NATS-SSS 跨 CIFAR10-valid/CIFAR100/ImageNet16-120 的 1% 单 seed 子项现已完成但尚未记录为发布提交。项目总状态仍为 active；完整发布仍等待 TransNAS/TNB101 正式输入、ViT 完整 identity 及高成本训练验收。",
       acceptance: ["无凭据和本机路径", "无数据/大模型误提交", "状态与验收报告一致"],
-      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-GIT-PUSH-43F1A503", "EV-FULL-GATE-365", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY", "R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-BUDGET"], updatedAt: "2026-07-31 03:02"
+      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-GIT-PUSH-43F1A503", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-FULL-GATE-379", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY", "R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-NATS-SSS-CROSS-SEED", "R-BUDGET"], updatedAt: "2026-07-31 03:40"
     }
   ],
   risks: [
@@ -260,13 +260,19 @@ window.ZCP_PANEL_DATA = {
     { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 81%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
     { id: "R-PIT", severity: "中", status: "监控", title: "PiT 仅达到 topology PyTorch port 保真度", description: "QKV、LayerNorm epsilon、drop-path 及参数/MAC fixture 已对齐，但缺少官方 checkpoint 和逐层数值对照，不能标为完整 reference_model。", mitigation: "固定 fidelity=reference_topology_pytorch_port；若后续获得可信 checkpoint 或逐层数值基准，再执行数值一致性验收并评估升级。", taskIds: ["C4", "H1"] },
     { id: "R-VIT-H1-IDENTITIES", severity: "高", status: "受阻", title: "ViT 正式 H1 缺少完整候选身份与 60/40 划分", description: "公开三切片可做 minimum-5×22 preacceptance，但论文完整 500 AutoFormer + 500 PiT 架构身份及无重叠 60/40 development/test identity 未公开。", mitigation: "公开切片只标 partial_release_slice_preacceptance；在可信完整 identity 与 split 发布前，不将其写成正式 1% H1 或无泄漏论文协议复现。", taskIds: ["B3", "H1"] },
+    { id: "R-NATS-SSS-CROSS-SEED", severity: "中", status: "监控", title: "NATS-SSS 跨数据集当前只完成单 seed", description: "CIFAR100 与 ImageNet16-120 的 328×22 运行均全成功，三数据集四类分析表已生成；当前完成判定仅覆盖 1% 单 seed 子项，不代表跨数据集核心代理三 seed。", mitigation: "报告持续标注 single-seed scope；若后续执行核心代理多 seed，单独记录 manifest、有效行数与跨 seed 稳定性，不回写现有证据。", taskIds: ["B1", "E3", "F2", "H1", "I1"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-380", time: "2026-07-31 03:48", title: "ImageNet16 路径边界修复后全仓门禁", result: "380 tests passed、第一方 source coverage 87%；新增安全 manifest 的绝对路径和 ../ 路径逃逸拒绝测试，Ruff、compileall、pip check、panel、仓库卫生与 diff 均通过。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; pytest tests/test_repository_hygiene.py; git diff --check", taskIds: ["A1", "B1", "G1", "H1"] },
+    { id: "EV-FULL-GATE-379", time: "2026-07-31 03:40", title: "NATS-SSS 跨数据集阶段全仓门禁", result: "379 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel 与 diff 均通过。365 及更早门禁保留为历史口径。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check -- panel", taskIds: ["A1", "B1", "E3", "G1", "H1"] },
+    { id: "EV-IMAGENET16-SAFE-CONVERSION", time: "2026-07-31 03:40", title: "ImageNet16-120 安全转换与 registry shard 完整性", result: "ImageNet16-120 安全转换及 registry shard 完整性校验完成；raw acceptance SHA-256 为 96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707。", command: "safe ImageNet16-120 conversion; registry shard integrity validation; raw acceptance checksum", taskIds: ["B1", "F2", "H1"] },
+    { id: "EV-NATS-SSS-CROSS-DATASET-1PCT", time: "2026-07-31 03:40", title: "NATS-SSS CIFAR100/ImageNet16-120 单 seed 1% 完成", result: "CIFAR100 与 ImageNet16-120 各执行 328 架构×22 ZCP=7,216 行，均全成功；连同既有 CIFAR10-valid，NATS-SSS 跨数据集 1% 单 seed 子项完成。该结论不外推到核心代理三 seed。", command: "validate NATS-SSS CIFAR100 and ImageNet16-120 328x22 score artifacts", taskIds: ["B1", "E3", "F2", "H1", "I1"] },
+    { id: "EV-NATS-SSS-THREE-DATASET-STUDY", time: "2026-07-31 03:40", title: "NATS-SSS 三数据集四类分析表完成", result: "CIFAR10-valid、CIFAR100 与 ImageNet16-120 的四类定制分析表已生成；study SHA-256 为 0bc3734543ac77b80c40008285abbe4938668fa052620127b3c58a3a8638c954。", command: "build and validate four NATS-SSS analysis table classes across three datasets", taskIds: ["E3", "F2", "H1"] },
     { id: "EV-GIT-PUSH-43F1A503", time: "2026-07-31 03:02", title: "ViT release-slice preacceptance 已提交并推送", result: "提交 43f1a5030deb8cdc8b3fe71177c801b127c9cb4a（Complete ViT release-slice preacceptance）已推送；origin/main 与本地一致，提交后工作树干净。该提交完成的是公开 release-slice preacceptance，不代表 ViT 完整 identity H1 已完成。", command: "git rev-parse HEAD; git rev-parse origin/main; git status --short", taskIds: ["F2", "H1", "I1"] },
-    { id: "EV-FULL-GATE-365", time: "2026-07-31 02:55", title: "ViT 阶段当前全仓门禁", result: "365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 保留为历史门禁，不再代表当前口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B3", "C4", "G1", "H1"] },
+    { id: "EV-FULL-GATE-365", time: "2026-07-31 02:55", title: "历史门禁 365", result: "365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。该 ViT 阶段门禁已由 379-test NATS-SSS 跨数据集门禁取代，仅保留审计时间线。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B3", "C4", "G1", "H1"] },
     { id: "EV-VIT-SLICE-PREACCEPTANCE", time: "2026-07-31 02:55", title: "ViT 三公开切片 minimum-5×22 preacceptance", result: "三个公开切片均完成 bootstrap/runtime SHA 验证；每片 5 架构×22 ZCP=110 行，结果均为 80 ok、30 unsupported、0 failed。该结果严格标为 partial_release_slice_preacceptance，不等同完整 ViT H1。", command: "bootstrap and runtime SHA verification; minimum-5 x 22 ZCP sweep for each public ViT slice", taskIds: ["B3", "H1"] },
     { id: "EV-VIT-CATALOG-INTEGRITY", time: "2026-07-31 02:55", title: "ViT catalog 与 canonical ID 完整性门禁", result: "catalog 在打开 benchmark 前校验 SHA、version 与 protocol；ViT source SHA 固定；JSONL 中重复 canonical architecture ID 明确拒绝，不静默覆盖。", command: "catalog pre-open validation and duplicate canonical-ID fail-closed tests", taskIds: ["B3", "H1"] },
     { id: "EV-PIT-TOPOLOGY-PORT", time: "2026-07-31 02:55", title: "PiT topology PyTorch port 边界锁定", result: "QKV、LayerNorm epsilon 与 drop-path 已对齐，参数量和 MAC fixture 已增加；由于缺少 checkpoint 与逐层数值对照，模型 fidelity 固定为 reference_topology_pytorch_port，而非完整 reference_model。", command: "PiT topology alignment; parameter/MAC fixture tests; fidelity metadata audit", taskIds: ["C4", "H1"] },

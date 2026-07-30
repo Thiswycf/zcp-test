@@ -75,6 +75,15 @@ that mostly encode width. Prefer rank correlations for discrete channel choices 
 NAS-Bench-201 and NATS-TSS may share a topology parser but never share benchmark identity or
 targets; NATS-SSS results must not be pooled with TSS.
 
+For NATS-SSS cross-dataset work, distinguish two protocols. Dataset-specific ZCP recomputes scores
+on CIFAR-100 and ImageNet16-120 inputs and correlates each against the matching 90-epoch validation
+accuracy. Target-only transfer keeps the source score and `input_fingerprint` unchanged and joins
+only another dataset's target by architecture ID. The accepted 12-shard size study now emits the
+594-row dataset/target matrix, 186-row proxy-stability table, 9-row target-rank table, and 1,188-row
+controlled-transfer table separately. Report coverage, input fingerprints, and size controls; do
+not collapse dataset-specific and target-only results. See the
+[evidence](evidence/NATS_SSS_CROSS_DATASET_CN.md).
+
 ## NAS-Bench-301 DARTS
 
 ```bash

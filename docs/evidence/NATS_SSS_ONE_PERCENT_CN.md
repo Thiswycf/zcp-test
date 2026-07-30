@@ -103,10 +103,11 @@ direction 为 `maximize`，资源优化语义另记为 `resource_direction=minim
 n=82 的相关性。现已删除 `run_id/source_run` 分组、加入 evaluation `seed` 分组，并用测试证明
 “互斥 shard 合并、不同 seed 分离”。NB201 与 NATS-TSS 的既有 topology 报告也已按相同修复重建。
 
-## 仍待完成
+## 后续状态与仍待完成
 
-1. CIFAR-100 与 ImageNet16-120 的真实输入、独立目标和跨数据集 rank transfer 尚未执行；当前只能
-   判定 CIFAR-10-valid/90-epoch 协议完成。
+1. CIFAR-100 与 ImageNet16-120 的 328 × 22 dataset-specific ZCP、target-only transfer、proxy
+   排名稳定性和 size/stage 控制分析已在后续验收完成；见
+   `docs/evidence/NATS_SSS_CROSS_DATASET_CN.md`。该后续证据仍只覆盖 1% 分层样本和单 seed。
 2. catalog 的 SSS 资产 revision `1.0-50262` 尚未作为独立于 API version 的 score 字段保存。
 3. 22 个注册名不等于 22 个独立论文公式；alias、portable approximation 和 unverified port 的边界
    继续沿用代理 provenance 审计。

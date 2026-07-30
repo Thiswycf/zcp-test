@@ -219,6 +219,25 @@ zcp-test data convert-vit \
 
 The main and extension AutoFormer slices remain distinct. Vanilla, knowledge-distillation, and inherited-supernet accuracy are separate metric protocols.
 
+For NATS-SSS/ImageNet16-120, never use the release pickle as a runtime dataset. Verify the official
+per-file MD5 values and convert it explicitly:
+
+```bash
+zcp-test data convert-imagenet16 \
+  --source /path/to/raw/ImageNet16 \
+  --output /path/to/data/datasets/ImageNet16-120-safe \
+  --trusted --register --catalog /path/to/data/catalog.json
+zcp-test data verify dataset_imagenet16_120 --catalog /path/to/data/catalog.json
+```
+
+The runtime is `npy-shards-v1`, loaded with `allow_pickle=False` and per-shard SHA-256 verification.
+Dataset-specific CIFAR-100 and ImageNet16-120 ZCPs require separate evaluations. The accepted
+12-shard `analyze benchmark --benchmark nats_sss --view size` study then keeps source scores and
+input fingerprints fixed for target-only joins and emits separate matrix, stability, target-rank,
+and controlled-transfer tables. Both new datasets completed 7,216/7,216 rows with zero duplicate
+keys. See [operations](docs/OPERATIONS.md), [one-percent status](docs/ONE_PERCENT_ACCEPTANCE.md), and
+the [cross-dataset evidence](docs/evidence/NATS_SSS_CROSS_DATASET_CN.md).
+
 ## Artifacts
 
 Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `config.yaml`, `events.jsonl`, human-readable `run.log`, command-specific JSONL files, checkpoints, and derived reports. JSONL is the source of truth; CSV and HTML are rebuildable views.

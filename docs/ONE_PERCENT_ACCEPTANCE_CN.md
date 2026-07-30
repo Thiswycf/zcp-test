@@ -141,8 +141,23 @@ stage sensitivity 和 size-controlled strata 分析。真实运行发现并修�
 n=82 的错误分组；正式结果合并四个互斥 shard 为 n=328，并按 evaluation seed 分离。详见
 [`evidence/NATS_SSS_ONE_PERCENT_CN.md`](evidence/NATS_SSS_ONE_PERCENT_CN.md)。
 
-当前判定更新为 **“NB201、NATS-TSS 与 NATS-SSS/CIFAR-10-valid 既定协议完成，H1 整体进行中”**。
-NATS-SSS 的 CIFAR-100/ImageNet16-120 rank transfer 属于尚未完成的定制扩展。
+### NATS-SSS/CIFAR-100 与 ImageNet16-120 跨数据集验收
+
+该定制扩展现已完成。CIFAR-100 与 ImageNet16-120 各为 328 架构 × 22 代理 = 7,216 行，全部
+`ok`、失败 0、unsupported 0、重复键 0。三数据集共 12 个分片进入统一 size study，并将
+dataset-specific 与 target-only 分别写入 matrix/stability/target-transfer/controlled-transfer
+四表，行数为 594/186/9/1,188。
+
+原始验收摘要 SHA-256 为
+`96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707`；报告
+`study.json` SHA-256 为
+`0bc3734543ac77b80c40008285abbe4938668fa052620127b3c58a3a8638c954`。完整路径、分片 SHA、
+输入 fingerprint、target rank 和解释边界见
+[`evidence/NATS_SSS_CROSS_DATASET_CN.md`](evidence/NATS_SSS_CROSS_DATASET_CN.md) 与
+[`evidence/nats_sss_cross_dataset_summary.json`](evidence/nats_sss_cross_dataset_summary.json)。
+
+结论只覆盖 1% 分层样本和单输入/初始化 seed 2026；不能外推全 32,768 架构，也不构成因果
+解释或多 seed 稳定性证明。
 
 ## 9. NB101 实际验收（H1）
 
@@ -162,7 +177,7 @@ NB101 正式 1% 既定协议已完成：从 `nasbench101@full` 的 423,624 个�
 [`evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) 与
 [`evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
 
-当前判定更新为 **“NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid 与 NB101 的既定协议完成，H1
+当前判定更新为 **“NB201、NATS-TSS、NATS-SSS 三数据集扩展与 NB101 的既定协议完成，H1
 整体进行中”**。
 
 ## 10. NB301 deterministic surrogate 实际验收（H1）
@@ -179,7 +194,7 @@ target 完全一致；sample-size convergence 覆盖 10 到完整 1,000 样本�
 [`evidence/NB301_ONE_THOUSAND_CN.md`](evidence/NB301_ONE_THOUSAND_CN.md) 与
 [`evidence/nb301_one_thousand_summary.json`](evidence/nb301_one_thousand_summary.json)。
 
-当前判定更新为 **“NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic
+当前判定更新为 **“NB201、NATS-TSS、NATS-SSS 三数据集扩展、NB101 与 NB301 deterministic
 surrogate 的既定协议完成，H1 整体进行中”**。TNB101 正式输入与 ViT-Bench 论文全集/60-40 划分
-仍待；ViT 三个公开切片已完成 minimum-5 预验收，但不计入正式 H1。NATS-SSS 的
-跨数据集迁移也未由 CIFAR-10-valid 结果替代。
+仍待；ViT 三个公开切片已完成 minimum-5 预验收，但不计入正式 H1。NATS-SSS 跨数据集证据仍
+严格限定为 1% 分层样本和单输入/初始化 seed。

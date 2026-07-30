@@ -341,6 +341,8 @@ def nats_size_study(
         ].reset_index(drop=True)
         result["size_controlled_correlations"] = _size_controlled_correlations(detailed)
         result["size_strata"] = _size_stratified_proxy_quality(detailed)
+        if "dataset" in detailed:
+            result.update(_nats_cross_dataset_studies(detailed))
     return result
 
 
@@ -445,6 +447,298 @@ def _size_stratified_proxy_quality(frame: pd.DataFrame, bins: int = 4) -> pd.Dat
                 }
             )
     return pd.DataFrame.from_records(records)
+
+
+def _nats_protocol_fields(frame: pd.DataFrame, candidates: Sequence[str], study: str) -> list[str]:
+    fields: list[str] = []
+    for field in candidates:
+        if field not in frame or not frame[field].notna().any():
+            continue
+        if frame[field].isna().any():
+            raise ValueError(f"{study} does not allow partially specified protocol field: {field}")
+        fields.append(field)
+    return fields
+
+
+def _group_identifiers(fields: Sequence[str], key: Any) -> dict[str, Any]:
+    values = key if isinstance(key, tuple) else (key,)
+    return dict(zip(fields, values, strict=True))
+
+
+def _pair_coverage(
+    left: pd.DataFrame,
+    right: pd.DataFrame,
+    paired: pd.DataFrame,
+    left_value: str,
+    right_value: str,
+) -> dict[str, int | float]:
+    left_ids = set(left["architecture_id"])
+    right_ids = set(right["architecture_id"])
+    union_count = len(left_ids | right_ids)
+    common_count = len(left_ids & right_ids)
+    finite = np.isfinite(pd.to_numeric(paired[left_value], errors="coerce")) & np.isfinite(
+        pd.to_numeric(paired[right_value], errors="coerce")
+    )
+    return {
+        "source_architecture_count": len(left_ids),
+        "target_architecture_count": len(right_ids),
+        "common_architecture_count": common_count,
+        "union_architecture_count": union_count,
+        "valid_pair_count": int(finite.sum()),
+        "architecture_coverage": common_count / union_count if union_count else 0.0,
+        "valid_coverage": int(finite.sum()) / union_count if union_count else 0.0,
+    }
+
+
+def _adjust_direction(values: pd.Series, directions: pd.Series) -> pd.Series:
+    numeric = pd.to_numeric(values, errors="coerce")
+    return pd.Series(np.where(directions.eq("minimize"), -numeric, numeric), index=values.index)
+
+
+def _partial_spearman(left: pd.Series, right: pd.Series, control: pd.Series) -> tuple[int, float | None]:
+    sample = pd.concat(
+        [
+            pd.to_numeric(left, errors="coerce"),
+            pd.to_numeric(right, errors="coerce"),
+            pd.to_numeric(control, errors="coerce"),
+        ],
+        axis=1,
+    ).replace([np.inf, -np.inf], np.nan).dropna()
+    if len(sample) < 3:
+        return len(sample), None
+    left_residual = _rank_residual(sample.iloc[:, 0], sample.iloc[:, 2])
+    right_residual = _rank_residual(sample.iloc[:, 1], sample.iloc[:, 2])
+    if np.std(left_residual) == 0 or np.std(right_residual) == 0:
+        return len(sample), None
+    value = stats.pearsonr(left_residual, right_residual).statistic
+    return len(sample), float(value) if np.isfinite(value) else None
+
+
+def _nats_cross_dataset_studies(
+    frame: pd.DataFrame,
+    methods: Sequence[str] = ("spearman", "kendall_tau_b", "pearson"),
+) -> dict[str, pd.DataFrame]:
+    """Separate dataset-conditioned proxy transfer from target-only rank transfer."""
+    study = "NATS-SSS cross-dataset study"
+    required = (
+        "architecture_id",
+        "dataset",
+        "proxy_id",
+        "component",
+        "score",
+        "direction",
+        "input_fingerprint",
+        "target_value",
+        "target_metric",
+        "target_split",
+        "target_direction",
+    )
+    _require_frame(frame, required, study)
+    _require_complete(
+        frame,
+        (
+            "architecture_id",
+            "dataset",
+            "proxy_id",
+            "component",
+            "direction",
+            "input_fingerprint",
+            "target_metric",
+            "target_split",
+            "target_direction",
+        ),
+        study,
+    )
+    _validate_methods(methods, study)
+    score_direction = frame["direction"].astype(str).str.casefold()
+    target_direction = frame["target_direction"].astype(str).str.casefold()
+    invalid_score = sorted(set(score_direction) - _VALID_DIRECTIONS)
+    invalid_target = sorted(set(target_direction) - _VALID_DIRECTIONS)
+    if invalid_score or invalid_target:
+        raise ValueError(
+            f"{study} has invalid directions: score={invalid_score}, target={invalid_target}"
+        )
+
+    common_fields = _nats_protocol_fields(
+        frame,
+        (
+            "benchmark_id",
+            "benchmark_version",
+            "benchmark_variant",
+            "benchmark_protocol",
+            "search_space_id",
+        ),
+        study,
+    )
+    proxy_fields = _nats_protocol_fields(
+        frame,
+        ("proxy_id", "component", "proxy_version", "model_fidelity", "input_source", "seed"),
+        study,
+    )
+    target_fields = _nats_protocol_fields(
+        frame,
+        (
+            "target_metric",
+            "target_split",
+            "target_direction",
+            "target_epoch_budget",
+            "target_seed",
+            "target_seed_reduction",
+        ),
+        study,
+    )
+    working = frame.assign(
+        _adjusted_score=_adjust_direction(frame["score"], score_direction),
+        _adjusted_target=_adjust_direction(frame["target_value"], target_direction),
+    )
+    score_keys = [*common_fields, *proxy_fields, "dataset", "input_fingerprint", "architecture_id"]
+    if working.duplicated(score_keys, keep=False).any():
+        raise ValueError(
+            f"{study} requires one score per proxy protocol/dataset/architecture; "
+            "filter repeated evaluations explicitly"
+        )
+
+    target_keys = [*common_fields, "dataset", *target_fields, "architecture_id"]
+    for _, group in working.groupby(target_keys, dropna=False, sort=False):
+        values = pd.to_numeric(group["target_value"], errors="coerce").replace(
+            [np.inf, -np.inf], np.nan
+        )
+        if values.dropna().nunique() > 1:
+            raise ValueError(f"{study} found conflicting target values for one architecture/protocol")
+    targets = (
+        working.sort_index()
+        .groupby(target_keys, as_index=False, dropna=False)
+        .agg(_adjusted_target=("_adjusted_target", "max"))
+    )
+
+    proxy_units = [*common_fields, *proxy_fields, "dataset", "input_fingerprint"]
+    target_units = [*common_fields, "dataset", *target_fields]
+    proxy_groups = list(working.groupby(proxy_units, dropna=False, sort=True))
+    target_groups = list(targets.groupby(target_units, dropna=False, sort=True))
+    transfer_records: list[dict[str, Any]] = []
+    controlled_records: list[dict[str, Any]] = []
+    control_columns = ["size_channel_sum", *sorted(
+        (column for column in frame if re.fullmatch(r"stage_\d+_channel", column)),
+        key=lambda column: int(column.split("_")[1]),
+    )]
+    architecture_controls = frame[["architecture_id", *control_columns]].drop_duplicates()
+    if architecture_controls.duplicated("architecture_id", keep=False).any():
+        raise ValueError(f"{study} found inconsistent size features for one architecture_id")
+    for proxy_key, source in proxy_groups:
+        source_ids = _group_identifiers(proxy_units, proxy_key)
+        for target_key, target in target_groups:
+            target_ids = _group_identifiers(target_units, target_key)
+            if any(source_ids[field] != target_ids[field] for field in common_fields):
+                continue
+            paired = source[["architecture_id", "_adjusted_score"]].merge(
+                target[["architecture_id", "_adjusted_target"]],
+                on="architecture_id",
+                validate="one_to_one",
+            )
+            identifiers = {
+                **{field: source_ids[field] for field in [*common_fields, *proxy_fields]},
+                "source_dataset": source_ids["dataset"],
+                "source_input_fingerprint": source_ids["input_fingerprint"],
+                "target_dataset": target_ids["dataset"],
+                **{f"target_{field.removeprefix('target_')}": target_ids[field] for field in target_fields},
+            }
+            coverage = _pair_coverage(
+                source, target, paired, "_adjusted_score", "_adjusted_target"
+            )
+            for method in methods:
+                sample_count, value = _correlation(
+                    paired["_adjusted_score"], paired["_adjusted_target"], method
+                )
+                transfer_records.append(
+                    {**identifiers, **coverage, "method": method, "sample_count": sample_count, "correlation": value}
+                )
+            controlled = paired.merge(architecture_controls, on="architecture_id", validate="one_to_one")
+            for control in control_columns:
+                sample_count, value = _partial_spearman(
+                    controlled["_adjusted_score"], controlled["_adjusted_target"], controlled[control]
+                )
+                controlled_records.append(
+                    {
+                        **identifiers,
+                        **coverage,
+                        "control": control,
+                        "method": "partial_spearman",
+                        "sample_count": sample_count,
+                        "correlation": value,
+                    }
+                )
+
+    stability_records: list[dict[str, Any]] = []
+    for (left_key, left), (right_key, right) in combinations(proxy_groups, 2):
+        left_ids = _group_identifiers(proxy_units, left_key)
+        right_ids = _group_identifiers(proxy_units, right_key)
+        matching = [*common_fields, *proxy_fields]
+        if any(left_ids[field] != right_ids[field] for field in matching):
+            continue
+        if left_ids["dataset"] == right_ids["dataset"]:
+            continue
+        paired = left[["architecture_id", "_adjusted_score"]].merge(
+            right[["architecture_id", "_adjusted_score"]],
+            on="architecture_id",
+            suffixes=("_left", "_right"),
+            validate="one_to_one",
+        )
+        identifiers = {
+            **{field: left_ids[field] for field in matching},
+            "dataset_left": left_ids["dataset"],
+            "input_fingerprint_left": left_ids["input_fingerprint"],
+            "dataset_right": right_ids["dataset"],
+            "input_fingerprint_right": right_ids["input_fingerprint"],
+        }
+        coverage = _pair_coverage(
+            left, right, paired, "_adjusted_score_left", "_adjusted_score_right"
+        )
+        for method in methods:
+            sample_count, value = _correlation(
+                paired["_adjusted_score_left"], paired["_adjusted_score_right"], method
+            )
+            stability_records.append(
+                {**identifiers, **coverage, "method": method, "sample_count": sample_count, "correlation": value}
+            )
+
+    target_records: list[dict[str, Any]] = []
+    for (left_key, left), (right_key, right) in combinations(target_groups, 2):
+        left_ids = _group_identifiers(target_units, left_key)
+        right_ids = _group_identifiers(target_units, right_key)
+        if any(left_ids[field] != right_ids[field] for field in common_fields):
+            continue
+        if left_ids["dataset"] == right_ids["dataset"]:
+            continue
+        paired = left.merge(
+            right,
+            on="architecture_id",
+            suffixes=("_left", "_right"),
+            validate="one_to_one",
+        )
+        identifiers = {
+            **{field: left_ids[field] for field in common_fields},
+            "dataset_left": left_ids["dataset"],
+            "dataset_right": right_ids["dataset"],
+            **{f"left_{field}": left_ids[field] for field in target_fields},
+            **{f"right_{field}": right_ids[field] for field in target_fields},
+        }
+        coverage = _pair_coverage(
+            left, right, paired, "_adjusted_target_left", "_adjusted_target_right"
+        )
+        for method in methods:
+            sample_count, value = _correlation(
+                paired["_adjusted_target_left"], paired["_adjusted_target_right"], method
+            )
+            target_records.append(
+                {**identifiers, **coverage, "method": method, "sample_count": sample_count, "correlation": value}
+            )
+
+    return {
+        "dataset_proxy_target_matrix": pd.DataFrame.from_records(transfer_records),
+        "proxy_dataset_stability": pd.DataFrame.from_records(stability_records),
+        "target_dataset_transfer": pd.DataFrame.from_records(target_records),
+        "controlled_proxy_target_transfer": pd.DataFrame.from_records(controlled_records),
+    }
 
 
 def _vit_spec(value: Any, row_label: Any, architecture_column: str) -> Mapping[str, Any]:

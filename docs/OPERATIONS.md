@@ -142,6 +142,35 @@ in an isolated environment. A list becomes one JSONL record per item; a mapping 
 shape-preserving migration, not schema validation. Inspect the JSONL before using it as scores or
 targets, and never overwrite the source file.
 
+## NATS-SSS CIFAR-100 and ImageNet16-120
+
+Bootstrap NATS-SSS, create the deterministic 328-of-32,768 sample, and keep native benchmark access
+explicitly trusted:
+
+```bash
+zcp-test benchmark sample nats_sss --catalog /path/to/data/catalog.json --trusted \
+  --fraction 0.01 --seed 2026 --shards 4 --output /path/to/audit/nats-sss-1pct.json
+
+zcp-test evaluate --benchmark nats_sss --catalog /path/to/data/catalog.json --trusted \
+  --sample-manifest /path/to/audit/nats-sss-1pct.json --sample-shard 0 \
+  --dataset ImageNet16-120 --target-metric accuracy --target-split valid \
+  --epoch-budget 90 --metric-seed-reduction mean --target-direction maximize \
+  --input-source dataset --input-size 16 --classes 120 --batch-size 16 \
+  --proxies params,naswot,synflow --seed 2026 --gpu auto --output /path/to/runs
+```
+
+For dataset-specific CIFAR-100, use `--dataset cifar100 --data-root /path/to/cifar100
+--input-size 32 --classes 100`. These runs recompute ZCPs on each dataset. The accepted target-only
+study passes all 12 CIFAR-10-valid/CIFAR-100/ImageNet16 score shards to
+`analyze benchmark --benchmark nats_sss --view size`; analysis preserves each source score and
+`input_fingerprint` while joining new targets by architecture ID. It emits separate matrix,
+stability, target-rank, and controlled-transfer tables. See the
+[cross-dataset evidence](evidence/NATS_SSS_CROSS_DATASET_CN.md).
+Missing `--trusted`, an official MD5 mismatch, a corrupt safe shard, a missing
+`dataset_imagenet16_120` catalog entry, or an incorrect `ImageNet16-120` spelling fails explicitly.
+See the [Chinese operations guide](OPERATIONS_CN.md) for full commands and
+troubleshooting.
+
 ## Adding a proxy
 
 Run `zcp-test proxy scaffold my_proxy` only from a writable source checkout or editable install. It

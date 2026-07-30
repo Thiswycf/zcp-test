@@ -100,7 +100,8 @@ zcp-test data verify --all --root /path/to/data
 ```
 
 For one catalog entry, `data verify` checks existence and a catalog SHA-256 when one was
-registered:
+registered. For `dataset_imagenet16_120`, it also verifies every safe `.npy` shard recorded by the
+manifest:
 
 ```bash
 zcp-test data list --catalog /path/to/data/catalog.json
@@ -328,6 +329,45 @@ Repository configuration keeps `/path/to/data` placeholders and never stores hos
   owner; do not infer rights from successful HTTP access.
 - Preserve the source URL, retrieval date, exact byte size, SHA-256, benchmark version, split,
   epoch budget, seed reduction, and metric protocol in experiment provenance.
+
+## ImageNet16-120 safe conversion
+
+Use the [NATS-Bench dataset instructions](https://github.com/D-X-Y/NATS-Bench#prepare-datasets),
+the linked [official Drive folder](https://drive.google.com/drive/folders/1T3UIyZXUhMmIuJLOBMIYKAsJknAtrrO4?usp=sharing),
+and the [AutoDL-Projects ImageNet16 loader](https://github.com/D-X-Y/AutoDL-Projects/blob/main/xautodl/datasets/get_dataset_with_transform.py)
+as portable upstream references. The Drive payload must still match every MD5 listed in the
+Chinese guide before trusted conversion.
+
+The official ImageNet16 release consists of ten `train_data_batch_*` files and `val_data`, all
+pickle payloads. Pickle may execute code while loading; matching MD5 identifies the official bytes
+but does not make deserialization intrinsically safe. The converter therefore requires explicit
+`--trusted`, verifies every built-in official MD5, uses a restricted NumPy unpickler, validates
+image/label shapes, and writes `.npy` shards with `allow_pickle=False` plus SHA-256 records.
+
+```bash
+SAFE=/path/to/data/datasets/ImageNet16-120-safe
+CATALOG=/path/to/data/catalog.json
+zcp-test data convert-imagenet16 --source /path/to/raw/ImageNet16 \
+  --output "$SAFE" --trusted --register --catalog "$CATALOG"
+zcp-test data verify dataset_imagenet16_120 --catalog "$CATALOG"
+```
+
+The registered contract is asset `dataset_imagenet16_120`, version `npy-shards-v1`, protocol
+`imagenet16-120-official-md5-safe-conversion-v1`, with the manifest SHA-256. The complete official
+MD5 table and `--replace` cautions are maintained in the
+[Chinese guide](DATA_BOOTSTRAP_CN.md).
+
+For another machine, copy the entire safe directory, recompute the destination manifest SHA-256,
+and register the destination-local manifest path with `data register`. Do not copy a catalog that
+contains source-host absolute paths. `data verify` checks both the registered manifest and every
+recorded shard; opening `SafeImageNet16` repeats the runtime integrity check. Generic
+benchmark `export-manifest` does not include this dataset asset.
+
+This safe runtime was used by the accepted NATS-SSS/ImageNet16-120 1% dataset-specific sweep:
+7,216/7,216 rows succeeded with zero failures or duplicate keys. The raw acceptance summary SHA-256
+is `96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707`. This validates the
+runtime used for that run; another host must still copy, register, and verify its own paths. See the
+[cross-dataset evidence](evidence/NATS_SSS_CROSS_DATASET_CN.md).
 
 ## Google Drive quota and interrupted downloads
 

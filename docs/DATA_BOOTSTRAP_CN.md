@@ -99,7 +99,7 @@ zcp-test data verify --all --root /path/to/data
 ```
 
 单个 catalog 条目的 `data verify` 检查路径存在性；若 catalog 中记录了 SHA-256，也会检查
-摘要：
+摘要。对于 `dataset_imagenet16_120`，还会按 manifest 逐个核对安全 `.npy` shard 的 SHA-256：
 
 ```bash
 zcp-test data list --catalog /path/to/data/catalog.json
@@ -295,6 +295,95 @@ NAS-Bench-301 使用官方 Figshare v1.0 ensemble。performance 与 runtime 模�
   推断权利。
 - 实验来源记录至少应包含 URL、获取日期、精确字节数、SHA-256、benchmark 版本、split、
   epoch budget、seed reduction 和 metric protocol。
+
+## ImageNet16-120：从 pickle 到安全运行格式
+
+上游入口是 [NATS-Bench README 的数据说明](https://github.com/D-X-Y/NATS-Bench#prepare-datasets)、
+其公开 [Google Drive 数据目录](https://drive.google.com/drive/folders/1T3UIyZXUhMmIuJLOBMIYKAsJknAtrrO4?usp=sharing)
+和 [AutoDL-Projects 的 ImageNet16 loader](https://github.com/D-X-Y/AutoDL-Projects/blob/main/xautodl/datasets/get_dataset_with_transform.py)。
+这些是可迁移的来源页，不依赖本机路径；Drive 内的下载仍需按下表逐文件核对 MD5。
+
+ImageNet16 原始发布由 10 个训练 batch 和 1 个验证 batch 组成，文件内容是 pickle。pickle 即使
+扩展名不是 `.pkl` 也具有反序列化执行风险；MD5 只能确认字节与官方发布一致，不能把恶意 pickle
+变成安全格式。因此转换同时要求：来源可信、全部官方 MD5 匹配、操作者显式传入 `--trusted`。
+转换器只允许所需的 NumPy globals，并在反序列化后检查 `uint8` 图像矩阵、`3×16×16` 展平长度、
+整数标签和样本对齐。运行期不再读取 pickle，而是使用 `np.load(..., allow_pickle=False)` 加载带
+SHA-256 的 `.npy` shards。
+
+官方文件 MD5（文件名大小写必须保持一致）：
+
+| Split | 文件 | MD5 |
+|---|---|---|
+| train | `train_data_batch_1` | `27846dcaa50de8e21a7d1a35f30f0e91` |
+| train | `train_data_batch_2` | `c7254a054e0e795c69120a5727050e3f` |
+| train | `train_data_batch_3` | `4333d3df2e5ffb114b05d2ffc19b1e87` |
+| train | `train_data_batch_4` | `1620cdf193304f4a92677b695d70d10f` |
+| train | `train_data_batch_5` | `348b3c2fdbb3940c4e9e834affd3b18d` |
+| train | `train_data_batch_6` | `6e765307c242a1b3d7d5ef9139b48945` |
+| train | `train_data_batch_7` | `564926d8cbf8fc4818ba23d2faac7564` |
+| train | `train_data_batch_8` | `f4755871f718ccb653440b9dd0ebac66` |
+| train | `train_data_batch_9` | `bb6dd660c38c58552125b1a92f86b5d4` |
+| train | `train_data_batch_10` | `8f03f34ac4b42271a294f91bf480f29b` |
+| valid | `val_data` | `3410e3017fdaefba8d5073aaa65e4bd6` |
+
+转换并注册：
+
+```bash
+CATALOG=/path/to/data/catalog.json
+RAW=/path/to/raw/ImageNet16
+SAFE=/path/to/data/datasets/ImageNet16-120-safe
+
+zcp-test data convert-imagenet16 \
+  --source "$RAW" --output "$SAFE" \
+  --trusted --register --catalog "$CATALOG"
+zcp-test data verify dataset_imagenet16_120 --catalog "$CATALOG"
+```
+
+`--source` 可以是直接包含 11 个 batch 的目录，也可以是其父目录（子目录名为 `ImageNet16`）。
+命令输出目录包含 `manifest.json` 和 image/label `.npy` shards；catalog 条目固定为：
+
+- asset ID：`dataset_imagenet16_120`；
+- version：`npy-shards-v1`；
+- protocol：`imagenet16-120-official-md5-safe-conversion-v1`；
+- catalog SHA-256：`manifest.json` 的摘要；
+- `trusted=false`：表示运行格式无需 pickle 信任，不表示原始转换步骤不需要 `--trusted`。
+
+目标已存在时，只有现有 manifest 与 shards 全部验证通过才会无操作复用；损坏或不完整目录默认
+失败。`--replace` 会先在同一文件系统的临时目录完成全部转换与校验，再以备份交换方式替换旧目录；
+转换失败会保留旧目录，但仍只能对已确认属于该数据集的目标路径使用。
+
+### 跨机器迁移 ImageNet16 安全目录
+
+推荐迁移整个安全目录，而不是再次传播 raw pickle。通用 benchmark 的 `export-manifest` 不包含
+dataset catalog asset，因此这里必须显式复制 `manifest.json` 和所有 `.npy` shards：
+
+```bash
+# 源机器：复制完整目录；具体传输工具由组织策略决定。
+rsync -a /path/to/data/datasets/ImageNet16-120-safe/ \
+  target:/path/to/data/datasets/ImageNet16-120-safe/
+
+# 目标机器：按目标机实际绝对路径重新注册，不复制源机器 catalog。
+SAFE=/path/to/data/datasets/ImageNet16-120-safe
+CATALOG=/path/to/data/catalog.json
+MANIFEST_SHA=$(sha256sum "$SAFE/manifest.json" | awk '{print $1}')
+zcp-test data register dataset_imagenet16_120 "$SAFE/manifest.json" \
+  --version npy-shards-v1 \
+  --sha256 "$MANIFEST_SHA" \
+  --protocol imagenet16-120-official-md5-safe-conversion-v1 \
+  --catalog "$CATALOG" --replace
+zcp-test data verify dataset_imagenet16_120 --catalog "$CATALOG"
+```
+
+`data verify` 同时验证 catalog 固定的 manifest 摘要和 manifest 列出的每个 shard SHA-256；
+`SafeImageNet16` 打开时会再次执行同一运行格式校验。目标机应再运行一次最小真实 dataset query，不能只以 `rsync` 成功或
+catalog 存在作为验收。
+
+该安全运行格式现已用于 NATS-SSS/ImageNet16-120 的正式 1% dataset-specific sweep：328 架构 ×
+22 代理共 7,216/7,216 行成功，失败和重复键均为 0。原始运行验收摘要 SHA-256 为
+`96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707`。这证明本次验收所用
+manifest/shards 可运行，不把一个机器上的绝对路径或 catalog 注册自动推广为其他机器已就绪；
+跨机后仍需按本节重新注册和验证。详见
+[NATS-SSS 跨数据集证据](evidence/NATS_SSS_CROSS_DATASET_CN.md)。
 
 ## Google Drive 配额与断点续传
 

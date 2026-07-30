@@ -183,6 +183,30 @@ zcp-test analyze benchmark \
 规模混杂。stage channel 是离散变量且 ties 较多，优先解读 Spearman/Kendall，不应只看 Pearson。
 不要把 NATS-SSS 的 90-epoch 结果与 TSS 的 200-epoch 结果放在同一相关性组。
 
+### CIFAR-100、ImageNet16 与 transfer 的协议边界
+
+NATS-SSS 的 size 视图可分别分析 `cifar100` 和 `ImageNet16-120`，但必须先按 `dataset`、
+`target_split`、`target_epoch_budget`、`target_seed_reduction`、`input_fingerprint` 和 evaluation
+seed 过滤。两类跨数据集问题不可混写：
+
+1. **Dataset-specific ZCP**：在 CIFAR-100 输入上算一套 ZCP，在 ImageNet16-120 输入上重新算
+   一套 ZCP，各自与同数据集的 90-epoch validation accuracy 相关；输入改变时 score 也允许改变。
+2. **Target-only transfer**：固定源数据集已经计算的 ZCP score 和 `input_fingerprint`，只把 target
+   换成另一数据集真值；它检验代理排序能否迁移，而不是代理对目标数据输入的适配能力。
+
+当前正式流程先按[运维手册](OPERATIONS_CN.md)完成三个 dataset-specific sweep，再将 12 个分片
+传给 `analyze benchmark --benchmark nats_sss --view size`。分析已实现一对一 architecture join、
+覆盖率及重复键审计，并分别输出 594 行 dataset/target matrix、186 行 proxy stability、9 行
+target transfer 和 1,188 行 controlled transfer；四表不能合并成一个模糊的 transfer 指标。
+
+报告时至少并列给出 `score_coverage.csv`、`correlations.csv`、`size_controlled_correlations.csv`
+和输入 fingerprint。跨数据集相关性的差异不能自动归因于“迁移能力”：模型输出维度、输入分布、
+归一化和标签依赖代理均同时改变。
+
+在本次 328 架构样本上，target rank Spearman 为 ImageNet16↔C10 `0.869439`、
+ImageNet16↔C100 `0.924531`、C10↔C100 `0.772225`。完整哈希和 top proxy 见
+[正式证据](evidence/NATS_SSS_CROSS_DATASET_CN.md)。
+
 ## 5. NAS-Bench-301 DARTS 联合研究
 
 NAS-Bench-301 的默认 adapter 从 DARTS 空间按整数 seed 生成候选，因此创建 sample manifest 时必须

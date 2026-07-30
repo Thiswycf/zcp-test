@@ -29,6 +29,7 @@ from zcp_test.data import (
     DataRegistry,
     bootstrap_benchmarks,
     convert_vitbench101,
+    convert_imagenet16_120,
     data_checklist,
     export_data_manifest,
     verify_data_manifest,
@@ -226,7 +227,11 @@ def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
     if not catalog:
         return None
     registry = DataRegistry(catalog)
-    asset_ids = [f"dataset_{'cifar10' if dataset == 'cifar10-valid' else dataset}"]
+    normalized_dataset = {
+        "cifar10-valid": "cifar10",
+        "ImageNet16-120": "imagenet16_120",
+    }.get(dataset, dataset)
+    asset_ids = [f"dataset_{normalized_dataset}"]
     from zcp_test.data.transnas_inputs import is_transnas_task
 
     if is_transnas_task(dataset):
@@ -239,7 +244,8 @@ def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
         verification = registry.verify(asset_id)
         if not verification["valid"]:
             raise FileNotFoundError(f"Registered dataset asset is invalid: {asset_id}")
-        return asset.path
+        path = Path(asset.path).expanduser()
+        return str(path.parent if dataset == "ImageNet16-120" and path.is_file() else path)
     return None
 
 
@@ -1021,6 +1027,32 @@ def command_data(args: argparse.Namespace) -> None:
                 "upstream_commit": manifest["upstream"]["commit"],
             }
         )
+        return
+    if args.action == "convert-imagenet16":
+        from zcp_test.data.assets import sha256_file
+
+        manifest = convert_imagenet16_120(
+            args.source,
+            args.output,
+            trusted=args.trusted,
+            replace=args.replace,
+        )
+        result: dict[str, Any] = {"manifest": str(manifest)}
+        if args.register:
+            registry = DataRegistry(args.catalog)
+            registry.register(
+                DataAsset(
+                    "dataset_imagenet16_120",
+                    str(manifest),
+                    "npy-shards-v1",
+                    sha256=sha256_file(manifest),
+                    protocol="imagenet16-120-official-md5-safe-conversion-v1",
+                    trusted=False,
+                ),
+                replace=args.replace,
+            )
+            result["asset_id"] = "dataset_imagenet16_120"
+        _json(result)
         return
     if args.action == "checklist":
         records = data_checklist(args.root, args.catalog)
@@ -2143,6 +2175,14 @@ def build_parser() -> argparse.ArgumentParser:
     convert_vit.add_argument("--trusted", action="store_true")
     convert_vit.add_argument("--catalog", default=data_default)
     convert_vit.set_defaults(function=command_data)
+    convert_imagenet16 = data_actions.add_parser("convert-imagenet16")
+    convert_imagenet16.add_argument("--source", required=True)
+    convert_imagenet16.add_argument("--output", required=True)
+    convert_imagenet16.add_argument("--trusted", action="store_true")
+    convert_imagenet16.add_argument("--replace", action="store_true")
+    convert_imagenet16.add_argument("--register", action="store_true")
+    convert_imagenet16.add_argument("--catalog", default=data_default)
+    convert_imagenet16.set_defaults(function=command_data)
     prepare_transnas_input = data_actions.add_parser("prepare-transnas-input")
     prepare_transnas_input.add_argument("--data-root", required=True)
     prepare_transnas_input.add_argument("--split-json", required=True)

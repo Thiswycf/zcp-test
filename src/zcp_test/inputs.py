@@ -162,6 +162,20 @@ def _dataset_table(dataset: str, root: Path, input_size: int) -> tuple[Any, str]
         )
         table = datasets.ImageFolder(train_root, transform=transform)
         transform_name = f"resize-256+center-crop-{input_size}+imagenet-normalize"
+    elif dataset == "ImageNet16-120":
+        from zcp_test.data.imagenet16 import SafeImageNet16
+
+        mean = tuple(value / 255 for value in (122.68, 116.66, 104.01))
+        standard_deviation = tuple(value / 255 for value in (63.22, 61.26, 65.09))
+        transform = transforms.Compose(
+            [
+                transforms.Resize((input_size, input_size)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean, standard_deviation),
+            ]
+        )
+        table = SafeImageNet16(root, train=True, transform=transform, verify=True)
+        transform_name = f"resize-{input_size}+tensor+imagenet16-120-official-normalize"
     else:
         raise ValueError(f"Dataset input protocol is not implemented for {dataset!r}")
     return table, transform_name

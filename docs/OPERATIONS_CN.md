@@ -103,6 +103,89 @@ pickle 加载时可执行代码，只能在隔离环境中处理已核验来源�
 `{"key": ..., "value": ...}`，其他对象转成单条 `{"value": ...}`。这只是形状迁移，不验证
 score/target schema；使用前必须检查转换后的 JSONL，且不要覆盖源文件。
 
+## NATS-SSS 跨数据集运行
+
+先准备 NATS-SSS benchmark、确定性 1% manifest 和输入数据。NATS-SSS 有 32,768 个有限架构，
+最低 1% 为 328 个；原生 NATS API 是序列化资产，因此 sample、inspect 和 evaluate 都需要
+`--trusted`。ImageNet16 raw pickle 的转换步骤见[数据自举](DATA_BOOTSTRAP_CN.md)。
+
+```bash
+DATA=/path/to/data
+CATALOG="$DATA/catalog.json"
+AUDIT=/path/to/audit
+
+zcp-test data bootstrap --root "$DATA" --benchmarks nats_sss \
+  --catalog "$CATALOG" --yes
+zcp-test benchmark sample nats_sss --catalog "$CATALOG" --trusted \
+  --fraction 0.01 --seed 2026 --shards 4 \
+  --output "$AUDIT/sampling/nats-sss-1pct-seed2026.json"
+zcp-test benchmark inspect nats_sss --catalog "$CATALOG" --trusted \
+  --dataset ImageNet16-120 --split valid --metric-name accuracy \
+  --epoch-budget 90 --metric-seed-reduction mean
+```
+
+四个 shard 应分别启动，下面只展示 `--sample-shard 0`。正式 22 代理和核心 11 代理列表应沿用
+锁定验收协议，不要把示例变量中的代理集合当作新的协议定义。
+
+```bash
+PROXIES=az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico
+MANIFEST="$AUDIT/sampling/nats-sss-1pct-seed2026.json"
+
+# CIFAR-100 dataset-specific ZCP：输入和 benchmark target 都是 CIFAR-100。
+zcp-test evaluate --benchmark nats_sss --catalog "$CATALOG" --trusted \
+  --sample-manifest "$MANIFEST" --sample-shard 0 \
+  --dataset cifar100 --target-metric accuracy --target-split valid \
+  --epoch-budget 90 --metric-seed-reduction mean --target-direction maximize \
+  --input-source dataset --data-root /path/to/cifar100 \
+  --input-size 32 --classes 100 --batch-size 16 \
+  --proxies "$PROXIES" --seed 2026 --gpu auto \
+  --output "$AUDIT/runs/nats-sss-cifar100-seed2026"
+
+# ImageNet16-120 dataset-specific ZCP：不传 --data-root，按 catalog 解析安全 manifest。
+zcp-test evaluate --benchmark nats_sss --catalog "$CATALOG" --trusted \
+  --sample-manifest "$MANIFEST" --sample-shard 0 \
+  --dataset ImageNet16-120 --target-metric accuracy --target-split valid \
+  --epoch-budget 90 --metric-seed-reduction mean --target-direction maximize \
+  --input-source dataset --input-size 16 --classes 120 --batch-size 16 \
+  --proxies "$PROXIES" --seed 2026 --gpu auto \
+  --output "$AUDIT/runs/nats-sss-imagenet16-seed2026"
+```
+
+这里的 `--dataset` 同时决定模型类别数语义、ZCP 输入协议和 NATS target dataset；因此两条命令
+得到的是 **dataset-specific ZCP**。**Target-only transfer** 则要求保留源数据集 ZCP 分数及其
+`input_fingerprint`，仅将同一 architecture ID 与另一个 dataset 的 NATS target 做一对一 join。
+单次 `evaluate` 仍不使用独立 `--target-dataset`；正式 target-only 由分析阶段固定 source score
+与 fingerprint，再按 architecture ID 连接其他数据集 target。三数据集各四个分片应一次性传给：
+
+```bash
+mapfile -t SCORES < <(find \
+  /path/to/audit/h1-nats-sss-seed2026 \
+  /path/to/audit/h1-nats-sss-cifar100-seed2026 \
+  /path/to/audit/h1-nats-sss-imagenet16-seed2026 \
+  -name scores.jsonl -type f | sort)
+test "${#SCORES[@]}" -eq 12
+zcp-test analyze benchmark --scores "${SCORES[@]}" \
+  --benchmark nats_sss --view size \
+  --output /path/to/audit/h1-nats-sss-cross-dataset-analysis
+```
+
+该命令现已生成 `dataset_proxy_target_matrix.csv`、`proxy_dataset_stability.csv`、
+`target_dataset_transfer.csv` 和 `controlled_proxy_target_transfer.csv`。正式结果和 SHA 见
+[跨数据集证据](evidence/NATS_SSS_CROSS_DATASET_CN.md)。
+
+常见错误：
+
+| 错误/现象 | 原因与处理 |
+|---|---|
+| `ImageNet16 conversion requires explicit --trusted` | raw 是 pickle；核验来源和 11 个 MD5 后显式添加 `--trusted`。 |
+| `ImageNet16 MD5 mismatch` | 文件不是官方字节或下载损坏；不要 `--replace` 绕过，重新获取对应 batch。 |
+| `Unsafe or corrupt ImageNet16 runtime` | manifest 或某个 `.npy` shard SHA 不匹配；重新复制完整安全目录或重新转换。 |
+| `--input-source dataset requires --data-root or a configured dataset asset` | 未传 `--data-root`，且 catalog 没有 `dataset_imagenet16_120`。 |
+| `nats_sss uses a native serialized format` | benchmark 查询仍需 `--trusted`；这与安全 `.npy` dataset 是否 trusted 无关。 |
+| `Metric 'accuracy' for split 'valid' not in ...` | 使用精确 dataset `ImageNet16-120`、split `valid`、metric `accuracy`、budget `90`。 |
+| CIFAR-100 找不到数据 | `--data-root` 必须是 torchvision CIFAR-100 已下载目录；命令不会隐式下载。 |
+| 四个 shard 各自只得到 82 条 | 正常分片；最终分析必须合并四个互斥 shard，并按 evaluation seed 分组。 |
+
 ## Proxy scaffold
 
 `zcp-test proxy scaffold NAME` 仅适用于可写源码 checkout 或 editable install。它会同时写入

@@ -384,6 +384,49 @@ def test_cli_benchmark_catalog_path_requires_integrity_and_protocol(tmp_path):
         cli._resolve_benchmark_path(args)
 
 
+def test_cli_convert_imagenet16_registers_safe_manifest(monkeypatch, tmp_path, capsys):
+    manifest = tmp_path / "safe/manifest.json"
+
+    def fake_convert(source, destination, *, trusted, replace):
+        assert source == "raw"
+        assert destination == str(tmp_path / "safe")
+        assert trusted is True
+        assert replace is False
+        manifest.parent.mkdir()
+        manifest.write_text('{"schema_version":1}\n', encoding="utf-8")
+        return manifest
+
+    monkeypatch.setattr(cli, "convert_imagenet16_120", fake_convert)
+    monkeypatch.setattr(
+        "zcp_test.data.imagenet16.verify_safe_imagenet16",
+        lambda _path: {"valid": True},
+    )
+    catalog = tmp_path / "catalog.json"
+    cli.main(
+        [
+            "data",
+            "convert-imagenet16",
+            "--source",
+            "raw",
+            "--output",
+            str(tmp_path / "safe"),
+            "--trusted",
+            "--register",
+            "--catalog",
+            str(catalog),
+        ]
+    )
+
+    assert _output(capsys)["asset_id"] == "dataset_imagenet16_120"
+    cli.DataRegistry(catalog).get_verified(
+        "dataset_imagenet16_120",
+        expected_version="npy-shards-v1",
+        expected_protocol="imagenet16-120-official-md5-safe-conversion-v1",
+    )
+    args = argparse.Namespace(data_root=None, catalog=str(catalog))
+    assert cli._resolve_data_root(args, "ImageNet16-120") == str(manifest.parent)
+
+
 def test_transnas_tasks_share_one_registered_taskonomy_root(tmp_path):
     root = tmp_path / "taskonomy"
     root.mkdir()

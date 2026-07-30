@@ -73,6 +73,12 @@ class DataRegistry:
             result.update(actual_sha256=actual, valid=actual == asset.sha256)
         else:
             result["valid"] = True
+        if asset.protocol == "imagenet16-120-official-md5-safe-conversion-v1":
+            from zcp_test.data.imagenet16 import verify_safe_imagenet16
+
+            runtime_integrity = verify_safe_imagenet16(path)
+            result["runtime_integrity"] = runtime_integrity
+            result["valid"] = bool(result["valid"] and runtime_integrity["valid"])
         return result
 
     def get_verified(
