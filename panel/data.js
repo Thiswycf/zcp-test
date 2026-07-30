@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 19:25 CST",
+  updatedAt: "2026-07-30 19:38 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -131,28 +131,28 @@ window.ZCP_PANEL_DATA = {
       id: "E1", phase: "ZCP", priority: "P0", title: "22 ZCP 契约与算法 provenance",
       content: "逐项标记论文兼容、近似、别名和 unsupported，并建立 golden 验证。",
       purpose: "运行成功之外，验证代理公式和输入协议的可解释性。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 12:30", finishedAt: "—", status: "进行中", progress: 60,
-      detail: "22/22 CPU sweep 与既有 GPU sweep 可运行；论文级 golden 数值验证尚未完成。",
-      acceptance: ["全部 proxy 可分类", "论文公式 golden fixture", "approximation 在 artifact 可见"],
-      evidence: ["EV-ZCP-SWEEP"], risks: ["R-PROXY"], updatedAt: "2026-07-30 14:15"
+      estimate: "8–16 小时", startedAt: "2026-07-30 12:30", finishedAt: "—", status: "进行中", progress: 65,
+      detail: "22/22 CPU sweep 与 NB201 单 seed 1% 实验均已运行。摘要确认 ter→er、meco_opt→meco 为声明别名，az_nas 为以 NASWOT expressivity 为主组件的 portable approximation；near/swap 在当前协议为常数，params/flops 发生 minimize→negated 方向转换。alias、approximation、常数输出和方向语义仍需论文公式、命名与 golden fixture 审计，尚未闭环。",
+      acceptance: ["全部 proxy 可分类", "论文公式 golden fixture", "alias/approximation/常数与方向审计闭环", "approximation 在 artifact 可见"],
+      evidence: ["EV-ZCP-SWEEP", "EV-NB201-1PCT-SUMMARY"], risks: ["R-PROXY"], updatedAt: "2026-07-30 19:38"
     },
     {
       id: "E2", phase: "研究", priority: "P1", title: "通用 ZCP 分析",
       content: "验收互相关、top-k、稳定性、Pareto、transfer 与样本收敛分析。",
       purpose: "形成可复用且不会静默错配的研究报告。",
-      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 55,
-      detail: "主要分析函数已存在；CLI 边界和真实 run bundle 待验收。",
-      acceptance: ["缺列明确报错", "多 run 来源保留", "真实结果可生成全部表格"],
-      evidence: [], risks: [], updatedAt: "2026-07-30 14:15"
+      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 72,
+      detail: "真实 NB201 dataset-input run 已生成 correlation、compare 与 seed sensitivity 报告；相关性诊断现显式记录 coverage、ties、constant、direction，并对重复 join key fail closed。当前证据覆盖真实通用分析工作流，但 search 与 training 分析尚未执行，top-k、Pareto、transfer 和样本收敛仍需真实多 run 验收，因此不能标记完成。",
+      acceptance: ["缺列与重复键明确报错", "coverage/ties/constant/direction 显式报告", "多 run 来源保留", "真实结果可生成全部表格", "search/training 分析真实验收"],
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 19:38"
     },
     {
       id: "E3", phase: "研究", priority: "P2", title: "Benchmark 定制研究",
       content: "按预算、操作、size、任务和 ViT 参数分析结构偏置。",
       purpose: "避免不同 benchmark 只输出同一套泛化统计。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 45,
-      detail: "study 模块已有实现；真实数据表、图和论文解释待复核。",
-      acceptance: ["各 benchmark 有专属因子", "真实数据生成图表", "结论关联原始字段"],
-      evidence: [], risks: [], updatedAt: "2026-07-30 14:15"
+      estimate: "8–16 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 55,
+      detail: "NB201 topology 已在正式 1% 分层样本上生成 157 architecture、942 edge、5 operation、26,880 correlation、3,360 operation effect、168 matched pair 与 168 matched-pair summary。NB101、NATS-TSS/SSS、NB301、TransNAS-Bench-101 和 ViT-Bench-101 的专属真实研究仍待执行，NB201 结果不得外推到共享 codec 的 NATS-TSS。",
+      acceptance: ["各 benchmark 有专属因子", "真实数据生成图表", "结论关联原始字段", "不同 benchmark 协议不混合或外推"],
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 19:38"
     },
     {
       id: "F1", phase: "文档", priority: "P1", title: "中英文操作手册审计",
@@ -167,10 +167,10 @@ window.ZCP_PANEL_DATA = {
       id: "F2", phase: "报告", priority: "P1", title: "验收报告与复现实例",
       content: "整理完整、部分、受阻结论及对应命令、文件和运行产物。",
       purpose: "让所有验收判断都能被第三方复核。",
-      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 40,
-      detail: "初稿和结构已具备，等待最终实验结果回填。",
+      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 52,
+      detail: "初稿和结构已具备；已链接 NB201 单 seed 1% × 22 ZCP 的机器可读摘要与中文证据文档，其余 benchmark、核心代理附加 seed 和高成本训练结果仍待回填。",
       acceptance: ["每个结论链接证据", "受阻原因明确", "不把 smoke 写成完整训练"],
-      evidence: [], risks: [], updatedAt: "2026-07-30 14:15"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 19:38"
     },
     {
       id: "F3", phase: "报告", priority: "P1", title: "report/monitor/run 发现",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "计划最多使用 4 GPU；全部代理单 seed，核心代理 3 seed。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 18,
+      detail: "NB201 单 seed 1% × 22 ZCP 已完成，整体进行中：157 个架构产生 3,454 行，3,451 成功、3 失败且重复键为 0；sample manifest SHA-256 为 9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc。核心 11 代理另外 2 个 seed，以及 NB101、NATS-TSS/SSS、NB301、TransNAS-Bench-101、ViT-Bench-101 均仍待执行。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: [], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 13:50"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 19:38"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -259,6 +259,9 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-NB201-1PCT-REPORT", time: "2026-07-30 19:38", title: "NB201 1% × 22 ZCP 中文证据", result: "中文证据逐项记录 157 个分层样本、3,454 行、3,451 成功、3 失败、四个 shard/run/checksum、22 个主组件相关性、正式 topology 表规模与结论边界；明确 H1 仅为 NB201 单 seed 完成，核心 11 代理另两个 seed 和其他 benchmark 仍待执行。", command: "docs/evidence/NB201_ONE_PERCENT_22ZCP_CN.md", taskIds: ["E1", "E2", "E3", "F2", "H1"] },
+    { id: "EV-NB201-1PCT-SUMMARY", time: "2026-07-30 19:38", title: "NB201 1% × 22 ZCP 机器可读摘要", result: "JSON 摘要锁定 sample manifest SHA-256 9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc；157 架构 × 22 代理共 3,454 行，3,451 成功、3 失败、0 重复键，并保留 alias、portable approximation、常数输出与方向转换审计字段。", command: "docs/evidence/nb201_one_percent_22zcp_summary.json", taskIds: ["E1", "E2", "E3", "F2", "H1"] },
+    { id: "EV-NB201-REAL-ANALYSIS", time: "2026-07-30 18:55", title: "真实 NB201 通用分析工作流", result: "两个真实 CIFAR-10 dataset-input seed、20 个 NB201 架构和 params/naswot/synflow 已生成 correlation、compare、seed sensitivity 及 topology 的 CSV、PNG、SVG、HTML；非有限 NASWOT 明确保留为 failed。该证据只验收真实工作流，不代表 1% 科学结论。", command: "docs/evidence/E2_E3_NB201_REAL_CN.md; docs/evidence/nb201_real_analysis_summary.json", taskIds: ["E2", "E3"] },
     { id: "EV-PANEL-AUTO-REFRESH-NODE", time: "2026-07-30 19:25", title: "看板刷新机制静态与 Node 验收", result: "自动刷新、立即刷新、可选轮询间隔、缓存破坏、旧数据回退、页面可见性和 ARIA DOM 契约检查通过；data.js、app.js、check-data.js 语法及 panel diff 格式检查通过。该证据不包含 file:// 或 HTTP 浏览器交互实测。", command: "node --check panel/data.js && node --check panel/app.js && node --check panel/check-data.js && node panel/check-data.js && git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-FULL-GATE-262", time: "2026-07-30 18:35", title: "最终完整质量 gate", result: "全量 262 项测试通过；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C1", "D2", "G1"] },
     { id: "EV-FINAL-2RANK-ACCEPTANCE", time: "2026-07-30 18:35", title: "最终 2-rank acceptance 1 epoch", result: "候选协议已锁定完整增强与来源字段。最终 2-rank acceptance 1 epoch 的配置将模型来源固定为 Cream commit b799630a29995163f282b15e2f38701160272fd1，将训练来源固定为 AZ-NAS commit 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47；run status=completed，training.jsonl 仅 1 行，且无 .tmp 文件。", command: "2-rank acceptance 1-epoch run；审计 config provenance、manifest status、training.jsonl 行数与 .tmp", taskIds: ["A1", "C1", "D2", "G1", "H2"] },

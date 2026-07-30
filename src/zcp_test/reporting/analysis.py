@@ -25,7 +25,7 @@ _SCORE_FIELDS: dict[str, tuple[str, ...]] = {
     "proxy_id": ("proxy_id", "proxy.id", "proxy.name", "metric.proxy_id"),
     "proxy_version": ("proxy_version", "proxy.version"),
     "direction": ("direction", "proxy.direction", "metric.direction"),
-    "component": ("component", "proxy.component", "metric.component"),
+    "component": ("component", "primary_component", "proxy.component", "metric.component"),
     "score": ("score", "result.score", "proxy.score", "metric.value", "value"),
     "target_metric": (
         "target_metric",
@@ -222,6 +222,8 @@ def _direction_adjusted(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 PROTOCOL_FIELDS = (
+    "proxy_implementation_fidelity",
+    "proxy_alias_of",
     "benchmark_id",
     "benchmark_version",
     "benchmark_variant",
@@ -271,6 +273,95 @@ def _correlation(target: np.ndarray, score: np.ndarray, method: str) -> float:
     if method == "pearson":
         return float(stats.pearsonr(target, score).statistic)
     raise ValueError(f"Unknown correlation method: {method}")
+
+
+def _correlation_diagnostics(
+    target: Sequence[float] | pd.Series,
+    score: Sequence[float] | pd.Series,
+    *,
+    total_count: int | None = None,
+    failed_count: int = 0,
+) -> dict[str, Any]:
+    target_values = pd.to_numeric(pd.Series(target), errors="coerce")
+    score_values = pd.to_numeric(pd.Series(score), errors="coerce")
+    finite = np.isfinite(target_values.to_numpy(dtype=float)) & np.isfinite(
+        score_values.to_numpy(dtype=float)
+    )
+    paired_target = target_values[finite]
+    paired_score = score_values[finite]
+    successful_count = int(len(target_values))
+    total_count = successful_count if total_count is None else int(total_count)
+    sample_count = int(finite.sum())
+    target_unique_count = int(paired_target.nunique(dropna=True))
+    score_unique_count = int(paired_score.nunique(dropna=True))
+    if sample_count < 2:
+        status = "insufficient_samples"
+    elif target_unique_count < 2 and score_unique_count < 2:
+        status = "constant_target_and_score"
+    elif target_unique_count < 2:
+        status = "constant_target"
+    elif score_unique_count < 2:
+        status = "constant_score"
+    else:
+        status = "ok"
+    return {
+        "total_count": total_count,
+        "successful_count": successful_count,
+        "failed_count": int(failed_count),
+        "sample_count": sample_count,
+        "invalid_count": total_count - sample_count,
+        "coverage": sample_count / total_count if total_count else 0.0,
+        "target_unique_count": target_unique_count,
+        "score_unique_count": score_unique_count,
+        "target_tied_observations": int(paired_target.duplicated(keep=False).sum()),
+        "score_tied_observations": int(paired_score.duplicated(keep=False).sum()),
+        "correlation_status": status,
+    }
+
+
+def _invocation_counts(
+    all_records: pd.DataFrame,
+    group: pd.DataFrame,
+    group_by: Sequence[str],
+) -> tuple[int, int]:
+    matched = all_records
+    for field in group_by:
+        if field == "component" or field not in matched or field not in group:
+            continue
+        values = group[field].drop_duplicates()
+        if len(values) != 1:
+            continue
+        value = values.iloc[0]
+        matched = matched[matched[field].isna()] if pd.isna(value) else matched[matched[field] == value]
+    if "architecture_id" in matched and matched["architecture_id"].notna().any():
+        total_count = int(matched["architecture_id"].nunique(dropna=True))
+        failed_count = int(
+            matched.loc[
+                ~matched["status"].fillna("ok").isin(("ok", "success", "completed")),
+                "architecture_id",
+            ].nunique(dropna=True)
+        )
+    else:
+        total_count = int(len(matched))
+        failed_count = int(
+            (~matched["status"].fillna("ok").isin(("ok", "success", "completed"))).sum()
+        )
+    return total_count, failed_count
+
+
+def _direction_diagnostic(values: pd.Series) -> tuple[str | None, str]:
+    directions = sorted(
+        {
+            str(value).casefold()
+            for value in values.dropna()
+            if str(value).casefold() in {"maximize", "minimize"}
+        }
+    )
+    if directions == ["maximize"]:
+        return "maximize", "identity"
+    if directions == ["minimize"]:
+        return "minimize", "negated"
+    return None, "mixed_or_missing"
 
 
 def bootstrap_correlation(
@@ -323,7 +414,11 @@ def correlation_table(
     confidence: float = 0.95,
     seed: int | None = 0,
 ) -> pd.DataFrame:
-    frame = _direction_adjusted(read_scores(source))
+    all_records = read_scores(source, include_failed=True)
+    frame = all_records[
+        all_records["status"].fillna("ok").isin(("ok", "success", "completed"))
+    ].reset_index(drop=True)
+    frame = _direction_adjusted(frame)
     if group_by is None:
         proxy_fields = ["proxy_id", "component"]
         if "proxy_version" in frame and frame["proxy_version"].notna().any():
@@ -339,7 +434,28 @@ def correlation_table(
         keys = key if isinstance(key, tuple) else (key,)
         target, score = _paired_values(group["target_value"], group["score"])
         record = dict(zip(group_by, keys, strict=True))
-        record["sample_count"] = int(target.size)
+        duplicate_ids = group["architecture_id"].dropna().duplicated(keep=False)
+        if duplicate_ids.any():
+            examples = sorted(group.loc[duplicate_ids, "architecture_id"].astype(str).unique())[:3]
+            raise ValueError(
+                "Correlation input contains duplicate architecture IDs within one protocol: "
+                + ", ".join(examples)
+            )
+        total_count, failed_count = _invocation_counts(all_records, group, group_by)
+        record.update(
+            _correlation_diagnostics(
+                group["target_value"],
+                group["score"],
+                total_count=total_count,
+                failed_count=failed_count,
+            )
+        )
+        score_direction, score_transform = _direction_diagnostic(group["direction"])
+        target_direction, target_transform = _direction_diagnostic(group["target_direction"])
+        record["score_direction"] = score_direction
+        record["score_direction_transform"] = score_transform
+        record["target_direction"] = target_direction
+        record["target_direction_transform"] = target_transform
         for method in methods:
             estimate = _correlation(target, score, method)
             record[method] = None if not math.isfinite(estimate) else estimate

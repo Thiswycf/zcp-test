@@ -7,17 +7,19 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-30 当前工作树：**216 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-30 当前工作树：**280 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
-| 覆盖率 | 第一方 source 总计 **86%**；CLI 80%、报告 96%/100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
-| Proxy sweep | 验收 sweep 纳入 **22 个注册代理** | 部分证据 | registry 覆盖和明确状态处理，不证明全部模型族上的论文数值 |
+| 覆盖率 | 第一方 source 总计 **87%**；CLI 80%、analysis/proxy studies 93%、benchmark report 96%、reports 100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
+| H1：1% proxy sweep | NB201 seed 2026：157 架构 × 22 代理，3,454 行，`ok=3,451`、`failed=3` | **NB201 单 seed 完成，整体进行中** | 证明 NB201 单 seed 真实输入/真值/分片/相关性流程；不证明其余 benchmark、核心代理三 seed或论文数值复现 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
 
-216 tests、Ruff、compileall、pip check、diff check 与 86% coverage 是当前可复核的低成本软件基线。
-仓库保留 DARTS/evaluate/search manifest，但没有专门的 22-proxy sweep manifest，因此该 sweep 仍只能
-部分独立重建；后续应保存命令、commit、环境和摘要证据。Conda 下 coverage 必须使用
+280 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
+NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
+`scores.jsonl` SHA、失败键和相关性摘要见
+[`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
+外部审计目录，不进入 Git。Conda 下 coverage 必须使用
 `python -m coverage`，避免系统 `coverage` shebang 误用 base Python。
 
 ## 22 个代理的口径
@@ -26,9 +28,10 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 `jacob_cov`、`meco`、`meco_opt`、`naswot`、`near`、`ntkt`、`params`、`swap`、`synflow`、
 `te_nas`、`ter`、`vkdnw`、`zen`、`zico`。
 
-sweep 表示每个名称经过统一 evaluator，并产生明确 `ok`、`unsupported` 或 `failed`；不表示每个
-代理支持所有模型族，也不表示 `portable-v1` 与论文数值一致，更不表示已完成 standard-answer
-相关性验收。
+sweep 表示每个名称经过统一 evaluator，并产生明确 `ok`、`unsupported` 或 `failed`。NB201 seed
+2026 的 22 个名称均有记录，但 `az_nas`、`naswot`、`te_nas` 各有一条非有限失败；`near` 和
+`swap` 为常数，相关系数未定义。该结果不表示每个代理支持所有模型族，也不表示 `portable-v1`
+与论文数值一致。出现数值完全相同的不同名称也不能据此认定算法独立，仍需 provenance/公式审计。
 
 ## DARTS smoke 边界
 
@@ -69,7 +72,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 ## 当前部分验收
 
 - 保留 evaluate 只有 3 个代理，不是 22；其 40 行历史 score 是旧 component-long schema。
-- 当前树只能独立复核 registry 数量，不能重建专门的 22-proxy sweep 产物。
+- Git 不保存 3,454 行原始 score；当前树可独立复核精简摘要、四个 score SHA、失败键和 registry
+  provenance，但逐行重算仍需要外部审计目录或按手册重新运行。
 - AutoFormer 成功 run 只证明搜索机制；同时保留一次 failed run。
 - 多个上游原生资产没有固定 checksum，路径存在不等于真实性。
 - bootstrap 和 index-0 smoke 不证明全记录、全部 budget/split 或跨机器覆盖。
@@ -78,6 +82,13 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   NB201 真值的 20 架构 run 完成工作流验收。每个 run 60 行；NASWOT 对 index 12 的非有限结果
   保留为 failed。该连续小样本不是 feature-stratified 1%，不得作为论文数值。证据见
   `docs/evidence/E2_E3_NB201_REAL_CN.md`。
+- H1 已完成 NB201 seed 2026 的 feature-stratified 1% × 22 ZCP：157 架构、3,454 原始行、
+  3,451 成功、3 失败且无重复键；topology 报告含 157 architecture、942 edge、5 operation、
+  26,880 correlation、3,360 operation effect 和 168 matched pair。状态只能写为
+  **“NB201 单 seed 完成，整体进行中”**：核心 11 代理另两个 seed 与其他 benchmark 尚未完成。
+  `params`/`flops` 的负号已确认来自注册为 `minimize` 后的 `negated` 方向转换；该资源方向是否适合
+  “规模与精度原始关联”的科学问题仍需分别报告和审计。NB201 结果不得外推到 NATS-TSS。精简证据见
+  `docs/evidence/NB201_ONE_PERCENT_22ZCP_CN.md`。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
 - TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
   与完整 parameter-shape multiset 在七个任务均一致。真实 micro index-0 的七个 task
@@ -110,7 +121,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
    LR、静态 fixture 和真实图片夹具恢复机制已验收，但“全 ImageNet × 至多 1% epoch”与“1% ImageNet
    × 完整 schedule”尚未执行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
-4. 在全部支持的 dataset、split、budget、seed 上运行 22-proxy 全量评估。
+4. 完成 NB201 核心 11 代理的另外两个 seed，并在其余 benchmark 的目标 dataset、split、budget、
+   task 上运行各自 1% 协议；不能把 NB201 结果外推到 NATS-TSS。
 5. NAS-Bench-101 全量评估或 NAS-Bench-301 理论 DARTS 空间穷举。
 6. 多 GPU evaluate 的内置启动/去重合并；训练 DDP 启动与夹具级重启/故障注入已验收，但全数据级别未验收。
 7. 论文数值复现、独立 seed 置信区间及与官方代码的成本/精度比较。

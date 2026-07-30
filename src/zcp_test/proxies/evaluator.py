@@ -15,6 +15,7 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
     result_metadata = {
         "proxy_version": proxy.capability.version,
         "direction": proxy.capability.direction,
+        "primary_component": proxy.capability.primary_component,
         "implementation_fidelity": proxy.capability.implementation_fidelity,
         "source": proxy.capability.source,
         "alias_of": proxy.capability.alias_of,
@@ -69,11 +70,10 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
             peak_memory_mb = torch.cuda.max_memory_allocated(parameter.device) / (1024**2)
         return ScoreResult(
             score=score,
-            primary_component=primary_component,
             components=normalized,
             duration_seconds=time.perf_counter() - started,
             peak_memory_mb=peak_memory_mb,
-            **result_metadata,
+            **{**result_metadata, "primary_component": primary_component},
         )
     except NotImplementedError as error:
         return ScoreResult(status=RecordStatus.UNSUPPORTED, error_type=type(error).__name__, error_message=str(error), duration_seconds=time.perf_counter() - started, **result_metadata)

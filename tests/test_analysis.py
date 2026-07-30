@@ -88,6 +88,116 @@ def test_bootstrap_correlation_and_group_table_are_reproducible() -> None:
     assert len(table) == 2
     assert table["spearman"].eq(1.0).all()
     assert table["sample_count"].eq(3).all()
+    assert table["total_count"].eq(3).all()
+    assert table["invalid_count"].eq(0).all()
+    assert table["coverage"].eq(1.0).all()
+    assert table["correlation_status"].eq("ok").all()
+
+
+def test_correlation_table_explains_constants_ties_invalid_values_and_direction() -> None:
+    rows = [
+        {
+            "architecture_id": f"a{index}",
+            "proxy_id": "constant",
+            "component": "score",
+            "score": score,
+            "target_value": target,
+            "direction": "minimize",
+            "target_direction": "maximize",
+            "proxy_implementation_fidelity": "paper_formula_port_unverified",
+            "status": "ok",
+        }
+        for index, (score, target) in enumerate(
+            [(4.0, 1.0), (4.0, 1.0), (4.0, 2.0), (float("nan"), 3.0)]
+        )
+    ]
+
+    record = correlation_table(rows).iloc[0]
+
+    assert record["total_count"] == 4
+    assert record["successful_count"] == 4
+    assert record["failed_count"] == 0
+    assert record["sample_count"] == 3
+    assert record["invalid_count"] == 1
+    assert record["coverage"] == pytest.approx(0.75)
+    assert record["target_unique_count"] == 2
+    assert record["score_unique_count"] == 1
+    assert record["target_tied_observations"] == 2
+    assert record["score_tied_observations"] == 3
+    assert record["correlation_status"] == "constant_score"
+    assert pd.isna(record["spearman"])
+    assert record["score_direction"] == "minimize"
+    assert record["score_direction_transform"] == "negated"
+    assert record["target_direction"] == "maximize"
+    assert record["target_direction_transform"] == "identity"
+    assert record["proxy_implementation_fidelity"] == "paper_formula_port_unverified"
+
+
+def test_correlation_table_counts_failed_invocations_and_rejects_duplicate_architectures() -> None:
+    rows = _score_rows()[:3]
+    for row in rows:
+        row["seed"] = 0
+    rows.append(
+        {
+            "architecture_id": "a4",
+            "proxy_id": "synflow",
+            "primary_component": "sum",
+            "score": None,
+            "target_value": 8.0,
+            "target_metric": "valid_accuracy",
+            "seed": 0,
+            "status": "failed",
+        }
+    )
+
+    record = correlation_table(rows).iloc[0]
+
+    assert record["total_count"] == 4
+    assert record["successful_count"] == 3
+    assert record["failed_count"] == 1
+    assert record["sample_count"] == 3
+    assert record["invalid_count"] == 1
+    assert record["coverage"] == pytest.approx(0.75)
+
+    duplicated = [dict(rows[0]), dict(rows[0])]
+    with pytest.raises(ValueError, match="duplicate architecture IDs"):
+        correlation_table(duplicated)
+
+
+def test_correlation_table_applies_one_failed_call_to_each_multicomponent_series() -> None:
+    rows = [
+        {
+            "architecture_id": f"a{index}",
+            "proxy_id": "composite",
+            "primary_component": "first",
+            "components": {"first": float(index), "second": float(index + 10)},
+            "score": float(index),
+            "target_value": float(index),
+            "seed": 4,
+            "status": "ok",
+        }
+        for index in (1, 2)
+    ]
+    rows.append(
+        {
+            "architecture_id": "a3",
+            "proxy_id": "composite",
+            "primary_component": "first",
+            "components": {},
+            "score": None,
+            "target_value": 3.0,
+            "seed": 4,
+            "status": "failed",
+        }
+    )
+
+    table = correlation_table(rows).set_index("component")
+
+    assert set(table.index) == {"first", "second"}
+    assert table["total_count"].eq(3).all()
+    assert table["failed_count"].eq(1).all()
+    assert table["sample_count"].eq(2).all()
+    assert list(table["coverage"]) == pytest.approx([2 / 3, 2 / 3])
 
 
 def test_bundle_writes_static_csv_png_svg_and_html(tmp_path: Path) -> None:

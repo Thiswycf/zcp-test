@@ -1,0 +1,228 @@
+{
+  "schema_version": 1,
+  "evidence_id": "nb201_one_percent_22zcp_seed2026",
+  "verified_at": "2026-07-30",
+  "status": "nb201_single_seed_complete_overall_in_progress",
+  "sampling": {
+    "benchmark_id": "nasbench201",
+    "benchmark_version": "1.1",
+    "population_size": 15625,
+    "strategy": "proportional_feature_stratified",
+    "seed": 2026,
+    "sample_count": 157,
+    "sample_fraction": 0.010048,
+    "stratum_count": 210,
+    "shard_sample_counts": [40, 39, 39, 39],
+    "manifest_sha256": "9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc"
+  },
+  "protocol": {
+    "search_space_id": "nb201_topology",
+    "dataset": "cifar10-valid",
+    "target_metric": "valid-accuracy",
+    "target_split": "valid",
+    "target_direction": "maximize",
+    "target_epoch_budget": 200,
+    "target_seed_reduction": "mean",
+    "input_source": "dataset",
+    "input_fingerprint": "5de04e6a61157306b00dc80b673de420ecd45a843b1564f78acaa8bbfab1ceaf",
+    "batch_size": 2,
+    "input_size": 32,
+    "class_count": 10,
+    "model_fidelity": "reference_topology_pytorch_port",
+    "weight_mode": "independent_scratch",
+    "evaluation_seed": 2026,
+    "code_commit": "308a91debcba8681766fd1ca76cea36ddc7fa7b3"
+  },
+  "runs": [
+    {
+      "shard_index": 0,
+      "run_id": "f40abba1d7fb",
+      "sample_count": 40,
+      "score_rows": 880,
+      "successful_rows": 880,
+      "failed_rows": 0,
+      "scores_sha256": "bfd4fe7ce82357f15a54f3942078240200029fa8bf33437ddc341964c3d451e4"
+    },
+    {
+      "shard_index": 1,
+      "run_id": "1724f6b53624",
+      "sample_count": 39,
+      "score_rows": 858,
+      "successful_rows": 858,
+      "failed_rows": 0,
+      "scores_sha256": "add72538eae75e7a8e3c8c615a835bf22daf348fcf724d95b96cff7bf3e63e0d"
+    },
+    {
+      "shard_index": 2,
+      "run_id": "43960d0a061a",
+      "sample_count": 39,
+      "score_rows": 858,
+      "successful_rows": 855,
+      "failed_rows": 3,
+      "scores_sha256": "2a85ad301611b52a63a4222533608e5f31393841c9cbc276a2c7a3f8f65d90f6"
+    },
+    {
+      "shard_index": 3,
+      "run_id": "d0950b062418",
+      "sample_count": 39,
+      "score_rows": 858,
+      "successful_rows": 858,
+      "failed_rows": 0,
+      "scores_sha256": "b0ff3476bbc1fb08d30b68362b6a6d882d1e6257962cd16a61b60d7a85a6dc64"
+    }
+  ],
+  "totals": {
+    "architectures": 157,
+    "proxies": 22,
+    "expected_architecture_proxy_keys": 3454,
+    "raw_score_rows": 3454,
+    "successful_rows": 3451,
+    "failed_rows": 3,
+    "duplicate_architecture_proxy_keys": 0
+  },
+  "failures": [
+    {
+      "benchmark_id": "nasbench201",
+      "benchmark_version": "1.1",
+      "benchmark_protocol": "native_api",
+      "search_space_id": "nb201_topology",
+      "dataset": "cifar10-valid",
+      "target_metric": "valid-accuracy",
+      "target_split": "valid",
+      "target_epoch_budget": 200,
+      "target_seed_reduction": "mean",
+      "target_direction": "maximize",
+      "input_source": "dataset",
+      "input_fingerprint": "5de04e6a61157306b00dc80b673de420ecd45a843b1564f78acaa8bbfab1ceaf",
+      "weight_mode": "independent_scratch",
+      "evaluation_seed": 2026,
+      "run_id": "43960d0a061a",
+      "benchmark_index": 3943,
+      "architecture_id": "nb201_topology:839da408774c5a50b88c",
+      "proxy_id": "az_nas",
+      "proxy_version": "portable-v1",
+      "primary_component": "score",
+      "status": "failed",
+      "error_type": "ValueError",
+      "error_message": "proxy returned NaN or infinity"
+    },
+    {
+      "benchmark_id": "nasbench201",
+      "benchmark_version": "1.1",
+      "benchmark_protocol": "native_api",
+      "search_space_id": "nb201_topology",
+      "dataset": "cifar10-valid",
+      "target_metric": "valid-accuracy",
+      "target_split": "valid",
+      "target_epoch_budget": 200,
+      "target_seed_reduction": "mean",
+      "target_direction": "maximize",
+      "input_source": "dataset",
+      "input_fingerprint": "5de04e6a61157306b00dc80b673de420ecd45a843b1564f78acaa8bbfab1ceaf",
+      "weight_mode": "independent_scratch",
+      "evaluation_seed": 2026,
+      "run_id": "43960d0a061a",
+      "benchmark_index": 3943,
+      "architecture_id": "nb201_topology:839da408774c5a50b88c",
+      "proxy_id": "naswot",
+      "proxy_version": "1",
+      "primary_component": "score",
+      "status": "failed",
+      "error_type": "ValueError",
+      "error_message": "proxy returned NaN or infinity"
+    },
+    {
+      "benchmark_id": "nasbench201",
+      "benchmark_version": "1.1",
+      "benchmark_protocol": "native_api",
+      "search_space_id": "nb201_topology",
+      "dataset": "cifar10-valid",
+      "target_metric": "valid-accuracy",
+      "target_split": "valid",
+      "target_epoch_budget": 200,
+      "target_seed_reduction": "mean",
+      "target_direction": "maximize",
+      "input_source": "dataset",
+      "input_fingerprint": "5de04e6a61157306b00dc80b673de420ecd45a843b1564f78acaa8bbfab1ceaf",
+      "weight_mode": "independent_scratch",
+      "evaluation_seed": 2026,
+      "run_id": "43960d0a061a",
+      "benchmark_index": 3943,
+      "architecture_id": "nb201_topology:839da408774c5a50b88c",
+      "proxy_id": "te_nas",
+      "proxy_version": "portable-v1",
+      "primary_component": "score",
+      "status": "failed",
+      "error_type": "ValueError",
+      "error_message": "proxy returned NaN or infinity"
+    }
+  ],
+  "primary_component_correlations": [
+    {"proxy_id": "az_nas", "component": "expressivity", "valid_samples": 156, "spearman": 0.6067139763872864, "kendall_tau_b": 0.42233250620347396, "pearson": 0.6589757673730736, "status": "defined"},
+    {"proxy_id": "er", "component": "mean", "valid_samples": 157, "spearman": 0.13239041567779952, "kendall_tau_b": 0.08881809078814555, "pearson": 0.3439588018272285, "status": "defined"},
+    {"proxy_id": "er_conn", "component": "score", "valid_samples": 157, "spearman": 0.21425337542405995, "kendall_tau_b": 0.14486362894006205, "pearson": 0.4073746046684081, "status": "defined"},
+    {"proxy_id": "er_deg", "component": "score", "valid_samples": 157, "spearman": 0.23061125922648104, "kendall_tau_b": 0.15377077306518036, "pearson": 0.4027153592901287, "status": "defined"},
+    {"proxy_id": "er_dist", "component": "score", "valid_samples": 157, "spearman": 0.2364998542536235, "kendall_tau_b": 0.15645925200065328, "pearson": 0.4056308098790276, "status": "defined"},
+    {"proxy_id": "er_pr", "component": "score", "valid_samples": 157, "spearman": 0.33004732105756046, "kendall_tau_b": 0.22978931896129345, "pearson": 0.48008945081315396, "status": "defined"},
+    {"proxy_id": "flops", "component": "score", "valid_samples": 157, "spearman": -0.6194458466204452, "kendall_tau_b": -0.4317232343781943, "pearson": -0.3960081651630663, "status": "defined"},
+    {"proxy_id": "gradnorm", "component": "score", "valid_samples": 157, "spearman": 0.3483338398278332, "kendall_tau_b": 0.25837008002613093, "pearson": 0.13307251298103004, "status": "defined"},
+    {"proxy_id": "jacob_cov", "component": "score", "valid_samples": 157, "spearman": 0.6094051741760496, "kendall_tau_b": 0.4258412340378283, "pearson": 0.750554360924833, "status": "defined"},
+    {"proxy_id": "meco", "component": "score", "valid_samples": 157, "spearman": 0.14319565194641104, "kendall_tau_b": 0.10680839590608923, "pearson": 0.4978173116658499, "status": "defined"},
+    {"proxy_id": "meco_opt", "component": "score", "valid_samples": 157, "spearman": 0.14319565194641104, "kendall_tau_b": 0.10680839590608923, "pearson": 0.4978173116658499, "status": "defined"},
+    {"proxy_id": "naswot", "component": "score", "valid_samples": 156, "spearman": 0.6067139763872864, "kendall_tau_b": 0.42233250620347396, "pearson": 0.6589757673730736, "status": "defined"},
+    {"proxy_id": "near", "component": "score", "valid_samples": 157, "spearman": null, "kendall_tau_b": null, "pearson": null, "status": "constant_undefined"},
+    {"proxy_id": "ntkt", "component": "score", "valid_samples": 157, "spearman": 0.5403469383957976, "kendall_tau_b": 0.3857586150579781, "pearson": 0.5086634758147763, "status": "defined"},
+    {"proxy_id": "params", "component": "score", "valid_samples": 157, "spearman": -0.6546317461085389, "kendall_tau_b": -0.479513321083111, "pearson": -0.3936273510347065, "status": "defined"},
+    {"proxy_id": "swap", "component": "score", "valid_samples": 157, "spearman": null, "kendall_tau_b": null, "pearson": null, "status": "constant_undefined"},
+    {"proxy_id": "synflow", "component": "score", "valid_samples": 157, "spearman": 0.3419582111027729, "kendall_tau_b": 0.22015351951657683, "pearson": 0.023240340616384365, "status": "defined"},
+    {"proxy_id": "te_nas", "component": "synflow", "valid_samples": 156, "spearman": 0.329765611417553, "kendall_tau_b": 0.21058726220016544, "pearson": 0.017026180948384012, "status": "defined"},
+    {"proxy_id": "ter", "component": "mean", "valid_samples": 157, "spearman": 0.13239041567779952, "kendall_tau_b": 0.08881809078814555, "pearson": 0.3439588018272285, "status": "defined"},
+    {"proxy_id": "vkdnw", "component": "score", "valid_samples": 157, "spearman": 0.6557718666079547, "kendall_tau_b": 0.46790788829005386, "pearson": 0.718930719463569, "status": "defined"},
+    {"proxy_id": "zen", "component": "score", "valid_samples": 157, "spearman": 0.6167118377067583, "kendall_tau_b": 0.4349175240894986, "pearson": 0.7907907403756093, "status": "defined"},
+    {"proxy_id": "zico", "component": "score", "valid_samples": 157, "spearman": 0.4712910648168247, "kendall_tau_b": 0.35309488812673523, "pearson": 0.41986169721153144, "status": "defined"}
+  ],
+  "topology_report": {
+    "architectures": 157,
+    "edges": 942,
+    "operations": 5,
+    "correlations": 26880,
+    "operation_effects": 3360,
+    "matched_pairs": 168,
+    "matched_pair_summary": 168
+  },
+  "provenance_audit": {
+    "implementation_fidelity_counts": {
+      "structural_measure": 2,
+      "alias": 2,
+      "portable_composite_approximation": 2,
+      "project_extension": 5,
+      "paper_formula_port_unverified": 11
+    },
+    "declared_aliases": [
+      {"proxy_id": "ter", "alias_of": "er"},
+      {"proxy_id": "meco_opt", "alias_of": "meco"}
+    ],
+    "exact_primary_score_matches": [
+      {"left": "az_nas", "right": "naswot", "common_architectures": 156, "reason": "az_nas portable approximation uses NASWOT as its expressivity primary component"},
+      {"left": "er", "right": "ter", "common_architectures": 157, "reason": "declared alias"},
+      {"left": "meco", "right": "meco_opt", "common_architectures": 157, "reason": "declared alias"},
+      {"left": "near", "right": "swap", "common_architectures": 157, "reason": "both outputs are constant on this protocol; equality does not establish formula equivalence"}
+    ],
+    "constant_primary_scores": [
+      {"proxy_id": "near", "unique_values": 1, "observations": 157},
+      {"proxy_id": "swap", "unique_values": 1, "observations": 157}
+    ],
+    "direction_transforms": [
+      {"proxy_id": "params", "declared_direction": "minimize", "correlation_transform": "negated"},
+      {"proxy_id": "flops", "declared_direction": "minimize", "correlation_transform": "negated"}
+    ]
+  },
+  "limitations": [
+    "Only evaluation/input seed 2026 has been completed.",
+    "The two additional seeds for the 11 core proxies have not been completed.",
+    "NAS-Bench-201 evidence must not be extrapolated to NATS-TSS even though they share a topology codec.",
+    "The negative params and flops correlations are produced by their declared minimize-to-negated transform; resource preference and raw size-accuracy association require separate scientific reporting.",
+    "Identical observed values for differently named proxies do not establish algorithmic independence; provenance and formula audits remain required.",
+    "Constant near and swap outputs make their correlations undefined, not zero."
+  ]
+}

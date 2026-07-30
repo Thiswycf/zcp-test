@@ -90,3 +90,23 @@ wait
 本机低成本 smoke 已对 NB201 生成 16/15,625 的 0.1% manifest：210 个 strata、4 个互斥 shard，
 每 shard 4 个索引。shard 0 的 params evaluate 完成 4/4 行，run 记录 manifest SHA-256。该 smoke 只
 证明抽样和分片协议，不计入 1% 科学验收。
+
+## 6. NB201 单 seed 实际验收（H1）
+
+H1 当前状态为：**NB201 单 seed 完成，整体进行中**。seed 2026 的正式 1% manifest 从 15,625
+个架构按 210 个 feature strata 抽取 157 个架构，SHA-256 为
+`9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc`。四个 shard 分别为
+40/39/39/39 个架构，对应 run `f40abba1d7fb`、`1724f6b53624`、`43960d0a061a`、
+`d0950b062418`。
+
+22 个代理严格产生 3,454 个架构—代理键：3,451 条 `ok`、3 条 `failed`、0 个重复键。三条失败
+均为 index 3943、architecture `nb201_topology:839da408774c5a50b88c` 上的 `az_nas`、`naswot`
+和 `te_nas`，错误为非有限输出；失败保留原状态。22 个主组件系数、四个 score SHA、完整失败键
+和 topology 表规模见
+[`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md) 与
+[`evidence/nb201_one_percent_22zcp_summary.json`](evidence/nb201_one_percent_22zcp_summary.json)。
+
+本证据仅覆盖 `cifar10-valid / valid-accuracy / valid / 200 epoch / repeat mean / seed 2026`。核心
+11 代理的另外两个 seed 尚未完成；`params`/`flops` 的负号已确认来自 `minimize → negated` 方向
+转换，但资源方向与“规模—精度原始关联”应分开报告；名称不同但结果相同的代理不得据此认定算法
+独立。NB201 和 NATS-TSS 必须分别运行和报告，即使 topology codec 相同。

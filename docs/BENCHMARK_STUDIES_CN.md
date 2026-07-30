@@ -313,6 +313,15 @@ ruff check src/zcp_test/reporting tests/test_proxy_studies.py \
 matched pair，matched-pair 表为空；这不是错误，也不能用来支持 matched-contrast 结论。其余
 benchmark 仍需分别生成真实 score → 专属表/图证据，不能由 NB201 结果外推。
 
+在上述工作流 smoke 之外，NB201 seed 2026 已完成正式 feature-stratified 1% × 22 ZCP：157 个
+架构、3,454 行、3,451 成功、3 条明确失败、0 个重复架构—代理键。专属 topology 输出为 157 条
+architecture、942 条 edge、5 类 operation、26,880 条 correlation、3,360 条 operation effect、
+168 条 matched pair 和 168 条 matched-pair summary。完整摘要见
+[`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。H1 仍只能标为
+**“NB201 单 seed 完成，整体进行中”**：核心 11 代理另两个 seed 未完成；`params`/`flops` 的负号
+来自 `minimize → negated` 方向转换，资源方向与原始规模—精度关联仍须分开解释；疑似相同算法结果
+不能用于独立性结论，且该结果绝不能外推为 NATS-TSS 证据。
+
 ## 11. 常见错误
 
 - `multiple epoch budgets`：evaluate 或查询缺少 `--epoch-budget`。

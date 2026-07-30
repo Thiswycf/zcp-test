@@ -65,6 +65,22 @@ def test_proxy_can_be_explicitly_marked_unsupported_by_input_contract():
 
     assert result.status.value == "unsupported"
     assert result.error_message == "task-specific labels are unavailable"
+    assert result.primary_component == "score"
+
+
+def test_failed_multicomponent_proxy_preserves_declared_primary_component():
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(4, 2))
+
+    result = evaluate_proxy(
+        "az_nas",
+        model,
+        torch.randn(2, 1, 2, 2),
+        labels=None,
+        loss_fn=None,
+    )
+
+    assert result.status.value == "failed"
+    assert result.primary_component == "expressivity"
 
 
 def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():

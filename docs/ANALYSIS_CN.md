@@ -62,6 +62,26 @@ zcp-test analyze compare \
 - `proxy_cost_pareto.csv`：每个协议内的相关性—耗时—峰值显存 Pareto；
 - `proxy_target_protocol_heatmap.*`、`proxy_proxy_heatmap.*`：静态 PNG/SVG。
 
+`correlations.csv` 不再用空系数掩盖统计原因，并为每个代理组件写出：
+
+- `total_count`、`successful_count`、`failed_count`、`sample_count`、`invalid_count` 与 `coverage`；
+- `target_unique_count`、`score_unique_count`、`target_tied_observations`、
+  `score_tied_observations`；
+- `correlation_status`：`ok`、`insufficient_samples`、`constant_target`、
+  `constant_score` 或 `constant_target_and_score`；
+- `score_direction` / `target_direction` 以及对应的 `*_direction_transform`。其中
+  `negated` 表示在计算 rank/correlation 前按 `minimize` 语义取负，`identity` 表示未反向。
+
+例如，代理在全部架构上输出同一个值时，相关系数是未定义值，CSV 会记录
+`correlation_status=constant_score`，而不是伪造为 `0`。同一协议、代理和组件中出现重复
+`architecture_id` 会直接报错，禁止后写记录静默覆盖前一条记录。`failed_count` 按代理调用统计；
+多组件代理的一次失败会进入每个已成功定义组件的覆盖率分母。
+
+`params` 与 `flops` 当前登记为资源量且方向为 `minimize`，因此报告中的相关性是方向调整后的
+排序相关性；若研究问题是“模型规模与精度的原始关联”，必须同时保留原始 score 并明确报告未反向
+版本，不能只凭符号下结论。代理注册名不同也不代表算法独立：CSV 中的
+`proxy_alias_of` 与 `proxy_implementation_fidelity` 用于识别显式 alias 和未核验移植。
+
 不得把 `proxy_proxy` 低相关直接称为互补：两个随机代理也可能低相关。只有当 union recall 或严格
 validation holdout 上的 fusion 增益为正时，才有“候选互补”的观察性证据。融合权重只在明确
 标记为 `valid|validation|val` 的真值上学习；输入 test 真值时 `fusion_status` 为
