@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+import pandas as pd
 import torch
 
 import zcp_test.cli as cli
@@ -45,6 +46,64 @@ class _TinyReferenceSpace:
             torch.nn.Flatten(),
             torch.nn.Linear(3 * 8 * 8, num_classes),
         )
+
+
+def test_analysis_defaults_to_declared_primary_components():
+    frame = pd.DataFrame(
+        [
+            {"proxy_id": "er", "component": "mean", "primary_component": "mean"},
+            {"proxy_id": "er", "component": "sum", "primary_component": "mean"},
+            {"proxy_id": "synflow", "component": "score", "primary_component": "score"},
+            {"proxy_id": "legacy", "component": "legacy-a", "primary_component": None},
+            {"proxy_id": "legacy", "component": "legacy-b", "primary_component": None},
+        ]
+    )
+
+    primary = cli._analysis_component_frame(frame, None)
+    auxiliary = cli._analysis_component_frame(frame, "sum")
+
+    assert list(primary[["proxy_id", "component"]].itertuples(index=False, name=None)) == [
+        ("er", "mean"),
+        ("synflow", "score"),
+        ("legacy", "legacy-a"),
+        ("legacy", "legacy-b"),
+    ]
+    assert auxiliary[["proxy_id", "component"]].values.tolist() == [["er", "sum"]]
+
+
+def test_benchmark_study_frame_retains_failed_primary_calls(tmp_path):
+    scores = tmp_path / "scores.jsonl"
+    rows = [
+        {
+            "architecture_id": architecture_id,
+            "proxy_id": "synflow",
+            "primary_component": "score",
+            "components": {"score": score} if score is not None else {},
+            "score": score,
+            "status": status,
+        }
+        for architecture_id, score, status in (
+            ("a", 1.0, "ok"),
+            ("b", None, "failed"),
+        )
+    ]
+    scores.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    arguments = argparse.Namespace(
+        scores=[str(scores)],
+        component=None,
+        dataset=None,
+        target_metric=None,
+        target_split=None,
+        target_epoch_budget=None,
+        benchmark_variant=None,
+    )
+
+    frame = cli._benchmark_study_frame(arguments)
+
+    assert frame[["architecture_id", "status"]].values.tolist() == [
+        ["a", "ok"],
+        ["b", "failed"],
+    ]
 
 
 def test_inherited_weight_mode_rejects_wrong_space_and_missing_asset(monkeypatch):

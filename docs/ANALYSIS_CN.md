@@ -45,7 +45,12 @@ zcp-test analyze training --source RUN/training.jsonl --output RUN/reports/train
 `architecture_id/proxy_id/component/score/target_value` 不能全空；非有限 score/真值不能组成
 报告。`sensitivity --parameter seed` 还要求至少两个非空 seed 值。验证失败时不会先创建空报告目录。
 
-schema 2 的原始 `scores.jsonl` 每个架构/代理一行；分析 CSV 会按组件展开，因而 ER 等多组件代理会增加明细行。这是派生视图，不是重复评估。
+schema 2 的原始 `scores.jsonl` 每个架构/代理一行；reader 会在内存中展开具名组件，但
+`analyze correlation|compare|sensitivity`、`analyze benchmark` 和 `report bundle` 默认只保留
+每行声明的 `primary_component`。因此 ER 默认使用 `mean`，不会同时把 `sum` 当成第二个 ZCP。
+只有显式传入 `--component sum` 时才研究该辅助分量。旧 schema 若没有
+`primary_component` 无法可靠推断主分量，reader 会保留其全部组件；此时应先检查字段并显式指定
+`--component`。组件展开是派生视图，不是重复评估。
 
 ### 多协议 × 多 ZCP 研究
 
@@ -85,7 +90,8 @@ zcp-test analyze compare \
 例如，代理在全部架构上输出同一个值时，相关系数是未定义值，CSV 会记录
 `correlation_status=constant_score`，而不是伪造为 `0`。同一协议、代理和组件中出现重复
 `architecture_id` 会直接报错，禁止后写记录静默覆盖前一条记录。`failed_count` 按代理调用统计；
-多组件代理的一次失败会进入每个已成功定义组件的覆盖率分母。
+默认主分量报告中，一次失败只计入该代理声明的主分量。显式研究辅助组件时，同一失败会进入该
+组件的覆盖率分母。
 
 `params` 与 `flops` 当前登记为资源量且方向为 `minimize`，因此报告中的相关性是方向调整后的
 排序相关性；若研究问题是“模型规模与精度的原始关联”，必须同时保留原始 score 并明确报告未反向

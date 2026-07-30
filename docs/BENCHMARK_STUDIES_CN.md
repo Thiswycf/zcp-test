@@ -112,8 +112,9 @@ zcp-test analyze benchmark \
 多个 `scores.jsonl` 会按科学协议合并：`run_id` 和读取时生成的 `source_run` 只用于溯源，不能把
 四个 shard 拆成四个相关性；evaluation `seed` 仍是协议字段，因此不同初始化 seed 独立报告。
 失败和非有限分数不会被填成 0；`score_coverage.csv` 与 `correlations.csv` 中的 `failed_count`、
-`coverage` 必须与原始调用数一致。若只研究 ER 的主分量，可显式添加 `--component mean`；不要在
-全代理命令中添加该过滤器，因为多数代理的主分量名为 `score` 或其他具名组件。
+`coverage` 必须与原始调用数一致。默认自动选择各代理声明的主分量，因此 ER 使用 `mean`，其他
+代理可使用 `score` 或各自具名主组件。`--component sum` 只在明确研究 ER 辅助分量时使用；它会
+排除没有同名组件的其他代理。
 
 一编辑邻居的定义是：canonical 邻接矩阵相同且仅一个中间操作不同，或 canonical 操作序列相同
 且严格上三角邻接仅一条边不同。它是当前分层样本内的局部敏感性分析；缺少邻居对时只能报告

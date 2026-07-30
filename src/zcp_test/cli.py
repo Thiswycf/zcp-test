@@ -1772,7 +1772,7 @@ def _report_bundle(
         or (Path(run) / "training.jsonl").exists()
     ]
     return build_report_bundle(
-        scores,
+        _analysis_component_frame(scores, None),
         output,
         search=search_files or None,
         training=training_files or None,
@@ -1781,14 +1781,23 @@ def _report_bundle(
     )
 
 
+def _analysis_component_frame(frame: Any, component: str | None) -> Any:
+    if component:
+        return frame[frame["component"].astype(str).eq(component)].reset_index(drop=True)
+    if "primary_component" not in frame or not frame["primary_component"].notna().any():
+        return frame.reset_index(drop=True)
+    known = frame["primary_component"].notna()
+    primary = frame["component"].astype(str).eq(frame["primary_component"].astype(str))
+    return frame[~known | primary].reset_index(drop=True)
+
+
 def command_analyze(args: argparse.Namespace) -> None:
     import matplotlib.pyplot as plt
 
     output = Path(args.output)
     if args.action in {"correlation", "compare", "sensitivity"}:
         frame = read_scores(args.scores, include_failed=True)
-        if args.component:
-            frame = frame[frame["component"] == args.component]
+        frame = _analysis_component_frame(frame, args.component)
         validate_analysis_scores(
             frame,
             args.action,
@@ -1837,10 +1846,10 @@ def command_analyze(args: argparse.Namespace) -> None:
 def _benchmark_study_frame(args: argparse.Namespace) -> Any:
     import pandas as pd
 
-    frames = [read_scores(source) for source in args.scores]
+    frames = [read_scores(source, include_failed=True) for source in args.scores]
     frame = pd.concat(frames, ignore_index=True) if len(frames) > 1 else frames[0]
+    frame = _analysis_component_frame(frame, args.component)
     filters = {
-        "component": args.component,
         "dataset": args.dataset,
         "target_metric": args.target_metric,
         "target_split": args.target_split,

@@ -49,8 +49,10 @@ NB101-specific outputs also include `architecture_features.csv`, `feature_strata
 sample-local one-operation or one-edge edits using indexed signatures rather than an all-pairs
 scan. `budget_structure_controlled.png/svg` and `budget_neighborhood_agreement.png/svg` make the
 controlled and local-edit results directly comparable across budgets. These controls and neighborhood contrasts are benchmark-driven project extensions, not
-causal claims reproduced directly from the NAS-Bench-101 paper. Add `--component mean` only for
-an ER-primary-component study; it would exclude proxies whose primary component has another name.
+causal claims reproduced directly from the NAS-Bench-101 paper. Analysis defaults to each proxy's
+declared `primary_component`, so ER uses `mean` without also treating `sum` as another proxy.
+Use `--component sum` only for an explicit ER auxiliary-component study; it excludes proxies that
+do not expose a component with that name.
 
 ## Topology and size
 
