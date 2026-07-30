@@ -201,8 +201,8 @@ class AutoFormerSpace(SearchSpace):
     search_space_id = "autoformer"
     model_family = "transformer"
     model_fidelity = "reference_model"
-    implementation_source = "https://github.com/microsoft/Cream/tree/main/AutoFormer"
-    implementation_commit = "b799630a29995163f282b15e2f38701160272fd1"
+    implementation_source = "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer"
+    implementation_commit = "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
 
     def canonicalize(self, specification: Mapping[str, Any]) -> Architecture:
         hidden_dim, depth = int(specification["hidden_dim"]), int(specification["depth"])
@@ -237,24 +237,28 @@ class AutoFormerSpace(SearchSpace):
         return self.canonicalize({"hidden_dim": rng.choice([left.spec["hidden_dim"], right.spec["hidden_dim"]]), "depth": depth, "num_heads": [rng.choice([left.spec["num_heads"][i], right.spec["num_heads"][i]]) for i in range(depth)], "mlp_ratio": [rng.choice([left.spec["mlp_ratio"][i], right.spec["mlp_ratio"][i]]) for i in range(depth)]})
 
     def build_model(self, architecture: Architecture, num_classes: int) -> Any:
-        from zcp_test.models.autoformer import StaticAutoFormer
+        from zcp_test.models.autoformer import AZNAS_SCRATCH_PROFILE, StaticAutoFormer
 
         return StaticAutoFormer(
+            profile=AZNAS_SCRATCH_PROFILE,
             num_classes=num_classes,
             embed_dim=int(architecture.spec["hidden_dim"]),
             depth=int(architecture.spec["depth"]),
             num_heads=architecture.spec["num_heads"],
             mlp_ratio=architecture.spec["mlp_ratio"],
-            relative_position=True,
             global_pool=True,
+            super_depth=14,
         )
 
     def build_training_model(
         self, architecture: Architecture, num_classes: int, config: Mapping[str, Any]
     ) -> Any:
-        from zcp_test.models.autoformer import StaticAutoFormer
+        from zcp_test.models.autoformer import AZNAS_SCRATCH_PROFILE, StaticAutoFormer
 
+        if not bool(config.get("change_qkv", True)):
+            raise ValueError("AZ-NAS scratch profile requires change_qkv=true")
         return StaticAutoFormer(
+            profile=AZNAS_SCRATCH_PROFILE,
             image_size=int(config.get("input_size", 224)),
             patch_size=int(config.get("patch_size", 16)),
             num_classes=num_classes,
@@ -269,6 +273,7 @@ class AutoFormerSpace(SearchSpace):
             relative_position=bool(config.get("relative_position", True)),
             max_relative_position=int(config.get("max_relative_position", 14)),
             global_pool=bool(config.get("global_pool", True)),
+            super_depth=14,
         )
 
 

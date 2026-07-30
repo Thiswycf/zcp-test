@@ -1,11 +1,4 @@
-"""Static AutoFormer subnet models.
-
-The architecture follows the public AutoFormer implementation:
-https://github.com/microsoft/Cream/tree/main/AutoFormer
-
-This module builds independently initialized static subnets only. It does not
-implement weight-entangled supernets or inherited-weight evaluation.
-"""
+"""Source-pinned static AutoFormer subnet models."""
 
 from __future__ import annotations
 
@@ -14,6 +7,11 @@ from typing import Any
 
 import torch
 from torch import Tensor, nn
+
+
+VITBENCH_AUTOPROX_PROFILE = "vitbench-autoprox-90ed458"
+AZNAS_SCRATCH_PROFILE = "aznas-scratch-5e6683"
+AUTOFORMER_PROFILES = frozenset({VITBENCH_AUTOPROX_PROFILE, AZNAS_SCRATCH_PROFILE})
 
 
 class DropPath(nn.Module):
@@ -62,6 +60,7 @@ class AutoFormerAttention(nn.Module):
         embed_dim: int,
         num_heads: int,
         head_dim: int,
+        scale_dim: int,
         attention_dropout: float,
         projection_dropout: float,
         relative_position: bool,
@@ -71,7 +70,7 @@ class AutoFormerAttention(nn.Module):
         self.num_heads = num_heads
         self.head_dim = head_dim
         self.inner_dim = num_heads * head_dim
-        self.scale = head_dim**-0.5
+        self.scale = scale_dim**-0.5
         self.qkv = nn.Linear(embed_dim, self.inner_dim * 3)
         self.attention_dropout = nn.Dropout(attention_dropout)
         self.projection = nn.Linear(self.inner_dim, embed_dim)
@@ -135,26 +134,29 @@ class AutoFormerBlock(nn.Module):
         num_heads: int,
         mlp_ratio: float,
         head_dim: int,
+        scale_dim: int,
         dropout: float,
         attention_dropout: float,
         drop_path_probability: float,
         relative_position: bool,
         max_relative_position: int,
+        layer_norm_eps: float,
     ) -> None:
         super().__init__()
         self.num_heads = num_heads
         self.mlp_ratio = mlp_ratio
-        self.attention_norm = nn.LayerNorm(embed_dim)
+        self.attention_norm = nn.LayerNorm(embed_dim, eps=layer_norm_eps)
         self.attention = AutoFormerAttention(
             embed_dim,
             num_heads,
             head_dim,
+            scale_dim,
             attention_dropout,
             dropout,
             relative_position,
             max_relative_position,
         )
-        self.mlp_norm = nn.LayerNorm(embed_dim)
+        self.mlp_norm = nn.LayerNorm(embed_dim, eps=layer_norm_eps)
         self.mlp = AutoFormerMlp(embed_dim, mlp_ratio, dropout)
         self.drop_path = DropPath(drop_path_probability)
 
@@ -171,6 +173,7 @@ class StaticAutoFormer(nn.Module):
     def __init__(
         self,
         *,
+        profile: str,
         image_size: int = 224,
         patch_size: int = 16,
         num_classes: int = 1000,
@@ -178,17 +181,54 @@ class StaticAutoFormer(nn.Module):
         depth: int,
         num_heads: Sequence[int],
         mlp_ratio: Sequence[float],
-        qkv_head_dim: int = 64,
+        qkv_head_dim: int | None = None,
         dropout: float = 0.0,
         attention_dropout: float = 0.0,
         drop_path_rate: float = 0.0,
-        relative_position: bool = True,
+        relative_position: bool | None = None,
         max_relative_position: int = 14,
         global_pool: bool = True,
+        super_depth: int | None = None,
     ) -> None:
         super().__init__()
+        if profile not in AUTOFORMER_PROFILES:
+            raise ValueError(
+                f"Unknown AutoFormer profile {profile!r}; expected one of {sorted(AUTOFORMER_PROFILES)}"
+            )
         heads = tuple(int(value) for value in num_heads)
         ratios = tuple(float(value) for value in mlp_ratio)
+        if any(value <= 0 for value in heads):
+            raise ValueError("num_heads values must be positive")
+        if dropout != 0.0 or attention_dropout != 0.0:
+            raise ValueError(f"AutoFormer profile {profile!r} requires zero dropout")
+        if not global_pool:
+            raise ValueError(f"AutoFormer profile {profile!r} requires patch-token global pooling")
+        if profile == VITBENCH_AUTOPROX_PROFILE:
+            if qkv_head_dim is not None:
+                raise ValueError("ViTBench Auto-Prox fixes QKV width to embed_dim")
+            if relative_position not in {None, False}:
+                raise ValueError("ViTBench Auto-Prox does not implement relative position")
+            if super_depth is not None and super_depth != depth:
+                raise ValueError("ViTBench Auto-Prox uses actual-depth stochastic depth")
+            if any(embed_dim % value for value in heads):
+                raise ValueError("ViTBench Auto-Prox embed_dim must be divisible by every head count")
+            resolved_head_dims = tuple(embed_dim // value for value in heads)
+            resolved_scale_dims = resolved_head_dims
+            resolved_relative_position = False
+            resolved_super_depth = depth
+            layer_norm_eps = 1e-6
+        else:
+            if qkv_head_dim not in {None, 64}:
+                raise ValueError("AZ-NAS scratch fixes QKV head width to 64")
+            if relative_position is False:
+                raise ValueError("AZ-NAS scratch profile requires relative position")
+            if super_depth is None or super_depth < depth:
+                raise ValueError("AZ-NAS scratch requires super_depth >= active depth")
+            resolved_head_dims = (64,) * depth
+            resolved_scale_dims = tuple(embed_dim // value for value in heads)
+            resolved_relative_position = True
+            resolved_super_depth = super_depth
+            layer_norm_eps = 1e-5
         self._validate_configuration(
             image_size,
             patch_size,
@@ -197,42 +237,47 @@ class StaticAutoFormer(nn.Module):
             depth,
             heads,
             ratios,
-            qkv_head_dim,
+            min(resolved_head_dims),
             dropout,
             attention_dropout,
             drop_path_rate,
         )
         self.image_size = image_size
+        self.profile = profile
         self.patch_size = patch_size
         self.embed_dim = embed_dim
         self.depth = depth
         self.num_heads = heads
         self.mlp_ratio = ratios
-        self.qkv_head_dim = qkv_head_dim
-        self.relative_position = relative_position
+        self.qkv_head_dim = 64 if profile == AZNAS_SCRATCH_PROFILE else None
+        self.relative_position = resolved_relative_position
         self.max_relative_position = max_relative_position
         self.global_pool = global_pool
+        self.super_depth = resolved_super_depth
+        self.layer_norm_eps = layer_norm_eps
         patch_count = (image_size // patch_size) ** 2
         self.patch_embed = nn.Conv2d(3, embed_dim, patch_size, stride=patch_size)
         self.class_token = nn.Parameter(torch.zeros(1, 1, embed_dim))
         self.position_embedding = nn.Parameter(torch.zeros(1, patch_count + 1, embed_dim))
         self.position_dropout = nn.Dropout(dropout)
-        path_rates = torch.linspace(0.0, drop_path_rate, depth).tolist()
+        path_rates = torch.linspace(0.0, drop_path_rate, resolved_super_depth).tolist()[:depth]
         self.blocks = nn.ModuleList(
             AutoFormerBlock(
                 embed_dim,
                 heads[index],
                 ratios[index],
-                qkv_head_dim,
+                resolved_head_dims[index],
+                resolved_scale_dims[index],
                 dropout,
                 attention_dropout,
                 path_rates[index],
-                relative_position,
+                resolved_relative_position,
                 max_relative_position,
+                layer_norm_eps,
             )
             for index in range(depth)
         )
-        self.norm = nn.LayerNorm(embed_dim)
+        self.norm = nn.LayerNorm(embed_dim, eps=layer_norm_eps)
         self.head = nn.Linear(embed_dim, num_classes)
         self._initialize_weights()
 
@@ -281,18 +326,28 @@ class StaticAutoFormer(nn.Module):
                 nn.init.zeros_(module.bias)
 
     def reference_metadata(self) -> dict[str, Any]:
-        return {
-            "family": "autoformer",
-            "model_fidelity": self.model_fidelity,
-            "weight_mode": "independent_scratch",
-            "supports_inherited_supernet": False,
-            "source": "https://github.com/microsoft/Cream/tree/main/AutoFormer",
-            "cost_protocol": {
+        if self.profile == VITBENCH_AUTOPROX_PROFILE:
+            source = "https://github.com/lliai/Auto-Prox-AAAI24"
+            source_commit = "90ed458eff6948a6f0d23e440a8d21bbec50d091"
+            cost_protocol = None
+        else:
+            source = "https://github.com/cvlab-yonsei/AZ-NAS"
+            source_commit = "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
+            cost_protocol = {
                 "name": "cream-autoformer-get-complexity",
                 "source_commit": "b799630a29995163f282b15e2f38701160272fd1",
                 "official_complexity_ops": self.official_complexity_ops(),
                 "generic_flops": False,
-            },
+            }
+        return {
+            "family": "autoformer",
+            "profile": self.profile,
+            "model_fidelity": self.model_fidelity,
+            "weight_mode": "independent_scratch",
+            "supports_inherited_supernet": False,
+            "source": source,
+            "source_commit": source_commit,
+            "cost_protocol": cost_protocol,
             "architecture": {
                 "embed_dim": self.embed_dim,
                 "depth": self.depth,
@@ -301,11 +356,17 @@ class StaticAutoFormer(nn.Module):
                 "qkv_head_dim": self.qkv_head_dim,
                 "relative_position": self.relative_position,
                 "global_pool": self.global_pool,
+                "super_depth": self.super_depth,
+                "layer_norm_eps": self.layer_norm_eps,
             },
         }
 
     def official_complexity_ops(self) -> int:
         """Reproduce Cream/AZ-NAS ``get_complexity`` without relabelling it FLOPs."""
+        if self.profile != AZNAS_SCRATCH_PROFILE:
+            raise NotImplementedError(
+                "Cream/AZ-NAS get_complexity is not valid for the ViTBench Auto-Prox profile"
+            )
         patch_count = (self.image_size // self.patch_size) ** 2
         total = self.patch_embed.bias.numel()
         total += patch_count * self.patch_embed.weight.numel()
@@ -345,4 +406,9 @@ class StaticAutoFormer(nn.Module):
         return self.head(self.forward_features(inputs))
 
 
-__all__ = ["StaticAutoFormer"]
+__all__ = [
+    "AUTOFORMER_PROFILES",
+    "AZNAS_SCRATCH_PROFILE",
+    "StaticAutoFormer",
+    "VITBENCH_AUTOPROX_PROFILE",
+]

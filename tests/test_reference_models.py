@@ -3,7 +3,7 @@ import hashlib
 import pytest
 import torch
 
-from zcp_test.models.autoformer import StaticAutoFormer
+from zcp_test.models.autoformer import AZNAS_SCRATCH_PROFILE, StaticAutoFormer
 from zcp_test.models.mobile import (
     OFAProxylessMobileNetV2,
     PlainNetMobileNetV2,
@@ -75,6 +75,7 @@ def _fake_ofa_proxyless_checkpoint(model):
 
 def autoformer(**overrides):
     configuration = {
+        "profile": AZNAS_SCRATCH_PROFILE,
         "image_size": 32,
         "patch_size": 8,
         "num_classes": 7,
@@ -82,7 +83,7 @@ def autoformer(**overrides):
         "depth": 2,
         "num_heads": [2, 2],
         "mlp_ratio": [2.0, 2.0],
-        "qkv_head_dim": 8,
+        "super_depth": 14,
     }
     configuration.update(overrides)
     return StaticAutoFormer(**configuration)
@@ -196,10 +197,12 @@ def test_autoformer_official_subnet_parameter_counts(
     expected_official_complexity_ops,
 ):
     model = StaticAutoFormer(
+        profile=AZNAS_SCRATCH_PROFILE,
         embed_dim=embed_dim,
         depth=len(num_heads),
         num_heads=num_heads,
         mlp_ratio=mlp_ratio,
+        super_depth=14 if len(num_heads) <= 14 else 16,
     )
 
     assert [block.num_heads for block in model.blocks] == num_heads
@@ -218,10 +221,12 @@ def test_autoformer_official_complexity_is_not_relabelled_as_thop_macs():
     from thop import profile
 
     model = StaticAutoFormer(
+        profile=AZNAS_SCRATCH_PROFILE,
         embed_dim=192,
         depth=12,
         num_heads=[4, 3, 4, 4, 4, 4, 4, 3, 3, 4, 4, 4],
         mlp_ratio=[3.5, 3.5, 3.5, 4.0, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 4.0, 4.0],
+        super_depth=14,
     ).eval()
     thop_macs, thop_parameters = profile(
         model,
@@ -445,7 +450,9 @@ def test_registered_autoformer_and_mobile_spaces_expose_distinct_fidelity():
     autoformer_architecture = autoformer_space.sample(3)
     autoformer_model = autoformer_space.build_model(autoformer_architecture, 5).eval()
     assert autoformer_space.model_fidelity == "reference_model"
-    assert autoformer_space.implementation_commit == "b799630a29995163f282b15e2f38701160272fd1"
+    assert autoformer_space.implementation_commit == (
+        "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
+    )
     assert autoformer_model(torch.randn(1, 3, 224, 224)).shape == (1, 5)
 
     plain_space = SPACES.create("zennas_plainnet_mbv2")

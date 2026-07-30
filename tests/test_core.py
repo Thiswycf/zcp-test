@@ -150,10 +150,11 @@ def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
 
 
 def test_declared_transformer_proxies_execute_on_transformer_model():
-    from zcp_test.models.autoformer import StaticAutoFormer
+    from zcp_test.models.autoformer import AZNAS_SCRATCH_PROFILE, StaticAutoFormer
 
     load_builtin_proxies()
     model = StaticAutoFormer(
+        profile=AZNAS_SCRATCH_PROFILE,
         image_size=32,
         patch_size=16,
         num_classes=3,
@@ -161,8 +162,7 @@ def test_declared_transformer_proxies_execute_on_transformer_model():
         depth=2,
         num_heads=[2, 2],
         mlp_ratio=[2.0, 2.0],
-        qkv_head_dim=8,
-        relative_position=False,
+        super_depth=14,
     )
     inputs = torch.randn(4, 3, 32, 32)
     labels = torch.tensor([0, 1, 2, 0])

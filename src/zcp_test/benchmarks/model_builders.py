@@ -49,6 +49,23 @@ def registered_space_model(architecture: Architecture, dataset: str) -> Any:
     raise NotImplementedError(f"No model factory for {architecture.search_space_id}")
 
 
+def vitbench_autoformer_model(architecture: Architecture, dataset: str) -> Any:
+    from zcp_test.models.autoformer import StaticAutoFormer, VITBENCH_AUTOPROX_PROFILE
+    from zcp_test.spaces import SPACES, load_builtin_spaces
+
+    load_builtin_spaces()
+    space = SPACES.create("autoformer")
+    canonical = space.canonicalize(architecture.spec)
+    return StaticAutoFormer(
+        profile=VITBENCH_AUTOPROX_PROFILE,
+        num_classes=num_classes(dataset),
+        embed_dim=int(canonical.spec["hidden_dim"]),
+        depth=int(canonical.spec["depth"]),
+        num_heads=canonical.spec["num_heads"],
+        mlp_ratio=canonical.spec["mlp_ratio"],
+    )
+
+
 def transnas_task_model(architecture: Architecture, dataset: str) -> Any:
     from zcp_test.models.transnas import TransNasTaskModel
 
@@ -64,4 +81,6 @@ def model_builder(architecture: Architecture, dataset: str) -> Any:
         return nats_size_model(architecture, dataset)
     if architecture.search_space_id in {"transnas_micro", "transnas_macro"}:
         return transnas_task_model(architecture, dataset)
+    if architecture.search_space_id == "autoformer":
+        return vitbench_autoformer_model(architecture, dataset)
     return registered_space_model(architecture, dataset)
