@@ -111,4 +111,17 @@ H1 当前状态为：**NB201 单 seed 完成，整体进行中**。seed 2026 的
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。
 `params`/`flops` 的负号来自 `minimize → negated` 方向转换，资源方向与“规模—精度原始关联”应分开
 报告；名称不同但结果相同的代理不得据此认定算法独立。NB201 和 NATS-TSS 必须分别运行和报告，
-即使 topology codec 相同。H1 仍未完成其他 benchmark。
+即使 topology codec 相同。
+
+## 7. NATS-TSS 实际验收（H1）
+
+NATS-TSS 已使用独立 `nats_bench.create(..., "tss")` 真值、独立 v1.0 manifest 和相同最低规模完成：
+22 代理 seed 2026 为 3,454 行、3,451 成功、3 失败；核心 11 代理三 seed 为 5,181 行、5,172
+成功、9 失败，均无重复稳定键。共同 topology 不代表共同真值：与 NB201 的 157 个共同架构中，
+31 个 target 数值不同。完整 run SHA、主组件相关性、三 seed 稳定性和专属 topology 表规模见
+[`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md) 与
+[`evidence/nats_tss_one_percent_summary.json`](evidence/nats_tss_one_percent_summary.json)。
+
+因此 H1 当前判定为 **“NB201 与 NATS-TSS 既定 seed 协议完成，整体进行中”**；其余 benchmark
+仍需独立执行。真实运行发现的 NATS `min/max` repeat reduction 和专属 coverage 缺口必须修复，
+不能因 mean 协议通过而忽略。

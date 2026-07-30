@@ -320,9 +320,14 @@ architecture、942 条 edge、5 类 operation、26,880 条 correlation、3,360 �
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。H1 仍只能标为
 核心 11 代理的另外两个 seed 现已补齐，三 seed 稳定性见
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。当前状态更新为
-**“NB201 既定 seed 协议完成，H1 整体进行中”**；`params`/`flops` 的负号来自
+**“NB201 既定 seed 协议完成”**；`params`/`flops` 的负号来自
 `minimize → negated` 方向转换，资源方向与原始规模—精度关联仍须分开解释；疑似相同算法结果不能
 用于独立性结论，且该结果绝不能外推为 NATS-TSS 证据。
+
+NATS-TSS 随后已用独立 API 和真值完成相同最低规模：22 代理单 seed、核心 11 代理三 seed、
+topology operation effect 与 matched-pair 报告均已生成。157 个共同 topology 中有 31 个 NATS
+与 NB201 target 不同，直接证明共享 codec 不能替代独立查询。详见
+[`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md)。H1 整体仍进行中。
 
 ## 11. 常见错误
 

@@ -8,18 +8,19 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-30 tree: **216 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
-| Coverage | First-party source **86%**; CLI 80%, reports 96%/100%, converters 98%, doctor/legacy 100% | Passed | Meets the planned aggregate 85% and listed critical-module 80% gates; native-data contracts still require separate smoke evidence |
+| Unit/integration baseline | Current 2026-07-30 tree: **286 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
+| Coverage | First-party source **87%**; CLI 80% and analysis 93% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
+| H1 one-percent correlations | NB201 and NATS-TSS each completed 157 architectures × 22 proxies at seed 2026 and the 11 core proxies at three seeds | In progress overall | Independent manifests, truth adapters, failure coverage and topology studies for these two benchmarks only; five benchmark families remain |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
 | Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
 
-The 216-test run, Ruff, compileall, pip check, diff check and 86% coverage are the current
-low-cost software baseline. The repository retains DARTS/evaluation/search manifests but no
-dedicated 22-proxy sweep manifest, so that sweep remains only partially reconstructable. Under
-Conda, coverage is invoked as `python -m coverage`; a host `coverage` entry point may carry the
-wrong Python shebang.
+The 286-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
+low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
+NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
+external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
+entry point may carry the wrong Python shebang.
 
 ## Proxy sweep scope
 
@@ -31,6 +32,12 @@ A sweep means each name was exercised through the common evaluator and produced 
 `ok`, `unsupported`, or `failed` outcome. It does not mean every proxy supports every model
 family, every `portable-v1` implementation matches its paper numerically, or all scores have been
 validated against standard answers.
+
+The NATS-TSS H1 evidence is recorded in
+[`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md) and the language-neutral
+[`evidence/nats_tss_one_percent_summary.json`](evidence/nats_tss_one_percent_summary.json). It uses
+`nats_bench.create(..., "tss")`, not NAS-Bench-201 truth. Among the 157 shared topology IDs, 31
+target values differ, which directly rejects treating the two benchmark adapters as interchangeable.
 
 ## DARTS smoke boundary
 

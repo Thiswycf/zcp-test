@@ -36,15 +36,54 @@ class NatsAdapter(IndexedNativeAdapter):
     def query_metrics(self, architecture: Architecture, metric: MetricSpec) -> Mapping[str, float]:
         self.validate_metric(metric)
         index = self._required_index(architecture)
-        random_seed: bool | int = metric.seed if metric.seed is not None else False
-        info = self.api.get_more_info(
-            index,
-            metric.dataset,
-            iepoch=None,
-            hp=str(metric.epoch_budget or self.default_epoch_budget),
-            is_random=random_seed,
-        )
-        return {metric.metric_name: self._extract_metric(info, metric)}
+        reduction = metric.seed_reduction
+        if reduction not in {"mean", "min", "max"}:
+            raise ValueError(f"Unsupported NATS seed reduction: {reduction!r}")
+        hp = str(metric.epoch_budget or self.default_epoch_budget)
+        if metric.seed is not None or reduction == "mean":
+            random_seed: bool | int = metric.seed if metric.seed is not None else False
+            info = self.api.get_more_info(
+                index,
+                metric.dataset,
+                iepoch=None,
+                hp=hp,
+                is_random=random_seed,
+            )
+            return {metric.metric_name: self._extract_metric(info, metric)}
+
+        query_metadata = getattr(self.api, "query_meta_info_by_index", None)
+        if not callable(query_metadata):
+            raise RuntimeError(
+                f"NATS seed reduction {reduction!r} requires API seed enumeration via "
+                "query_meta_info_by_index"
+            )
+        metadata = query_metadata(index, hp=hp)
+        get_dataset_seeds = getattr(metadata, "get_dataset_seeds", None)
+        if not callable(get_dataset_seeds):
+            raise RuntimeError(
+                f"NATS seed reduction {reduction!r} requires metadata.get_dataset_seeds"
+            )
+        seeds = tuple(get_dataset_seeds(metric.dataset))
+        if not seeds:
+            raise RuntimeError(
+                f"NATS seed reduction {reduction!r} found no official seeds for "
+                f"{metric.dataset!r}"
+            )
+        values = [
+            self._extract_metric(
+                self.api.get_more_info(
+                    index,
+                    metric.dataset,
+                    iepoch=None,
+                    hp=hp,
+                    is_random=seed,
+                ),
+                metric,
+            )
+            for seed in seeds
+        ]
+        aggregate = min(values) if reduction == "min" else max(values)
+        return {metric.metric_name: aggregate}
 
 
 class NatsTssAdapter(NatsAdapter):

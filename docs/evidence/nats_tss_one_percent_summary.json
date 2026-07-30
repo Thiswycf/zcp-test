@@ -1,0 +1,78 @@
+{
+  "schema_version": 1,
+  "benchmark": {
+    "benchmark_id": "nats_tss",
+    "benchmark_version": "1.0",
+    "search_space_id": "nb201_topology",
+    "dataset": "cifar10-valid",
+    "target_metric": "accuracy",
+    "target_split": "valid",
+    "target_epoch_budget": 200,
+    "target_seed_reduction": "mean",
+    "truth_source": "nats_bench.create(path, tss)"
+  },
+  "sampling": {
+    "strategy": "proportional_feature_stratified",
+    "seed": 2026,
+    "population_size": 15625,
+    "sample_count": 157,
+    "stratum_count": 210,
+    "shard_counts": [40, 39, 39, 39],
+    "manifest_sha256": "c8280222f5d51a534124f2ed58f104ecb0d5593797481e7c3acc4a6338d18a5c"
+  },
+  "all_proxies_seed_2026": {
+    "proxy_count": 22,
+    "row_count": 3454,
+    "successful_count": 3451,
+    "failed_count": 3,
+    "duplicate_key_count": 0,
+    "run_ids": ["c076cb82e8ad", "2ab84a130287", "d9e55fc868a0", "5a2600186842"],
+    "scores_sha256": [
+      "8bcb7ffa86023c90292a930e4261c2e2bcae3f88bcb02fd1f4f2eb70bcd946f9",
+      "fae095a371ec9009c89068c5745541a45de99a73deceaab01e53616aa6506398",
+      "226e075bb57851dcbf8855a7c7c848837f35accc31f02481c7d2cc2c03aaa4b4",
+      "4c85fb70d6d0c19076c262c15bab40dfaf144b6f43b4ce81a6063baae217e90a"
+    ]
+  },
+  "core_three_seed": {
+    "proxy_count": 11,
+    "seeds": [2026, 2027, 2028],
+    "row_count": 5181,
+    "successful_count": 5172,
+    "failed_count": 9,
+    "duplicate_key_count": 0,
+    "merged_scores_sha256": "9efbe925701b34490b0904ef01ee6f0d50625a489044de78f73fbac2cf6101e9"
+  },
+  "failure": {
+    "benchmark_index": 3943,
+    "architecture_id": "nb201_topology:839da408774c5a50b88c",
+    "proxy_ids": ["az_nas", "naswot", "te_nas"],
+    "error": "proxy returned NaN or infinity"
+  },
+  "nb201_separation_audit": {
+    "shared_architecture_count": 157,
+    "different_target_count": 31,
+    "maximum_absolute_target_difference": 1.0199999945068399,
+    "target_spearman": 0.9992433592369092,
+    "conclusion": "Shared topology IDs do not make NAS-Bench-201 and NATS-TSS truth interchangeable."
+  },
+  "topology_tables": {
+    "architectures": 157,
+    "edges": 942,
+    "operations": 5,
+    "correlations": 26880,
+    "operation_effects": 3360,
+    "matched_pairs": 168,
+    "matched_pair_summary": 168
+  },
+  "completion": {
+    "nats_tss_protocol": "complete",
+    "h1_overall": "in_progress",
+    "remaining_benchmarks": ["nasbench101", "nats_sss", "nasbench301_surrogate", "transnasbench101", "vitbench101"]
+  },
+  "known_gaps": [
+    "NATS min/max seed reduction was fixed after this run; the accepted mean protocol was unaffected.",
+    "Asset revision 1.0-3ffb9 is not yet a separate score protocol field.",
+    "Topology tables must be read together with the generic failed/coverage report."
+  ]
+}

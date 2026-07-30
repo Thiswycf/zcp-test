@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 20:17 CST",
+  updatedAt: "2026-07-30 20:41 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "最新完整 gate 为 282 tests passed、第一方 source coverage 87%、CLI coverage 80%；CLI 与 bundle 的 failed invocation coverage 分母修复已纳入回归，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "最新完整 gate 为 286 tests passed、第一方 source coverage 87%、CLI coverage 80%；NATS seed reduction 与相关性 coverage 回归均已纳入，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 20:17"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -51,9 +51,9 @@ window.ZCP_PANEL_DATA = {
       content: "实现 topology、reduction stage 与 stage width 可感知的 PyTorch 模型构建。",
       purpose: "确保架构字段真实进入模型和 ZCP 计算。",
       estimate: "4–8 小时", startedAt: "2026-07-30 12:10", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
-      detail: "NB201、NATS-TSS 和 NATS-SSS 的 native index-0 query→build→params proxy 均通过；NB201/TSS 共享 architecture ID 但 benchmark/API 身份保持独立。",
+      detail: "NB201、NATS-TSS 和 NATS-SSS 的 native index-0 query→build→params proxy 均通过；NB201/TSS 共享 architecture ID 但 benchmark/API 身份保持独立。NATS 查询的 seed_reduction=min|max 已修复为枚举官方 seed 后显式归约，真实 index-0 得到 mean 81.982667、min 81.616000、max 82.240000；不能枚举时明确失败。",
       acceptance: ["字段敏感性测试", "native API 架构对照", "真实样本 query→build→proxy"],
-      evidence: ["EV-NB201", "EV-REAL-BENCHMARKS"], risks: [], updatedAt: "2026-07-30 16:28"
+      evidence: ["EV-NB201", "EV-REAL-BENCHMARKS", "EV-NATS-TSS-1PCT-REPORT", "EV-FULL-GATE-286"], risks: [], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "B2", phase: "Benchmark", priority: "P1", title: "TransNAS 端到端构模契约",
@@ -140,19 +140,19 @@ window.ZCP_PANEL_DATA = {
       id: "E2", phase: "研究", priority: "P1", title: "通用 ZCP 分析",
       content: "验收互相关、top-k、稳定性、Pareto、transfer 与样本收敛分析。",
       purpose: "形成可复用且不会静默错配的研究报告。",
-      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 75,
-      detail: "真实 NB201 dataset-input run 已生成 correlation、compare 与 seed sensitivity 报告；相关性诊断显式记录 coverage、ties、constant、direction，并对重复 join key fail closed。三 seed 实验进一步修复 CLI 在 bundle 前过滤 failed 行导致 coverage=1.0 的错误：CLI 与 bundle 现保留完整调用分母，只用有限成功对计算系数。search 与 training 分析尚未执行，top-k、Pareto、transfer 和样本收敛仍需真实多 run 验收，因此不能标记完成。",
+      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 78,
+      detail: "NB201 与 NATS-TSS 的真实 correlation、compare、三 seed stability 和 bundle 均已生成；诊断显式记录 coverage、ties、constant、direction，并对重复 join key fail closed。CLI 与 bundle 现保留 failed invocation 的完整分母，只用有限成功对计算系数。search 与 training 分析尚未执行，Pareto、transfer 和样本收敛仍需更多 benchmark 的真实多 run 验收，因此不能标记完成。",
       acceptance: ["缺列与重复键明确报错", "coverage/ties/constant/direction 显式报告", "多 run 来源保留", "真实结果可生成全部表格", "search/training 分析真实验收"],
-      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-FULL-GATE-282"], risks: [], updatedAt: "2026-07-30 20:17"
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-FULL-GATE-282", "EV-FULL-GATE-286"], risks: [], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "E3", phase: "研究", priority: "P2", title: "Benchmark 定制研究",
       content: "按预算、操作、size、任务和 ViT 参数分析结构偏置。",
       purpose: "避免不同 benchmark 只输出同一套泛化统计。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 55,
-      detail: "NB201 topology 已在正式 1% 分层样本上生成 157 architecture、942 edge、5 operation、26,880 correlation、3,360 operation effect、168 matched pair 与 168 matched-pair summary。NB101、NATS-TSS/SSS、NB301、TransNAS-Bench-101 和 ViT-Bench-101 的专属真实研究仍待执行，NB201 结果不得外推到共享 codec 的 NATS-TSS。",
+      estimate: "8–16 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 62,
+      detail: "NB201 与 NATS-TSS 均在各自正式 1% 真值协议上生成 157 architecture、942 edge、5 operation、26,880 correlation、3,360 operation effect、168 matched pair 与 168 matched-pair summary。两者共享 topology codec 和 157 个架构，但使用独立 adapter、version、manifest 与真值；31 个 target 不同，禁止合表或互相替代。NATS-SSS、NB101、NB301、TNB101 和 ViT 的专属研究仍待执行。",
       acceptance: ["各 benchmark 有专属因子", "真实数据生成图表", "结论关联原始字段", "不同 benchmark 协议不混合或外推"],
-      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 19:38"
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "F1", phase: "文档", priority: "P1", title: "中英文操作手册审计",
@@ -167,10 +167,10 @@ window.ZCP_PANEL_DATA = {
       id: "F2", phase: "报告", priority: "P1", title: "验收报告与复现实例",
       content: "整理完整、部分、受阻结论及对应命令、文件和运行产物。",
       purpose: "让所有验收判断都能被第三方复核。",
-      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 58,
-      detail: "初稿和结构已具备；已链接 NB201 单 seed 1% × 22 ZCP 及核心 11 代理三 seed 的机器可读摘要与中文证据文档。其余 benchmark 和高成本训练结果仍待回填。",
+      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 64,
+      detail: "初稿和结构已具备；已链接 NB201 与 NATS-TSS 的 22 代理单 seed、核心 11 代理三 seed、机器可读摘要及中文证据文档。NATS-SSS、NB101、NB301、TNB101、ViT 和高成本训练结果仍待回填。",
       acceptance: ["每个结论链接证据", "受阻原因明确", "不把 smoke 写成完整训练"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT"], risks: [], updatedAt: "2026-07-30 20:17"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "F3", phase: "报告", priority: "P1", title: "report/monitor/run 发现",
@@ -195,9 +195,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "当前完整 gate 为 282 tests passed；第一方 source coverage 87%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过；failed invocation coverage 的 CLI/bundle 回归已纳入测试。",
+      detail: "当前完整 gate 为 286 tests passed；第一方 source coverage 87%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过；NATS min/max seed reduction 和 failed invocation coverage 回归均已纳入测试。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 20:17"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 24,
-      detail: "NB201 既定 seed 协议完成，H1 整体进行中：核心 11 代理已在同一 157 架构 1% 分层样本上完成 seed 2026/2027/2028，共 5,181 行、5,172 成功、9 失败、0 重复键；22 代理 seed 2026 的旧口径证据继续保留。CLI/bundle 已修复 failed invocation 被提前过滤导致 coverage=1.0 的问题。NB101、NATS-TSS/SSS、NB301、TransNAS-Bench-101 和 ViT-Bench-101 仍待执行，NB201 结果不得外推。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 36,
+      detail: "NB201 与 NATS-TSS 既定 seed 协议完成，H1 整体进行中。NATS-TSS：157 架构 × 22 代理 seed 2026 共 3,454 行、3,451 成功、3 失败、0 重复；核心 11 代理三 seed 共 5,181 行、5,172 成功、9 失败、0 重复。manifest SHA-256 为 c8280222f5d51a534124f2ed58f104ecb0d5593797481e7c3acc4a6338d18a5c，合并 score SHA-256 为 9efbe925701b34490b0904ef01ee6f0d50625a489044de78f73fbac2cf6101e9。其 topology 表规模与 NB201 相同，但真值独立，157 个共同架构中 31 个 target 不同。剩余 NATS-SSS、NB101、NB301、TNB101 和 ViT 仍待执行。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-FULL-GATE-282"], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 20:17"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-FULL-GATE-282", "EV-FULL-GATE-286"], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 20:41"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -259,6 +259,9 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-286", time: "2026-07-30 20:41", title: "NATS-TSS 协议与 seed reduction 修复后完整 gate", result: "全量 286 tests passed；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。回归覆盖 NATS mean/min/max seed reduction、CLI/bundle failed coverage 与既有协议。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "B1", "E2", "G1", "H1"] },
+    { id: "EV-NATS-TSS-1PCT-REPORT", time: "2026-07-30 20:38", title: "NATS-TSS 1% 与核心三 seed 中文证据", result: "独立 NATS-TSS adapter/真值协议完成 157 架构 × 22 代理 seed 2026 和核心 11 代理三 seed；报告记录失败、相关性、跨 seed 稳定性、topology 表、NB201 真值差异及 min/max seed reduction 修复。真实 index-0 为 mean 81.982667、min 81.616000、max 82.240000。", command: "docs/evidence/NATS_TSS_ONE_PERCENT_CN.md", taskIds: ["B1", "E2", "E3", "F2", "H1"] },
+    { id: "EV-NATS-TSS-1PCT-SUMMARY", time: "2026-07-30 20:38", title: "NATS-TSS 1% 机器可读摘要", result: "manifest SHA-256 c8280222f5d51a534124f2ed58f104ecb0d5593797481e7c3acc4a6338d18a5c；22 代理单 seed 为 3,454/3,451/3/0，核心三 seed 为 5,181/5,172/9/0，合并 SHA-256 9efbe925701b34490b0904ef01ee6f0d50625a489044de78f73fbac2cf6101e9。157 个共享 topology 中 31 个 target 不同。", command: "docs/evidence/nats_tss_one_percent_summary.json", taskIds: ["E2", "E3", "F2", "H1"] },
     { id: "EV-FULL-GATE-282", time: "2026-07-30 20:17", title: "NB201 三 seed与 coverage 修复后完整 gate", result: "全量 282 tests passed；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。新增回归覆盖 CLI 与 report bundle 对 failed invocation 的 total/failed/invalid/coverage 分母保留。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "E2", "G1", "H1"] },
     { id: "EV-NB201-CORE-3SEED-REPORT", time: "2026-07-30 20:09", title: "NB201 核心 11 代理三 seed 中文证据", result: "seed 2026/2027/2028 在同一 157 架构 manifest 上共 5,181 行、5,172 成功、9 失败、0 重复键；报告保留失败覆盖率、三 seed Spearman、跨 seed 排名稳定性、八个新增 run 与边界说明。H1 仍等待其他 benchmark。", command: "docs/evidence/NB201_CORE_THREE_SEED_CN.md", taskIds: ["E2", "F2", "H1"] },
     { id: "EV-NB201-CORE-3SEED-SUMMARY", time: "2026-07-30 20:09", title: "NB201 核心 11 代理三 seed 机器摘要", result: "JSON 摘要锁定 157 架构、11 核心代理、三个 seed、5,181 行、5,172 成功、9 失败、0 重复键，sample manifest SHA-256 与合并 scores SHA-256 均可复核。", command: "docs/evidence/nb201_core_three_seed_summary.json", taskIds: ["E2", "F2", "H1"] },

@@ -4,6 +4,11 @@
 [`ONE_PERCENT_ACCEPTANCE_CN.md`](ONE_PERCENT_ACCEPTANCE_CN.md)，使用持久化 feature-stratified
 manifest，而不是连续 `--start/--count` 代替随机/分层样本。
 
+当前真实高成本实例包括 NB201 与 NATS-TSS，各自保留独立 manifest、真值和报告。NATS-TSS 的
+22 代理、核心三 seed、proxy–proxy、top-k 和 topology 典型输出见
+[`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md)；不得把 NB201 图表
+改标题后当作 NATS-TSS 结果。
+
 ## 一键报告
 
 ```bash

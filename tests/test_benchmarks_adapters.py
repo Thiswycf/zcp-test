@@ -32,6 +32,32 @@ class FakeApi:
         return {"valid-accuracy": 80.0 + index, "test-accuracy": 81.0 + index}
 
 
+class FakeNatsMetadata:
+    def __init__(self, seeds):
+        self.seeds = seeds
+
+    def get_dataset_seeds(self, dataset):
+        assert dataset == "cifar10-valid"
+        return self.seeds
+
+
+class SeededFakeApi(FakeApi):
+    def __init__(self):
+        super().__init__()
+        self.seed_values = {11: 79.0, 22: 83.0, 33: 81.0}
+        self.metadata_calls = []
+
+    def query_meta_info_by_index(self, index, *, hp):
+        self.metadata_calls.append((index, hp))
+        return FakeNatsMetadata(self.seed_values)
+
+    def get_more_info(self, index, dataset, **kwargs):
+        self.calls.append((index, dataset, kwargs))
+        seed = kwargs["is_random"]
+        value = 82.0 if seed is False else self.seed_values[seed]
+        return {"valid-accuracy": value}
+
+
 def write_jsonl(path, records):
     path.write_text("".join(json.dumps(record) + "\n" for record in records), encoding="utf-8")
 
@@ -64,6 +90,93 @@ def test_nats_sss_has_separate_space_and_budget(tmp_path):
     assert adapter.search_space_id == "nats_size"
     with pytest.raises(ValueError, match="Epoch budget"):
         adapter.validate_metric(MetricSpec("cifar10", "test", "accuracy", epoch_budget=200))
+
+
+def test_nats_seed_reduction_preserves_mean_and_explicit_seed(tmp_path):
+    data = tmp_path / "tss"
+    data.mkdir()
+    api = SeededFakeApi()
+    adapter = NatsTssAdapter(str(data), version="1.0", api_factory=lambda _: api)
+    architecture = next(adapter.iter_architectures(end=1))
+
+    mean = adapter.query_metrics(
+        architecture,
+        MetricSpec("cifar10-valid", "valid", "accuracy", 200, seed_reduction="mean"),
+    )
+    seeded = adapter.query_metrics(
+        architecture,
+        MetricSpec(
+            "cifar10-valid",
+            "valid",
+            "accuracy",
+            200,
+            seed=22,
+            seed_reduction="min",
+        ),
+    )
+
+    assert mean == {"accuracy": 82.0}
+    assert seeded == {"accuracy": 83.0}
+    assert [call[2]["is_random"] for call in api.calls] == [False, 22]
+    assert api.metadata_calls == []
+
+
+@pytest.mark.parametrize(("reduction", "expected"), [("min", 79.0), ("max", 83.0)])
+def test_nats_seed_reduction_enumerates_official_seeds(
+    tmp_path, reduction, expected
+):
+    data = tmp_path / reduction
+    data.mkdir()
+    api = SeededFakeApi()
+    adapter = NatsTssAdapter(str(data), version="1.0", api_factory=lambda _: api)
+    architecture = next(adapter.iter_architectures(end=1))
+
+    result = adapter.query_metrics(
+        architecture,
+        MetricSpec(
+            "cifar10-valid",
+            "valid",
+            "accuracy",
+            200,
+            seed_reduction=reduction,
+        ),
+    )
+
+    assert result == {"accuracy": expected}
+    assert api.metadata_calls == [(0, "200")]
+    assert [call[2]["is_random"] for call in api.calls] == [11, 22, 33]
+
+
+def test_nats_seed_reduction_rejects_unknown_or_unavailable_enumeration(tmp_path):
+    data = tmp_path / "tss"
+    data.mkdir()
+    api = FakeApi()
+    adapter = NatsTssAdapter(str(data), version="1.0", api_factory=lambda _: api)
+    architecture = next(adapter.iter_architectures(end=1))
+
+    with pytest.raises(ValueError, match="Unsupported NATS seed reduction"):
+        adapter.query_metrics(
+            architecture,
+            MetricSpec(
+                "cifar10-valid",
+                "valid",
+                "accuracy",
+                200,
+                seed_reduction="median",
+            ),
+        )
+    with pytest.raises(RuntimeError, match="requires API seed enumeration"):
+        adapter.query_metrics(
+            architecture,
+            MetricSpec(
+                "cifar10-valid",
+                "valid",
+                "accuracy",
+                200,
+                seed_reduction="min",
+            ),
+        )
+    assert api.calls == []
 
 
 def test_nb101_jsonl_validates_and_joins_by_architecture_id(tmp_path):
