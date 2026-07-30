@@ -130,6 +130,68 @@ def test_autoformer_fields_change_parameter_count():
 
 
 @pytest.mark.parametrize(
+    ("embed_dim", "num_heads", "mlp_ratio", "expected_parameters"),
+    [
+        pytest.param(
+            192,
+            [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3],
+            [3.5, 3.5, 3.0, 3.5, 3.0, 3.0, 4.0, 4.0, 3.5, 4.0, 3.5, 4.0, 3.5],
+            5_867_944,
+            id="cream-b799630-autoformer-t",
+        ),
+        pytest.param(
+            384,
+            [6, 6, 5, 7, 5, 5, 5, 6, 6, 7, 7, 6, 7],
+            [3.0, 3.5, 3.0, 3.5, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 3.5, 4.0],
+            22_891_432,
+            id="cream-b799630-autoformer-s",
+        ),
+        pytest.param(
+            576,
+            [9, 9, 9, 9, 9, 10, 9, 9, 10, 9, 10, 9, 9, 10],
+            [3.5, 3.5, 4.0, 3.5, 4.0, 3.5, 3.5, 3.0, 4.0, 4.0, 3.0, 4.0, 3.0, 3.5],
+            53_691_688,
+            id="cream-b799630-autoformer-b",
+        ),
+        pytest.param(
+            192,
+            [4, 3, 4, 4, 4, 4, 4, 3, 3, 4, 4, 4],
+            [3.5, 3.5, 3.5, 4.0, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 4.0, 4.0],
+            5_921_032,
+            id="az-nas-5e6683-tiny",
+        ),
+        pytest.param(
+            384,
+            [7, 7, 6, 6, 5, 6, 6, 6, 7, 7, 5, 5, 6, 7],
+            [3.0, 3.0, 3.0, 4.0, 3.5, 3.0, 3.0, 3.5, 4.0, 3.0, 3.0, 3.0, 3.0, 4.0],
+            22_951_144,
+            id="az-nas-5e6683-small",
+        ),
+        pytest.param(
+            528,
+            [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9, 10, 10, 10, 10],
+            [3.0, 3.5, 3.5, 3.5, 3.0, 3.5, 3.0, 4.0, 4.0, 3.0, 3.0, 4.0, 3.5, 3.0, 4.0, 4.0],
+            53_710_768,
+            id="az-nas-5e6683-base",
+        ),
+    ],
+)
+def test_autoformer_official_subnet_parameter_counts(
+    embed_dim, num_heads, mlp_ratio, expected_parameters
+):
+    model = StaticAutoFormer(
+        embed_dim=embed_dim,
+        depth=len(num_heads),
+        num_heads=num_heads,
+        mlp_ratio=mlp_ratio,
+    )
+
+    assert [block.num_heads for block in model.blocks] == num_heads
+    assert [block.mlp_ratio for block in model.blocks] == mlp_ratio
+    assert parameter_count(model) == expected_parameters
+
+
+@pytest.mark.parametrize(
     ("overrides", "message"),
     [
         ({"image_size": 30}, "divisible"),

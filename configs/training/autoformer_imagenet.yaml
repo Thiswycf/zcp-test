@@ -4,6 +4,8 @@ input_size: 224
 epochs: 500
 optimizer: adamw
 learning_rate: 0.0005
+learning_rate_scaling: linear_global_batch
+learning_rate_reference_batch_size: 512
 weight_decay: 0.05
 scheduler: cosine
 warmup_epochs: 20
@@ -23,6 +25,9 @@ mixup_probability: 1.0
 mixup_switch_probability: 0.5
 mixup_mode: batch
 repeated_augmentation: true
+repeated_augmentation_repeats: 3
+repeated_augmentation_selected_round: 256
+repeated_augmentation_selected_ratio: 0
 reference_world_size: 8
 reference_global_batch_size: 2048
 relative_position: true
@@ -30,9 +35,9 @@ max_relative_position: 14
 change_qkv: true
 global_pool: true
 protocol: aznas-autoformer-scratch
-implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/main/ImageNet_AutoFormer
+implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer
+implementation_commit: 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47
 formal_training_ready: false
 formal_training_blockers:
-  - repeated-augmentation sampler is not implemented
-  - distributed global batch and learning-rate scaling are not implemented
-  - official parameter and FLOPs fixtures are not accepted
+  - torchrun/DDP model wrapping, metric reduction, and rank-zero artifacts are not implemented
+  - official complexity-op fixture is not independently reconciled with a standard MAC profiler

@@ -223,6 +223,22 @@ def test_incomplete_formal_training_protocol_is_rejected(tmp_path):
         main(["train", "--config", str(config), "--device", "cpu"])
 
 
+def test_train_rejects_unimplemented_torchrun_processes(monkeypatch):
+    monkeypatch.setenv("WORLD_SIZE", "2")
+    monkeypatch.setenv("RANK", "0")
+    with pytest.raises(NotImplementedError, match="torchrun/DDP"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/darts_cifar10.yaml",
+                "--smoke",
+                "--device",
+                "cpu",
+            ]
+        )
+
+
 def test_train_architecture_accepts_inline_json_and_json_file(tmp_path):
     specification = {"normal": [], "reduce": []}
     assert _load_architecture_spec(json.dumps({"spec": specification})) == specification

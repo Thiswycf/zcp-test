@@ -135,6 +135,10 @@ def train_model(
         restore_rng(checkpoint["rng"])
         start_epoch, best_accuracy = checkpoint["epoch"] + 1, checkpoint["best_accuracy"]
     for epoch in range(start_epoch, config.epochs):
+        for loader in (train_loader, valid_loader):
+            sampler = getattr(loader, "sampler", None)
+            if hasattr(sampler, "set_epoch"):
+                sampler.set_epoch(epoch)
         epoch_learning_rate = float(optimizer.param_groups[0]["lr"])
         unwrapped_model = getattr(model, "module", model)
         if hasattr(unwrapped_model, "drop_path_prob"):

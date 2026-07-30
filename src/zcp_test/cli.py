@@ -364,6 +364,8 @@ def _real_loaders(
     config: dict[str, Any],
     fraction: float = 1.0,
     seed: int = 42,
+    distributed_world_size: int = 1,
+    distributed_rank: int = 0,
 ) -> tuple[Any, Any]:
     import torch
     from torchvision import datasets, transforms
@@ -431,11 +433,56 @@ def _real_loaders(
         valid_set = datasets.ImageFolder(validation_directory, valid_transform)
     train_set = _stratified_subset(train_set, fraction, seed)
     valid_set = _stratified_subset(valid_set, fraction, seed + 1)
+    if distributed_world_size <= 0:
+        raise ValueError("distributed_world_size must be positive")
+    if not 0 <= distributed_rank < distributed_world_size:
+        raise ValueError("distributed_rank must be within distributed_world_size")
     generator = torch.Generator().manual_seed(seed)
     common = {"batch_size": batch_size, "num_workers": workers, "pin_memory": True, "persistent_workers": workers > 0}
+    train_sampler = None
+    if bool(config.get("repeated_augmentation", False)):
+        from timm.data.distributed_sampler import RepeatAugSampler
+
+        train_sampler = RepeatAugSampler(
+            train_set,
+            num_replicas=distributed_world_size,
+            rank=distributed_rank,
+            shuffle=True,
+            num_repeats=int(config.get("repeated_augmentation_repeats", 3)),
+            selected_round=int(config.get("repeated_augmentation_selected_round", 256)),
+            selected_ratio=int(config.get("repeated_augmentation_selected_ratio", 0)),
+        )
+    elif distributed_world_size > 1:
+        train_sampler = torch.utils.data.DistributedSampler(
+            train_set,
+            num_replicas=distributed_world_size,
+            rank=distributed_rank,
+            shuffle=True,
+            seed=seed,
+        )
+    valid_sampler = None
+    if distributed_world_size > 1:
+        valid_sampler = torch.utils.data.DistributedSampler(
+            valid_set,
+            num_replicas=distributed_world_size,
+            rank=distributed_rank,
+            shuffle=False,
+            seed=seed + 1,
+        )
     return (
-        torch.utils.data.DataLoader(train_set, shuffle=True, generator=generator, **common),
-        torch.utils.data.DataLoader(valid_set, shuffle=False, **common),
+        torch.utils.data.DataLoader(
+            train_set,
+            shuffle=train_sampler is None,
+            sampler=train_sampler,
+            generator=generator,
+            **common,
+        ),
+        torch.utils.data.DataLoader(
+            valid_set,
+            shuffle=False,
+            sampler=valid_sampler,
+            **common,
+        ),
     )
 
 
@@ -1114,9 +1161,17 @@ def command_search(args: argparse.Namespace) -> None:
 
 
 def command_train(args: argparse.Namespace) -> None:
-    from zcp_test.training.protocols import validate_formal_training_protocol
+    from zcp_test.training.protocols import scale_learning_rate, validate_formal_training_protocol
 
     config = load_config(args.config)
+    distributed_world_size = int(os.environ.get("WORLD_SIZE", "1"))
+    distributed_rank = int(os.environ.get("RANK", "0"))
+    if distributed_world_size > 1:
+        raise NotImplementedError(
+            "torchrun/DDP training is not implemented yet; refusing to launch independent "
+            "per-rank training processes. Run one process or use --smoke until distributed "
+            "model wrapping, metric reduction, and rank-zero artifacts are accepted."
+        )
     _prepare_gpu(args)
     load_builtin_spaces()
     space = SPACES.create(config["space"])
@@ -1154,10 +1209,24 @@ def command_train(args: argparse.Namespace) -> None:
     classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
     batch_size = args.batch_size or int(config.get("batch_size", 8))
     input_size = args.input_size or int(config.get("input_size", 32))
+    base_learning_rate = float(config["learning_rate"])
+    gradient_accumulation_steps = int(config.get("gradient_accumulation_steps", 1))
+    learning_rate_reference_batch_size = config.get("learning_rate_reference_batch_size")
+    if learning_rate_reference_batch_size is None or args.smoke:
+        learning_rate = base_learning_rate
+        effective_global_batch_size = batch_size * distributed_world_size
+    else:
+        learning_rate, effective_global_batch_size = scale_learning_rate(
+            base_learning_rate,
+            batch_size,
+            distributed_world_size,
+            int(learning_rate_reference_batch_size),
+            gradient_accumulation_steps,
+        )
     training = TrainingConfig(
         epochs=epochs,
         optimizer=str(config["optimizer"]),
-        learning_rate=float(config["learning_rate"]),
+        learning_rate=learning_rate,
         weight_decay=float(config["weight_decay"]),
         scheduler=str(config.get("scheduler", "cosine")),
         scheduler_step_size=int(config.get("scheduler_step_size", 1)),
@@ -1191,6 +1260,15 @@ def command_train(args: argparse.Namespace) -> None:
             "classes": classes,
             "batch_size": batch_size,
             "input_size": input_size,
+            "distributed_world_size": distributed_world_size,
+            "distributed_rank": distributed_rank,
+            "per_device_batch_size": batch_size,
+            "gradient_accumulation_steps": gradient_accumulation_steps,
+            "effective_global_batch_size": effective_global_batch_size,
+            "base_learning_rate": base_learning_rate,
+            "effective_learning_rate": learning_rate,
+            "learning_rate_reference_batch_size": learning_rate_reference_batch_size,
+            "learning_rate_scaling": config.get("learning_rate_scaling", "none"),
             "model_fidelity": model_fidelity,
             "implementation_source": model_provenance["implementation_source"],
             "implementation_commit": model_provenance["implementation_commit"],
@@ -1211,6 +1289,8 @@ def command_train(args: argparse.Namespace) -> None:
                     config,
                     args.data_fraction,
                     args.seed,
+                    distributed_world_size,
+                    distributed_rank,
                 )
             result = train_model(
                 model,

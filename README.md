@@ -234,11 +234,12 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   catalog. Other machines must bootstrap or register their own paths; repository configuration
   never stores host paths.
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
-  OFA checkpoints and a formal training profile remain unaccepted. AutoFormer has a 500-epoch recipe and
-  Proxyless-MBV2 a 150-epoch recipe; their static models are references, but both configurations
-  intentionally set `formal_training_ready: false` until the documented sampler, distributed-batch,
-  augmentation and official-fixture blockers are closed. Only DARTS currently has formally enabled
-  training profiles, and only short smoke evidence is retained.
+  OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-
+  augmentation sampler, the AZ-NAS linear LR rule (`base_lr * global_batch / 512`), and six exact
+  Cream/AZ-NAS parameter-count goldens. It still sets `formal_training_ready: false` because torchrun/
+  DDP wrapping, distributed metric reduction and rank-zero artifacts are not implemented. Multi-process
+  launches are rejected rather than silently running independent jobs. Only DARTS currently has formally
+  enabled training profiles, and only short smoke evidence is retained.
 
 ## Proxy capability policy
 

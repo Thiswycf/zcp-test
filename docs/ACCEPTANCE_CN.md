@@ -50,9 +50,12 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 | `reference_model` | `darts`、`autoformer`、`pit`、`zennas_plainnet_mbv2`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
 | `proxy_approximation` | legacy toy | 只适合显式 opt-in 的方法学 smoke，不得参与正式训练或 reference 结论 |
 
-AutoFormer 与 Proxyless-MBV2 的仓库配置当前明确 `formal_training_ready: false`：前者缺 repeated
-augmentation sampler、分布式全局 batch/LR scaling 和官方参数/FLOPs fixture；后者缺已验证的
-TensorFlow 风格颜色扰动、官方 MAC fixture 和分布式全局 batch。CLI 会拒绝非 smoke 训练。
+AutoFormer 与 Proxyless-MBV2 的仓库配置当前明确 `formal_training_ready: false`。AutoFormer 已有
+AZ-NAS repeated-augmentation sampler、`base_lr × global_batch / 512` 缩放规则，以及 Cream T/S/B
+和 AZ-NAS Tiny/Small/Base 六个精确参数量 golden；仍缺 torchrun/DDP 模型包装、跨 rank 指标归约、
+rank-zero artifact 写入，并且官方 `get_complexity` 口径尚未与独立 MAC profiler 对齐。CLI 对
+`WORLD_SIZE>1` 明确失败，避免每个 rank 静默独立训练。Proxyless-MBV2 仍缺已验证的 TensorFlow
+风格颜色扰动、官方 MAC fixture 和分布式全局 batch。CLI 会拒绝非 smoke 训练。
 配置中的布尔值不能自行授权；正式训练还必须匹配代码内置的 DARTS 协议白名单及关键字段。
 
 NAS-Bench-101/201、NATS 和转换后的 TransNAS 记录只有在明确 dataset/split/budget/seed 下才是

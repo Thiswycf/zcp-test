@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 17:29 CST",
+  updatedAt: "2026-07-30 17:45 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "TransNAS 七任务 head 合入后的最新完整 gate 为 231 passed、第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "AutoFormer RA/LR/官方参数 fixture 合入后的最新完整 gate 为 240 passed、第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 17:19"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 17:45"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -77,10 +77,10 @@ window.ZCP_PANEL_DATA = {
       id: "C1", phase: "Reference", priority: "P0", title: "AutoFormer 静态 scratch reference",
       content: "提供可独立构建的静态 subnet，使逐层 depth、head 与 MLP ratio 真实影响模型。",
       purpose: "支撑无 inherited supernet 条件下的 AZ-NAS scratch/static 研究。",
-      estimate: "6–12 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 70,
-      detail: "静态分类模型、输入/编码校验、metadata 与字段敏感性测试完成；官方发布配置参数/FLOPs fixture 尚待对照。",
+      estimate: "6–12 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 90,
+      detail: "静态分类模型、输入/编码校验、metadata 与字段敏感性测试完成；Cream T/S/B 与 AZ-NAS Tiny/Small/Base 六个逐层配置的精确参数量 golden 均通过。官方自定义 complexity 口径尚未与独立 MAC profiler 对齐。",
       acceptance: ["逐层字段改变参数或算子", "分类 forward 通过", "非法编码拒绝", "metadata 明确不支持 inherited", "官方 fixture 对照"],
-      evidence: ["EV-REFERENCE-MODELS"], risks: ["R-AUTOFORMER"], updatedAt: "2026-07-30 14:15"
+      evidence: ["EV-REFERENCE-MODELS", "EV-AUTOFORMER-PROTOCOL", "EV-FULL-GATE-240"], risks: ["R-AUTOFORMER"], updatedAt: "2026-07-30 17:45"
     },
     {
       id: "C2", phase: "Reference", priority: "P0", title: "OFA-Proxyless MBV2 官方 positional encoding/reference fixture",
@@ -249,7 +249,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-CONCURRENCY", severity: "高", status: "开放", title: "并发工作区冲突", description: "多个工作者正在修改仓库，状态和测试基线可能快速变化。", mitigation: "只修改授权路径；最终 gate 前重新读取 git status，不回退他人改动。", taskIds: ["A1", "F1", "G1", "I1"] },
     { id: "R-NATIVE", severity: "高", status: "关闭", title: "真实 Benchmark index-0 smoke 已完成", description: "十个 benchmark/切片的真实 query、构模与 params proxy 均通过；external catalog 资产仍不等于 data root 自包含。", mitigation: "跨机器继续执行 bootstrap/checklist；后续 1% 相关性必须使用真实 dataset input。", taskIds: ["B1", "B3", "G2"] },
     { id: "R-TRANSNAS", severity: "中", status: "开放", title: "TransNAS Taskonomy input/label provider 未接入", description: "七任务 encoder/head 结构已对照官方，但真实 task input、dense/regression label、训练数值、latency/FLOPs 尚未复现。", mitigation: "后续接入受许可的 Taskonomy 数据与 task-specific loss；在此之前标签依赖代理返回 unsupported，random-input 结果只作消融。", taskIds: ["B2", "H1"] },
-    { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 尚无官方 fixture 验收", description: "静态字段敏感性已通过，但还未与发布配置参数量、FLOPs 和精度对照。", mitigation: "加入官方 Tiny/Small/Base fixture；inherited 路径保持 false。", taskIds: ["C1", "H2"] },
+    { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer DDP 与 complexity 口径尚未验收", description: "六个 Cream/AZ-NAS 官方子网参数量 golden、三次 repeated augmentation 和线性 LR 规则已实现；仍缺 DDP 包装、跨 rank 指标归约、rank-zero artifact 与独立 MAC profiler 对照。", mitigation: "WORLD_SIZE>1 当前明确失败；完成真实 torchrun/DDP 后才可解除 formal_training_ready，官方 get_complexity 不得伪称通用 FLOPs。", taskIds: ["C1", "H2"] },
     { id: "R-MBV2-FIXTURE", severity: "高", status: "关闭", title: "OFA-Proxyless MBV2 positional/params fixture 已验收", description: "官方 commit f03b267 的 21 dynamic-block positional encoding、width1.0/1.3 参数量及 width1.0 参数 shape multiset 已完成对照。", mitigation: "保留固定 commit、registered space 边界和回归测试；MAC 与训练边界由独立风险继续跟踪。", taskIds: ["C2"] },
     { id: "R-MBV2-REMAINING", severity: "高", status: "开放", title: "OFA-Proxyless MBV2 MAC 与正式训练未验收", description: "params/shape fixture 已通过，但官方 MAC golden 尚缺，正式训练协议也未完成验收；不得由静态 reference 结论外推训练精度或成本。", mitigation: "补充同一官方 commit 的 MAC fixture；关闭训练 blocker 并完成正式 profile 验收前，仅报告 static scratch reference。", taskIds: ["C2", "H2"] },
     { id: "R-OFA", severity: "高", status: "开放", title: "OFA inherited accuracy 与完整协议未验收", description: "官方 checkpoint、catalog bootstrap、active-weight export、子网数值一致性、evaluate/search 和真实 ImageNet 确定性 BN smoke 已完成；当前项目 BN 协议不等同官方 data provider，accuracy、MAC golden 与 formal training 仍未完成。", mitigation: "对照官方 OFA data provider 的抽样、transform 与 BN 统计并执行 inherited accuracy；补齐 MAC golden。正式训练 blocker 关闭前不得外推 inherited 或 scratch 训练结论。", taskIds: ["C2", "C3", "C4", "H2"] },
@@ -259,6 +259,8 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-240", time: "2026-07-30 17:45", title: "AutoFormer 协议补强后完整质量 gate", result: "全量 240 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C1", "G1"] },
+    { id: "EV-AUTOFORMER-PROTOCOL", time: "2026-07-30 17:44", title: "AutoFormer 官方参数与训练语义阶段验收", result: "Cream T/S/B 与 AZ-NAS Tiny/Small/Base 六个真实逐层 spec 的参数量逐项精确一致；真实 loader 接入三次 repeated augmentation，trainer 每 epoch 调用 sampler.set_epoch；AZ-NAS 8×256 线性缩放得到有效 LR 0.002。检测 WORLD_SIZE>1 时明确拒绝伪分布式独立训练，formal_training_ready 继续保持 false。", command: "pytest -q tests/test_reference_models.py tests/test_cli_commands.py tests/test_core.py tests/test_config_inputs.py tests/test_workflow.py", taskIds: ["C1", "D2", "H2"] },
     { id: "EV-PANEL-REFRESH-CONTROLS", time: "2026-07-30 17:29", title: "无需 F5 的自动刷新控制增强", result: "保留动态 data.js 加载与旧数据回退，新增显眼的立即刷新按钮、自动刷新开关、30 秒倒计时和隐藏页提示；visibility 恢复立即检查，cache-busting 与并发去重继续生效。HTTP server 下 index.html 与两条不同 refresh URL 均返回 200，两份 data.js 内容一致。", command: "node --check panel/data.js && node --check panel/app.js && node panel/check-data.js && python -m http.server 8768 --bind 127.0.0.1 --directory panel; curl index.html 'data.js?refresh=panel-test-1' 'data.js?refresh=panel-test-2'; git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-TRANSNAS-HEADS", time: "2026-07-30 17:18", title: "TransNAS 七任务 head 官方结构对照", result: "class_scene/object、room_layout、jigsaw、segmentsemantic、normal、autoencoder 的独立输出契约已实现；同一 micro fixture 与官方 commit 6d4231b 的参数量和完整 parameter-shape multiset 七任务全部一致。真实 micro index-0 七任务 build→params 均为 ok；normal+gradnorm 在缺 label provider 时返回 unsupported。", command: "pytest tests/test_reference_topologies.py tests/test_benchmarks_adapters.py; official fixture comparison; seven-task real adapter params sweep", taskIds: ["B2", "G2"] },
     { id: "EV-FULL-GATE-231", time: "2026-07-30 17:19", title: "TransNAS 七任务合入后完整质量 gate", result: "全量 231 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "B2", "G1"] },

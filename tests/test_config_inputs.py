@@ -7,6 +7,7 @@ import torch
 import zcp_test.cli as cli
 from zcp_test.config import dump_config, load_config, merge_config
 from zcp_test.inputs import make_dataset_batch_stream, make_input_batch
+from zcp_test.training.protocols import scale_learning_rate
 
 
 class _InputDataset(torch.utils.data.Dataset):
@@ -19,6 +20,14 @@ class _InputDataset(torch.utils.data.Dataset):
 
     def __getitem__(self, index):
         return torch.full((3, 8, 8), float(index)), self.targets[index]
+
+
+def test_autoformer_linear_global_batch_learning_rate():
+    learning_rate, global_batch_size = scale_learning_rate(0.0005, 256, 8, 512)
+    assert global_batch_size == 2048
+    assert learning_rate == pytest.approx(0.002)
+    with pytest.raises(ValueError, match="world_size"):
+        scale_learning_rate(0.0005, 256, 0, 512)
 
 
 def test_config_load_merge_and_atomic_dump(tmp_path):

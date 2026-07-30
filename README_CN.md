@@ -97,7 +97,10 @@ zcp-test data import-manifest \
 
 ## 正式训练
 
-- AutoFormer：ImageNet-1k、224、300 epoch、AdamW、`5e-4`、weight decay `0.05`、cosine、20 epoch warmup。
+- AutoFormer：AZ-NAS Tiny/Small 为 500 epoch、Base 为 300 epoch；基础 LR `5e-4` 按
+  `per_device_batch × world_size / 512` 线性缩放（官方 8×256 时有效 LR `0.002`），AdamW、
+  weight decay `0.05`、cosine、20 epoch warmup。当前已接入 repeated-augmentation sampler 和
+  六个 Cream/AZ-NAS 官方子网参数量 golden；正式训练仍因 DDP 尚未实现而保持关闭。
 - OFA/Proxyless MobileNetV2：ImageNet-1k、150 epoch、SGD/Nesterov、`0.05`、weight decay `4e-5`、label smoothing `0.1`。
 - DARTS：提供 CIFAR-10 600 epoch profile。
 - DARTS：同时提供 CIFAR-100 600 epoch 适配和 ImageNet-1k 250 epoch 官方评估 profile。
@@ -111,4 +114,6 @@ zcp-test data import-manifest \
   micro/macro、NAS-Bench-301 performance surrogate、ViT-Bench AutoFormer/PiT 的真实 index-0
   查询；其他机器必须使用 `data bootstrap` 或本地 catalog 注册路径，仓库配置不保存本机路径。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
-- 150/300/600 epoch 正式训练配置已提供，本次仅执行短程 GPU smoke 与 checkpoint 恢复。
+- DARTS 正式 profile 已放行；AutoFormer 与 MobileNet 配置仍是可审计的候选 recipe，不得把
+  `--smoke` 或单卡构模成功写成正式训练验收。检测到 `torchrun` 多进程时 CLI 会明确拒绝，
+  防止各 rank 静默执行彼此独立的伪分布式训练。

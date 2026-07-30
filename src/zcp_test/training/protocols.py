@@ -70,6 +70,28 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
 }
 
 
+def scale_learning_rate(
+    base_learning_rate: float,
+    per_device_batch_size: int,
+    world_size: int,
+    reference_batch_size: int,
+    gradient_accumulation_steps: int = 1,
+) -> tuple[float, int]:
+    """Apply the explicit linear batch-size rule used by a training protocol."""
+    if base_learning_rate <= 0:
+        raise ValueError("base_learning_rate must be positive")
+    for name, value in {
+        "per_device_batch_size": per_device_batch_size,
+        "world_size": world_size,
+        "reference_batch_size": reference_batch_size,
+        "gradient_accumulation_steps": gradient_accumulation_steps,
+    }.items():
+        if value <= 0:
+            raise ValueError(f"{name} must be positive")
+    global_batch_size = per_device_batch_size * world_size * gradient_accumulation_steps
+    return base_learning_rate * global_batch_size / reference_batch_size, global_batch_size
+
+
 def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
     protocol = str(config.get("protocol", ""))
     expected = FORMAL_TRAINING_PROTOCOLS.get(protocol)
@@ -90,4 +112,8 @@ def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
     return protocol
 
 
-__all__ = ["FORMAL_TRAINING_PROTOCOLS", "validate_formal_training_protocol"]
+__all__ = [
+    "FORMAL_TRAINING_PROTOCOLS",
+    "scale_learning_rate",
+    "validate_formal_training_protocol",
+]

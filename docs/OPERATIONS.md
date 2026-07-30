@@ -161,6 +161,14 @@ listed protocol blockers are closed. This flag is not self-authorizing: non-smok
 match a code-owned approved protocol and its critical fields, and cannot override accepted batch or
 input size. `--smoke` uses tiny synthetic loaders and validates plumbing, not accuracy.
 
+The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
+Repeated augmentation uses three repeats, and the effective LR follows
+`base_lr * per_device_batch * world_size * accumulation / 512`; the published 8×256 launch therefore
+uses `0.002`, not `0.0005`. Exact parameter-count fixtures cover Cream T/S/B and AZ-NAS
+Tiny/Small/Base. The upstream `get_complexity` value is not reported as generic FLOPs. Distributed
+training is still blocked: `WORLD_SIZE>1` fails explicitly until DDP wrapping, metric reduction and
+rank-zero artifact ownership are implemented.
+
 Without `--architecture`, training samples an architecture from the configured space.
 `--architecture` accepts either an existing JSON file or inline JSON; either a top-level `spec`
 envelope or the compatible spec object itself is accepted:

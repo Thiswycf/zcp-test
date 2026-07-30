@@ -59,6 +59,12 @@ PlainNet-MBV2 do not yet have accepted formal profiles.
 The boolean is not self-authorizing: a non-smoke run must match a code-owned approved protocol and
 its critical fields, including the accepted batch and input size.
 
+AutoFormer now has the AZ-NAS three-repeat sampler, the exact linear LR rule, and six exact
+Cream/AZ-NAS parameter-count goldens. The remaining blocker is substantive: torchrun/DDP model
+wrapping, cross-rank metric reduction and rank-zero artifact ownership are not implemented, and the
+upstream custom complexity count has not been reconciled with an independent MAC profiler. The CLI
+rejects `WORLD_SIZE>1` rather than allowing independent per-rank jobs to masquerade as DDP.
+
 NAS-Bench-101/201, NATS and converted TransNAS records are **standard answers** only for their
 explicit dataset/split/budget/seed protocol. NAS-Bench-301 is a **surrogate** prediction, and its
 deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, distillation, or
@@ -110,8 +116,9 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
 The following work is explicitly **not accepted** and must not be reported as completed:
 
 1. Full 600-epoch DARTS CIFAR-10/CIFAR-100 and 250-epoch DARTS ImageNet training.
-2. AutoFormer 500-epoch and Proxyless-MBV2 150-epoch formal protocols; static reference models do
-   not replace the missing sampler, distributed-batch semantics, augmentation validation or fixtures.
+2. AutoFormer 500-epoch and Proxyless-MBV2 150-epoch formal protocols; AutoFormer sampler, LR rule
+   and parameter fixtures are accepted, but DDP/reduced metrics/rank-zero artifacts and an independent
+   complexity cross-check remain missing. Static reference models do not replace those requirements.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Full-scale 22-proxy evaluation across supported benchmark datasets, splits, budgets and seeds.
 5. Exhaustive NAS-Bench-101 evaluation or theoretical NAS-Bench-301 DARTS-space traversal.

@@ -191,3 +191,36 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
             resume_trusted=True,
             run_identity={"architecture_id": "different", "protocol": "test"},
         )
+
+
+def test_training_sets_epoch_on_stateful_samplers(tmp_path):
+    class EpochSampler(torch.utils.data.Sampler[int]):
+        def __init__(self, dataset):
+            self.dataset = dataset
+            self.epochs = []
+
+        def __iter__(self):
+            return iter(range(len(self.dataset)))
+
+        def __len__(self):
+            return len(self.dataset)
+
+        def set_epoch(self, epoch):
+            self.epochs.append(epoch)
+
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    data = torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,)))
+    train_sampler = EpochSampler(data)
+    valid_sampler = EpochSampler(data)
+    train_loader = torch.utils.data.DataLoader(data, batch_size=2, sampler=train_sampler)
+    valid_loader = torch.utils.data.DataLoader(data, batch_size=2, sampler=valid_sampler)
+    train_model(
+        model,
+        train_loader,
+        valid_loader,
+        TrainingConfig(2, "sgd", 0.01, 0, nesterov=False),
+        tmp_path,
+        torch.device("cpu"),
+    )
+    assert train_sampler.epochs == [0, 1]
+    assert valid_sampler.epochs == [0, 1]

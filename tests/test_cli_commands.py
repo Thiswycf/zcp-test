@@ -289,6 +289,22 @@ def test_real_loaders_cover_cifar_and_imagenet_protocols(monkeypatch, tmp_path):
     )
     assert train.dataset.transform == "train-transform"
 
+    train, _ = cli._real_loaders(
+        "imagenet1k",
+        str(tmp_path),
+        batch_size=2,
+        input_size=8,
+        workers=0,
+        config={
+            "repeated_augmentation": True,
+            "repeated_augmentation_repeats": 3,
+            "repeated_augmentation_selected_round": 0,
+        },
+        seed=6,
+    )
+    assert train.sampler.__class__.__name__ == "RepeatAugSampler"
+    assert train.batch_sampler.sampler is train.sampler
+
 
 def test_cli_data_lifecycle_control_paths(monkeypatch, capsys, tmp_path):
     records = [{

@@ -118,6 +118,13 @@ score/target schema；使用前必须检查转换后的 JSONL，且不要覆盖�
 AutoFormer 与 Proxyless-MBV2 配置会列出尚未验收的 blocker 并明确拒绝正式训练。`--smoke` 只验证
 合成数据上的构模和训练流水线，不解除协议 blocker。
 
+AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`。真实数据 loader
+使用三次 repeated augmentation；学习率按
+`base_lr × per_device_batch × world_size × accumulation / 512` 缩放，因此官方 8×256 启动的
+有效 LR 是 `0.002`，不是 YAML 中作为基准值的 `0.0005`。Cream T/S/B 与 AZ-NAS
+Tiny/Small/Base 已有精确参数量 golden；官方自定义 `get_complexity` 仍不能称为通用 FLOPs。
+当前 `WORLD_SIZE>1` 会明确失败，直到 DDP 包装、跨 rank 指标归约和 rank-zero artifact 写入完成。
+
 `ofa_proxyless_mbv2` 的 architecture spec 使用官方 supernet 位置语义：`kernel_size` 和
 `expand_ratio` 均固定 21 项，五个 `depth` 决定每个最大深度 4 stage 激活多少前缀 block，最后一个
 stage 固定深度 1。发布 supernet 的 `width_mult` 是 1.3，`resolution` 为 128–224、步长 4。
