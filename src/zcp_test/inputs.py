@@ -16,6 +16,27 @@ class InputBatch:
     fingerprint: str
 
 
+@dataclass
+class DatasetBatchStream:
+    table: Any
+    sample_ids: tuple[tuple[int, ...], ...]
+    device: Any
+    protocol: dict[str, Any]
+    fingerprint: str
+
+    def __iter__(self):
+        import torch
+
+        for identifiers in self.sample_ids:
+            samples = [self.table[index] for index in identifiers]
+            yield (
+                torch.stack([sample[0] for sample in samples]).to(self.device),
+                torch.tensor(
+                    [int(sample[1]) for sample in samples], dtype=torch.long
+                ).to(self.device),
+            )
+
+
 def _fingerprint(inputs: Any, labels: Any, protocol: dict[str, Any]) -> str:
     digest = hashlib.sha256(json.dumps(protocol, sort_keys=True).encode())
     digest.update(inputs.detach().cpu().contiguous().numpy().tobytes())
@@ -81,6 +102,21 @@ def _dataset_batch(
     dataset: str, root: Path, batch_size: int, input_size: int, seed: int
 ) -> tuple[Any, Any, list[int], str]:
     import torch
+
+    table, transform_name = _dataset_table(dataset, root, input_size)
+    if len(table) < batch_size:
+        raise ValueError(f"Dataset has {len(table)} samples, fewer than batch size {batch_size}")
+    sample_ids = random.Random(seed).sample(range(len(table)), batch_size)
+    samples = [table[index] for index in sample_ids]
+    return (
+        torch.stack([sample[0] for sample in samples]),
+        torch.tensor([int(sample[1]) for sample in samples], dtype=torch.long),
+        sample_ids,
+        transform_name,
+    )
+
+
+def _dataset_table(dataset: str, root: Path, input_size: int) -> tuple[Any, str]:
     from torchvision import datasets, transforms
 
     if not root.exists():
@@ -118,13 +154,49 @@ def _dataset_batch(
         transform_name = f"resize-256+center-crop-{input_size}+imagenet-normalize"
     else:
         raise ValueError(f"Dataset input protocol is not implemented for {dataset!r}")
-    if len(table) < batch_size:
-        raise ValueError(f"Dataset has {len(table)} samples, fewer than batch size {batch_size}")
-    sample_ids = random.Random(seed).sample(range(len(table)), batch_size)
-    samples = [table[index] for index in sample_ids]
-    return (
-        torch.stack([sample[0] for sample in samples]),
-        torch.tensor([int(sample[1]) for sample in samples], dtype=torch.long),
-        sample_ids,
-        transform_name,
+    return table, transform_name
+
+
+def make_dataset_batch_stream(
+    dataset: str,
+    data_root: str | Path,
+    batch_size: int,
+    input_size: int,
+    seed: int,
+    batches: int,
+    device: Any,
+    *,
+    role: str,
+) -> DatasetBatchStream:
+    if batch_size <= 0 or batches <= 0:
+        raise ValueError("batch_size and batches must be positive")
+    root = Path(data_root).expanduser().resolve()
+    table, transform_name = _dataset_table(dataset, root, input_size)
+    sample_count = batch_size * batches
+    if len(table) < sample_count:
+        raise ValueError(
+            f"Dataset has {len(table)} samples, fewer than required {sample_count}"
+        )
+    selected = random.Random(seed).sample(range(len(table)), sample_count)
+    sample_ids = tuple(
+        tuple(selected[offset : offset + batch_size])
+        for offset in range(0, sample_count, batch_size)
     )
+    protocol = {
+        "source": "dataset",
+        "role": role,
+        "protocol": "zcp-test-deterministic-v1",
+        "official_protocol_match": False,
+        "dataset": dataset,
+        "seed": seed,
+        "sample_ids": sample_ids,
+        "transform": transform_name,
+        "batch_size": batch_size,
+        "batches": batches,
+        "input_size": input_size,
+        "data_root": str(root),
+    }
+    fingerprint = hashlib.sha256(
+        json.dumps(protocol, sort_keys=True).encode()
+    ).hexdigest()
+    return DatasetBatchStream(table, sample_ids, device, protocol, fingerprint)

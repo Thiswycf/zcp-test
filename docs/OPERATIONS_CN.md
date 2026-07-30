@@ -131,15 +131,19 @@ zcp-test data bootstrap --root /path/to/data \
 zcp-test evaluate --space ofa_proxyless_mbv2 --weight-mode ofa_inherited --trusted \
   --catalog /path/to/data/catalog.json --classes 1000 --proxies params,naswot \
   --count 2 --input-source dataset --dataset imagenet1k --data-root /path/to/imagenet1k \
+  --bn-recalibration-batches 20 --bn-recalibration-batch-size 64 \
   --input-size 224 --gpu auto --output /path/to/runs/evaluate
 ```
 
 `--trusted` 只应对已由内置 SHA-256 验证的官方 checkpoint 使用。checkpoint 在一次命令中只加载
 一次，各架构按 21 位位置选择 active channel，并应用官方学习到的 7→5→3 kernel transform。
 `scores.jsonl`/`search.jsonl` 会记录 `weight_mode=inherited_supernet`、checkpoint SHA-256、激活位置
-和 BN 校准状态。当前 CLI 不会伪造 inherited accuracy：结果标记
-`bn_recalibration_required=true`、`bn_recalibrated_batches=0`，正式精度查询前仍须使用独立真实训练
-批次完成 BN recalibration。显式 random-input smoke 只能验证导出和 ZCP 流水线。
+和 BN 校准状态。省略校准参数时结果标记 `bn_recalibration_required=true`、
+`bn_recalibrated_batches=0`。启用后，CLI 从真实 dataset root 确定性无放回采样独立批次，并记录
+全部 sample ID、transform、batch 数和 SHA-256 指纹；数据不足或缺失会失败，不回退随机输入。
+当前实现使用 `zcp-test-deterministic-v1` 的 resize/center-crop 协议，并明确标记
+`official_protocol_match=false`，因此它可用于可重复 ZCP 对比，但在完成官方 OFA 数据 provider
+数值对照前不能宣称发布 inherited accuracy。显式 random-input smoke 只能验证导出和 ZCP 流水线。
 
 `--architecture` 接受现有 JSON 文件，或者内联 JSON 对象。两种形式都可使用带顶层 `spec` 的
 artifact，也可直接给出 spec；spec 必须与配置中的 space 匹配：

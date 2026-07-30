@@ -6,7 +6,7 @@ import torch
 
 import zcp_test.cli as cli
 from zcp_test.config import dump_config, load_config, merge_config
-from zcp_test.inputs import make_input_batch
+from zcp_test.inputs import make_dataset_batch_stream, make_input_batch
 
 
 class _InputDataset(torch.utils.data.Dataset):
@@ -68,6 +68,27 @@ def test_dataset_input_protocols_and_errors(monkeypatch, tmp_path):
         make_input_batch("unsupported", "cifar10", 2, 8, 10, 1, device)
     with pytest.raises(ValueError, match="positive"):
         make_input_batch("random", "cifar10", 0, 8, 10, 1, device)
+
+
+def test_dataset_batch_stream_is_deterministic_and_nonoverlapping(monkeypatch, tmp_path):
+    from torchvision import datasets
+
+    monkeypatch.setattr(datasets, "CIFAR10", _InputDataset)
+    first = make_dataset_batch_stream(
+        "cifar10", tmp_path, 2, 8, 17, 2, torch.device("cpu"), role="bn"
+    )
+    second = make_dataset_batch_stream(
+        "cifar10", tmp_path, 2, 8, 17, 2, torch.device("cpu"), role="bn"
+    )
+
+    assert first.sample_ids == second.sample_ids
+    assert first.fingerprint == second.fingerprint
+    assert len({item for batch in first.sample_ids for item in batch}) == 4
+    assert [inputs.shape for inputs, _ in first] == [(2, 3, 8, 8)] * 2
+    with pytest.raises(ValueError, match="fewer than required"):
+        make_dataset_batch_stream(
+            "cifar10", tmp_path, 3, 8, 17, 2, torch.device("cpu"), role="bn"
+        )
 
 
 def test_cutout_and_proxy_scaffold_in_temporary_checkout(monkeypatch, capsys, tmp_path):

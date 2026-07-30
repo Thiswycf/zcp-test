@@ -81,8 +81,10 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   均为 3,718,832 参数。官方 32,202,338-byte supernet checkpoint 已以固定 SHA-256 自举；混合
   `k/e/d` 子网经 active channel/kernel transform 导出后，与官方 `get_active_subnet` 参数量一致，
   同一输入最大绝对输出误差约 `1.9e-6`。真实 `evaluate` 与短程 `search` 已记录
-  `inherited_supernet`、checkpoint 摘要、激活位置和 `bn_recalibration_required`。独立数据批次的
-  BN 校准、inherited accuracy、MAC golden 和正式训练仍未验收。
+  `inherited_supernet`、checkpoint 摘要、激活位置和 `bn_recalibration_required`。本机真实
+  ImageNet-1k 已完成 1 个独立 batch 的确定性 BN 流水线 smoke，记录 sample ID、transform 和
+  指纹；该项目协议明确 `official_protocol_match=false`。官方 data-provider 数值对照、inherited
+  accuracy、MAC golden 和正式训练仍未验收。
 
 ## 尚未完成的高成本验收
 

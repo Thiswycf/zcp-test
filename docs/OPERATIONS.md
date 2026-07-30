@@ -212,11 +212,16 @@ zcp-test data bootstrap --root /path/to/data \
 zcp-test evaluate --space ofa_proxyless_mbv2 --weight-mode ofa_inherited --trusted \
   --catalog /path/to/data/catalog.json --classes 1000 --proxies params,naswot \
   --count 2 --input-source dataset --dataset imagenet1k --data-root /path/to/imagenet1k \
+  --bn-recalibration-batches 20 --bn-recalibration-batch-size 64 \
   --input-size 224 --gpu auto --output /path/to/runs/evaluate
 ```
 
 The checkpoint is loaded once per command. Static subnets select active channels and apply the
 official learned 7→5→3 kernel transforms. Score and search records identify inherited mode,
 checkpoint digest, active positions and BN status. Current records deliberately state
-`bn_recalibration_required=true` and `bn_recalibrated_batches=0`; random-input smoke is not inherited
-accuracy, and independent real-data BN calibration remains required before accuracy evaluation.
+`bn_recalibration_required=true` and `bn_recalibrated_batches=0` when calibration is omitted. When
+enabled, deterministic non-overlapping real-data batches record every sample ID, transform, batch
+count and SHA-256 fingerprint; missing data fails rather than falling back to random input. The
+current `zcp-test-deterministic-v1` resize/center-crop protocol explicitly records
+`official_protocol_match=false`. It supports reproducible ZCP comparisons but is not a claim of
+published inherited accuracy until numerically compared with the official OFA data provider.

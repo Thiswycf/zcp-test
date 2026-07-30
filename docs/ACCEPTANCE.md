@@ -94,8 +94,11 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
   fixed SHA-256. A mixed `k/e/d` subnet exported with active channel selection and learned kernel
   transforms matches official `get_active_subnet` parameter counts and has about `1.9e-6` maximum
   absolute output error on the same input. Real `evaluate` and short `search` smokes record inherited
-  mode, checkpoint digest, active positions and `bn_recalibration_required`. Independent-data BN
-  calibration, inherited accuracy, MAC golden values and formal training remain unvalidated.
+  mode, checkpoint digest, active positions and `bn_recalibration_required`. A one-batch deterministic
+  BN pipeline smoke now passes on the local real ImageNet-1k tree and records sample IDs, transform
+  and fingerprint. This project protocol explicitly says `official_protocol_match=false`; numerical
+  comparison with the official data provider, inherited accuracy, MAC golden values and formal
+  training remain unvalidated.
 
 ## High-cost acceptance not completed
 

@@ -38,7 +38,7 @@ from zcp_test.gpu import (
     gpu_lock,
     select_gpu,
 )
-from zcp_test.inputs import make_input_batch
+from zcp_test.inputs import make_dataset_batch_stream, make_input_batch
 from zcp_test.legacy import import_pickle
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.evaluator import evaluate_proxy
@@ -140,6 +140,32 @@ def _prepare_model_weights(args: argparse.Namespace, space: Any) -> tuple[Any, d
         "bn_recalibration_required": True,
         "bn_recalibrated_batches": 0,
     }
+
+
+def _prepare_bn_recalibration(args: argparse.Namespace, device: Any, weight_loader: Any) -> Any:
+    batches = int(getattr(args, "bn_recalibration_batches", 0))
+    if batches == 0:
+        return None
+    if weight_loader is None:
+        raise ValueError("BN recalibration is available only with --weight-mode ofa_inherited")
+    data_root = _resolve_data_root(args, args.dataset)
+    if not data_root:
+        raise ValueError(
+            "BN recalibration requires a registered dataset or explicit --data-root"
+        )
+    batch_size = int(
+        getattr(args, "bn_recalibration_batch_size", None) or args.batch_size
+    )
+    return make_dataset_batch_stream(
+        args.dataset,
+        data_root,
+        batch_size,
+        args.input_size,
+        args.seed + 10_000,
+        batches,
+        device,
+        role="ofa_bn_recalibration",
+    )
 
 
 def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
@@ -799,11 +825,26 @@ def command_evaluate(args: argparse.Namespace) -> None:
             device,
             _resolve_data_root(args, args.dataset),
         )
+        bn_recalibration = _prepare_bn_recalibration(args, device, weight_loader)
+        if bn_recalibration is not None:
+            weight_provenance = {
+                **weight_provenance,
+                "bn_recalibration_required": False,
+                "bn_recalibrated_batches": args.bn_recalibration_batches,
+                "bn_recalibration_fingerprint": bn_recalibration.fingerprint,
+                "bn_recalibration_protocol_fidelity": "project_deterministic",
+            }
         run_config = {
             **_args_config(args),
             "input_protocol": batch.protocol,
             **model_provenance,
             **weight_provenance,
+            "bn_recalibration_protocol": (
+                bn_recalibration.protocol if bn_recalibration is not None else None
+            ),
+            "bn_recalibration_fingerprint": (
+                bn_recalibration.fingerprint if bn_recalibration is not None else None
+            ),
         }
         runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
         with RunContext(args.output, sys.argv, run_config, runtime=runtime) as run:
@@ -821,6 +862,19 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     weight_loader.export(model) if weight_loader is not None else weight_provenance
                 )
                 model = model.to(device)
+                if bn_recalibration is not None:
+                    from zcp_test.models.mobile import recalibrate_batch_norm
+
+                    calibrated = recalibrate_batch_norm(
+                        model, bn_recalibration, device=device
+                    )
+                    architecture_weight_provenance = {
+                        **architecture_weight_provenance,
+                        "bn_recalibration_required": False,
+                        "bn_recalibrated_batches": calibrated,
+                        "bn_recalibration_fingerprint": bn_recalibration.fingerprint,
+                        "bn_recalibration_protocol_fidelity": "project_deterministic",
+                    }
                 target = None
                 if adapter and args.target_metric:
                     target = adapter.query_metrics(
@@ -967,6 +1021,15 @@ def command_search(args: argparse.Namespace) -> None:
             device,
             _resolve_data_root(args, args.dataset),
         )
+        bn_recalibration = _prepare_bn_recalibration(args, device, weight_loader)
+        if bn_recalibration is not None:
+            weight_provenance = {
+                **weight_provenance,
+                "bn_recalibration_required": False,
+                "bn_recalibrated_batches": args.bn_recalibration_batches,
+                "bn_recalibration_fingerprint": bn_recalibration.fingerprint,
+                "bn_recalibration_protocol_fidelity": "project_deterministic",
+            }
         loss_fn = torch.nn.CrossEntropyLoss()
         runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
         config = {
@@ -974,6 +1037,12 @@ def command_search(args: argparse.Namespace) -> None:
             "input_protocol": batch.protocol,
             **model_provenance,
             **weight_provenance,
+            "bn_recalibration_protocol": (
+                bn_recalibration.protocol if bn_recalibration is not None else None
+            ),
+            "bn_recalibration_fingerprint": (
+                bn_recalibration.fingerprint if bn_recalibration is not None else None
+            ),
         }
         with RunContext(args.output, sys.argv, config, runtime=runtime) as run:
             def evaluator(architecture: Any) -> float:
@@ -981,6 +1050,10 @@ def command_search(args: argparse.Namespace) -> None:
                 if weight_loader is not None:
                     weight_loader.export(model)
                 model = model.to(device)
+                if bn_recalibration is not None:
+                    from zcp_test.models.mobile import recalibrate_batch_norm
+
+                    recalibrate_batch_norm(model, bn_recalibration, device=device)
                 result = evaluate_proxy(
                     args.proxy,
                     model,
@@ -1562,6 +1635,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="independent_scratch",
     )
     evaluate.add_argument("--model-checkpoint")
+    evaluate.add_argument("--bn-recalibration-batches", type=int, default=0)
+    evaluate.add_argument("--bn-recalibration-batch-size", type=int)
     evaluate.add_argument("--proxies", default="er,naswot,synflow,gradnorm,params,flops")
     evaluate.add_argument("--count", type=int, default=1)
     evaluate.add_argument("--seed", type=int, default=42)
@@ -1601,6 +1676,8 @@ def build_parser() -> argparse.ArgumentParser:
         default="independent_scratch",
     )
     search.add_argument("--model-checkpoint")
+    search.add_argument("--bn-recalibration-batches", type=int, default=0)
+    search.add_argument("--bn-recalibration-batch-size", type=int)
     _add_gpu_arguments(search)
     search.add_argument("--batch-size", type=int, default=4)
     search.add_argument("--input-size", type=int, default=32)
