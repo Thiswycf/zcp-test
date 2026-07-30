@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 07:10 CST",
+  updatedAt: "2026-07-31 07:28 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -88,9 +88,9 @@ window.ZCP_PANEL_DATA = {
       content: "对齐 OFA-Proxyless MBV2 官方 positional encoding，并用 reference fixture 核验静态 MBConv 的结构与参数量。",
       purpose: "在保留 PlainNet-MBV2 与 Proxyless/OFA-style MBConv 分离的同时，消除位置编码和公开架构对照缺口。",
       estimate: "8–16 小时", startedAt: "2026-07-30 13:10", finishedAt: "2026-07-30 16:38", status: "已完成", progress: 100,
-      detail: "官方 21 dynamic-block positional encoding 已实现；registered space 固定 width 1.3、resolution 128..224 step 4。官方 commit f03b267 fixture 对齐 width1.0=2,500,632 params、width1.3=3,718,832 params，且 width1.0 参数 shape multiset 与官方完全一致。后续 inherited checkpoint 与 active-weight export 已进入 C3；MAC golden 与正式训练验收仍未完成。",
+      detail: "OFA-Proxyless 官方 21 dynamic-block positional encoding 已实现；registered space 固定 width 1.3、resolution 128..224 step 4。官方 commit f03b267 fixture 对齐 width1.0=2,500,632 params、width1.3=3,718,832 params，且 width1.0 参数 shape multiset 与官方完全一致。独立上游审计证明当前 zennas_plainnet_mbv2 固定-stage编码不是 ZenNAS/AZ-NAS structure-string 空间，已 fail closed 降级为 proxy_approximation；不得用 OFA fixture 替它背书。",
       acceptance: ["两种模型类型独立", "官方 21-block positional encoding 一致", "registered width/resolution 边界固定", "官方 width1.0/1.3 params fixture 对照", "width1.0 参数 shape multiset 完全一致"],
-      evidence: ["EV-REFERENCE-MODELS", "EV-MBV2-FIXTURE-START", "EV-MBV2-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-MBV2-FIXTURE", "R-MBV2-REMAINING", "R-OFA"], updatedAt: "2026-07-30 16:54"
+      evidence: ["EV-REFERENCE-MODELS", "EV-MBV2-FIXTURE-START", "EV-MBV2-REFERENCE", "EV-OFA-INHERITED", "EV-PLAINNET-FIDELITY-AUDIT"], risks: ["R-MBV2-FIXTURE", "R-MBV2-REMAINING", "R-PLAINNET-FIDELITY", "R-OFA"], updatedAt: "2026-07-31 07:28"
     },
     {
       id: "C3", phase: "Reference", priority: "P1", title: "OFA inherited 与 BN calibration",
@@ -253,6 +253,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 双重 1% 正式协议尚未验收", description: "恢复机制与最终 2-rank acceptance 1 epoch 的配置 provenance、completed manifest、单行训练记录和无 .tmp 已通过；模型 commit b799630… 与训练 commit 5e6683… 已分离记录。上述仍不是完整 ImageNet 的全数据≤1% epoch 或≤1%数据+完整 schedule。", mitigation: "formal_training_ready 继续为 false；分别执行并验收两种真实 ImageNet 1% 锁定协议后再放行。", taskIds: ["C1", "H2", "H3"] },
     { id: "R-MBV2-FIXTURE", severity: "高", status: "关闭", title: "OFA-Proxyless MBV2 positional/params fixture 已验收", description: "官方 commit f03b267 的 21 dynamic-block positional encoding、width1.0/1.3 参数量及 width1.0 参数 shape multiset 已完成对照。", mitigation: "保留固定 commit、registered space 边界和回归测试；MAC 与训练边界由独立风险继续跟踪。", taskIds: ["C2"] },
     { id: "R-MBV2-REMAINING", severity: "高", status: "开放", title: "OFA-Proxyless MBV2 MAC 与正式训练未验收", description: "params/shape fixture 已通过，但官方 MAC golden 尚缺，正式训练协议也未完成验收；不得由静态 reference 结论外推训练精度或成本。", mitigation: "补充同一官方 commit 的 MAC fixture；关闭训练 blocker 并完成正式 profile 验收前，仅报告 static scratch reference。", taskIds: ["C2", "H2"] },
+    { id: "R-PLAINNET-FIDELITY", severity: "高", status: "开放", title: "PlainNet-MBV2 仍缺真实 structure-string port", description: "上游 ZenNAS/AZ-NAS 使用 MasterNet、PlainNet structure string 和 SuperResIDWE block；当前固定五-stage MBConv 编码并非同一搜索空间，已降级为 proxy_approximation。", mitigation: "实现 structure-string codec、SuperResIDWE/SE/downsample、custom Kaiming、BN momentum 与官方参数量/FLOPs golden；通过前禁止正式 evaluate、search 和 train。", taskIds: ["C2", "H2", "H3"] },
     { id: "R-OFA", severity: "高", status: "开放", title: "OFA inherited accuracy 与完整协议未验收", description: "官方 checkpoint、catalog bootstrap、active-weight export、子网数值一致性、evaluate/search 和真实 ImageNet 确定性 BN smoke 已完成；当前项目 BN 协议不等同官方 data provider，accuracy、MAC golden 与 formal training 仍未完成。", mitigation: "对照官方 OFA data provider 的抽样、transform 与 BN 统计并执行 inherited accuracy；补齐 MAC golden。正式训练 blocker 关闭前不得外推 inherited 或 scratch 训练结论。", taskIds: ["C2", "C3", "C4", "H2"] },
     { id: "R-PROXY", severity: "高", status: "开放", title: "代理可运行不等于论文一致", description: "22/22 sweep 不能替代公式、聚合方向和输入协议的 golden 验证。", mitigation: "为核心代理增加论文级数值 fixture 和 provenance。", taskIds: ["E1", "H1"] },
     { id: "R-DIRECTION-MIGRATION", severity: "高", status: "关闭", title: "方向修复已缓解并闭环于当前范围", description: "Params/FLOPs 历史证据已从原始 scores 重算，v2 reader 只读迁移 legacy version/direction，raw 不改写；混合 shard bundle 回归和 309-test 最终 gate 均通过。", mitigation: "保留该历史风险与旧 evidence；未来 schema 或聚合逻辑变更时继续执行只读迁移、混合 shard 和方向回归。", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
@@ -270,6 +271,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-PLAINNET-FIDELITY-AUDIT", time: "2026-07-31 07:28", title: "PlainNet-MBV2 fidelity fail-closed 审计", result: "锁定 ZenNAS d1d617e、AZ-NAS 5e6683a 与 ZiCo b0fec65 后确认：当前固定-stage MBConv 编码不等于上游 structure-string/MasterNet/SuperResIDWE 空间，且缺 SE、custom Kaiming、BN momentum 0.01 等训练语义。代码与 metadata 已降级为 proxy_approximation，默认正式路径拒绝。", command: "docs/evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md; pytest tests/test_reference_models.py tests/test_core.py; ruff", taskIds: ["C2", "G1", "H2", "H3"] },
     { id: "EV-FULL-GATE-398", time: "2026-07-31 06:21", title: "最新全仓质量门禁 398", result: "DDP rank-local RNG checkpoint 修复后，28 个测试文件共 398 tests passed；第一方 source coverage 87%、CLI coverage 82%。Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过；该证据取代 396 及更早门禁成为当前口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "D2", "G1"] },
     { id: "EV-FULL-GATE-396", time: "2026-07-31 05:47", title: "历史全仓质量门禁 396", result: "历史口径：28 个测试文件共 396 tests passed；第一方 source coverage 87%、CLI coverage 82%。该证据已由 DDP rank-local RNG 修复后的 EV-FULL-GATE-398 取代。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "G1"] },
     { id: "EV-IMAGENET1K-ASSET-PREFLIGHT", time: "2026-07-31 05:54", title: "ImageNet-1k 资产与真实 loader 预检", result: "资产包含 1000 个 train 类、1000 个 val 类、1,281,167 张训练图与 50,000 张验证图，约 146 GiB；无符号链接、无零字节文件。项目真实 ImageFolder/transform loader 在确定性子集上成功解码 224×224 有限张量。该证据只解除“数据缺失”判断，不代表 DARTS ImageNet 训练通过。", command: "结构计数、空文件/链接审计；调用 zcp_test.cli._real_loaders 读取真实 ImageNet-1k batch", taskIds: ["D1", "D2", "H2", "H3"] },

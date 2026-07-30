@@ -385,7 +385,11 @@ class MobileSpace(SearchSpace):
         if variant not in {"zennas_plainnet_mbv2", "ofa_proxyless_mbv2"}:
             raise ValueError(f"Unknown mobile search space: {variant!r}")
         self.search_space_id = variant
-        self.model_fidelity = "reference_model"
+        self.model_fidelity = (
+            "reference_model"
+            if variant == "ofa_proxyless_mbv2"
+            else "proxy_approximation"
+        )
         self.implementation_source = {
             "zennas_plainnet_mbv2": "https://github.com/idstcv/ZenNAS",
             "ofa_proxyless_mbv2": "https://github.com/mit-han-lab/once-for-all",
@@ -393,7 +397,7 @@ class MobileSpace(SearchSpace):
         self.implementation_commit = (
             "f03b2673db313b9167e2a1c2b7a5cad540cc1313"
             if variant == "ofa_proxyless_mbv2"
-            else None
+            else "d1d617e0352733d39890fb64ea758f9c85b28c1a"
         )
 
     def canonicalize(self, specification: Mapping[str, Any]) -> Architecture:

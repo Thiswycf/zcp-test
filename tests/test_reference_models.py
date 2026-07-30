@@ -337,13 +337,21 @@ def test_pit_space_rejects_values_outside_published_search_space(specification):
         SPACES.create("pit").canonicalize(specification)
 
 
-@pytest.mark.parametrize("model_type", [PlainNetMobileNetV2, StaticMobileNetV2])
-def test_mobile_models_forward_and_static_scratch_metadata(model_type):
+@pytest.mark.parametrize(
+    ("model_type", "expected_fidelity"),
+    [
+        (PlainNetMobileNetV2, "proxy_approximation"),
+        (StaticMobileNetV2, "reference_model"),
+    ],
+)
+def test_mobile_models_forward_and_static_scratch_metadata(
+    model_type, expected_fidelity
+):
     model = model_type(**mobile_configuration()).eval()
 
     assert model(torch.randn(2, 3, 32, 32)).shape == (2, 7)
     metadata = model.reference_metadata()
-    assert metadata["model_fidelity"] == "reference_model"
+    assert metadata["model_fidelity"] == expected_fidelity
     assert metadata["weight_mode"] == "independent_scratch"
     assert metadata["supports_inherited_supernet"] is False
 
@@ -353,6 +361,7 @@ def test_plainnet_and_static_mbconv_have_separate_skip_semantics():
     static = StaticMobileNetV2(**mobile_configuration())
 
     assert plainnet.reference_metadata()["family"] == "plainnet_mbv2"
+    assert plainnet.reference_metadata()["model_fidelity"] == "proxy_approximation"
     assert static.reference_metadata()["family"] == "proxyless_ofa_static_mbv2"
     assert plainnet.skip == (False, False)
     assert static.skip == (True, False)
@@ -430,7 +439,7 @@ def test_mobile_rejects_wrong_input_shape():
         model(torch.randn(1, 1, 32, 32))
 
 
-def test_registered_autoformer_and_mobile_spaces_build_distinct_reference_models():
+def test_registered_autoformer_and_mobile_spaces_expose_distinct_fidelity():
     load_builtin_spaces()
     autoformer_space = SPACES.create("autoformer")
     autoformer_architecture = autoformer_space.sample(3)
@@ -445,7 +454,8 @@ def test_registered_autoformer_and_mobile_spaces_build_distinct_reference_models
     proxyless_architecture = proxyless_space.sample(4)
     plain = plain_space.build_model(plain_architecture, 5)
     proxyless = proxyless_space.build_model(proxyless_architecture, 5)
-    assert plain_space.model_fidelity == proxyless_space.model_fidelity == "reference_model"
+    assert plain_space.model_fidelity == "proxy_approximation"
+    assert proxyless_space.model_fidelity == "reference_model"
     assert plain.reference_metadata()["family"] != proxyless.reference_metadata()["family"]
 
 

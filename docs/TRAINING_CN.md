@@ -11,7 +11,10 @@
 | `darts` | `reference_model` | 已放行，尚未完成高成本精度验收 | CIFAR-10/100、原始 DARTS ImageNet、TE-NAS retrain 分 profile |
 | `autoformer` | `reference_model` | **阻断** | repeated augmentation、分布式全局 batch/LR scaling、官方 fixture 未验收 |
 | `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 权重协议已分离；正式训练仍缺颜色扰动、MAC 与分布式验收 |
-| `zennas_plainnet_mbv2` | `reference_model` | **尚无正式配置** | ZenNAS/Zen-score 风格 PlainNet 与 Proxyless/OFA 空间必须分开 |
+| `zennas_plainnet_mbv2` | `proxy_approximation` | **禁止正式训练** | 当前固定 stage MBConv 编码不是 ZenNAS/AZ-NAS structure-string 搜索空间；必须完成真实 PlainNet port 后才能升级 |
+
+详细上游对照、150/480 epoch 配方边界和升级门槛见
+[`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)。
 | `pit` | `reference_topology_pytorch_port` | **尚无正式配置** | Auto-Prox `90ed458` 三阶段拓扑、参数/MAC fixture 已核对；缺 checkpoint/逐层数值对照，ViT-Bench vanilla/KD 真值只用于查询 |
 | `ofa_mbv3` | `reference_model` | **尚无正式配置** | 官方五阶段/20-block 静态子网与 BN recalibration；尚未接入 inherited checkpoint/active weight export |
 

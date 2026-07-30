@@ -78,7 +78,11 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 |---|---|---|
 | `reference_topology_pytorch_port` | `nb101_dag`、`nb201_topology`、`nats_size` | 拓扑由 port 表示，ZCP 不自动等同 benchmark 原训练实现 |
 | `reference_topology_pytorch_port` | `transnas_micro`、`transnas_macro` | 官方 encoder 与七个 task head 的 PyTorch port；真实 Taskonomy contract provider 已实现，但正式 24-building split/config 未公开且本机无许可数据 |
-| `reference_model` | `darts`、`autoformer`、`pit`、`zennas_plainnet_mbv2`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
+| `reference_model` | `darts`、`autoformer`、`pit`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
+| `proxy_approximation` | `zennas_plainnet_mbv2` | 当前固定 stage MBConv 编码不是 ZenNAS/AZ-NAS structure-string 搜索空间，禁止正式评估、搜索和训练 |
+
+PlainNet-MBV2 的上游源码对照与恢复 reference 的门槛见
+[`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)。
 | `proxy_approximation` | legacy toy | 只适合显式 opt-in 的方法学 smoke，不得参与正式训练或 reference 结论 |
 
 AutoFormer 与 Proxyless-MBV2 的仓库配置当前明确 `formal_training_ready: false`。AutoFormer 已有

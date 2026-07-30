@@ -510,6 +510,8 @@ class _MobileNetV2Base(nn.Module):
 class PlainNetMobileNetV2(_MobileNetV2Base):
     """A skip-free PlainNet MobileNetV2-style static network."""
 
+    model_fidelity = "proxy_approximation"
+
     def __init__(
         self,
         *,
@@ -538,7 +540,10 @@ class PlainNetMobileNetV2(_MobileNetV2Base):
     def reference_metadata(self) -> dict[str, Any]:
         return self._metadata(
             "plainnet_mbv2",
-            ["https://github.com/idstcv/ZenNAS"],
+            [
+                "https://github.com/idstcv/ZenNAS/tree/d1d617e0352733d39890fb64ea758f9c85b28c1a",
+                "project-local fixed-stage approximation; not the ZenNAS/AZ-NAS structure-string space",
+            ],
         )
 
 

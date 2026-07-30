@@ -96,7 +96,11 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 
 | Fidelity | Spaces | Acceptance consequence |
 |---|---|---|
-| `reference_model` | `darts`, `autoformer`, `pit`, `zennas_plainnet_mbv2`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
+| `reference_model` | `darts`, `autoformer`, `pit`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
+| `proxy_approximation` | `zennas_plainnet_mbv2` | The current fixed-stage MBConv encoding is not the ZenNAS/AZ-NAS structure-string space and is blocked from formal evaluation, search, and training |
+
+The upstream comparison and reference-upgrade requirements are recorded in
+[`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md).
 | `reference_topology_pytorch_port` | `nb101_dag`, `nb201_topology`, `nats_size` | Topology is represented by a port; ZCP values are not automatically identical to the original training implementation |
 | `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; a safe Taskonomy contract provider exists, but the formal 24-building split/config is unpublished and licensed data is unavailable here |
 | `proxy_approximation` | legacy toy spaces | Explicit opt-in method smoke only; formal training and reference conclusions are prohibited |
