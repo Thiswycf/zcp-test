@@ -69,6 +69,43 @@ def _restore_training_log(
     return restored_rows
 
 
+def _collect_checkpoint_rng(distributed: bool, distributed_rank: int) -> dict[str, Any]:
+    import torch
+
+    local_state = rng_state()
+    if not distributed:
+        return {"rng": local_state}
+    states: list[dict[str, Any] | None] = [None] * torch.distributed.get_world_size()
+    torch.distributed.all_gather_object(states, local_state)
+    if any(state is None for state in states):
+        raise RuntimeError("Failed to collect RNG state from every distributed rank")
+    return {"rng": states[0], "rng_by_rank": states}
+
+
+def _restore_checkpoint_rng(
+    checkpoint: dict[str, Any], distributed: bool, distributed_rank: int
+) -> None:
+    import torch
+
+    states = checkpoint.get("rng_by_rank")
+    if not distributed:
+        restore_rng(checkpoint["rng"])
+        return
+    if not isinstance(states, list):
+        raise ValueError(
+            "Distributed resume requires a checkpoint with rank-local RNG states"
+        )
+    world_size = torch.distributed.get_world_size()
+    if len(states) != world_size:
+        raise ValueError(
+            "Checkpoint RNG world size does not match the distributed resume world size"
+        )
+    state = states[distributed_rank]
+    if not isinstance(state, dict):
+        raise ValueError(f"Checkpoint RNG state for rank {distributed_rank} is invalid")
+    restore_rng(state)
+
+
 def train_model(
     model: Any,
     train_loader: Any,
@@ -172,7 +209,7 @@ def train_model(
         optimizer.load_state_dict(checkpoint["optimizer"])
         scheduler.load_state_dict(checkpoint["scheduler"])
         scaler.load_state_dict(checkpoint["scaler"])
-        restore_rng(checkpoint["rng"])
+        _restore_checkpoint_rng(checkpoint, distributed, distributed_rank)
         start_epoch, best_accuracy = checkpoint["epoch"] + 1, checkpoint["best_accuracy"]
         resumed_training_rows = _restore_training_log(
             writer,
@@ -253,8 +290,9 @@ def train_model(
         if writer is not None:
             writer.append(record)
         best_accuracy = max(best_accuracy, valid_accuracy)
+        checkpoint_rng = _collect_checkpoint_rng(distributed, distributed_rank)
         if primary_process:
-            payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": unwrapped_model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), "rng": rng_state(), "config": config.__dict__, "run_identity": run_identity, "training_log": str(writer.path.resolve()), "training_history": list(read_jsonl(writer.path)), "run_directory": str(output.resolve())}
+            payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": unwrapped_model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), **checkpoint_rng, "config": config.__dict__, "run_identity": run_identity, "training_log": str(writer.path.resolve()), "training_history": list(read_jsonl(writer.path)), "run_directory": str(output.resolve())}
             atomic_torch_save(payload, output / "checkpoints" / "last.pt")
             if record["best"]:
                 atomic_torch_save(payload, output / "checkpoints" / "best.pt")

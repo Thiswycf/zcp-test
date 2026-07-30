@@ -12,7 +12,11 @@ from zcp_test.search import EvolutionSearch, cache_key
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
 from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint
-from zcp_test.training.trainer import _restore_training_log
+from zcp_test.training.trainer import (
+    _collect_checkpoint_rng,
+    _restore_checkpoint_rng,
+    _restore_training_log,
+)
 
 
 def test_jsonl_merge_and_partial_recovery(tmp_path):
@@ -418,6 +422,11 @@ def test_non_primary_distributed_rank_does_not_write_artifacts(monkeypatch, tmp_
     monkeypatch.setattr(torch.distributed, "get_rank", lambda: 1)
     monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
     monkeypatch.setattr(torch.distributed, "all_reduce", lambda *args, **kwargs: None)
+    monkeypatch.setattr(
+        torch.distributed,
+        "all_gather_object",
+        lambda output, state: output.__setitem__(slice(None), [state, state]),
+    )
     monkeypatch.setattr(torch.distributed, "barrier", lambda: None)
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
     data = torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,)))
@@ -432,3 +441,36 @@ def test_non_primary_distributed_rank_does_not_write_artifacts(monkeypatch, tmp_
     )
     assert not (tmp_path / "training.jsonl").exists()
     assert not (tmp_path / "checkpoints").exists()
+
+
+def test_distributed_checkpoint_collects_and_restores_rank_local_rng(monkeypatch):
+    rank_one_state = {"rank": 1}
+    monkeypatch.setattr(
+        "zcp_test.training.trainer.rng_state", lambda: rank_one_state
+    )
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
+
+    def gather(states, local_state):
+        states[:] = [{"rank": 0}, local_state]
+
+    monkeypatch.setattr(torch.distributed, "all_gather_object", gather)
+    checkpoint_rng = _collect_checkpoint_rng(True, 1)
+    assert checkpoint_rng == {
+        "rng": {"rank": 0},
+        "rng_by_rank": [{"rank": 0}, rank_one_state],
+    }
+
+    restored = []
+    monkeypatch.setattr("zcp_test.training.trainer.restore_rng", restored.append)
+    _restore_checkpoint_rng(checkpoint_rng, True, 1)
+    assert restored == [rank_one_state]
+
+
+def test_distributed_resume_rejects_legacy_or_wrong_world_size_rng(monkeypatch):
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
+    with pytest.raises(ValueError, match="rank-local RNG"):
+        _restore_checkpoint_rng({"rng": {"rank": 0}}, True, 1)
+    with pytest.raises(ValueError, match="world size"):
+        _restore_checkpoint_rng(
+            {"rng": {"rank": 0}, "rng_by_rank": [{"rank": 0}]}, True, 1
+        )
