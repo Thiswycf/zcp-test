@@ -15,10 +15,21 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "epochs": 600,
         "optimizer": "sgd",
         "learning_rate": 0.025,
+        "momentum": 0.9,
         "weight_decay": 0.0003,
         "scheduler": "cosine",
+        "warmup_epochs": 0,
         "batch_size": 96,
+        "batch_size_semantics": "global",
         "nesterov": False,
+        "auxiliary": True,
+        "auxiliary_weight": 0.4,
+        "drop_path_prob": 0.2,
+        "grad_clip": 5.0,
+        "cutout_length": 16,
+        "label_smoothing": 0.0,
+        "implementation_source": "https://github.com/quark0/darts/blob/f276dd346a09ae3160f8e3aca5c7b193fda1da37/cnn/train.py",
+        "implementation_commit": "f276dd346a09ae3160f8e3aca5c7b193fda1da37",
     },
     "darts-cifar100-adaptation": {
         "space": "darts",
@@ -30,10 +41,21 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "epochs": 600,
         "optimizer": "sgd",
         "learning_rate": 0.025,
+        "momentum": 0.9,
         "weight_decay": 0.0003,
         "scheduler": "cosine",
+        "warmup_epochs": 0,
         "batch_size": 96,
+        "batch_size_semantics": "global",
         "nesterov": False,
+        "auxiliary": True,
+        "auxiliary_weight": 0.4,
+        "drop_path_prob": 0.2,
+        "grad_clip": 5.0,
+        "cutout_length": 16,
+        "label_smoothing": 0.0,
+        "implementation_source": "https://github.com/quark0/darts/blob/f276dd346a09ae3160f8e3aca5c7b193fda1da37/cnn/train.py",
+        "implementation_commit": "f276dd346a09ae3160f8e3aca5c7b193fda1da37",
     },
     "darts-original-imagenet": {
         "space": "darts",
@@ -45,27 +67,22 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "epochs": 250,
         "optimizer": "sgd",
         "learning_rate": 0.1,
+        "momentum": 0.9,
         "weight_decay": 0.00003,
         "scheduler": "step",
         "scheduler_step_size": 1,
         "scheduler_gamma": 0.97,
+        "warmup_epochs": 0,
         "batch_size": 128,
-        "nesterov": True,
-    },
-    "tenas-retrain-imagenet": {
-        "space": "darts",
-        "dataset": "imagenet1k",
-        "input_size": 224,
-        "model_profile": "imagenet",
-        "init_channels": 48,
-        "layers": 14,
-        "epochs": 250,
-        "optimizer": "sgd",
-        "learning_rate": 0.5,
-        "weight_decay": 0.00003,
-        "scheduler": "cosine",
-        "batch_size": 128,
+        "batch_size_semantics": "global",
         "nesterov": False,
+        "auxiliary": True,
+        "auxiliary_weight": 0.4,
+        "drop_path_prob": 0.0,
+        "grad_clip": 5.0,
+        "label_smoothing": 0.1,
+        "implementation_source": "https://github.com/quark0/darts/blob/f276dd346a09ae3160f8e3aca5c7b193fda1da37/cnn/train_imagenet.py",
+        "implementation_commit": "f276dd346a09ae3160f8e3aca5c7b193fda1da37",
     },
 }
 
@@ -164,6 +181,24 @@ def resolve_gradient_accumulation(
     return target_global_batch_size // micro_global_batch_size
 
 
+def resolve_per_device_batch_size(
+    configured_batch_size: int,
+    world_size: int,
+    semantics: str,
+) -> int:
+    if configured_batch_size <= 0 or world_size <= 0:
+        raise ValueError("configured_batch_size and world_size must be positive")
+    if semantics == "per_device":
+        return configured_batch_size
+    if semantics != "global":
+        raise ValueError("batch_size_semantics must be 'global' or 'per_device'")
+    if configured_batch_size % world_size:
+        raise ValueError(
+            "global batch_size must be divisible by WORLD_SIZE for deterministic DDP semantics"
+        )
+    return configured_batch_size // world_size
+
+
 def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
     protocol = str(config.get("protocol", ""))
     expected = FORMAL_TRAINING_PROTOCOLS.get(protocol)
@@ -208,6 +243,7 @@ __all__ = [
     "CANDIDATE_TRAINING_PROTOCOLS",
     "FORMAL_TRAINING_PROTOCOLS",
     "resolve_gradient_accumulation",
+    "resolve_per_device_batch_size",
     "scale_learning_rate",
     "validate_candidate_training_protocol",
     "validate_formal_training_protocol",

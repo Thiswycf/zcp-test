@@ -16,11 +16,13 @@ weight_decay: 0.0003
 scheduler: cosine
 warmup_epochs: 0
 batch_size: 96
+batch_size_semantics: global
 grad_clip: 5.0
 cutout_length: 16
 label_smoothing: 0.0
 amp: true
 amp_initial_scale: 128.0
 protocol: darts-cifar100-adaptation
-implementation_source: https://github.com/quark0/darts/blob/master/cnn/train.py
+implementation_source: https://github.com/quark0/darts/blob/f276dd346a09ae3160f8e3aca5c7b193fda1da37/cnn/train.py
+implementation_commit: f276dd346a09ae3160f8e3aca5c7b193fda1da37
 formal_training_ready: true

@@ -17,6 +17,7 @@ from zcp_test.reporting.analysis import (
     sample_size_convergence,
     top_k_comparison,
     transfer_correlation_table,
+    validate_analysis_scores,
 )
 from zcp_test.reporting.monitor import read_jsonl_tolerant, refresh_once
 from zcp_test.reporting.reports import curve_plot, static_html
@@ -297,6 +298,27 @@ def test_sensitivity_accepts_mixed_parameter_types(tmp_path: Path) -> None:
 
     assert figure is not None
     assert (tmp_path / "mixed-seed.png").exists()
+
+
+def test_analysis_validation_rejects_missing_targets_and_single_sensitivity_value() -> None:
+    missing_target = pd.DataFrame(_score_rows()).assign(target_value=None)
+    with pytest.raises(ValueError, match="target_value"):
+        validate_analysis_scores(missing_target, "correlation")
+
+    single_seed = pd.DataFrame(_score_rows()).assign(seed=1)
+    with pytest.raises(ValueError, match="at least two seed"):
+        validate_analysis_scores(single_seed, "sensitivity", sensitivity_parameter="seed")
+
+
+def test_read_scores_preserves_source_run_for_multiple_inputs(tmp_path: Path) -> None:
+    first = tmp_path / "first.jsonl"
+    second = tmp_path / "second.jsonl"
+    first.write_text(json.dumps(_score_rows()[0]) + "\n", encoding="utf-8")
+    second.write_text(json.dumps(_score_rows()[1]) + "\n", encoding="utf-8")
+
+    frame = read_scores([first, second])
+
+    assert set(frame["source_run"]) == {str(first), str(second)}
 
 
 def test_legacy_search_curve_accepts_candidate_and_summary_records(tmp_path: Path) -> None:

@@ -59,6 +59,7 @@ from zcp_test.reporting.analysis import (
     sample_size_convergence,
     top_k_comparison,
     transfer_correlation_table,
+    validate_analysis_scores,
 )
 from zcp_test.reporting.benchmark_budget import nasbench101_budget_study
 from zcp_test.reporting.benchmark_darts import nasbench301_darts_study
@@ -1297,6 +1298,7 @@ def command_search(args: argparse.Namespace) -> None:
 def command_train(args: argparse.Namespace) -> None:
     from zcp_test.training.protocols import (
         resolve_gradient_accumulation,
+        resolve_per_device_batch_size,
         scale_learning_rate,
         validate_candidate_training_protocol,
         validate_formal_training_protocol,
@@ -1365,7 +1367,16 @@ def command_train(args: argparse.Namespace) -> None:
             )
     dataset = str(config["dataset"])
     classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
-    batch_size = args.batch_size or int(config.get("batch_size", 8))
+    configured_batch_size = int(config.get("batch_size", 8))
+    batch_size_semantics = str(config.get("batch_size_semantics", "per_device"))
+    if formal_training:
+        batch_size = resolve_per_device_batch_size(
+            configured_batch_size,
+            distributed_world_size,
+            batch_size_semantics,
+        )
+    else:
+        batch_size = args.batch_size or configured_batch_size
     input_size = args.input_size or int(config.get("input_size", 32))
     base_learning_rate = float(config["learning_rate"])
     requested_accumulation = config.get("gradient_accumulation_steps", 1)
@@ -1380,7 +1391,9 @@ def command_train(args: argparse.Namespace) -> None:
     learning_rate_reference_batch_size = config.get("learning_rate_reference_batch_size")
     if learning_rate_reference_batch_size is None or args.smoke:
         learning_rate = base_learning_rate
-        effective_global_batch_size = batch_size * distributed_world_size
+        effective_global_batch_size = (
+            batch_size * distributed_world_size * gradient_accumulation_steps
+        )
     else:
         learning_rate, effective_global_batch_size = scale_learning_rate(
             base_learning_rate,
@@ -1450,6 +1463,8 @@ def command_train(args: argparse.Namespace) -> None:
             ),
             "classes": classes,
             "batch_size": batch_size,
+            "configured_batch_size": configured_batch_size,
+            "batch_size_semantics": batch_size_semantics,
             "input_size": input_size,
             "distributed_world_size": distributed_world_size,
             "distributed_rank": distributed_rank,
@@ -1638,11 +1653,16 @@ def command_analyze(args: argparse.Namespace) -> None:
     import matplotlib.pyplot as plt
 
     output = Path(args.output)
-    output.mkdir(parents=True, exist_ok=True)
     if args.action in {"correlation", "compare", "sensitivity"}:
         frame = read_scores(args.scores)
         if args.component:
             frame = frame[frame["component"] == args.component]
+        validate_analysis_scores(
+            frame,
+            args.action,
+            sensitivity_parameter=getattr(args, "parameter", "seed"),
+        )
+        output.mkdir(parents=True, exist_ok=True)
         if args.action == "correlation":
             table = correlation_table(frame, bootstrap_samples=args.bootstrap_samples)
             table.to_csv(output / "correlations.csv", index=False)
@@ -1670,6 +1690,7 @@ def command_analyze(args: argparse.Namespace) -> None:
             sensitivity_parameter=getattr(args, "parameter", "seed"),
         )
     else:
+        output.mkdir(parents=True, exist_ok=True)
         plotter = plot_search if args.action == "search" else plot_training
         artifacts = []
         for suffix in ("png", "svg"):

@@ -185,7 +185,7 @@ def train_model(
         unwrapped_model = getattr(model, "module", model)
         if hasattr(unwrapped_model, "drop_path_prob"):
             unwrapped_model.drop_path_prob = config.drop_path_prob * epoch / max(
-                1, config.epochs - 1
+                1, config.epochs
             )
         started = time.perf_counter()
         train_loss, train_top1, train_top5, train_count, optimizer_steps = _epoch(

@@ -173,6 +173,40 @@ load_scores = read_scores
 load_score_frame = read_scores
 
 
+def validate_analysis_scores(
+    frame: pd.DataFrame,
+    action: str,
+    *,
+    sensitivity_parameter: str = "seed",
+) -> None:
+    if frame.empty:
+        raise ValueError("Analysis requires at least one successful score record")
+    required = ("architecture_id", "proxy_id", "component", "score", "target_value")
+    unusable = [
+        field
+        for field in required
+        if field not in frame or frame[field].isna().all()
+    ]
+    if unusable:
+        raise ValueError(
+            f"{action} analysis requires non-empty fields: {', '.join(unusable)}"
+        )
+    finite_scores = pd.to_numeric(frame["score"], errors="coerce")
+    finite_targets = pd.to_numeric(frame["target_value"], errors="coerce")
+    if not np.isfinite(finite_scores).any() or not np.isfinite(finite_targets).any():
+        raise ValueError(f"{action} analysis requires finite score and target_value pairs")
+    if action == "sensitivity":
+        if sensitivity_parameter not in frame:
+            raise ValueError(
+                f"Sensitivity parameter field is unavailable: {sensitivity_parameter}"
+            )
+        values = frame[sensitivity_parameter].dropna()
+        if values.nunique() < 2:
+            raise ValueError(
+                f"Sensitivity analysis requires at least two {sensitivity_parameter} values"
+            )
+
+
 def _direction_adjusted(frame: pd.DataFrame) -> pd.DataFrame:
     adjusted = frame.copy()
     if "direction" not in adjusted:

@@ -22,4 +22,6 @@ amp: true
 amp_initial_scale: 128.0
 protocol: tenas-retrain-imagenet
 implementation_source: https://github.com/VITA-Group/TENAS
-formal_training_ready: true
+formal_training_ready: false
+formal_training_blockers:
+  - published global batch 768 and five-epoch warmup are not represented by this legacy config

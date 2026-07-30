@@ -1,6 +1,10 @@
+from pathlib import Path
+
 import pytest
 import torch
 
+from zcp_test.artifacts import read_jsonl
+from zcp_test.config import load_config
 from zcp_test.models import (
     OPS,
     AuxiliaryHeadCIFAR,
@@ -18,6 +22,14 @@ from zcp_test.spaces.darts import (
     genotype_to_spec,
     get_darts_profile,
 )
+from zcp_test.training.protocols import (
+    resolve_per_device_batch_size,
+    validate_formal_training_protocol,
+)
+from zcp_test.training.trainer import TrainingConfig, train_model
+
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _assert_valid_genotype(specification):
@@ -135,3 +147,76 @@ def test_imagenet_network_forward_and_profile_building():
     built = space.build_model(space.sample(22), 10)
     assert isinstance(built, NetworkCIFAR)
     assert built.drop_path_prob == pytest.approx(0.2)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["darts_cifar10.yaml", "darts_cifar100.yaml", "darts_imagenet.yaml"],
+)
+def test_darts_formal_profiles_match_pinned_recipes(name):
+    config = load_config(ROOT / "configs" / "training" / name)
+    assert validate_formal_training_protocol(config) == config["protocol"]
+    assert config["implementation_commit"] == "f276dd346a09ae3160f8e3aca5c7b193fda1da37"
+
+
+def test_original_darts_optimizer_and_regularization_contracts():
+    cifar = load_config(ROOT / "configs" / "training" / "darts_cifar10.yaml")
+    imagenet = load_config(ROOT / "configs" / "training" / "darts_imagenet.yaml")
+    assert cifar["nesterov"] is False
+    assert imagenet["nesterov"] is False
+    assert (cifar["auxiliary_weight"], cifar["drop_path_prob"]) == (0.4, 0.2)
+    assert (imagenet["auxiliary_weight"], imagenet["drop_path_prob"]) == (0.4, 0.0)
+
+    changed = dict(cifar, auxiliary=False)
+    with pytest.raises(ValueError, match="auxiliary=False"):
+        validate_formal_training_protocol(changed)
+
+
+def test_tenas_recipe_is_not_accepted_as_original_darts_protocol():
+    config = load_config(ROOT / "configs" / "training" / "tenas_imagenet.yaml")
+    with pytest.raises(NotImplementedError, match="tenas-retrain-imagenet"):
+        validate_formal_training_protocol(config)
+
+
+def test_darts_global_batch_is_split_without_changing_published_global_batch():
+    assert resolve_per_device_batch_size(96, 1, "global") == 96
+    assert resolve_per_device_batch_size(96, 4, "global") == 24
+    assert resolve_per_device_batch_size(128, 8, "global") == 16
+    with pytest.raises(ValueError, match="divisible"):
+        resolve_per_device_batch_size(96, 5, "global")
+
+
+def test_darts_drop_path_uses_upstream_epoch_over_epochs_schedule(tmp_path):
+    class DropPathModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.classifier = torch.nn.Linear(3 * 4 * 4, 2)
+            self.drop_path_prob = -1.0
+
+        def forward(self, inputs):
+            return self.classifier(inputs.flatten(1))
+
+    data = torch.utils.data.TensorDataset(
+        torch.randn(4, 3, 4, 4), torch.randint(2, (4,))
+    )
+    loader = torch.utils.data.DataLoader(data, batch_size=2)
+    train_model(
+        DropPathModel(),
+        loader,
+        loader,
+        TrainingConfig(
+            epochs=2,
+            optimizer="sgd",
+            learning_rate=0.025,
+            weight_decay=3e-4,
+            nesterov=False,
+            drop_path_prob=0.2,
+            amp=False,
+        ),
+        tmp_path,
+        torch.device("cpu"),
+        run_identity={"architecture_id": "darts-test", "protocol": "darts-test"},
+    )
+    assert [row["drop_path_prob"] for row in read_jsonl(tmp_path / "training.jsonl")] == pytest.approx(
+        [0.0, 0.1]
+    )
