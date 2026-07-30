@@ -239,6 +239,12 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
     )
     record = next(read_jsonl(tmp_path / "training.jsonl"))
     assert record["next_learning_rate"] == pytest.approx(0.005)
+    assert record["train_duration_seconds"] > 0
+    assert record["valid_duration_seconds"] > 0
+    assert record["train_samples_per_second"] > 0
+    assert record["valid_samples_per_second"] > 0
+    assert record["peak_memory_mb"] is None
+    assert record["peak_reserved_memory_mb"] is None
     resumed = tmp_path / "resumed"
     result = train_model(
         torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)),

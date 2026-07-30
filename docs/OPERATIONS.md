@@ -233,7 +233,8 @@ zcp-test train --config configs/training/darts_cifar10.yaml \
 
 This mode uses real data, the accepted batch, and the reference model, but records
 `training_mode=real_data_preflight`. It never counts as either one-percent acceptance protocol and
-requires exactly one epoch over the complete dataset.
+requires exactly one epoch over the complete dataset. Each training row records train/validation
+duration, sample throughput, peak allocated memory, and peak reserved memory for resource estimates.
 
 The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
 Repeated augmentation uses three repeats, and the effective LR follows

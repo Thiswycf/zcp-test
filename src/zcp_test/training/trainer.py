@@ -187,7 +187,11 @@ def train_model(
             unwrapped_model.drop_path_prob = config.drop_path_prob * epoch / max(
                 1, config.epochs
             )
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+            torch.cuda.reset_peak_memory_stats(device)
         started = time.perf_counter()
+        train_started = started
         train_loss, train_top1, train_top5, train_count, optimizer_steps = _epoch(
             model,
             train_loader,
@@ -198,9 +202,17 @@ def train_model(
             scaler,
             mixup_fn,
         )
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+        train_duration = time.perf_counter() - train_started
+        valid_started = time.perf_counter()
         valid_loss, valid_top1, valid_top5, valid_count, _ = _epoch(
             model, valid_loader, valid_criterion, device, config
         )
+        if device.type == "cuda":
+            torch.cuda.synchronize(device)
+        valid_duration = time.perf_counter() - valid_started
+        duration = time.perf_counter() - started
         if optimizer_steps:
             scheduler.step()
         train_accuracy = 100.0 * train_top1 / max(1, train_count)
@@ -216,7 +228,21 @@ def train_model(
             "learning_rate": epoch_learning_rate,
             "next_learning_rate": float(optimizer.param_groups[0]["lr"]),
             "drop_path_prob": float(getattr(unwrapped_model, "drop_path_prob", 0.0)),
-            "duration_seconds": time.perf_counter() - started,
+            "duration_seconds": duration,
+            "train_duration_seconds": train_duration,
+            "valid_duration_seconds": valid_duration,
+            "train_samples_per_second": train_count / max(train_duration, 1e-12),
+            "valid_samples_per_second": valid_count / max(valid_duration, 1e-12),
+            "peak_memory_mb": (
+                torch.cuda.max_memory_allocated(device) / (1024**2)
+                if device.type == "cuda"
+                else None
+            ),
+            "peak_reserved_memory_mb": (
+                torch.cuda.max_memory_reserved(device) / (1024**2)
+                if device.type == "cuda"
+                else None
+            ),
             "optimizer_steps": optimizer_steps,
             "best": valid_accuracy > best_accuracy,
         }

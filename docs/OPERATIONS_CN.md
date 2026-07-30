@@ -241,7 +241,9 @@ zcp-test train --config configs/training/darts_cifar10.yaml \
 
 该模式使用真实数据、正式 batch 和 reference 模型，但只标记为 `real_data_preflight`；它不能替代
 `full_data_one_percent_epochs` 或 `one_percent_data_protocol`，也不能用于宣称精度复现。参数必须
-严格为 1 epoch 与完整数据，避免把任意缩小任务包装成预检。
+严格为 1 epoch 与完整数据，避免把任意缩小任务包装成预检。`training.jsonl` 的逐 epoch 资源字段
+包括 `train_duration_seconds`、`valid_duration_seconds`、train/validation samples/s、
+`peak_memory_mb` 和 `peak_reserved_memory_mb`；由此估算后续墙钟和显存，而不是只看进程启动负载。
 
 AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`。真实数据 loader
 使用三次 repeated augmentation；学习率按

@@ -90,6 +90,9 @@ zcp-test analyze training --source "$RUN/training.jsonl" --output "$RUN/reports/
 
 恢复会比较 architecture ID、space、dataset、protocol、classes、input size 和训练配置，并恢复 model、
 optimizer、scheduler、AMP scaler 与 RNG。`--trusted` 只确认操作者信任 checkpoint，不负责验证来源。
+每个 epoch 还记录 train/validation 耗时、样本吞吐、CUDA 峰值 allocated/reserved 显存；CPU 运行的
+显存字段为 `null`。训练图将 accuracy、loss、LR/drop-path 与 epoch 耗时/峰值显存分面展示，避免
+把量纲不同的优化指标混在同一纵轴。
 
 ## 6. 高成本验收标签
 

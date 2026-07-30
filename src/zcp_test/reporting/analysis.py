@@ -1022,25 +1022,54 @@ def plot_training(source: PathLike | pd.DataFrame | Iterable[Mapping[str, Any]],
     frame = _event_frame(source)
     if frame.empty or "epoch" not in frame:
         raise ValueError("Training data requires epoch")
-    metrics = [field for field in ("train_top1", "valid_top1", "train_loss", "valid_loss", "learning_rate") if field in frame]
+    metrics = [
+        field
+        for field in (
+            "train_top1",
+            "valid_top1",
+            "train_top5",
+            "valid_top5",
+            "train_loss",
+            "valid_loss",
+            "learning_rate",
+            "drop_path_prob",
+            "duration_seconds",
+            "peak_memory_mb",
+        )
+        if field in frame
+    ]
     if not metrics:
         raise ValueError("Training data contains no supported metrics")
     frame["epoch"] = pd.to_numeric(frame["epoch"], errors="coerce")
     for field in metrics:
         frame[field] = pd.to_numeric(frame[field], errors="coerce")
     frame = frame.dropna(subset=["epoch"]).sort_values("epoch")
-    figure, axes = plt.subplots(1, 2, figsize=(11, 4.5))
+    figure, axes = plt.subplots(2, 2, figsize=(12, 8))
+    accuracy_axis, loss_axis, schedule_axis, resource_axis = axes.ravel()
+    memory_axis = resource_axis.twinx()
     plotted = False
     for field in metrics:
         values = frame[["epoch", field]].dropna()
         if values.empty:
             continue
-        axis = axes[1] if field == "learning_rate" or "loss" in field else axes[0]
+        if "top" in field:
+            axis = accuracy_axis
+        elif "loss" in field:
+            axis = loss_axis
+        elif field in {"learning_rate", "drop_path_prob"}:
+            axis = schedule_axis
+        elif field == "peak_memory_mb":
+            axis = memory_axis
+        else:
+            axis = resource_axis
         axis.plot(values["epoch"], values[field], marker="o", label=field)
         plotted = True
-    axes[0].set(xlabel="Epoch", ylabel="Top-1 accuracy", title="Accuracy")
-    axes[1].set(xlabel="Epoch", ylabel="Loss / learning rate", title="Optimization")
-    for axis in axes:
+    accuracy_axis.set(xlabel="Epoch", ylabel="Accuracy (%)", title="Accuracy")
+    loss_axis.set(xlabel="Epoch", ylabel="Loss", title="Loss")
+    schedule_axis.set(xlabel="Epoch", ylabel="Value", title="Schedule")
+    resource_axis.set(xlabel="Epoch", ylabel="Duration (s)", title="Resources")
+    memory_axis.set(ylabel="Peak allocated memory (MiB)")
+    for axis in (*axes.ravel(), memory_axis):
         axis.grid(alpha=0.25)
         if axis.lines:
             axis.legend(fontsize="small")

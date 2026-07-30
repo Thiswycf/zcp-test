@@ -12,6 +12,7 @@ from zcp_test.reporting.analysis import (
     build_report_bundle,
     correlation_table,
     plot_heatmap,
+    plot_training,
     proxy_cost_pareto,
     rank_aggregation,
     read_scores,
@@ -457,6 +458,28 @@ def test_monitor_discovers_single_timestamped_run_and_rejects_ambiguous_root(tmp
     (second / "training.jsonl").write_text('{"epoch": 0}\n')
     with pytest.raises(ValueError, match="select one"):
         refresh_once(tmp_path)
+
+
+def test_training_plot_includes_resource_metrics(tmp_path):
+    destination = tmp_path / "training.svg"
+    figure = plot_training(
+        [
+            {
+                "epoch": epoch,
+                "train_top1": 20 + epoch,
+                "valid_top1": 19 + epoch,
+                "train_loss": 2.0 - epoch * 0.1,
+                "valid_loss": 2.1 - epoch * 0.1,
+                "learning_rate": 0.01,
+                "duration_seconds": 4.0 + epoch,
+                "peak_memory_mb": 1024 + epoch,
+            }
+            for epoch in range(2)
+        ],
+        destination,
+    )
+    assert destination.exists()
+    assert len(figure.axes) == 5
 
 
 def test_legacy_html_creates_parent_directory(tmp_path):
