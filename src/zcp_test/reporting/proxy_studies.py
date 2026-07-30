@@ -17,7 +17,8 @@ PathLike = str | Path
 
 PROXY_SPEC_FIELDS = ("proxy_id", "component", "proxy_version")
 STRICT_PROTOCOL_FIELDS = tuple(
-    dict.fromkeys(
+    field
+    for field in dict.fromkeys(
         (
             *PROTOCOL_FIELDS,
             "target_seed",
@@ -29,6 +30,13 @@ STRICT_PROTOCOL_FIELDS = tuple(
             "source_run",
         )
     )
+    if field
+    not in {
+        "proxy_implementation_fidelity",
+        "proxy_alias_of",
+        "run_id",
+        "source_run",
+    }
 )
 TIE_STRATEGY = "score_desc_then_architecture_id_asc_ordinal"
 FUSION_SPLIT_STRATEGY = "architecture_id_ascending_prefix_validation"
@@ -562,6 +570,16 @@ def _annotated_heatmap(table: pd.DataFrame, title: str, destination: PathLike | 
     return _save_figure(figure, destination)
 
 
+def _protocol_label(fields: Sequence[str], values: Mapping[str, Any]) -> str:
+    labels = []
+    for field in fields:
+        value = values[field]
+        if field == "input_fingerprint":
+            value = str(value)[:10]
+        labels.append(f"{field}={value}")
+    return " | ".join(labels) or "default"
+
+
 def plot_proxy_target_heatmap(
     source: ScoreSource | Mapping[str, pd.DataFrame],
     destination: PathLike | None = None,
@@ -573,7 +591,9 @@ def plot_proxy_target_heatmap(
     selected = long[long["method"] == method].copy()
     protocol_fields = _active_fields(selected, STRICT_PROTOCOL_FIELDS)
     selected["protocol"] = selected.apply(
-        lambda row: " | ".join(f"{field}={row[field]}" for field in protocol_fields) or "default",
+        lambda row: _protocol_label(
+            protocol_fields, {field: row[field] for field in protocol_fields}
+        ),
         axis=1,
     )
     table = selected.pivot(index="protocol", columns="proxy_label", values="correlation")
@@ -597,21 +617,45 @@ def plot_proxy_proxy_heatmap(
         for _, row in correlations.iterrows():
             table.loc[row["proxy_left"], row["proxy_right"]] = row[method]
             table.loc[row["proxy_right"], row["proxy_left"]] = row[method]
-    else:
-        block_labels: list[str] = []
-        blocks: list[pd.DataFrame] = []
-        for key, group in protocol_groups:
-            values = _group_values(protocol_fields, key)
-            protocol = " | ".join(f"{field}={values[field]}" for field in protocol_fields)
-            block = pd.DataFrame(np.eye(len(labels)), index=labels, columns=labels)
-            for _, row in group.iterrows():
-                block.loc[row["proxy_left"], row["proxy_right"]] = row[method]
-                block.loc[row["proxy_right"], row["proxy_left"]] = row[method]
-            blocks.append(block)
-            block_labels.extend(f"{protocol} | {label}" for label in labels)
-        table = pd.concat(blocks, axis=0)
-        table.index = block_labels
-    return _annotated_heatmap(table, f"Proxy-proxy {method}", destination)
+        return _annotated_heatmap(table, f"Proxy-proxy {method}", destination)
+
+    import matplotlib.pyplot as plt
+
+    figure, axes = plt.subplots(
+        len(protocol_groups),
+        1,
+        figsize=(max(8, 0.6 * len(labels)), max(6, 0.62 * len(labels) * len(protocol_groups))),
+        squeeze=False,
+    )
+    image = None
+    annotation_size = 6 if len(labels) > 15 else 8
+    for index, (key, group) in enumerate(protocol_groups):
+        values = _group_values(protocol_fields, key)
+        table = pd.DataFrame(np.eye(len(labels)), index=labels, columns=labels)
+        for _, row in group.iterrows():
+            table.loc[row["proxy_left"], row["proxy_right"]] = row[method]
+            table.loc[row["proxy_right"], row["proxy_left"]] = row[method]
+        axis = axes[index, 0]
+        array = table.to_numpy(dtype=float)
+        image = axis.imshow(array, vmin=-1, vmax=1, cmap="coolwarm", aspect="auto")
+        axis.set_xticks(range(len(labels)), labels=labels, rotation=45, ha="right")
+        axis.set_yticks(range(len(labels)), labels=labels)
+        axis.set_title(_protocol_label(protocol_fields, values), fontsize="small")
+        for row, column in itertools.product(range(len(labels)), repeat=2):
+            if np.isfinite(array[row, column]):
+                axis.text(
+                    column,
+                    row,
+                    f"{array[row, column]:.2f}",
+                    ha="center",
+                    va="center",
+                    fontsize=annotation_size,
+                )
+    figure.suptitle(f"Proxy-proxy {method}")
+    if image is not None:
+        figure.colorbar(image, ax=axes[:, 0].tolist(), shrink=0.5)
+    figure.subplots_adjust(hspace=0.35, top=0.96)
+    return _save_figure(figure, destination)
 
 
 proxy_target_matrix = proxy_target_protocol_matrix

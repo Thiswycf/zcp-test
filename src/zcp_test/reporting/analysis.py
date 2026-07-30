@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import html
+import hashlib
 import json
 import math
 from collections.abc import Iterable, Mapping, Sequence
@@ -222,8 +223,6 @@ def _direction_adjusted(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 PROTOCOL_FIELDS = (
-    "proxy_implementation_fidelity",
-    "proxy_alias_of",
     "benchmark_id",
     "benchmark_version",
     "benchmark_variant",
@@ -240,6 +239,10 @@ PROTOCOL_FIELDS = (
     "input_fingerprint",
     "model_fidelity",
     "seed",
+)
+PROXY_METADATA_FIELDS = (
+    "proxy_implementation_fidelity",
+    "proxy_alias_of",
 )
 
 
@@ -423,6 +426,11 @@ def correlation_table(
         proxy_fields = ["proxy_id", "component"]
         if "proxy_version" in frame and frame["proxy_version"].notna().any():
             proxy_fields.append("proxy_version")
+        proxy_fields.extend(
+            field
+            for field in PROXY_METADATA_FIELDS
+            if field in frame and frame[field].notna().any()
+        )
         group_by = protocol_group_fields(frame, proxy_fields)
     required = [*group_by, "target_value", "score"]
     missing = [field for field in required if field not in frame]
@@ -543,6 +551,13 @@ def plot_heatmap(
     if table.empty:
         raise ValueError("Cannot plot empty correlation data")
     table["proxy"] = table["proxy_id"].astype(str) + " / " + table["component"].astype(str)
+    if "proxy_version" in table and table["proxy_version"].notna().any():
+        table["proxy"] += "@" + table["proxy_version"].fillna("unknown").astype(str)
+    if (
+        "proxy_implementation_fidelity" in table
+        and table["proxy_implementation_fidelity"].notna().any()
+    ):
+        table["proxy"] += " [" + table["proxy_implementation_fidelity"].fillna("unknown").astype(str) + "]"
     protocol_fields = [
         field
         for field in PROTOCOL_FIELDS
@@ -551,15 +566,34 @@ def plot_heatmap(
     if not protocol_fields:
         matrix = table.set_index("proxy")[[method]].T
     else:
-        table["protocol"] = table.apply(
-            lambda row: " | ".join(f"{field}={row[field]}" for field in protocol_fields), axis=1
-        )
+        def protocol_label(row: pd.Series) -> str:
+            benchmark = str(row.get("benchmark_id") or "benchmark")
+            dataset = str(row.get("dataset") or "dataset")
+            split = str(row.get("target_split") or "split")
+            metric = str(row.get("target_metric") or "metric")
+            budget = row.get("target_epoch_budget")
+            seed = row.get("seed")
+            full = json.dumps(
+                [(field, None if pd.isna(row[field]) else str(row[field])) for field in protocol_fields],
+                ensure_ascii=True,
+                separators=(",", ":"),
+            )
+            digest = hashlib.sha1(full.encode("utf-8")).hexdigest()[:8]
+            budget_label = "" if pd.isna(budget) else f"@{budget}"
+            seed_label = "" if pd.isna(seed) else f" | seed={seed}"
+            return (
+                f"{benchmark}/{dataset}/{split}/{metric}{budget_label}"
+                f"{seed_label} | protocol={digest}"
+            )
+
+        table["protocol"] = table.apply(protocol_label, axis=1)
         if table.duplicated(["proxy", "protocol"], keep=False).any():
             raise ValueError("Correlation heatmap has duplicate proxy/protocol rows")
         matrix = table.pivot(index="proxy", columns="protocol", values=method)
     figure, axis = plt.subplots(figsize=(max(6, 1.1 * matrix.shape[1]), max(3, 0.55 * matrix.shape[0])))
     image = axis.imshow(matrix.to_numpy(dtype=float), cmap="coolwarm", vmin=-1, vmax=1, aspect="auto")
-    axis.set_xticks(range(matrix.shape[1]), matrix.columns, rotation=35, ha="right")
+    rotation = 20 if matrix.shape[1] > 1 else 0
+    axis.set_xticks(range(matrix.shape[1]), matrix.columns, rotation=rotation, ha="right")
     axis.set_yticks(range(matrix.shape[0]), matrix.index)
     axis.set_title(f"{method.replace('_', ' ').title()} correlation")
     for row in range(matrix.shape[0]):

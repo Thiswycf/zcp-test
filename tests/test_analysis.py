@@ -11,6 +11,7 @@ from zcp_test.reporting.analysis import (
     bootstrap_correlation,
     build_report_bundle,
     correlation_table,
+    plot_heatmap,
     proxy_cost_pareto,
     rank_aggregation,
     read_scores,
@@ -131,6 +132,42 @@ def test_correlation_table_explains_constants_ties_invalid_values_and_direction(
     assert record["target_direction"] == "maximize"
     assert record["target_direction_transform"] == "identity"
     assert record["proxy_implementation_fidelity"] == "paper_formula_port_unverified"
+
+
+def test_correlation_heatmap_treats_proxy_fidelity_as_proxy_metadata() -> None:
+    rows = []
+    for index in range(3):
+        rows.extend(
+            [
+                {
+                    "architecture_id": f"a{index}",
+                    "proxy_id": "left",
+                    "component": "score",
+                    "proxy_version": "1",
+                    "proxy_implementation_fidelity": "paper-port",
+                    "score": float(index),
+                    "target_value": float(index),
+                    "status": "ok",
+                },
+                {
+                    "architecture_id": f"a{index}",
+                    "proxy_id": "right",
+                    "component": "score",
+                    "proxy_version": "1",
+                    "proxy_implementation_fidelity": "project-extension",
+                    "score": float(2 - index),
+                    "target_value": float(index),
+                    "status": "ok",
+                },
+            ]
+        )
+
+    correlations = correlation_table(rows)
+    figure = plot_heatmap(correlations)
+
+    assert len(correlations) == 2
+    assert figure.axes[0].images[0].get_array().shape == (1, 2)
+    assert max(len(label.get_text()) for label in figure.axes[0].get_xticklabels()) < 100
 
 
 def test_correlation_table_counts_failed_invocations_and_rejects_duplicate_architectures() -> None:

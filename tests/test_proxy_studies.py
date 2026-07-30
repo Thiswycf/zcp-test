@@ -96,6 +96,33 @@ def test_input_fingerprint_and_seed_are_not_silently_mixed() -> None:
     assert correlations["common_sample_count"].eq(3).all()
 
 
+def test_proxy_metadata_and_run_provenance_do_not_split_scientific_protocol() -> None:
+    rows = []
+    for index in range(1, 4):
+        left = _row(f"a{index}", "left", index, index)
+        left.update(
+            proxy_implementation_fidelity="paper-port",
+            proxy_alias_of=None,
+            run_id="left-shard",
+            source_run="/tmp/left",
+        )
+        right = _row(f"a{index}", "right", 4 - index, index)
+        right.update(
+            proxy_implementation_fidelity="project-extension",
+            proxy_alias_of="other",
+            run_id="right-shard",
+            source_run="/tmp/right",
+        )
+        rows.extend((left, right))
+
+    correlations = proxy_proxy_correlations(rows)
+    figure = plot_proxy_proxy_heatmap(correlations)
+
+    assert len(correlations) == 1
+    assert correlations.iloc[0]["common_sample_count"] == 3
+    assert figure.axes[0].images[0].get_array().shape == (2, 2)
+
+
 def test_matrix_preserves_protocol_groups_with_missing_condition_values() -> None:
     rows = []
     for fingerprint in (None, "known"):
