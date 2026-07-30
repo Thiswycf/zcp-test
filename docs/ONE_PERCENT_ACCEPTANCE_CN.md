@@ -109,8 +109,10 @@ H1 当前状态为：**NB201 单 seed 完成，整体进行中**。seed 2026 的
 上述 22 代理证据覆盖 seed 2026。核心 11 代理现已补齐 seed 2027/2028；三 seed 共 5,181 行、
 5,172 成功、9 失败，跨 seed 排名稳定性与八个新增 run 的 SHA 见
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。
-`params`/`flops` 的负号来自 `minimize → negated` 方向转换，资源方向与“规模—精度原始关联”应分开
-报告；名称不同但结果相同的代理不得据此认定算法独立。NB201 和 NATS-TSS 必须分别运行和报告，
+旧报告曾错误地把 `params`/`flops` 的资源优化方向 `minimize` 用于 accuracy 相关性并取负；当前
+reader 只读迁移旧记录，以 `direction=maximize` 直接报告原始规模—精度关联，同时保留
+`resource_direction=minimize` 供约束使用，raw 文件不改写。名称不同但结果相同的代理不得据此认定
+算法独立。NB201 和 NATS-TSS 必须分别运行和报告，
 即使 topology codec 相同。
 
 ## 7. NATS-TSS 实际验收（H1）
@@ -156,5 +158,22 @@ NB101 正式 1% 既定协议已完成：从 `nasbench101@full` 的 423,624 个�
 [`evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
 
 当前判定更新为 **“NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid 与 NB101 的既定协议完成，H1
-整体进行中”**。NB301、TNB101、ViT-Bench 等 benchmark 的 1% 协议仍待独立执行，完整项目 H1
-尚未完成。
+整体进行中”**。
+
+## 10. NB301 deterministic surrogate 实际验收（H1）
+
+NB301 使用 seed 2026 锁定生成的 11,221-candidate corpus 作为可复现分母，按 operation/topology
+特征分层抽取 1,000 个 DARTS genotype。22 代理 seed 2026 共 22,000 行，全部成功；核心 11 代理
+三 seed 共 33,000 行，全部成功且无重复键。三 seed按 canonical architecture ID 对齐，surrogate
+target 完全一致；sample-size convergence 覆盖 10 到完整 1,000 样本。
+
+该结果严格标记为 `deterministic_on_locked_runtime`：运行栈为 XGBoost 2.1.4 / nasbench301 0.3，
+尚未完成旧版官方 XGBoost golden 对照。11,221 不是完整 DARTS 空间，surrogate prediction 也不是
+1,000 个候选的真实训练精度。operation×node×topology 分解是基于 DARTS 编码的项目推广，不写成
+论文因果结论。完整 SHA、相关性、三 seed 稳定性、方向迁移和报告规模见
+[`evidence/NB301_ONE_THOUSAND_CN.md`](evidence/NB301_ONE_THOUSAND_CN.md) 与
+[`evidence/nb301_one_thousand_summary.json`](evidence/nb301_one_thousand_summary.json)。
+
+当前判定更新为 **“NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic
+surrogate 的既定协议完成，H1 整体进行中”**。TNB101 与 ViT-Bench 仍待独立执行；NATS-SSS 的
+跨数据集迁移也未由 CIFAR-10-valid 结果替代。

@@ -90,6 +90,13 @@ protocols must remain separate. NAS-Bench-Suite-Zero and MeCo directly study ZCP
 fine-grained interaction decomposition is a benchmark-driven extension, not a reproduced paper
 table.
 
+The locked 1,000-candidate protocol has completed 22 proxies at seed 2026 and the core 11 proxies
+at three seeds. The standard sensitivity bundle now includes per-seed correlations, canonical-ID
+cross-seed rank stability and sample-size convergence. This remains surrogate association on the
+locked XGBoost 2.1.4 / nasbench301 0.3 runtime; see
+[`evidence/NB301_ONE_THOUSAND_CN.md`](evidence/NB301_ONE_THOUSAND_CN.md). The 11,221-candidate
+generation corpus is a reproducible sampling denominator, not the full DARTS search space.
+
 ## TransNAS and ViT
 
 ```bash

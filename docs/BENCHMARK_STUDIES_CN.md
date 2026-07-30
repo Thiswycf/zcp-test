@@ -202,9 +202,15 @@ zcp-test analyze benchmark \
   --scores /path/to/nb301/scores.jsonl \
   --benchmark nasbench301_surrogate \
   --view darts \
-  --component score \
   --output /path/to/reports/nb301-darts
 ```
+
+默认按每个代理声明的 `primary_component` 分析，因而会保留 ER `mean`、TE-NAS `synflow` 和
+AZ-NAS `expressivity`。只有研究一个同名辅助分量时才传 `--component`；显式写
+`--component score` 会排除上述主组件，不能作为“全部代理”报告。
+
+Params/FLOPs 在 accuracy 关联中使用原始值（`direction=maximize`），资源预算另由
+`resource_direction=minimize` 表示；禁止为了“越小越省资源”而把 accuracy 相关性的符号反转。
 
 产物包括 `architectures.csv`、`edges.csv`、`correlations.csv`、
 `operation_topology_interactions.csv` 和交互热力图。特征分开记录 normal/reduce cell 的 operation
@@ -216,8 +222,21 @@ deterministic surrogate 结果；如果输入含不同 surrogate seed/noise 协�
 每条新 schema 结果同时记录 `surrogate_noise`，并将 `benchmark_protocol` 标为
 `nasbench301-surrogate-v1.0:deterministic` 或 `nasbench301-surrogate-v1.0:noisy`；旧结果缺少这些
 字段时不得自动与新结果合并。
+
+官方 v1.0 XGBoost ensemble 是 2020 年保存的二进制模型；现代 XGBoost 加载时会提示旧序列化格式
+兼容风险。本项目已验证同一 4 个 genotype 的 deterministic 查询跨两次运行逐值一致，但在补齐
+旧版官方环境 golden 对照前，只能声明“当前锁定运行栈下确定性”，不能声明跨 XGBoost 版本逐位一致。
+新 run manifest 会记录 `package_versions`，至少包含当前可用的 XGBoost、NAS-Bench-301、PyTorch、
+NumPy、SciPy 和 Pandas 版本；正式报告必须连同模型 checksum 一并保存。
 NAS-Bench-Suite-Zero 和 MeCo 对 NB301 有直接 ZCP 研究依据；本项目的 operation×topology
 条件分解是依据 DARTS 编码特点的推广，不是上述论文原表复刻。
+
+当前锁定协议已完成 1,000 个分层候选的 22 代理单 seed 与核心 11 代理三 seed：22,000 和
+33,000 行均全部成功、无重复键。标准 `analyze sensitivity` 报告同时输出 33 条逐 seed 相关性、
+33 条按 architecture ID inner join 的跨 seed rank stability 和 231 条 sample-size convergence；
+迁移 provenance 不再把同一 Params/FLOPs v2 科学协议拆成重复 heatmap 行。完整边界与 SHA 见
+[`evidence/NB301_ONE_THOUSAND_CN.md`](evidence/NB301_ONE_THOUSAND_CN.md)。该完成状态只适用于
+deterministic surrogate association，不是 DARTS 真实训练验收。
 
 典型实例：
 
@@ -360,9 +379,10 @@ summary。完整摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。H1 仍只能标为
 核心 11 代理的另外两个 seed 现已补齐，三 seed 稳定性见
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。当前状态更新为
-**“NB201 既定 seed 协议完成”**；`params`/`flops` 的负号来自
-`minimize → negated` 方向转换，资源方向与原始规模—精度关联仍须分开解释；疑似相同算法结果不能
-用于独立性结论，且该结果绝不能外推为 NATS-TSS 证据。
+**“NB201 既定 seed 协议完成”**。旧报告曾错误地把 `params`/`flops` 的资源优化方向用于 accuracy
+相关性并取负；当前 reader 对旧记录执行显式只读迁移，以 `direction=maximize` 报告原始规模—精度
+关联，并单独保留 `resource_direction=minimize`。疑似相同算法结果不能用于独立性结论，且该结果
+绝不能外推为 NATS-TSS 证据。
 
 NATS-TSS 随后已用独立 API 和真值完成相同最低规模：22 代理单 seed、核心 11 代理三 seed、
 topology operation effect 与 matched-pair 报告均已生成。157 个共同 topology 中有 31 个 NATS

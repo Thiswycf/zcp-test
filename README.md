@@ -240,6 +240,13 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   than the complete official TE-NAS method. See the
   [human-readable evidence](docs/evidence/NB101_ONE_PERCENT_CN.md) and
   [machine-readable summary](docs/evidence/nb101_one_percent_summary.json).
+- The locked NAS-Bench-301 deterministic-surrogate protocol is accepted on 1,000 stratified
+  candidates from a reproducible 11,221-candidate generation corpus: all 22 proxies at seed 2026
+  completed 22,000/22,000 task keys, and the core 11 proxies at three seeds completed
+  33,000/33,000. This is `deterministic_on_locked_runtime` association under XGBoost 2.1.4 and
+  nasbench301 0.3, not real-training ground truth or an exhaustive DARTS space. See the
+  [human-readable evidence](docs/evidence/NB301_ONE_THOUSAND_CN.md) and
+  [machine-readable summary](docs/evidence/nb301_one_thousand_summary.json).
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
   OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-
   augmentation sampler, the AZ-NAS linear LR rule (`base_lr * global_batch / 512`), and six exact
@@ -255,12 +262,13 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
 
 ## Proxy capability policy
 
-Every proxy is registered with model-family, label, device, component, direction, and dependency metadata. Calls run in a model-state isolation context. Unsupported combinations return `unsupported`; failures remain failures and are never replaced by fabricated losses or values.
+Every proxy is registered with model-family, label, device, component, direction, and dependency metadata. Accuracy-prediction direction and resource-constraint direction are separate fields; Params/FLOPs use `direction=maximize` for raw size-accuracy association and `resource_direction=minimize` for constraints. Calls run in a model-state isolation context. Unsupported combinations return `unsupported`; failures remain failures and are never replaced by fabricated losses or values.
 
 ## Validation scope
 
 Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. The scoped 1%
 proxy sweeps for NB101, NB201, NATS-TSS, and NATS-SSS/CIFAR-10-valid are accepted under their
-documented protocols, but project-wide H1 remains incomplete: NB301, TransNAS-Bench-101,
-ViT-Bench-101, and other remaining protocols are pending. Full DARTS 250/600-epoch training also
+documented protocols; the scoped NB301 deterministic-surrogate protocol is also accepted. Project-wide
+H1 remains incomplete: TransNAS-Bench-101, ViT-Bench-101, and other remaining protocols are pending.
+Full DARTS 250/600-epoch training also
 remains unaccepted; see the [acceptance report](docs/ACCEPTANCE.md).

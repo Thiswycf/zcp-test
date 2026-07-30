@@ -1,0 +1,146 @@
+{
+  "schema_version": 1,
+  "evidence_id": "nb301_one_thousand_deterministic_surrogate_acceptance",
+  "status": "accepted_with_scope_limits",
+  "benchmark": {
+    "benchmark_id": "nasbench301_surrogate",
+    "benchmark_version": "1.0",
+    "search_space_id": "darts",
+    "ground_truth_kind": "surrogate_prediction",
+    "compatibility_status": "deterministic_on_locked_runtime"
+  },
+  "sampling": {
+    "strategy": "proportional_feature_stratified",
+    "seed": 2026,
+    "population_size": 11221,
+    "population_semantics": "locked deterministic generation corpus; not the full DARTS search space",
+    "sample_count": 1000,
+    "stratum_count": 8628,
+    "shards": 4,
+    "manifest": "$ZCP_TEST_AUDIT_ROOT/sampling/nb301-1000-seed2026.json",
+    "manifest_sha256": "aff2d3ea7b2cb38954d59c37a4a807137ccdd9a57772565a2a82621bb6eb53b5"
+  },
+  "protocol": {
+    "dataset": "cifar10",
+    "target_split": "test",
+    "target_metric": "accuracy",
+    "target_seed_reduction": "mean",
+    "surrogate_noise": false,
+    "input_source": "dataset",
+    "model_fidelity": "reference_model",
+    "weight_mode": "independent_scratch"
+  },
+  "all_proxies_seed_2026": {
+    "architecture_count": 1000,
+    "proxy_count": 22,
+    "row_count": 22000,
+    "successful_count": 22000,
+    "failed_count": 0,
+    "duplicate_task_key_count": 0,
+    "scores": "$ZCP_TEST_AUDIT_ROOT/effective/nb301-1k-seed2026/scores.jsonl",
+    "scores_sha256": "0c27d4bb4011a0be8c6c5a626f41bcfce4b05c84dd66bd2a0ba0ee4d5226c8d1",
+    "correlation_rows": 22,
+    "constant_proxies": ["near", "swap"],
+    "selected_spearman": {
+      "az_nas_expressivity": 0.480561,
+      "naswot": 0.480561,
+      "params": 0.425214,
+      "flops": 0.392485,
+      "synflow": -0.386828,
+      "te_nas_synflow": -0.386828,
+      "zico": -0.424621
+    }
+  },
+  "core_three_seed": {
+    "proxy_ids": ["az_nas", "flops", "gradnorm", "jacob_cov", "meco", "naswot", "params", "synflow", "te_nas", "zen", "zico"],
+    "evaluation_seeds": [2026, 2027, 2028],
+    "architecture_count_per_seed": 1000,
+    "row_count_per_seed": 11000,
+    "row_count": 33000,
+    "successful_count": 33000,
+    "failed_count": 0,
+    "duplicate_task_key_count": 0,
+    "target_consistent_across_seeds": true,
+    "scores": "$ZCP_TEST_AUDIT_ROOT/effective/nb301-1k-core11-three-seed/scores.jsonl",
+    "scores_sha256": "feecdedbddc6d12230833d62000751a3938864d2b2b07c609dc222fd624ae172",
+    "mean_surrogate_spearman": {
+      "az_nas": 0.479100,
+      "naswot": 0.479100,
+      "params": 0.425214,
+      "flops": 0.392485,
+      "meco": 0.023136,
+      "jacob_cov": -0.014242,
+      "zen": -0.060236,
+      "gradnorm": -0.216875,
+      "synflow": -0.386942,
+      "te_nas": -0.386942,
+      "zico": -0.420540
+    },
+    "mean_cross_seed_score_spearman": {
+      "flops": 1.0,
+      "params": 1.0,
+      "synflow": 0.999989,
+      "te_nas": 0.999989,
+      "az_nas": 0.997046,
+      "naswot": 0.997046,
+      "zico": 0.996730,
+      "gradnorm": 0.940790,
+      "zen": 0.781823,
+      "meco": 0.269289,
+      "jacob_cov": -0.007574
+    }
+  },
+  "reports": {
+    "multi_proxy": {
+      "path": "$ZCP_TEST_AUDIT_ROOT/reports/nb301-1k-multi-proxy",
+      "correlations": 22,
+      "proxy_proxy_correlations": 231,
+      "proxy_proxy_top_k": 693,
+      "complementarity": 693
+    },
+    "darts_custom": {
+      "path": "$ZCP_TEST_AUDIT_ROOT/reports/nb301-1k-darts",
+      "architectures": 1000,
+      "edges": 352000,
+      "correlations": 7524,
+      "operation_topology_interactions": 2156
+    },
+    "core_three_seed": {
+      "path": "$ZCP_TEST_AUDIT_ROOT/reports/nb301-1k-core11-three-seed",
+      "correlations": 33,
+      "sensitivity_rank": 33,
+      "sample_size_convergence": 231,
+      "sample_sizes": [10, 25, 50, 100, 250, 500, 1000],
+      "correlations_sha256": "d8fd03d958f60d6e3f2f72e805c0afcbdcfe3cd70d204e52d5652e7c545fdb3f",
+      "sensitivity_rank_sha256": "8b270df4787090a349f5ac226058005998e6dc540ba49955ef408c81f63c7be4",
+      "sample_size_convergence_sha256": "685c62a390fd25a5069062e37732f8e03c11ae24b8cb834c1e7b462212bb88ac",
+      "index_html_sha256": "cd2530b5857fc7d067074965d1f97dfe20e87e29de2a6b1381ea548033309d87"
+    }
+  },
+  "direction_migration": {
+    "mode": "read_only_derived",
+    "raw_scores_rewritten": false,
+    "accuracy_direction": "maximize",
+    "resource_direction": "minimize",
+    "legacy_versions": {"params": "1", "flops": "1"},
+    "derived_versions": {"params": "count-v2", "flops": "thop-v2"},
+    "migration": "legacy-resource-direction-to-accuracy-v2"
+  },
+  "runtime": {
+    "xgboost": "2.1.4",
+    "nasbench301": "0.3",
+    "cross_version_golden_status": "pending",
+    "boundary": "Repeated predictions match on the locked runtime; cross-XGBoost-version bitwise equality is not established."
+  },
+  "implementation_limits": {
+    "te_nas": "portable-v2 approximation; not the complete official implementation",
+    "az_nas": "portable-v1 composite approximation",
+    "component_reuse": ["az_nas/expressivity equals naswot/score in this implementation", "te_nas/synflow equals synflow/score in this implementation"],
+    "rank_aggregation": "not learned from test targets; empty output is expected"
+  },
+  "completion": {
+    "nb301_locked_protocol": "complete",
+    "h1_overall": "in_progress",
+    "remaining_benchmarks": ["transnasbench101", "vitbench101"]
+  }
+}

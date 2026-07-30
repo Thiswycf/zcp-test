@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 23:31 CST",
+  updatedAt: "2026-07-31 01:02 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -23,10 +23,10 @@ window.ZCP_PANEL_DATA = {
       id: "A1", phase: "审计", priority: "P0", title: "冻结基线与质量 gate",
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
-      estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "最新完整 gate 为 287 tests passed、第一方 source coverage 87%、CLI coverage 80%；NATS-SSS 真实协议与 run_id shard grouping 修复回归均已纳入，Ruff、compileall、pip check 与 git diff check 通过。",
+      estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
+      detail: "最终全仓 gate 为 309 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel、diff、大文件和凭据检查全部通过。unsafe pickle/torch.load 仅保留在显式 trusted 转换、checkpoint 和 vendor native 边界，均不得作为普通不可信数据入口。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 21:06"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:02"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -69,9 +69,9 @@ window.ZCP_PANEL_DATA = {
       content: "核查标准答案、surrogate noise、ViT slice 与 epoch/seed 指标协议。",
       purpose: "保证离线标签和 surrogate 输出不会被误标为同一标准答案。",
       estimate: "3–6 小时", startedAt: "2026-07-30 13:00", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
-      detail: "NB101、deterministic NB301、ViT main/extension/PiT 的真实 query 与构模 proxy 均通过；extension 仅含 KD/inherited，vanilla 查询按设计失败。NB101 full 后端与 4/12/36/108 budget 语义已核验，H1 的 4,237 架构分层 manifest 已生成；这不等于 22-ZCP 正式 sweep 已完成。",
+      detail: "NB101、NB301 surrogate、ViT main/extension/PiT 的真实 query 与构模 proxy 均通过；extension 仅含 KD/inherited，vanilla 查询按设计失败。NB301 的 1,000-candidate locked deterministic protocol 已完成；fidelity 仍严格标为 deterministic_on_locked_runtime，不外推到其他 xgboost 或 ensemble 版本。",
       acceptance: ["slice 身份可追溯", "surrogate noise 明确记录", "metric seed/epoch 不静默降级"],
-      evidence: ["EV-REAL-BENCHMARKS", "EV-NB101-H1-PREPARATION"], risks: [], updatedAt: "2026-07-30 21:18"
+      evidence: ["EV-REAL-BENCHMARKS", "EV-NB101-H1-PREPARATION", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-LOCKED-COMPLETE"], risks: ["R-NB301-RUNTIME-COMPAT"], updatedAt: "2026-07-31 01:02"
     },
     {
       id: "C1", phase: "Reference", priority: "P0", title: "AutoFormer 静态 scratch reference",
@@ -131,19 +131,19 @@ window.ZCP_PANEL_DATA = {
       id: "E1", phase: "ZCP", priority: "P0", title: "22 ZCP 契约与算法 provenance",
       content: "逐项标记论文兼容、近似、别名和 unsupported，并建立 golden 验证。",
       purpose: "运行成功之外，验证代理公式和输入协议的可解释性。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 12:30", finishedAt: "—", status: "进行中", progress: 70,
-      detail: "22/22 CPU sweep 与多个 benchmark 的真实协议已运行。NB101 正式旧 sweep 暴露 SynFlow v1/TE-NAS portable-v1 在部分深 DAG 上 float32 溢出；失败记录保留。现已实现 SynFlow double-v2 与 TE-NAS portable-v2，深模型 dtype/state 单测通过，已知失败 index 1566 的 CPU 回归 2/2 成功。版本升级不回写旧记录；正式旧 sweep 完成其余 20 代理后，再独立补跑两个 v2。alias、approximation 和论文公式 golden 审计仍未闭环。",
+      estimate: "8–16 小时", startedAt: "2026-07-30 12:30", finishedAt: "—", status: "进行中", progress: 82,
+      detail: "22/22 CPU sweep 与多个 benchmark 的真实协议已运行。Params/FLOPs 历史证据重算、v2 只读迁移和混合 shard bundle 回归均已通过，raw 文件未改写；direction=maximize 与 resource_direction=minimize 在当前范围闭环，并通过 309-test 最终 gate。NB101 的旧 SynFlow/TE-NAS 溢出已按版本隔离；alias、approximation 和其余论文公式 golden 仍待继续审计。",
       acceptance: ["全部 proxy 可分类", "论文公式 golden fixture", "alias/approximation/常数与方向审计闭环", "approximation 在 artifact 可见"],
-      evidence: ["EV-ZCP-SWEEP", "EV-NB201-1PCT-SUMMARY", "EV-NB101-SYNFLOW-V2-REGRESSION"], risks: ["R-PROXY", "R-NB101-SYNFLOW-OVERFLOW"], updatedAt: "2026-07-30 21:33"
+      evidence: ["EV-ZCP-SWEEP", "EV-NB201-1PCT-SUMMARY", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-DIRECTION-MIGRATION-IN-PROGRESS", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-FULL-GATE-309"], risks: ["R-PROXY", "R-NB101-SYNFLOW-OVERFLOW", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:02"
     },
     {
       id: "E2", phase: "研究", priority: "P1", title: "通用 ZCP 分析",
       content: "验收互相关、top-k、稳定性、Pareto、transfer 与样本收敛分析。",
       purpose: "形成可复用且不会静默错配的研究报告。",
       estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 80,
-      detail: "NB201、NATS-TSS 与 NATS-SSS/CIFAR10-valid 的真实 correlation、compare、三 seed stability 和 bundle 均已生成。专属研究曾把 run_id/source_run 纳入协议 grouping，导致互斥 shard 分别统计；现已移除 run 标识、按 evaluation seed 分组，并以测试锁定“同 seed 合并 shard、不同 seed 分离”。search/training、Pareto、跨数据集 transfer 和样本收敛仍待更多真实验收，因此不能标记完成。",
+      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 与 NB301 的真实分析均已生成。NB301 标准 analyze sensitivity 产出 33 条相关性、33 条跨 seed canonical-ID rank stability 和 231 条 sample-size 记录；migration provenance 拆分 heatmap 的通用缺陷已修复并通过混合 shard bundle 回归。search/training、Pareto 与跨数据集 transfer 仍待更多真实验收，因此本任务不标完成。",
       acceptance: ["缺列与重复键明确报错", "coverage/ties/constant/direction 显式报告", "多 run 来源保留", "真实结果可生成全部表格", "search/training 分析真实验收"],
-      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287"], risks: [], updatedAt: "2026-07-30 21:06"
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-NB301-STANDARD-ANALYZE", "EV-FULL-GATE-309"], risks: ["R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:02"
     },
     {
       id: "E3", phase: "研究", priority: "P2", title: "Benchmark 定制研究",
@@ -194,10 +194,10 @@ window.ZCP_PANEL_DATA = {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
-      estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "最新低成本 gate 为 303 tests passed；第一方 source coverage 87%，Ruff、compileall、pip check 与 panel 检查均通过。NB101 1% scoped H1 的预算、完整 22-ZCP、核心三 seed、sample-size 和报告回归已纳入门禁。",
+      estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
+      detail: "最终全仓 gate 为 309 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel、diff、大文件与凭据检查全部通过。304/307 仅保留为历史中间证据，不再作为当前门禁口径。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 23:31"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:02"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 68,
-      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 与 NB101 当前既定 scoped 协议完成，H1 整体仍进行中。NB101 使用 4,237 个分层架构：22 代理 seed 2026 为 93,214/93,214 成功，核心 11 代理三 seed 为 139,821/139,821 成功；已生成 4/12/36/108 budget 的 mean/min/max 报告，并将 sample-size 分析扩展到全部 4,237 架构。验收后的 preliminary 目录已删除，仅保留正式结果与典型证据。下一步依次执行 NB301、TransNAS-Bench-101 和 ViT-Bench-101；不得将 NB101 scoped 完成误写为完整 H1 完成。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 86,
+      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid、NB101 与 NB301 当前既定 scoped 协议完成，H1 整体仍进行中。NB301 锁定 1,000 候选：22 代理 seed 2026 为 22,000/22,000；核心 11 三 seed为 33,000/33,000，均 0 failed/duplicate，effective SHA feecded…e172。标准 analyze sensitivity 已生成 33 条相关性、33 条跨 seed canonical-ID rank stability 与 231 条 sample-size 记录。H1 下一步仍为 TNB101 与 ViT，不得标整体完成。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW"], updatedAt: "2026-07-30 23:31"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-CORE-3SEED-PARTIAL", "EV-NB301-SEED2027-SHARD2-RERUN", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-LOCKED-COMPLETE", "EV-NB301-STANDARD-ANALYZE", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-FULL-GATE-309"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW", "R-NB301-RUNTIME-COMPAT", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:02"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -239,10 +239,10 @@ window.ZCP_PANEL_DATA = {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
-      estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 45,
-      detail: "阶段性结果已提交为 28943b4 并推送远端；误保存的 Google 搜索结果 .html 已删除并复查。完整发布清理仍需等待 NB301、TNB101、ViT 和其余高成本验收完成或形成明确受阻结论。",
+      estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 70,
+      detail: "阶段性结果已提交为 28943b4 并推送远端；当前最终 gate 的大文件、凭据与 unsafe pickle/torch.load 边界检查通过。NB301 scoped H1 已完成，但本轮按要求不提交；完整发布仍等待 TNB101、ViT 和其余高成本验收。",
       acceptance: ["无凭据和本机路径", "无数据/大模型误提交", "状态与验收报告一致"],
-      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 23:31"
+      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-FULL-GATE-309", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-31 01:02"
     }
   ],
   risks: [
@@ -254,6 +254,8 @@ window.ZCP_PANEL_DATA = {
     { id: "R-MBV2-REMAINING", severity: "高", status: "开放", title: "OFA-Proxyless MBV2 MAC 与正式训练未验收", description: "params/shape fixture 已通过，但官方 MAC golden 尚缺，正式训练协议也未完成验收；不得由静态 reference 结论外推训练精度或成本。", mitigation: "补充同一官方 commit 的 MAC fixture；关闭训练 blocker 并完成正式 profile 验收前，仅报告 static scratch reference。", taskIds: ["C2", "H2"] },
     { id: "R-OFA", severity: "高", status: "开放", title: "OFA inherited accuracy 与完整协议未验收", description: "官方 checkpoint、catalog bootstrap、active-weight export、子网数值一致性、evaluate/search 和真实 ImageNet 确定性 BN smoke 已完成；当前项目 BN 协议不等同官方 data provider，accuracy、MAC golden 与 formal training 仍未完成。", mitigation: "对照官方 OFA data provider 的抽样、transform 与 BN 统计并执行 inherited accuracy；补齐 MAC golden。正式训练 blocker 关闭前不得外推 inherited 或 scratch 训练结论。", taskIds: ["C2", "C3", "C4", "H2"] },
     { id: "R-PROXY", severity: "高", status: "开放", title: "代理可运行不等于论文一致", description: "22/22 sweep 不能替代公式、聚合方向和输入协议的 golden 验证。", mitigation: "为核心代理增加论文级数值 fixture 和 provenance。", taskIds: ["E1", "H1"] },
+    { id: "R-DIRECTION-MIGRATION", severity: "高", status: "关闭", title: "方向修复已缓解并闭环于当前范围", description: "Params/FLOPs 历史证据已从原始 scores 重算，v2 reader 只读迁移 legacy version/direction，raw 不改写；混合 shard bundle 回归和 309-test 最终 gate 均通过。", mitigation: "保留该历史风险与旧 evidence；未来 schema 或聚合逻辑变更时继续执行只读迁移、混合 shard 和方向回归。", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
+    { id: "R-NB301-RUNTIME-COMPAT", severity: "中", status: "监控", title: "NB301 surrogate 仅在锁定运行时声明确定性", description: "xgboost 2.1.4 / nasbench301 0.3 的重复预测一致，但旧二进制 ensemble 发出跨版本兼容警告。", mitigation: "结果 fidelity 仅标 deterministic_on_locked_runtime，并记录依赖版本；不得宣称跨 xgboost 或 ensemble 版本确定性。", taskIds: ["B3", "H1"] },
     { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 80%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
     { id: "R-PIT", severity: "中", status: "开放", title: "PiT MAC 对照尚未完成", description: "真实 GT 的 224 forward、官方参数量与参数 shape multiset 已对齐；MAC golden 尚缺。PiT 是固定 benchmark 候选，不要求重复完整训练。", mitigation: "补充同一官方 commit 的 MAC fixture 后关闭结构验收；vanilla/KD 指标继续分协议查询。", taskIds: ["C4"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] },
@@ -261,6 +263,19 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-SECURITY-BOUNDARY-309", time: "2026-07-31 01:02", title: "最终安全与仓库卫生检查", result: "大文件与凭据扫描通过；unsafe pickle/torch.load 仅保留在显式 trusted 转换、checkpoint 和 vendor native 边界，普通不可信数据路径不允许使用。", command: "large-file scan; credential scan; unsafe pickle/eval/torch.load boundary audit", taskIds: ["A1", "G1", "I1"] },
+    { id: "EV-FULL-GATE-309", time: "2026-07-31 01:02", title: "最终全仓质量 gate", result: "309 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel、diff、大文件和凭据检查全部通过。该 gate 取代 304/307 作为当前门禁口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check; repository hygiene scans", taskIds: ["A1", "E1", "G1", "H1", "I1"] },
+    { id: "EV-DIRECTION-CURRENT-SCOPE-CLOSED", time: "2026-07-31 01:02", title: "Params/FLOPs 方向修复当前范围闭环", result: "历史证据重算、v2 只读迁移和混合 shard bundle 回归均完成；migration provenance 不再错误拆分 heatmap，raw artifacts 保持不改写，并通过最终 309-test gate。", command: "rebuild direction evidence; test legacy v2 reader and mixed-shard bundle; run final gate", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
+    { id: "EV-NB301-STANDARD-ANALYZE", time: "2026-07-31 01:02", title: "NB301 标准 sensitivity 分析完成", result: "标准 analyze sensitivity 生成 33 条相关性、33 条跨 seed canonical-ID rank stability 和 231 条 sample-size 记录；同时修复 migration provenance 拆分 heatmap 的通用缺陷。", command: "analyze sensitivity on NB301 1000-candidate locked protocol", taskIds: ["E2", "H1"] },
+    { id: "EV-NB301-LOCKED-COMPLETE", time: "2026-07-31 01:02", title: "NB301 1000-candidate locked protocol 完成", result: "22 代理 seed 2026 为 22,000/22,000；核心 11 代理三 seed为 33,000/33,000，均 0 failed、0 duplicate；effective SHA feecded…e172。结论仅适用于 locked deterministic runtime，H1 仍等待 TNB101 与 ViT。", command: "merge and validate NB301 single-seed/core-three-seed effective scores; verify locked runtime provenance", taskIds: ["B3", "E1", "E2", "H1"] },
+    { id: "EV-INTERMEDIATE-GATE-307", time: "2026-07-31 00:30", title: "历史中间 gate 307", result: "307 tests passed、第一方 source coverage 87%；其后补充 reader legacy version/direction 迁移测试，现已由最终 309-test gate 取代。", command: "coverage run -m pytest; coverage report", taskIds: ["A1", "E1", "G1", "H1"] },
+    { id: "EV-DIRECTION-HISTORY-REBUILT", time: "2026-07-31 00:30", title: "Params/FLOPs 历史方向证据重算", result: "历史 Params/FLOPs 方向证据已从原始 scores 重算并同步；reader 显式迁移 legacy version/direction，raw 文件不改写。该阶段结果随后通过混合 shard bundle 回归与最终 309-test gate。", command: "rebuild historical correlation/report evidence from raw scores; verify legacy reader migration without rewriting raw artifacts", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
+    { id: "EV-NB301-SEED2027-SHARD2-RERUN", time: "2026-07-31 00:30", title: "NB301 seed 2027 shard 2 补跑完成", result: "补跑新 run bd2481702c70 为 2,750/2,750 ok、0 duplicate，scores SHA 1dbb91…a0bf；旧 0 行失败 run 保留且未改写。seed 2027/2028 的 8 个额外核心分片均完成，但 33,000 effective 合并与三 seed报告仍在进行，NB301 尚未完成。", command: "audit run bd2481702c70; merge pending after all core shards", taskIds: ["E1", "H1"] },
+    { id: "EV-FULL-GATE-304", time: "2026-07-31 00:22", title: "历史中间 gate 304", result: "304 tests passed；该中间口径先后由 307 中间 gate 和最终 309-test gate 取代，仅保留用于审计时间线。", command: "pytest; ruff check; python -m compileall; pip check; node panel/check-data.js", taskIds: ["A1", "G1", "H1"] },
+    { id: "EV-DIRECTION-MIGRATION-IN-PROGRESS", time: "2026-07-31 00:22", title: "方向字段拆分与历史只读迁移进行中", result: "旧 params/flops 将 resource minimize 误用于 accuracy 相关性并取负；当前实现拆为 direction=maximize 和 resource_direction=minimize，reader 仅只读迁移且不改写历史。相关历史证据正在重生成，最终 gate 待新增测试后重跑，尚未闭环。", command: "regenerate correlation/report evidence with direction=maximize and resource_direction=minimize; preserve legacy JSONL read-only", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
+    { id: "EV-NB301-CORE-3SEED-PARTIAL", time: "2026-07-31 00:22", title: "NB301 核心 11 代理三 seed 部分完成", result: "seed 2026 由完整 22 代理单 seed 的核心子集覆盖；seed 2028 四个 shard 均为 2,750 completed；seed 2027 shard 0/1/3 completed。seed 2027 shard 2 的旧 run 因 ProxyCapability resource_direction 短暂不匹配而 0 行 failed，旧 run 保持不改写并补跑该 shard，因此 NB301 尚未完成。", command: "NB301 core11 seed2026/2027/2028 four-shard status audit; rerun only seed2027 shard2", taskIds: ["E1", "H1"] },
+    { id: "EV-NB301-LOCKED-RUNTIME", time: "2026-07-31 00:22", title: "NB301 锁定运行时确定性边界", result: "在 xgboost 2.1.4 / nasbench301 0.3 锁定运行时重复预测一致；旧二进制 ensemble 存在跨版本兼容警告，因此结果只标 deterministic_on_locked_runtime，不声明跨版本确定性。", command: "repeat NB301 surrogate prediction under locked xgboost==2.1.4 and nasbench301==0.3", taskIds: ["B3", "H1"] },
+    { id: "EV-NB301-SAMPLE-SINGLE-SEED", time: "2026-07-31 00:22", title: "NB301 1000 候选与 22-ZCP 单 seed 完成", result: "从 population corpus 11,221 以 seed 2026 锁定 1,000 候选并分为 4 shard，manifest SHA aff2d3…b5；22 ZCP 单 seed 共 22,000/22,000 success、0 failed、0 duplicate，effective SHA 0c27d4…c8d1。该证据不代表核心三 seed或 NB301 scoped H1 完成。", command: "NB301 sample-manifest audit; merge and validate 22-ZCP seed2026 four-shard scores", taskIds: ["B3", "E1", "H1"] },
     { id: "EV-GIT-PUSH-28943B4", time: "2026-07-30 23:31", title: "NB101 scoped H1 阶段提交已推送", result: "提交 28943b4 已推送远端；该提交记录阶段性 NB101 1% 结果与门禁，不代表完整 H1 或最终发布完成。", command: "git show --stat --oneline 28943b4; git push", taskIds: ["H1", "I1"] },
     { id: "EV-FULL-GATE-303", time: "2026-07-30 23:31", title: "NB101 scoped H1 后低成本 gate", result: "全量 303 tests passed，第一方 source coverage 87%；Ruff、compileall、pip check 与 panel 检查通过。该门禁验证代码与结果契约，不替代剩余 NB301、TNB101 和 ViT 的高成本运行。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js", taskIds: ["G1", "H1"] },
     { id: "EV-NB101-1PCT-COMPLETE", time: "2026-07-30 23:31", title: "NB101 1% scoped H1 完成", result: "4,237 个分层架构的 22 代理 seed 2026 共 93,214/93,214 成功；核心 11 代理三 seed 共 139,821/139,821 成功。4/12/36/108 budget 均生成 mean/min/max 报告，sample-size 分析扩展至 4,237；验收后 preliminary 目录已删除。该结论仅关闭 NB101 scoped 范围，完整 H1 仍进行中。", command: "NB101 scoped 1% merge/report/sample-size acceptance; remove superseded preliminary directory", taskIds: ["E1", "E2", "E3", "F2", "H1"] },
