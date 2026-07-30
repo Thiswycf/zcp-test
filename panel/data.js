@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 07:12 CST",
+  updatedAt: "2026-07-31 07:10 CST",
   project: {
     name: "zcp-test",
     status: "active",
