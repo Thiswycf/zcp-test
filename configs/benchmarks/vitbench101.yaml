@@ -1,17 +1,14 @@
-benchmark_id: vitbench101
-version: auto-prox-90ed458
-source_commit: 90ed458
-slices:
-  autoformer_main:
-    search_space_id: autoformer
-    path: /path/to/data/vitbench101/converted/gt_autoformer.jsonl
-    source_path: /path/to/data/vitbench101/gt_autoformer.pth
-  autoformer_ext:
-    search_space_id: autoformer
-    path: /path/to/data/vitbench101/converted/gt_autoformer_2.jsonl
-    source_path: /path/to/data/vitbench101/gt_autoformer_2.pth
-  pit:
-    search_space_id: pit
-    path: /path/to/data/vitbench101/converted/gt_pit.jsonl
-    source_path: /path/to/data/vitbench101/gt_pit.pth
-trusted_conversion_required: true
+evaluate:
+  benchmark: vitbench101
+  slice_id: autoformer_main
+  catalog: ~/.config/zcp-test/data.json
+provenance:
+  benchmark_id: vitbench101
+  search_space_ids: [autoformer, pit]
+  source_commit: 90ed458
+  source_page: https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458
+  download_urls:
+    - https://raw.githubusercontent.com/lliai/Auto-Prox-AAAI24/90ed458/gt_results/gt_autoformer.pth
+    - https://raw.githubusercontent.com/lliai/Auto-Prox-AAAI24/90ed458/gt_results/gt_autoformer_2.pth
+    - https://raw.githubusercontent.com/lliai/Auto-Prox-AAAI24/90ed458/gt_results/gt_pit.pth
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks vitbench101 --yes

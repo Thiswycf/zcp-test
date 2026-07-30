@@ -44,6 +44,30 @@ def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):
     assert not (run / "reports").exists()
 
 
+def test_evaluate_identity_can_come_from_yaml_config(tmp_path):
+    output = tmp_path / "configured-runs"
+    config = tmp_path / "evaluate.yaml"
+    config.write_text(
+        "evaluate:\n"
+        "  space: nb201_topology\n"
+        "  proxies: params\n"
+        "  count: 1\n"
+        "  device: cpu\n"
+        "  input_source: random\n"
+        "  batch_size: 1\n"
+        "  input_size: 8\n"
+        f"  output: {output}\n",
+        encoding="utf-8",
+    )
+
+    main(["evaluate", "--config", str(config)])
+
+    run = next(output.iterdir())
+    rows = [json.loads(line) for line in (run / "scores.jsonl").read_text().splitlines()]
+    assert len(rows) == 1
+    assert rows[0]["proxy_id"] == "params"
+
+
 def test_legacy_score_rows_fold_without_modifying_source():
     rows = [
         {"run_id": "r", "architecture_id": "a", "proxy_id": "er", "component": "mean", "score": 2.0},

@@ -23,6 +23,16 @@ The table is a plan, not proof that a remote download works. JSON output additio
 the expected raw paths, runtime paths, source pages or URLs, planning size, partial bytes,
 free bytes at the filesystem probe, and a remediation command.
 
+When using a non-default catalog, pass the same `--catalog /path/to/data/catalog.json` to
+checklist, bootstrap, inspect, and evaluate. Files in `configs/benchmarks/*.yaml` are executable
+evaluate configurations that resolve through `~/.config/zcp-test/data.json`; they contain no
+developer-machine path. For example:
+
+```bash
+zcp-test evaluate --config configs/benchmarks/nasbench201.yaml \
+  --proxies params --count 1 --input-source random --device cpu
+```
+
 Possible states are:
 
 | State | Exact meaning | Next action |

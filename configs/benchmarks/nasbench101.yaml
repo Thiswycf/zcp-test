@@ -1,8 +1,9 @@
-benchmark_id: nasbench101
-search_space_id: nb101_dag
-version: full
-path: /path/to/data/nasbench101/converted/full/manifest.json
-source:
-  path: /path/to/data/nasbench101/nasbench_full.tfrecord
-  url: https://storage.googleapis.com/nasbench/nasbench_full.tfrecord
-  conversion_required: true
+evaluate:
+  benchmark: nasbench101
+  benchmark_version: full
+  catalog: ~/.config/zcp-test/data.json
+provenance:
+  benchmark_id: nasbench101
+  search_space_id: nb101_dag
+  source_url: https://storage.googleapis.com/nasbench/nasbench_full.tfrecord
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks nasbench101 --yes

@@ -1,6 +1,12 @@
-benchmark_id: nats_tss
-search_space_id: nb201_topology
-version: "1.0"
-path: /path/to/data/natsbench/NATS-tss-v1_0-3ffb9-simple
-api_type: tss
-epoch_budgets: [12, 200]
+evaluate:
+  benchmark: nats_tss
+  benchmark_version: "1.0"
+  trusted: true
+  catalog: ~/.config/zcp-test/data.json
+provenance:
+  benchmark_id: nats_tss
+  search_space_id: nb201_topology
+  api_type: tss
+  source_page: https://github.com/D-X-Y/NATS-Bench
+  download_url: https://drive.usercontent.google.com/download?id=17_saCsj_krKjlCBLOJEpNtzPXArMCqxU&export=download&confirm=t
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks nats_tss --yes

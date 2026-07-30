@@ -117,7 +117,9 @@ def data_checklist(
             download = asset.download_path(root)
             partial = Path(f"{download}.part")
             partial_bytes += partial.stat().st_size if partial.is_file() else 0
-            sources.extend(asset.urls or ((asset.source_page,) if asset.source_page else ()))
+            sources.extend(asset.urls)
+            if asset.source_page:
+                sources.append(asset.source_page)
             if installed.exists():
                 if asset.sha256 and installed.is_file():
                     from zcp_test.data.assets import sha256_file

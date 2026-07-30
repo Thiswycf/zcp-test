@@ -21,6 +21,15 @@ zcp-test data checklist --root /path/to/data --json \
 表格是下载计划，不代表远端下载已经可用。JSON 还会给出原始路径、运行期路径、来源页面或
 URL、规划大小、断点字节数、文件系统探测到的剩余空间和修复命令。
 
+若使用非默认 catalog，应在 checklist、bootstrap、inspect 和 evaluate 中始终传入同一个
+`--catalog /path/to/data/catalog.json`。`configs/benchmarks/*.yaml` 是可执行 evaluate 配置，
+默认通过 `~/.config/zcp-test/data.json` 解析路径，不包含开发机绝对路径；例如：
+
+```bash
+zcp-test evaluate --config configs/benchmarks/nasbench201.yaml \
+  --proxies params --count 1 --input-source random --device cpu
+```
+
 状态含义如下：
 
 | 状态 | 精确定义 | 后续动作 |

@@ -607,6 +607,8 @@ def command_data(args: argparse.Namespace) -> None:
 
 
 def command_evaluate(args: argparse.Namespace) -> None:
+    if bool(args.space) == bool(args.benchmark):
+        raise ValueError("evaluate requires exactly one of space or benchmark")
     _prepare_gpu(args)
     load_builtin_spaces()
     load_builtin_benchmarks()
@@ -1289,7 +1291,7 @@ def build_parser() -> argparse.ArgumentParser:
         proxy_parser.set_defaults(function=command_proxy)
     evaluate = subparsers.add_parser("evaluate")
     evaluate.add_argument("--config")
-    evaluate_identity = evaluate.add_mutually_exclusive_group(required=True)
+    evaluate_identity = evaluate.add_mutually_exclusive_group(required=False)
     evaluate_identity.add_argument("--space")
     evaluate_identity.add_argument("--benchmark")
     evaluate.add_argument("--benchmark-path")
@@ -1350,7 +1352,7 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--dataset", default="cifar10")
     search.add_argument("--input-source", choices=("dataset", "random", "noise"), default="dataset")
     search.add_argument("--data-root")
-    search.add_argument("--catalog", default="configs/data.example.json")
+    search.add_argument("--catalog", default=data_default)
     search.add_argument("--output", default="runs/search")
     search.set_defaults(function=command_search)
     train = subparsers.add_parser("train")
@@ -1369,7 +1371,7 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--input-size", type=int)
     train.add_argument("--classes", type=int)
     train.add_argument("--data-root")
-    train.add_argument("--catalog", default="configs/data.example.json")
+    train.add_argument("--catalog", default=data_default)
     train.add_argument("--workers", type=int, default=4)
     train.add_argument("--output", default="runs/training")
     train.add_argument("--smoke", action="store_true")

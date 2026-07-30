@@ -1,7 +1,12 @@
-benchmark_id: nasbench301_surrogate
-search_space_id: darts
-version: "1.0"
-path: /path/to/data/nasbench301/nb_models/xgb_v1.0
-runtime_path: /path/to/data/nasbench301/nb_models/lgb_runtime_v1.0
-architecture_source: deterministic_darts_sampling
-surrogate_noise: false
+evaluate:
+  benchmark: nasbench301_surrogate
+  benchmark_version: "1.0"
+  trusted: true
+  catalog: ~/.config/zcp-test/data.json
+  surrogate_noise: false
+provenance:
+  benchmark_id: nasbench301_surrogate
+  search_space_id: darts
+  source_page: https://figshare.com/articles/software/nasbench301_models_v1_0_zip/13061510
+  download_url: https://ndownloader.figshare.com/files/24992018
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks nasbench301_surrogate --yes

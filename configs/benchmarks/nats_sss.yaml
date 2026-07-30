@@ -1,6 +1,12 @@
-benchmark_id: nats_sss
-search_space_id: nats_size
-version: "1.0"
-path: /path/to/data/natsbench/NATS-sss-v1_0-50262-simple
-api_type: sss
-epoch_budgets: [12, 90]
+evaluate:
+  benchmark: nats_sss
+  benchmark_version: "1.0"
+  trusted: true
+  catalog: ~/.config/zcp-test/data.json
+provenance:
+  benchmark_id: nats_sss
+  search_space_id: nats_size
+  api_type: sss
+  source_page: https://github.com/D-X-Y/NATS-Bench
+  download_url: https://drive.usercontent.google.com/download?id=1scOMTUwcQhAMa_IMedp9lTzwmgqHLGgA&export=download&confirm=t
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks nats_sss --yes

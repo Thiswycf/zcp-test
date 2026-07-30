@@ -1,6 +1,11 @@
-benchmark_id: nasbench201
-search_space_id: nb201_topology
-version: "1.1"
-path: /path/to/data/nasbench201/NAS-Bench-201-v1_1-096897.pth
-datasets: [cifar10-valid, cifar10, cifar100, ImageNet16-120]
-epoch_budgets: [12, 200]
+evaluate:
+  benchmark: nasbench201
+  benchmark_version: "1.1"
+  trusted: true
+  catalog: ~/.config/zcp-test/data.json
+provenance:
+  benchmark_id: nasbench201
+  search_space_id: nb201_topology
+  source_page: https://github.com/D-X-Y/NAS-Bench-201
+  download_url: https://drive.usercontent.google.com/download?id=16Y0UwGisiouVRxW-W5hEtbxmcHw_0hF_&export=download&confirm=t
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks nasbench201 --yes

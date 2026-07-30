@@ -1,11 +1,12 @@
-benchmark_id: transnasbench101
-search_space_id: transnas_micro
-space: micro
-version: v10141024
-paths:
-  micro: /path/to/data/transnasbench101/converted/transnas_micro.jsonl
-  macro: /path/to/data/transnasbench101/converted/transnas_macro.jsonl
-source:
-  path: /path/to/data/transnasbench101/transnas-bench_v10141024.pth
-  trusted_conversion_required: true
-tasks: [class_object, class_scene, autoencoder, room_layout, jigsaw, segmentsemantic, normal]
+evaluate:
+  benchmark: transnasbench101
+  benchmark_version: v10141024
+  transnas_space: micro
+  catalog: ~/.config/zcp-test/data.json
+provenance:
+  benchmark_id: transnasbench101
+  search_space_ids: [transnas_micro, transnas_macro]
+  source_page: https://github.com/yawen-d/TransNASBench
+  download_page: https://drive.google.com/drive/folders/1HlLr2ihZX_ZuV3lJX_4i7q4w-ZBdhJ6o
+  download_url: https://drive.usercontent.google.com/download?id=1BV_BRMsCUVBtSVj4SN4QmA9Pjd35B2M4&export=download&confirm=t
+  bootstrap: zcp-test data bootstrap --root /path/to/data --benchmarks transnasbench101 --yes
