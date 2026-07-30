@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 16:13 CST",
+  updatedAt: "2026-07-30 16:15 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -26,7 +26,7 @@ window.ZCP_PANEL_DATA = {
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
       detail: "最新质量 gate 为 216 passed；第一方 coverage 86%、CLI 80%、benchmark_report 96%、reports 100%，Ruff、compileall、pip check 与 diff check 通过。覆盖率门槛已完成，仍持续记录并发工作区状态。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 16:13"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 16:15"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -257,6 +257,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-GIT-CHECKPOINT", time: "2026-07-30 16:15", title: "低成本审计阶段提交", result: "216-test/86%-coverage、PiT/OFA-MBV3 reference、训练协议白名单、文档和动态看板已提交为 9e939b8；数据、runs 和 checkpoint 未进入 Git。远端推送等待 GitHub 登录。", command: "git commit -m 'Complete low-cost audit and reference model pass'", taskIds: ["A1", "A2", "C4", "F1", "G1", "I1"] },
     { id: "EV-PIT-REFERENCE", time: "2026-07-30 16:13", title: "PiT reference 官方结构对照", result: "真实 gt_pit 规格完成 load→build→224 forward；与 Auto-Prox 90ed458 同为 893,828 参数且参数 shape multiset 一致。MAC golden 尚未完成。", command: "PYTHONPATH=/tmp/Auto-Prox-AAAI24 conda run -n zcp-test python /tmp/check_upstream_pit_isolated.py", taskIds: ["C4"] },
     { id: "EV-MBV3-REFERENCE", time: "2026-07-30 16:13", title: "OFA-MBV3 静态 reference 对照", result: "按官方五阶段/20-block 编码实现 SE、h-swish、width rounding 与 BN recalibration；全 3×3/e3/d2/w1.0 子网双方均为 3,410,792 参数且 shape multiset 一致。", command: "PYTHONPATH=/tmp/once-for-all conda run -n zcp-test python /tmp/check_ofa_mbv3.py", taskIds: ["C4"] },
     { id: "EV-PROTOCOL-GATE", time: "2026-07-30 16:13", title: "正式训练协议不可由 YAML 自授权", result: "新增代码内 DARTS 协议白名单与关键字段校验；拒绝未知协议、篡改 recipe、batch/input override，并在缺数据时构模前失败。", command: "pytest -q tests/test_workflow.py -k 'approved_formal or non_reference_space'", taskIds: ["A2", "D1", "D2"] },
