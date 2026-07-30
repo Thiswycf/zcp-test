@@ -1,0 +1,67 @@
+{
+  "schema_version": "1.0",
+  "code_commit": "4d3d09d5dd69d41de5fa309b5de62bb299731e24",
+  "training_seed": 20260731,
+  "candidate_selection": {
+    "proxy": "er",
+    "search_candidates": 416,
+    "unique_evaluations": 336,
+    "input_batch_size": 16,
+    "selected_architecture_id": "8229ba5055865c0aaf8d",
+    "fixed_random_architecture_id": "e6f106292da6dfb2c91b",
+    "params_matched_architecture_id": "107e3944e6a3710eca1a",
+    "selected_parameters": 3708912,
+    "matched_parameters": 3707400,
+    "absolute_parameter_difference": 1512
+  },
+  "deterministic_preflight": {
+    "scientific_rows_equal": true,
+    "model_states_equal": true,
+    "model_state_sha256": "a5f1cca5fb75ec4e82bc534cf5e44d556583044e2d06ca748c5720a9ffa9e14d",
+    "valid_top1": 46.61,
+    "next_learning_rate": 0.024999828653092835,
+    "schedule_epochs": 600,
+    "peak_memory_mb": 3057.578125
+  },
+  "full_data_one_percent_epochs": {
+    "epochs": 6,
+    "schedule_epochs": 600,
+    "completed_runs": 6,
+    "results": [
+      {"dataset": "cifar10", "role": "zcp_selected", "run_id": "d6b9e6418508", "best_valid_top1": 78.62},
+      {"dataset": "cifar10", "role": "fixed_random", "run_id": "2d43290a5bf7", "best_valid_top1": 77.28},
+      {"dataset": "cifar10", "role": "params_matched_random_pool", "run_id": "7b6d46957e5a", "best_valid_top1": 64.67},
+      {"dataset": "cifar100", "role": "zcp_selected", "run_id": "fe2b42a99386", "best_valid_top1": 46.19},
+      {"dataset": "cifar100", "role": "fixed_random", "run_id": "a443c0123dfc", "best_valid_top1": 44.13},
+      {"dataset": "cifar100", "role": "params_matched_random_pool", "run_id": "224d870045a9", "best_valid_top1": 26.81}
+    ]
+  },
+  "one_percent_data_protocol": {
+    "data_fraction": 0.01,
+    "epochs": 600,
+    "schedule_epochs": 600,
+    "completed_runs": 6,
+    "results": [
+      {"dataset": "cifar10", "role": "zcp_selected", "run_id": "0d17f0ed72fd", "best_valid_top1": 42.0},
+      {"dataset": "cifar10", "role": "fixed_random", "run_id": "ad1120cda483", "best_valid_top1": 45.0},
+      {"dataset": "cifar10", "role": "params_matched_random_pool", "run_id": "ed559b37d59a", "best_valid_top1": 46.0},
+      {"dataset": "cifar100", "role": "zcp_selected", "run_id": "2ad175d65632", "best_valid_top1": 15.0},
+      {"dataset": "cifar100", "role": "fixed_random", "run_id": "4b7a477444a6", "best_valid_top1": 12.0},
+      {"dataset": "cifar100", "role": "params_matched_random_pool", "run_id": "1789cf30c9bf", "best_valid_top1": 11.0}
+    ]
+  },
+  "checksums": {
+    "search_jsonl": "26a1b62f9c4895631d9206d22db903a3f933fda3e0490cf380f133de6a1a3cc3",
+    "candidate_manifest": "b2d25e6f7b08f40228ba5a09595d045fa05c5f512fb755cc6a1be0e6cdafc6bb",
+    "preflight_comparison": "1a95e59e8b763dd5a40ab6d5600e4516867e33107b6776ed4cf2d92a09ad02f4",
+    "full_data_summary": "da7163a060348689aa5e3ffde98709afaab4bde73ac183948863bbf11855b3df",
+    "one_percent_data_summary": "94a40a4366d266dbfd4db48ad33f023bad675db03bcd80954e9e1f0ce374ac15"
+  },
+  "limitations": [
+    "The full-data result is a six-epoch prefix, not a 600-epoch accuracy reproduction.",
+    "The one-percent-data result is not a full-data accuracy reproduction.",
+    "All training results use one seed.",
+    "Candidate selection uses one ER input batch and one initialization seed.",
+    "The two acceptance protocols must be reported separately."
+  ]
+}

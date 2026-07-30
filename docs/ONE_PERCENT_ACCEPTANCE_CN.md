@@ -4,6 +4,24 @@
 AutoFormer 搜索空间没有完整 tabular 真值，不运行这种相关性验收；它们使用 validation-only 搜索和
 候选完整训练。NAS-Bench-301 的结论必须写成 surrogate association。
 
+## 与训练“双重 1%”的区别及当前状态
+
+本文其余部分的“1%”指 benchmark 候选抽样相关性；DARTS 等开放空间使用的是另一套训练验收，
+两者不得混称。DARTS CIFAR-10/100 已对 ER 搜索候选、固定随机候选和参数匹配随机池候选完成：
+
+- 全数据 × 6 epoch，共 6 runs；
+- 恰好 1% 数据 × 600 epoch，共 6 runs；
+- 确定性真实数据预检、两套协议各一次可信 checkpoint 恢复审计，以及证据报告。
+
+详细候选、结果和校验摘要见
+[`evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md`](evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md) 与
+[`evidence/darts_cifar_dual_one_percent_summary.json`](evidence/darts_cifar_dual_one_percent_summary.json)。
+该验收不是 600 epoch 全数据精度复现，也不是多 seed 搜索收益证明；全部训练只使用 seed
+`20260731`，候选选择只使用一个固定 CIFAR-10 batch 和一个初始化 seed。两个训练协议排序不同且
+科学含义不同，禁止求平均。ImageNet-1k 已通过 1000 类、1,281,167/50,000 张图和真实 loader
+解码的资产预检；DARTS ImageNet 双重 1% 尚未执行，不能再记为“数据缺失”，也不能记为通过；AutoFormer、
+PlainNet-MBV2、Proxyless-MBV2 的双重 1% 均未完成。
+
 ## 1. 生成确定性分层清单
 
 `benchmark sample` 遍历 benchmark 的 canonical architecture，按 benchmark 特征建立 strata，按

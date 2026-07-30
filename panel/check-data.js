@@ -67,6 +67,8 @@ assert(indexSource.includes('no-cache, no-store, must-revalidate'), "页面 Cach
 assert(indexSource.includes("最后成功刷新"), "刷新栏未显示最后成功刷新时间");
 assert(indexSource.includes("上次检查"), "刷新栏未显示上次检查时间");
 assert(indexSource.includes('<script src="data.js"></script>'), "file:// 回退缺少直接 data.js 脚本");
+assert(indexSource.includes('id="project-status"'), "页面缺少项目状态展示");
+assert(appSource.includes('`项目状态：${data.project.status}`'), "项目状态未由数据驱动渲染");
 assert(indexSource.indexOf('<script src="data.js"></script>') < indexSource.indexOf('<script src="app.js"></script>'), "data.js 必须先于 app.js 加载");
 assert(stylesSource.includes(".refresh-primary"), "立即刷新按钮缺少可见样式");
 assert(!/\.refresh-primary\s*\{[^}]*display\s*:\s*none/is.test(stylesSource), "立即刷新按钮被样式隐藏");
@@ -98,13 +100,15 @@ assert(appSource.includes('`上次检查：${formatClock()}`'), "刷新完成后
 assert(appSource.includes('`数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`'), "未明确显示数据更新时间");
 assert(appSource.includes("window.scrollTo(viewport.left, viewport.top)"), "刷新后未恢复滚动位置");
 assert(appSource.includes('window.location.protocol === "file:"'), "缺少 file:// 兼容提示逻辑");
-assert(appSource.includes('$("#auto-refresh-toggle").disabled = true'), "file:// 模式未停用自动刷新控件");
-assert(appSource.includes('setAutoRefresh(false)'), "file:// 模式未停止自动刷新计时器");
-assert(indexSource.includes("只保证显示页面载入时的初始快照，自动更新已停用"), "file:// 提示仍可能误导为支持动态更新");
+assert(appSource.includes("reloadPageWithCacheBusting()"), "file:// 模式缺少页面级刷新回退");
+assert(appSource.includes('url.searchParams.set("refresh"'), "页面级刷新回退缺少缓存破坏参数");
+assert(appSource.includes("saveReloadState()"), "页面级刷新回退未保存筛选状态");
+assert(appSource.includes("restoreReloadState()"), "页面级刷新回退未恢复筛选状态");
+assert(indexSource.includes("若浏览器阻止动态脚本，则保留筛选状态并自动重载页面"), "file:// 回退提示不完整");
 assert(appSource.includes("可点击“立即刷新”重试"), "刷新失败未提示重试");
 assert(readmeSource.includes("python -m http.server 8768 --directory panel"), "README 缺少静态服务器命令");
 assert(readmeSource.includes("file://"), "README 缺少 file:// 限制说明");
-assert(readmeSource.includes("不声称能够动态取得后续更新"), "README 未明确 file:// 仅为静态快照");
+assert(readmeSource.includes("无需手动按 F5"), "README 未说明 file:// 页面重载回退");
 assert(appSource.includes('$("#status-filter").value = state.status'), "刷新后未恢复状态筛选");
 assert(appSource.includes('$("#phase-filter").value = state.phase'), "刷新后未恢复阶段筛选");
 assert(appSource.includes('$("#priority-filter").value = state.priority'), "刷新后未恢复优先级筛选");
@@ -112,7 +116,7 @@ assert(appSource.includes('status.setAttribute("aria-busy", "true")'), "刷新�
 assert(appSource.includes('status.removeAttribute("aria-busy")'), "刷新结束时未清除 aria-busy");
 assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");
 assert(!/\bfetch\s*\(/.test(appSource), "看板刷新不应依赖 fetch（file:// 不兼容）");
-assert(!/window\.location\.reload\s*\(/.test(appSource), "看板刷新不应依赖整页 reload/F5");
+assert(!/window\.location\.reload\s*\(/.test(appSource), "页面回退应使用 cache-busting URL，而不是普通 reload");
 
 if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isArray(data.evidence)) {
   const now = Date.now();
@@ -123,6 +127,20 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     "id", "phase", "priority", "title", "content", "purpose", "estimate", "startedAt",
     "finishedAt", "status", "progress", "detail", "acceptance", "evidence", "risks", "updatedAt"
   ];
+
+  assert(data.project?.status === "active", "项目总体状态必须保持 active");
+  const dartsEvidence = data.evidence.find((entry) => entry.id === "EV-DARTS-CIFAR-12-RUNS");
+  assert(dartsEvidence?.result.includes("合计 12 runs"), "DARTS CIFAR 完成数未记录为 12 runs");
+  assert(dartsEvidence?.result.includes("确定性预检重复一致"), "DARTS 确定性预检结果缺失");
+  assert(dartsEvidence?.result.includes("两个恢复审计与三组报告完成"), "DARTS 恢复审计或报告状态缺失");
+  for (const riskId of ["R-DARTS-IMAGENET-DATA", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"]) {
+    const risk = data.risks.find((entry) => entry.id === riskId);
+    assert(risk && ["开放", "受阻"].includes(risk.status), `关键风险 ${riskId} 未保持开放或受阻`);
+  }
+  for (const taskId of ["H2", "H3"]) {
+    const task = data.tasks.find((entry) => entry.id === taskId);
+    assert(task?.status !== "已完成", `任务 ${taskId} 不应标记为全部完成`);
+  }
 
   checkTime(data.updatedAt, "面板 updatedAt", now);
   for (const task of data.tasks) {

@@ -273,6 +273,17 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   nasbench301 0.3, not real-training ground truth or an exhaustive DARTS space. See the
   [human-readable evidence](docs/evidence/NB301_ONE_THOUSAND_CN.md) and
   [machine-readable summary](docs/evidence/nb301_one_thousand_summary.json).
+- DARTS CIFAR-10/100 dual one-percent acceptance is complete for three frozen candidates: six
+  full-data × 6-epoch runs and six exactly-1%-data × 600-epoch runs. The deterministic preflight,
+  one trusted-checkpoint recovery audit per protocol, and reporting are complete; see the
+  [evidence report](docs/evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md) and
+  [machine-readable summary](docs/evidence/darts_cifar_dual_one_percent_summary.json). This is not a
+  600-epoch full-data accuracy reproduction or a multi-seed search-gain result. The protocols rank
+  candidates differently and must not be averaged. The local ImageNet-1k asset now passes a structural
+  audit (1,000 classes, 1,281,167 training images, and 50,000 validation images) plus a real-loader
+  decode check. DARTS ImageNet therefore moves from “dataset unavailable” to “asset ready, acceptance
+  not yet run”; AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains
+  incomplete.
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
   OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-
   augmentation sampler, the AZ-NAS linear LR rule (`base_lr * global_batch / 512`), and six exact
@@ -296,8 +307,9 @@ Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs
 proxy sweeps for NB101, NB201, NATS-TSS, and NATS-SSS/CIFAR-10-valid are accepted under their
 documented protocols; the scoped NB301 deterministic-surrogate protocol is also accepted. Project-wide
 H1 remains incomplete: TransNAS-Bench-101, ViT-Bench-101, and other remaining protocols are pending.
-Full DARTS 250/600-epoch training also
-remains unaccepted; see the [acceptance report](docs/ACCEPTANCE.md).
+The DARTS CIFAR dual one-percent protocol is accepted, but full-data 600-epoch CIFAR accuracy
+reproduction and 250-epoch ImageNet training remain unaccepted; see the
+[acceptance report](docs/ACCEPTANCE.md).
 
 ### ViT-Bench public-release boundary
 

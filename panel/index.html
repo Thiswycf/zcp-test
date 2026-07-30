@@ -18,6 +18,7 @@
     <div class="hero-copy">
       <p class="eyebrow">ZCP-TEST · DELIVERY CONTROL</p>
       <h1 id="page-title">任务与验收看板</h1>
+      <p id="project-status" class="muted"></p>
       <p id="project-purpose" class="hero-purpose"></p>
       <p id="last-updated" class="muted"></p>
     </div>
@@ -51,8 +52,9 @@
           <span id="refresh-countdown" class="muted">30 秒后检查</span>
         </div>
         <p id="refresh-file-hint" class="refresh-file-hint" role="note" hidden>
-          当前通过 <code>file://</code> 打开，只保证显示页面载入时的初始快照，自动更新已停用；请在项目根目录运行
-          <code>python -m http.server 8768 --directory panel</code>，再访问 <code>http://127.0.0.1:8768/</code>。
+          当前通过 <code>file://</code> 打开：页面会先尝试局部更新；若浏览器阻止动态脚本，则保留筛选状态并自动重载页面。
+          为获得稳定的局部刷新，建议在项目根目录运行 <code>python -m http.server 8768 --directory panel</code>，
+          再访问 <code>http://127.0.0.1:8768/</code>。
         </p>
       </div>
       <button id="theme-toggle" class="button secondary" type="button" aria-pressed="false">

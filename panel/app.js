@@ -21,6 +21,7 @@
   let nextRefreshAt = null;
   let refreshIntervalMs = 30_000;
   const refreshIntervalStorageKey = "zcp-panel-refresh-interval";
+  const reloadStateStorageKey = "zcp-panel-reload-state";
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -447,9 +448,43 @@
     });
   }
 
+  function saveReloadState() {
+    const reloadState = {
+      state,
+      scrollX: window.scrollX,
+      scrollY: window.scrollY
+    };
+    try { window.sessionStorage.setItem(reloadStateStorageKey, JSON.stringify(reloadState)); }
+    catch { /* Storage can be unavailable for local files. */ }
+  }
+
+  function restoreReloadState() {
+    let reloadState = null;
+    try {
+      reloadState = JSON.parse(window.sessionStorage.getItem(reloadStateStorageKey));
+      window.sessionStorage.removeItem(reloadStateStorageKey);
+    } catch { /* Ignore unavailable or malformed session state. */ }
+    if (!reloadState?.state) return;
+    Object.assign(state, reloadState.state);
+    $("#search-input").value = state.query;
+    $("#status-filter").value = state.status;
+    $("#phase-filter").value = state.phase;
+    $("#priority-filter").value = state.priority;
+    $("#sort-select").value = state.sort;
+    window.setTimeout(() => window.scrollTo(reloadState.scrollX || 0, reloadState.scrollY || 0), 0);
+  }
+
+  function reloadPageWithCacheBusting() {
+    saveReloadState();
+    const url = new URL(window.location.href);
+    url.searchParams.set("refresh", `${Date.now()}-${++refreshRequestId}`);
+    window.location.replace(url.href);
+  }
+
   function renderCurrentData() {
     rebuildIndexes();
     populateFilters();
+    $("#project-status").textContent = `项目状态：${data.project.status}`;
     $("#project-purpose").textContent = data.project.purpose;
     $("#last-updated").textContent = `数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`;
     renderRisks();
@@ -553,15 +588,19 @@
         $("#refresh-success").textContent = `最后成功刷新：${formatClock()}`;
         if (manual || changed) announce(status.textContent);
       } catch (error) {
+        if (window.location.protocol === "file:") {
+          status.dataset.state = "loading";
+          status.textContent = "局部刷新受限，正在重新载入页面…";
+          announce(status.textContent);
+          reloadPageWithCacheBusting();
+          return;
+        }
         data = previousData;
         window.ZCP_PANEL_DATA = previousData;
         renderCurrentData();
         window.scrollTo(viewport.left, viewport.top);
         status.dataset.state = "error";
-        const retryHint = window.location.protocol === "file:"
-          ? "；file:// 可能阻止动态重载，请按页面提示启动静态服务器后重试"
-          : "；可点击“立即刷新”重试";
-        status.textContent = `刷新失败，继续显示上次数据：${error.message}${retryHint}`;
+        status.textContent = `刷新失败，继续显示上次数据：${error.message}；可点击“立即刷新”重试`;
         announce(status.textContent);
       } finally {
         $("#refresh-checked").textContent = `上次检查：${formatClock()}`;
@@ -607,20 +646,21 @@
     const isFileProtocol = window.location.protocol === "file:";
     $("#refresh-file-hint").hidden = !isFileProtocol;
     if (isFileProtocol) {
-      setAutoRefresh(false);
-      $("#auto-refresh-toggle").disabled = true;
-      $("#refresh-status").textContent = "file:// 仅显示初始快照；自动更新已停用";
+      setAutoRefresh(true);
+      $("#refresh-status").textContent = "file:// 模式：局部刷新失败时自动重载页面";
     } else {
       setAutoRefresh(true);
     }
   }
 
+  $("#project-status").textContent = `项目状态：${data.project.status}`;
   $("#project-purpose").textContent = data.project.purpose;
   $("#last-updated").textContent = `数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`;
   initializeTheme();
-  initializeRefresh();
   populateFilters();
   bindControls();
+  restoreReloadState();
+  initializeRefresh();
   renderRisks();
   renderEvidence();
   renderAllTaskViews();

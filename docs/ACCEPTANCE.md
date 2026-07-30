@@ -8,16 +8,19 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-31 tree: **380 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
-| Coverage | First-party source **87%**; CLI 81%, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
+| Unit/integration baseline | Current 2026-07-31 tree: **396 tests passed** across 28 test files | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
+| Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
+| Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
 | H1 one-percent correlations | NB101, NB201, NATS-TSS, three-dataset NATS-SSS and the NB301 deterministic surrogate completed their scoped protocols | In progress overall | NATS-SSS transfer covers one stratified sample and one input/initialization seed; TNB101 and formal ViT-Bench remain |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
+| DARTS CIFAR dual one-percent | Three candidates on CIFAR-10/100: six full-data × 6-epoch runs and six 1%-data × 600-epoch runs; deterministic preflight, two recovery audits, and reporting complete | Scoped protocol passed | Engineering/scoped acceptance only; not 600-epoch full-data accuracy reproduction or multi-seed search gain, and the protocols must not be averaged |
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
 | Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
 
-The 380-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
-low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
+The 396-test run across 28 test files, first-party source coverage of 87%, CLI coverage of 82%, and
+passing Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` form the
+current low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
 NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
 external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
 entry point may carry the wrong Python shebang.
@@ -62,9 +65,24 @@ The locked NAS-Bench-301 evidence is recorded in
 It is deterministic-surrogate association on the locked XGBoost 2.1.4 / nasbench301 0.3 runtime,
 not real-training truth, an exhaustive DARTS space or a cross-XGBoost-version guarantee.
 
-## DARTS smoke boundary
+## DARTS CIFAR dual one-percent boundary
 
-The retained run executed:
+DARTS CIFAR-10/100 dual one-percent acceptance is complete for the frozen ER-selected, fixed-random,
+and parameter-matched-random candidates: six full-data × 6-epoch runs and six exactly-1%-data ×
+600-epoch runs. The deterministic real-data preflight, one trusted-checkpoint recovery audit per
+protocol, and reporting are complete. See the
+[evidence report](evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md) and
+[machine-readable summary](evidence/darts_cifar_dual_one_percent_summary.json).
+
+This is not a 600-epoch full-data accuracy reproduction or a multi-seed search-gain result. All
+training uses seed `20260731`, and candidate selection uses one fixed CIFAR-10 batch and one
+initialization seed. The protocols test different questions, rank candidates differently, and must
+not be averaged. The ImageNet-1k asset now passes a 1,000-class, 1,281,167/50,000-image structural
+audit and a real-loader decode check. DARTS ImageNet dual one-percent acceptance is still pending;
+the blocker is no longer dataset absence. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual
+one-percent acceptance remains incomplete.
+
+The retained historical synthetic smoke run executed:
 
 ```bash
 zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
@@ -155,10 +173,13 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
 
 The following work is explicitly **not accepted** and must not be reported as completed:
 
-1. Full 600-epoch DARTS CIFAR-10/CIFAR-100 and 250-epoch DARTS ImageNet training.
-2. AutoFormer 500-epoch and Proxyless-MBV2 150-epoch formal protocols; AutoFormer sampler, LR rule,
-   parameter/complexity fixtures, two-rank smoke and real-image-fixture recovery are accepted, but
-   full ImageNet × 1%-epoch and 1%-ImageNet × full-schedule runs remain missing.
+1. DARTS CIFAR-10/CIFAR-100 600-epoch **full-data accuracy reproduction** and multi-seed search-gain
+   validation remain incomplete; only the scoped dual one-percent protocol above is accepted. The
+   ImageNet-1k asset is ready, but DARTS ImageNet dual one-percent and 250-epoch formal training have
+   not yet run.
+2. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains incomplete.
+   AutoFormer sampler/LR/static fixtures and fixture-level recovery do not substitute for either
+   full ImageNet acceptance protocol.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Remaining benchmark protocols beyond the accepted scoped NB101, NB201, NATS-TSS,
    three-dataset NATS-SSS and NB301 deterministic-surrogate runs, including TNB101 and formal
@@ -170,8 +191,8 @@ The following work is explicitly **not accepted** and must not be reported as co
    comparison.
 
 Formal acceptance requires retained manifests, resolved configs, commit identity, environment,
-input hashes, explicit result type, failure rows and exact commands. Until then, the project may
-claim lightweight software acceptance and smoke coverage only.
+input hashes, explicit result type, failure rows and exact commands. For the open items above, claims
+must remain limited to the software, scoped-protocol, or smoke evidence actually retained.
 
 ## Real standard-answer index-0 acceptance (2026-07-30)
 

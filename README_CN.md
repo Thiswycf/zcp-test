@@ -137,6 +137,22 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 - DARTS：提供 CIFAR-10 600 epoch profile。
 - DARTS：同时提供 CIFAR-100 600 epoch 适配和 ImageNet-1k 250 epoch 官方评估 profile。
 
+### DARTS 双重 1% 状态（2026-07-31）
+
+DARTS CIFAR-10/100 已对 ER 搜索候选、固定随机候选和参数匹配随机池候选三类冻结架构完成两套
+限定验收：全数据 × 6 epoch 共 6 runs，以及恰好 1% 数据 × 600 epoch 共 6 runs。确定性真实数据
+预检、两次可信 checkpoint 恢复审计（每套协议各一次）和证据报告均已完成。完整结果、候选身份与
+校验摘要见 [中文证据报告](docs/evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md) 和
+[机器可读摘要](docs/evidence/darts_cifar_dual_one_percent_summary.json)。
+
+该结论只关闭 DARTS CIFAR 的双重 1% 工程与限定协议验收：它**不是** 600 epoch 全数据精度复现，
+也**不是**多 seed 搜索收益证明。全部训练只使用 seed `20260731`，候选选择也只使用一个固定输入
+batch 和一个初始化 seed。两套协议分别衡量早期全数据学习与小数据完整 schedule，候选排序不同，
+不得对两套结果求平均后宣称 ER 稳定优于基线。本机 ImageNet-1k 已完成结构审计（1000 类、
+1,281,167 张训练图、50,000 张验证图）和真实 loader 解码检查；DARTS ImageNet 双重 1% 尚未
+执行，因此状态是“资产可用、验收待运行”，不是“数据缺失”。AutoFormer、PlainNet-MBV2 和
+Proxyless-MBV2 的双重 1% 验收均未完成。
+
 `--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且至少
 1% epoch”或“恰好 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
 论文精度复现。`--real-data-preflight --epochs 1 --data-fraction 1.0` 只用于在启动高成本任务前
@@ -158,7 +174,10 @@ catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、ver
   因此正式真实输入 22-ZCP sweep 仍为 blocked，不能用任意 Taskonomy split、random/CIFAR fixture
   冒充。见 [TransNAS 预检证据](docs/evidence/TRANSNAS_PREFLIGHT_CN.md)。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
-- DARTS 正式 profile 已放行；AutoFormer 与 MobileNet 配置仍是可审计的候选 recipe，不得把
+- DARTS 正式 profile 已放行，且 CIFAR-10/100 双重 1% 限定验收已完成；这不等于 600 epoch
+  全数据精度复现。ImageNet-1k 已通过结构与 loader 预检，但 DARTS ImageNet 双重 1% 仍待执行。
+  AutoFormer、PlainNet-MBV2 与
+  Proxyless-MBV2 配置仍是可审计的候选 recipe，其双重 1% 均未完成，不得把
   `--smoke` 写成正式训练验收。`torchrun` 必须显式提供按 UUID 排列的 `CUDA_VISIBLE_DEVICES`；
   CLI 使用 `cuda:LOCAL_RANK`、DDP、分布式 sampler/指标归约和 rank-zero artifacts。AutoFormer
   可将梯度累积自动调整到 global batch 2048，因此 4 卡×256 使用 2 次累积。

@@ -7,16 +7,19 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-31 当前工作树：**380 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
-| 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
-| 覆盖率 | 第一方 source 总计 **87%**；CLI 81%、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
+| 单元/集成基线 | 2026-07-31 当前工作树：**396 tests passed**（28 个测试文件） | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
+| 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
+| DARTS CIFAR 双重 1% | CIFAR-10/100 三候选：全数据 × 6 epoch 共 6 runs；1% 数据 × 600 epoch 共 6 runs；确定性预检、两次恢复审计和报告完成 | **限定协议通过** | 关闭工程与限定协议验收；不是 600 epoch 全数据精度复现或多 seed 搜索收益，两个协议不得平均 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-380 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
+396 tests（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%，以及已通过的 Ruff、
+compileall、pip check、repository hygiene、panel check 和 `git diff --check`，共同构成当前可复核的
+低成本软件基线。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
 `scores.jsonl` SHA、失败键和相关性摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
@@ -39,9 +42,28 @@ sweep 表示每个名称经过统一 evaluator，并产生明确 `ok`、`unsuppo
 `swap` 为常数，相关系数未定义。该结果不表示每个代理支持所有模型族，也不表示 `portable-v1`
 与论文数值一致。出现数值完全相同的不同名称也不能据此认定算法独立，仍需 provenance/公式审计。
 
-## DARTS smoke 边界
+## DARTS CIFAR 双重 1% 与 smoke 边界
 
-保留 run 执行：
+DARTS CIFAR-10/100 已冻结 ER 搜索候选、固定随机候选和参数匹配随机池候选，并完成：
+
+| 协议 | CIFAR-10 best valid top-1（ER / 固定随机 / 参数匹配随机） | CIFAR-100 best valid top-1（ER / 固定随机 / 参数匹配随机） | 状态 |
+|---|---|---|---|
+| 全数据 × 6 epoch，保留 600-epoch schedule | `78.62 / 77.28 / 64.67` | `46.19 / 44.13 / 26.81` | 6/6 runs 完成 |
+| 恰好 1% 数据 × 600 epoch | `42.0 / 45.0 / 46.0` | `15.0 / 12.0 / 11.0` | 6/6 runs 完成 |
+
+确定性真实数据预检已通过；两套协议分别完成一次可信 checkpoint 恢复审计，恢复了 6 条和 600 条
+历史记录；证据报告及脱敏 JSON 摘要也已完成。候选身份、run ID、校验摘要和详细边界见
+[`evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md`](evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md) 与
+[`evidence/darts_cifar_dual_one_percent_summary.json`](evidence/darts_cifar_dual_one_percent_summary.json)。
+
+这是单一训练 seed `20260731` 下的工程与限定协议验收，不是 600 epoch 全数据精度复现，也不是
+多 seed 搜索收益证明；ER 候选只由一个固定 CIFAR-10 batch 和一个初始化 seed 选出。两个协议的
+候选排序不同，分别测试早期全数据学习和小数据完整 schedule，禁止求平均或合并成“ER 稳定优于
+基线”的结论。ImageNet-1k 已通过 1000 类、1,281,167/50,000 张图和真实 loader 解码预检；
+DARTS ImageNet 双重 1% 尚未执行，状态为资产可用但验收待运行。AutoFormer、PlainNet-MBV2、
+Proxyless-MBV2 的双重 1% 均未完成。
+
+另有历史合成 smoke run 执行：
 
 ```bash
 zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
@@ -147,10 +169,12 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 
 以下工作明确为 **未验收**，不得写成已完成：
 
-1. DARTS CIFAR-10/CIFAR-100 600 epoch 与 ImageNet 250 epoch 正式训练。
-2. AutoFormer 500 epoch 与 Proxyless-MBV2 150 epoch 正式训练协议尚未放行；AutoFormer 的 sampler、
-   LR、静态 fixture 和真实图片夹具恢复机制已验收，但“全 ImageNet × 至少 1% epoch”与“1% ImageNet
-   × 完整 schedule”尚未执行。
+1. DARTS CIFAR-10/CIFAR-100 的 600 epoch **全数据精度复现**与多 seed 搜索收益验证仍未完成；
+   已完成的是上述双重 1% 限定协议。ImageNet-1k 资产已通过结构与 loader 预检，但 DARTS
+   ImageNet 双重 1% 和 250 epoch 正式训练尚未执行。
+2. AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 的双重 1% 均未完成；AutoFormer 500 epoch 与
+   Proxyless-MBV2 150 epoch 正式训练协议尚未放行。AutoFormer 的 sampler、LR、静态 fixture 和
+   真实图片夹具恢复机制已验收，但不能替代任一完整 ImageNet 双重 1% 协议。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
    NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，
@@ -161,7 +185,7 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 7. 论文数值复现、独立 seed 置信区间及与官方代码的成本/精度比较。
 
 正式验收必须保留 manifest、resolved config、commit、环境、输入 hash、结果类型、失败行和准确命令。
-在证据齐全前，只能声明轻量软件验收与 smoke 覆盖。
+对上述尚未关闭的项目，在证据齐全前只能声明已有的软件验收、限定协议或 smoke 覆盖。
 
 ## 真实标准答案 index-0 验收（2026-07-30）
 
