@@ -41,6 +41,55 @@ def test_topology_and_nats_size_studies_extract_canonical_factors(tmp_path):
     assert {"stages.csv", "size_stages.png", "index.html"}.issubset(report["artifacts"])
 
 
+def test_topology_and_size_studies_link_structure_to_scores_and_targets():
+    topology_rows = []
+    size_rows = []
+    for index, operation in enumerate(("none", "avg_pool_3x3", "skip_connect", "nor_conv_3x3"), 1):
+        topology_rows.append(
+            {
+                "architecture_id": f"t{index}",
+                "architecture": {
+                    "architecture": f"|{operation}~0|+|skip_connect~0|nor_conv_1x1~1|+|none~0|avg_pool_3x3~1|skip_connect~2|"
+                },
+                "proxy_id": "proxy",
+                "component": "score",
+                "score": float(index),
+                "target_value": float(index * 2),
+                "direction": "maximize",
+            }
+        )
+        channels = [8 * index, 16 * index, 24 * index, 32 * index, 40 * index]
+        size_rows.append(
+            {
+                "architecture_id": f"s{index}",
+                "architecture": {"architecture": ":".join(map(str, channels))},
+                "proxy_id": "proxy",
+                "component": "score",
+                "score": float(index),
+                "target_value": float(index * 2),
+                "direction": "maximize",
+            }
+        )
+
+    topology = topology_study(pd.DataFrame(topology_rows))
+    assert {"correlations", "operation_effects"}.issubset(topology)
+    assert set(topology["operation_effects"]["edge"]) == {
+        "0->1", "0->2", "1->2", "0->3", "1->3", "2->3"
+    }
+    assert {
+        "target_delta_from_edge_mean", "score_delta_from_edge_mean"
+    }.issubset(topology["operation_effects"])
+
+    size = nats_size_study(pd.DataFrame(size_rows))
+    channel_sum = size["correlations"].query(
+        "feature == 'size_channel_sum' and outcome == 'target' and method == 'spearman'"
+    )
+    assert channel_sum.iloc[0]["correlation"] == 1.0
+    assert set(size["stage_sensitivity"]["feature"]) == {
+        f"stage_{index}_channel" for index in range(5)
+    }
+
+
 def test_vit_and_transnas_studies_report_feature_and_task_correlations():
     vit_rows = []
     for index, hidden in enumerate((192, 216, 240), 1):

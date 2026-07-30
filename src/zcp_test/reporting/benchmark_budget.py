@@ -52,6 +52,53 @@ def _rank_stability(targets: pd.DataFrame, top_k: Iterable[int]) -> pd.DataFrame
     return pd.DataFrame.from_records(records)
 
 
+def _top_k_retrieval(detailed: pd.DataFrame, top_k: Iterable[int]) -> pd.DataFrame:
+    records: list[dict[str, Any]] = []
+    group_columns = ["proxy_id", "component", "direction", "epoch_budget"]
+    for key, group in detailed.groupby(group_columns, dropna=False, sort=True):
+        identifiers = dict(zip(group_columns, key, strict=True))
+        direction = str(identifiers["direction"]).casefold()
+        if direction not in {"maximize", "minimize"}:
+            raise ValueError(f"Invalid proxy direction in NAS-Bench-101 scores: {direction}")
+        ranked = group.dropna(subset=["architecture_id", "score", "target_value"]).copy()
+        ranked["adjusted_score"] = pd.to_numeric(ranked["score"], errors="coerce")
+        if direction == "minimize":
+            ranked["adjusted_score"] = -ranked["adjusted_score"]
+        ranked = ranked.dropna(subset=["adjusted_score"]).drop_duplicates("architecture_id")
+        if ranked.empty:
+            continue
+        target = ranked.set_index("architecture_id")["target_value"]
+        score = ranked.set_index("architecture_id")["adjusted_score"]
+        for requested_k in top_k:
+            effective_k = min(int(requested_k), len(ranked))
+            if effective_k <= 0:
+                raise ValueError("top_k values must be positive")
+            selected_ids = _top_k_set(score, effective_k)
+            oracle_ids = _top_k_set(target, effective_k)
+            overlap = len(selected_ids & oracle_ids)
+            union = len(selected_ids | oracle_ids)
+            selected_target = target.loc[list(selected_ids)]
+            oracle_target = target.loc[list(oracle_ids)]
+            records.append(
+                {
+                    **identifiers,
+                    "requested_k": int(requested_k),
+                    "effective_k": effective_k,
+                    "architecture_count": len(ranked),
+                    "overlap_count": overlap,
+                    "precision_at_k": overlap / effective_k,
+                    "jaccard_at_k": overlap / union if union else 1.0,
+                    "selected_target_mean": float(selected_target.mean()),
+                    "oracle_target_mean": float(oracle_target.mean()),
+                    "mean_regret": float(oracle_target.mean() - selected_target.mean()),
+                    "selected_target_best": float(selected_target.max()),
+                    "oracle_target_best": float(target.max()),
+                    "best_regret": float(target.max() - selected_target.max()),
+                }
+            )
+    return pd.DataFrame.from_records(records)
+
+
 def nasbench101_budget_study(
     source: Any,
     adapter: Any,
@@ -137,7 +184,13 @@ def nasbench101_budget_study(
         bootstrap_samples=bootstrap_samples,
     )
     stability = _rank_stability(targets, top_k)
-    return {"detailed": detailed, "correlations": correlations, "rank_stability": stability}
+    retrieval = _top_k_retrieval(detailed, top_k)
+    return {
+        "detailed": detailed,
+        "correlations": correlations,
+        "rank_stability": stability,
+        "top_k_retrieval": retrieval,
+    }
 
 
 __all__ = ["nasbench101_budget_study"]

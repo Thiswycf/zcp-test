@@ -34,6 +34,32 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
     figure.tight_layout()
     artifacts = _save_figure(figure, output, "budget_correlation")
     plt.close(figure)
+    retrieval = tables.get("top_k_retrieval", pd.DataFrame())
+    if not retrieval.empty and {"epoch_budget", "requested_k", "precision_at_k"}.issubset(
+        retrieval
+    ):
+        figure, axis = plt.subplots(figsize=(8, 5))
+        for label, group in retrieval.groupby(
+            ["proxy_id", "component", "requested_k"], dropna=False
+        ):
+            ordered = group.sort_values("epoch_budget")
+            axis.plot(
+                ordered["epoch_budget"],
+                ordered["precision_at_k"],
+                marker="o",
+                label=" / ".join(map(str, label)),
+            )
+        axis.set(
+            xlabel="Epoch budget",
+            ylabel="Precision@K",
+            title="NAS-Bench-101 top-k retrieval across budgets",
+        )
+        axis.set_ylim(-0.05, 1.05)
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize="small")
+        figure.tight_layout()
+        artifacts.extend(_save_figure(figure, output, "budget_top_k_retrieval"))
+        plt.close(figure)
     return artifacts
 
 
@@ -126,8 +152,21 @@ def write_benchmark_study(
         artifacts.extend(_plot_budget(tables, output))
     elif view == "topology":
         artifacts.extend(_plot_topology(tables, output))
+        artifacts.extend(
+            _plot_correlation_bars(
+                tables,
+                output,
+                "topology_feature_correlations",
+                "Topology feature correlations",
+            )
+        )
     elif view == "size":
         artifacts.extend(_plot_size(tables, output))
+        artifacts.extend(
+            _plot_correlation_bars(
+                tables, output, "size_feature_correlations", "NATS-SSS feature correlations"
+            )
+        )
     elif view == "architecture":
         artifacts.extend(
             _plot_correlation_bars(tables, output, "architecture_features", "Architecture feature correlations")

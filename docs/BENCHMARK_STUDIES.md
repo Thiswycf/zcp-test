@@ -32,9 +32,12 @@ zcp-test analyze benchmark \
   --output /path/to/reports/nb101-budget
 ```
 
-The report contains per-budget proxy correlations and pairwise ground-truth rank stability. A
-drop in proxy correlation is not attributable to the proxy alone when early- and late-budget
-ground-truth rankings are themselves unstable.
+The report contains per-budget proxy correlations, pairwise ground-truth rank stability, and
+`top_k_retrieval.csv`. The retrieval table records precision/Jaccard, selected versus oracle
+target quality, and direction-adjusted regret for every proxy/component/budget/k combination.
+`budget_top_k_retrieval.png/svg` complements the correlation curve. A drop in proxy correlation
+is not attributable to the proxy alone when early- and late-budget ground-truth rankings are
+themselves unstable.
 
 ## Topology and size
 
@@ -45,10 +48,16 @@ zcp-test analyze benchmark --scores /path/to/nats-sss/scores.jsonl \
   --benchmark nats_sss --view size --output /path/to/reports/nats-size
 ```
 
-Topology reports expose the six fixed edges, per-edge operations, and operation coverage. Size
-reports expose per-stage channels and aggregate width statistics. These are descriptive bias
-diagnostics, not causal operation or channel effects. NAS-Bench-201 and NATS-TSS may share a
-topology parser but never share benchmark identity or targets.
+Topology reports expose the six fixed edges, per-edge operations, operation coverage, numeric
+feature correlations, and `operation_effects.csv`. The effect table stratifies target and
+direction-adjusted proxy values by edge and operation, including deltas from each edge baseline.
+It diagnoses structural preference but is observational, not a causal replacement effect.
+
+Size reports expose per-stage channels, aggregate width statistics, feature correlations, and a
+focused `stage_sensitivity.csv`. Compare `outcome=score` with `outcome=target` to detect proxies
+that mostly encode width. Prefer rank correlations for discrete channel choices with many ties.
+NAS-Bench-201 and NATS-TSS may share a topology parser but never share benchmark identity or
+targets; NATS-SSS results must not be pooled with TSS.
 
 ## TransNAS and ViT
 
@@ -70,4 +79,3 @@ remain independent, as do vanilla, KD, and inherited-supernet metrics.
 Only validation protocols may determine search or aggregation weights. Test targets are reserved
 for final reporting. See the Chinese guide for complete output-table interpretation, filters, and
 troubleshooting: [BENCHMARK_STUDIES_CN.md](BENCHMARK_STUDIES_CN.md).
-

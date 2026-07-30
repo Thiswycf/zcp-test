@@ -90,7 +90,9 @@ zcp-test analyze benchmark \
 - `detailed.csv`：architecture × proxy/component × budget 的显式 join；
 - `correlations.csv`：每个预算独立的 Spearman、Kendall tau-b、Pearson 和 bootstrap CI；
 - `rank_stability.csv`：预算两两之间的真值 rank correlation 和 top-k Jaccard；
+- `top_k_retrieval.csv`：每个 ZCP 在各预算的 precision@k、Jaccard、选中集合真值和 regret；
 - `budget_correlation.png/svg`：相关性随预算变化曲线；
+- `budget_top_k_retrieval.png/svg`：不同预算下的 top-k 检索能力；
 - `index.html`：静态预览。
 
 解释时应区分两种现象：ZCP 与 4 epoch 高相关但与 108 epoch 低相关，可能表示 ZCP 更接近早期
@@ -114,11 +116,16 @@ benchmark 标签。
 - `architectures.csv`：六条固定边的 one-hot 操作特征和各操作计数；
 - `edges.csv`：每个 architecture 的 `0->1`、`0->2`、`1->2`、`0->3`、`1->3`、`2->3`；
 - `operations.csv`：操作的 edge/architecture 覆盖率；
+- `correlations.csv`：操作计数、操作比例和六条边 one-hot 特征分别与真值/ZCP 的相关性；
+- `operation_effects.csv`：按 `proxy/component × edge × operation` 分层的样本数、条件均值、
+  中位数及相对该 edge 总体均值的偏移；
 - `topology_operations.png/svg`：操作分布。
+- `topology_feature_correlations.png/svg`：结构特征相关性预览。
 
-该视图用于发现样本分布和结构偏置，不应把条件均值解释为某个操作的因果贡献。需要比较 ZCP
-偏置时，可将 `architectures.csv` 与 `detailed scores` 按 `architecture_id` join，再按 edge/op
-分层运行通用相关性。
+`operation_effects.csv` 可以直接检查某个 ZCP 是否系统性偏好特定边上的 `skip_connect`、卷积或
+`none`，无需手工 join。但它仍是观察性条件统计：操作之间存在强组合约束，不能把 delta 解释为
+独立替换该操作后的因果增益。建议同时查看 `sample_count`，并在相同 dataset、split、budget、seed
+聚合协议内比较 NB201 或 NATS-TSS；两者的表不能直接拼接。
 
 ## 4. NATS-SSS size
 
@@ -135,10 +142,16 @@ zcp-test analyze benchmark \
 - `architectures.csv`：`stage_0_channel...stage_4_channel`、总/均值/范围/标准差、首尾宽度、扩张比；
 - `stages.csv`：architecture × stage × channel 长表；
 - `summary.csv`：全部 size 特征的描述统计；
+- `correlations.csv`：总宽度、扩张比、各 stage channel/delta 与真值/ZCP 的 Spearman、Kendall
+  tau-b 和 Pearson；
+- `stage_sensitivity.csv`：只保留逐 stage channel，便于比较早期与后期 stage 的敏感性；
 - `size_stages.png/svg`：逐 stage channel 分布。
+- `size_feature_correlations.png/svg`：宽度特征相关性预览。
 
-建议在 size quantile 内分别计算相关性，检查 ZCP 是否只是参数量或宽度的替代指标。不要把
-NATS-SSS 的 90-epoch 结果与 TSS 的 200-epoch 结果放在同一相关性组。
+先比较 `outcome=score` 与 `outcome=target`：若某个宽度特征与 ZCP 高相关、与真值低相关，ZCP
+可能主要编码模型规模；若两者都高，还需在 `size_channel_sum` 分位区间内重复通用相关性，排除
+规模混杂。stage channel 是离散变量且 ties 较多，优先解读 Spearman/Kendall，不应只看 Pearson。
+不要把 NATS-SSS 的 90-epoch 结果与 TSS 的 200-epoch 结果放在同一相关性组。
 
 ## 5. TransNAS-Bench-101 任务迁移
 
@@ -207,4 +220,7 @@ split、target direction、epoch budget 和 seed reduction 分组。不同协议
 - `requires one row per ...`：TransNAS 输入有重复协议；显式选择 metric/split/budget/run。
 - `unsupported space`：ViT 行的 `search_space_id` 不是 `autoformer` 或 `pit`。
 - 只有一个样本或常数特征时相关性为空，这是统计不可辨识，不应填成 0。
-
+- `precision_at_k` 使用实际可用样本数截断 k，并在 `effective_k` 中记录；比较不同 run 时应先保证
+  architecture 候选集一致。
+- `mean_regret` 基于方向调整后的 benchmark 真值，越小越好；它不是训练 loss，也不能跨 metric
+  直接比较绝对值。

@@ -185,7 +185,24 @@ def topology_study(
             architecture_fraction=lambda table: table["architecture_count"] / architecture_count,
         )
     )
-    return {"architectures": features, "edges": edges, "operations": operations}
+    result = {"architectures": features, "edges": edges, "operations": operations}
+    research_fields = {"proxy_id", "component", "score", "target_value", "direction"}
+    if research_fields.issubset(frame.columns):
+        detailed = _topology_features(frame, architecture_column=architecture_column)
+        feature_columns = [
+            column
+            for column in detailed
+            if column.startswith(("op_count__", "op_fraction__", "edge_"))
+        ]
+        result["correlations"] = _numeric_feature_correlations(
+            detailed,
+            feature_columns=feature_columns,
+            study=study,
+        )
+        result["operation_effects"] = _topology_operation_effects(
+            frame, architecture_column=architecture_column
+        )
+    return result
 
 
 def _parse_nats_size(value: str, row_label: Any) -> list[int]:
@@ -264,7 +281,25 @@ def nats_size_study(
     stages["stage"] = stages["stage"].str.extract(r"(\d+)", expand=False).astype(int)
     size_columns = [column for column in features if column.startswith("size_")]
     summary = features[size_columns].describe().T.reset_index(names="feature")
-    return {"architectures": features, "stages": stages, "summary": summary}
+    result = {"architectures": features, "stages": stages, "summary": summary}
+    research_fields = {"proxy_id", "component", "score", "target_value", "direction"}
+    if research_fields.issubset(frame.columns):
+        detailed = _nats_size_features(frame, architecture_column=architecture_column)
+        feature_columns = [
+            column
+            for column in detailed
+            if column.startswith("size_") or re.fullmatch(r"stage_\d+_channel(?:_delta)?", column)
+        ]
+        correlations = _numeric_feature_correlations(
+            detailed,
+            feature_columns=feature_columns,
+            study=study,
+        )
+        result["correlations"] = correlations
+        result["stage_sensitivity"] = correlations[
+            correlations["feature"].str.match(r"stage_\d+_channel$")
+        ].reset_index(drop=True)
+    return result
 
 
 def _vit_spec(value: Any, row_label: Any, architecture_column: str) -> Mapping[str, Any]:
@@ -366,6 +401,128 @@ def _correlation(left: pd.Series, right: pd.Series, method: str) -> tuple[int, f
     else:
         raise ValueError(f"Unknown correlation method: {method}")
     return len(paired), float(value) if np.isfinite(value) else None
+
+
+def _numeric_feature_correlations(
+    frame: pd.DataFrame,
+    *,
+    feature_columns: Sequence[str],
+    study: str,
+    target_column: str = "target_value",
+    score_column: str = "score",
+    direction_column: str = "direction",
+    group_by: Sequence[str] = ("proxy_id", "component"),
+    methods: Sequence[str] = ("spearman", "kendall_tau_b", "pearson"),
+) -> pd.DataFrame:
+    required = [target_column, score_column, direction_column, *group_by]
+    _require_frame(frame, required, study)
+    _require_complete(frame, [direction_column, *group_by], study)
+    _validate_methods(methods, study)
+    directions = frame[direction_column].astype(str).str.casefold()
+    invalid = sorted(set(directions) - _VALID_DIRECTIONS)
+    if invalid:
+        raise ValueError(f"{study} has invalid score directions: {invalid}")
+    working = frame.assign(
+        _direction_adjusted_score=np.where(
+            directions.eq("minimize"),
+            -pd.to_numeric(frame[score_column], errors="coerce"),
+            pd.to_numeric(frame[score_column], errors="coerce"),
+        )
+    )
+    records: list[dict[str, Any]] = []
+    for key, group in working.groupby(list(group_by), dropna=False, sort=True):
+        keys = key if isinstance(key, tuple) else (key,)
+        identifiers = dict(zip(group_by, keys, strict=True))
+        for feature in feature_columns:
+            for outcome, outcome_column in (
+                ("target", target_column),
+                ("score", "_direction_adjusted_score"),
+            ):
+                for method in methods:
+                    sample_count, value = _correlation(
+                        group[feature], group[outcome_column], method
+                    )
+                    records.append(
+                        {
+                            **identifiers,
+                            "feature": feature,
+                            "outcome": outcome,
+                            "method": method,
+                            "sample_count": sample_count,
+                            "correlation": value,
+                        }
+                    )
+    return pd.DataFrame.from_records(records)
+
+
+def _topology_operation_effects(
+    frame: pd.DataFrame,
+    *,
+    architecture_column: str = "architecture",
+) -> pd.DataFrame:
+    study = "NB201/NATS-TSS topology operation effect study"
+    required = [
+        architecture_column,
+        "architecture_id",
+        "proxy_id",
+        "component",
+        "score",
+        "target_value",
+        "direction",
+    ]
+    _require_frame(frame, required, study)
+    _require_complete(
+        frame,
+        [architecture_column, "architecture_id", "proxy_id", "component", "direction"],
+        study,
+    )
+    directions = frame["direction"].astype(str).str.casefold()
+    invalid = sorted(set(directions) - _VALID_DIRECTIONS)
+    if invalid:
+        raise ValueError(f"{study} has invalid score directions: {invalid}")
+    records: list[dict[str, Any]] = []
+    for (row_label, row), direction in zip(frame.iterrows(), directions, strict=True):
+        topology = _architecture_string(
+            row[architecture_column], architecture_column, row_label, study
+        )
+        adjusted_score = float(row["score"])
+        if direction == "minimize":
+            adjusted_score = -adjusted_score
+        for edge in _parse_topology(topology, row_label):
+            records.append(
+                {
+                    "architecture_id": row["architecture_id"],
+                    "proxy_id": row["proxy_id"],
+                    "component": row["component"],
+                    **edge,
+                    "target_value": pd.to_numeric(row["target_value"], errors="coerce"),
+                    "adjusted_score": adjusted_score,
+                }
+            )
+    detailed = pd.DataFrame.from_records(records)
+    groups = ["proxy_id", "component", "edge", "operation"]
+    effects = (
+        detailed.groupby(groups, as_index=False, dropna=False, sort=True)
+        .agg(
+            sample_count=("architecture_id", "nunique"),
+            target_mean=("target_value", "mean"),
+            target_median=("target_value", "median"),
+            score_mean=("adjusted_score", "mean"),
+            score_median=("adjusted_score", "median"),
+        )
+    )
+    baselines = (
+        detailed.groupby(["proxy_id", "component", "edge"], as_index=False, dropna=False)
+        .agg(edge_target_mean=("target_value", "mean"), edge_score_mean=("adjusted_score", "mean"))
+    )
+    effects = effects.merge(
+        baselines, on=["proxy_id", "component", "edge"], validate="many_to_one"
+    )
+    effects["target_delta_from_edge_mean"] = (
+        effects["target_mean"] - effects["edge_target_mean"]
+    )
+    effects["score_delta_from_edge_mean"] = effects["score_mean"] - effects["edge_score_mean"]
+    return effects
 
 
 def _vit_feature_correlations(

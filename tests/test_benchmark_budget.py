@@ -59,6 +59,13 @@ def test_nasbench101_budget_study_queries_every_budget_and_reports_stability():
     assert aligned["spearman"].eq(1.0).all()
     assert reversed_proxy["spearman"].eq(-1.0).all()
     assert result["rank_stability"]["top_2_jaccard"].eq(1.0).all()
+    retrieval = result["top_k_retrieval"]
+    aligned_retrieval = retrieval.query("proxy_id == 'aligned' and requested_k == 2")
+    reversed_retrieval = retrieval.query("proxy_id == 'reversed' and requested_k == 2")
+    assert aligned_retrieval["precision_at_k"].eq(1.0).all()
+    assert aligned_retrieval["mean_regret"].eq(0.0).all()
+    assert reversed_retrieval["precision_at_k"].eq(0.0).all()
+    assert reversed_retrieval["mean_regret"].gt(0.0).all()
 
 
 def test_nasbench101_budget_study_rejects_hash_and_budget_mismatch():
