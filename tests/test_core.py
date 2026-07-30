@@ -7,6 +7,7 @@ from zcp_test.artifacts import JsonlWriter, merge_jsonl, read_jsonl
 from zcp_test.artifacts.run import _package_versions
 from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
+from zcp_test.proxies.builtin import FunctionProxy
 from zcp_test.reporting import correlation_summary
 from zcp_test.search import EvolutionSearch, cache_key
 from zcp_test.spaces import SPACES, load_builtin_spaces
@@ -17,6 +18,7 @@ from zcp_test.training.trainer import (
     _restore_checkpoint_rng,
     _restore_training_log,
 )
+from zcp_test.types import ProxyCapability, ProxyOutput
 
 
 def test_jsonl_merge_and_partial_recovery(tmp_path):
@@ -55,6 +57,39 @@ def test_proxy_state_isolation():
     result = evaluate_proxy("gradnorm", model, torch.randn(2, 3, 8, 8), torch.tensor([0, 1]), torch.nn.CrossEntropyLoss())
     assert result.status.value == "ok"
     assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
+
+
+@pytest.mark.parametrize(
+    ("proxy_id", "output", "message"),
+    [
+        (
+            "contract_wrong_primary",
+            ProxyOutput(1.0, primary_component="aux", components={"aux": 1.0}),
+            "returned primary component 'aux', but declared 'score'",
+        ),
+        (
+            "contract_undeclared_component",
+            ProxyOutput(1.0, components={"score": 1.0, "hidden": 2.0}),
+            "returned undeclared components: hidden",
+        ),
+        (
+            "contract_inconsistent_score",
+            ProxyOutput(1.0, components={"score": 2.0}),
+            "primary component value inconsistent with score",
+        ),
+    ],
+)
+def test_proxy_output_must_match_declared_capability(monkeypatch, proxy_id, output, message):
+    monkeypatch.setitem(
+        PROXIES._entries,
+        proxy_id,
+        lambda: FunctionProxy(ProxyCapability(proxy_id), lambda *args: output),
+    )
+
+    result = evaluate_proxy(proxy_id, torch.nn.Linear(2, 2), torch.ones(1, 2))
+
+    assert result.status.value == "failed"
+    assert message in result.error_message
 
 
 def test_params_and_flops_separate_accuracy_and_resource_directions():

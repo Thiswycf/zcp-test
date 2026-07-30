@@ -866,6 +866,9 @@ def _scaffold_proxy(name: str) -> None:
 
 
 def _validate_proxy(name: str) -> None:
+    import random
+
+    import numpy as np
     import torch
 
     proxy = PROXIES.create(name)
@@ -876,17 +879,37 @@ def _validate_proxy(name: str) -> None:
         torch.nn.Flatten(),
         torch.nn.Linear(4, 3),
     )
+    inputs = torch.randn(2, 3, 8, 8)
+    labels = torch.tensor([0, 1])
     state = {key: value.clone() for key, value in model.state_dict().items()}
+    modes = [module.training for module in model.modules()]
+    gradient_flags = [parameter.requires_grad for parameter in model.parameters()]
     hooks = sum(len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules())
+    python_rng = random.getstate()
+    numpy_rng = np.random.get_state()
+    torch_rng = torch.get_rng_state().clone()
     result = evaluate_proxy(
         name,
         model,
-        torch.randn(2, 3, 8, 8),
-        torch.tensor([0, 1]),
+        inputs,
+        labels,
         torch.nn.CrossEntropyLoss(),
     )
     unchanged = all(torch.equal(state[key], value) for key, value in model.state_dict().items())
+    modes_unchanged = modes == [module.training for module in model.modules()]
+    gradient_flags_unchanged = gradient_flags == [
+        parameter.requires_grad for parameter in model.parameters()
+    ]
     hooks_after = sum(len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules())
+    python_rng_unchanged = python_rng == random.getstate()
+    numpy_after = np.random.get_state()
+    numpy_rng_unchanged = (
+        numpy_rng[0] == numpy_after[0]
+        and np.array_equal(numpy_rng[1], numpy_after[1])
+        and numpy_rng[2:] == numpy_after[2:]
+    )
+    torch_rng_unchanged = torch.equal(torch_rng, torch.get_rng_state())
+    primary_component_matches = result.primary_component == proxy.capability.primary_component
     report = {
         "proxy": name,
         "status": result.status.value,
@@ -894,12 +917,30 @@ def _validate_proxy(name: str) -> None:
         "primary_component": result.primary_component,
         "components": result.components,
         "model_state_unchanged": unchanged,
+        "model_modes_unchanged": modes_unchanged,
+        "gradient_flags_unchanged": gradient_flags_unchanged,
         "hooks_clean": hooks == hooks_after,
+        "python_rng_unchanged": python_rng_unchanged,
+        "numpy_rng_unchanged": numpy_rng_unchanged,
+        "torch_rng_unchanged": torch_rng_unchanged,
+        "primary_component_matches_capability": primary_component_matches,
         "capability": proxy.capability.__dict__,
         "error": result.error_message,
     }
     _json(report)
-    if result.status.value != "ok" or not unchanged or hooks != hooks_after:
+    if not all(
+        (
+            result.status.value == "ok",
+            unchanged,
+            modes_unchanged,
+            gradient_flags_unchanged,
+            hooks == hooks_after,
+            python_rng_unchanged,
+            numpy_rng_unchanged,
+            torch_rng_unchanged,
+            primary_component_matches,
+        )
+    ):
         raise RuntimeError(f"Proxy validation failed: {report}")
 
 
@@ -1463,7 +1504,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
 
 
 def command_correlate(args: argparse.Namespace) -> None:
-    scores: dict[tuple[Any, Any], Any] = {}
+    scores: dict[tuple[Any, Any], tuple[Any, str]] = {}
     for row in read_score_records(args.scores):
         if row.get("status", "ok") != "ok":
             continue
@@ -1473,7 +1514,8 @@ def command_correlate(args: argparse.Namespace) -> None:
         scores[key] = (
             score_component(row, args.component)
             if args.component
-            else row.get(args.score_field)
+            else row.get(args.score_field),
+            str(row.get("direction", "maximize")),
         )
     targets: dict[Any, Any] = {}
     for row in read_jsonl(args.targets):
@@ -1483,19 +1525,45 @@ def command_correlate(args: argparse.Namespace) -> None:
         if key in targets:
             raise ValueError(f"Duplicate target architecture ID in correlate input: {key}")
         targets[key] = row[args.target_field]
-    groups: dict[str, tuple[list[float], list[float]]] = {}
-    for (architecture_id, proxy_id), score in scores.items():
+    groups: dict[str, tuple[list[float], list[float], set[str]]] = {}
+    available_by_proxy: dict[str, int] = {}
+    for (architecture_id, proxy_id), (score, direction) in scores.items():
+        proxy_name = str(proxy_id)
+        available_by_proxy[proxy_name] = available_by_proxy.get(proxy_name, 0) + int(
+            score is not None
+        )
         if architecture_id in targets and score is not None:
-            target_values, score_values = groups.setdefault(str(proxy_id), ([], []))
-            target_values.append(float(targets[architecture_id]))
-            score_values.append(float(score))
+            if direction not in ("maximize", "minimize"):
+                raise ValueError(f"Unknown score direction {direction!r} for proxy {proxy_id!r}")
+            target_values, score_values, directions = groups.setdefault(
+                proxy_name, ([], [], set())
+            )
+            target = float(targets[architecture_id])
+            target_values.append(-target if args.target_direction == "minimize" else target)
+            numeric_score = float(score)
+            score_values.append(-numeric_score if direction == "minimize" else numeric_score)
+            directions.add(direction)
     writer = JsonlWriter(args.output, fsync_every=1)
     records = []
-    for proxy_id, (target_values, score_values) in groups.items():
+    for proxy_id, (target_values, score_values, directions) in groups.items():
+        if len(directions) != 1:
+            raise ValueError(
+                f"Mixed score directions for proxy {proxy_id!r}: {sorted(directions)}"
+            )
+        score_direction = next(iter(directions))
+        paired_count = len(score_values)
         record = {
             "proxy_id": proxy_id,
             "component": args.component or "primary",
             "target_field": args.target_field,
+            "score_direction": score_direction,
+            "target_direction": args.target_direction,
+            "direction_normalized_to_maximize": True,
+            "available_score_count": available_by_proxy[proxy_id],
+            "available_target_count": len(targets),
+            "paired_count": paired_count,
+            "score_coverage": paired_count / max(1, available_by_proxy[proxy_id]),
+            "target_coverage": paired_count / max(1, len(targets)),
             **correlation_summary(target_values, score_values, args.ndcg_k),
         }
         writer.append(record)
@@ -2381,6 +2449,9 @@ def build_parser() -> argparse.ArgumentParser:
     correlate.add_argument("--score-field", default="score")
     correlate.add_argument("--component")
     correlate.add_argument("--target-field", required=True)
+    correlate.add_argument(
+        "--target-direction", choices=("maximize", "minimize"), default="maximize"
+    )
     correlate.add_argument("--ndcg-k", type=int, default=10)
     correlate.set_defaults(function=command_correlate)
     search = subparsers.add_parser("search")
@@ -2553,7 +2624,18 @@ def main(argv: list[str] | None = None) -> None:
         values = loaded.get(args.command, loaded)
         if not isinstance(values, dict):
             raise ValueError(f"Config section {args.command!r} must be a mapping")
-        explicitly_set = {argument[2:].replace("-", "_") for argument in raw_arguments if argument.startswith("--")}
+        explicitly_set = {
+            argument[2:].split("=", 1)[0].replace("-", "_")
+            for argument in raw_arguments
+            if argument.startswith("--")
+        }
+        if args.command != "train":
+            unknown = sorted(key for key in values if not hasattr(args, key))
+            if unknown:
+                raise ValueError(
+                    f"Config section {args.command!r} contains unknown keys: "
+                    + ", ".join(unknown)
+                )
         for key, value in values.items():
             if key == "trusted" and value and key not in explicitly_set:
                 raise PermissionError("trusted execution must be acknowledged explicitly on the CLI")

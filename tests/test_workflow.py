@@ -674,6 +674,60 @@ def test_correlate_uses_selected_score_field_and_inner_join(tmp_path):
     row = json.loads(output.read_text())
     assert row["sample_count"] == 3
     assert row["spearman"] == pytest.approx(1.0)
+    assert row["score_direction"] == "maximize"
+    assert row["target_direction"] == "maximize"
+    assert row["score_coverage"] == pytest.approx(1.0)
+    assert row["target_coverage"] == pytest.approx(0.75)
+
+
+def test_correlate_normalizes_score_and_target_directions(tmp_path):
+    scores = tmp_path / "scores.jsonl"
+    targets = tmp_path / "targets.jsonl"
+    output = tmp_path / "correlations.jsonl"
+    scores.write_text(
+        "".join(
+            json.dumps(
+                {
+                    "architecture_id": architecture_id,
+                    "proxy_id": "latency",
+                    "score": score,
+                    "direction": "minimize",
+                }
+            )
+            + "\n"
+            for architecture_id, score in (("a", 3.0), ("b", 2.0), ("c", 1.0))
+        ),
+        encoding="utf-8",
+    )
+    targets.write_text(
+        "".join(
+            json.dumps({"architecture_id": architecture_id, "error": target}) + "\n"
+            for architecture_id, target in (("a", 3.0), ("b", 2.0), ("c", 1.0))
+        ),
+        encoding="utf-8",
+    )
+
+    main(
+        [
+            "correlate",
+            "--scores",
+            str(scores),
+            "--targets",
+            str(targets),
+            "--output",
+            str(output),
+            "--target-field",
+            "error",
+            "--target-direction",
+            "minimize",
+        ]
+    )
+
+    row = json.loads(output.read_text(encoding="utf-8"))
+    assert row["spearman"] == pytest.approx(1.0)
+    assert row["score_direction"] == "minimize"
+    assert row["target_direction"] == "minimize"
+    assert row["direction_normalized_to_maximize"] is True
 
 
 @pytest.mark.parametrize("duplicate_source", ["scores", "targets"])

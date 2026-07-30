@@ -293,6 +293,14 @@ def test_cli_registry_lists_and_inspects(capsys):
     cli.main(["proxy", "validate", "params"])
     validation = _output(capsys)
     assert validation["status"] == "ok"
+    assert validation["model_state_unchanged"] is True
+    assert validation["model_modes_unchanged"] is True
+    assert validation["gradient_flags_unchanged"] is True
+    assert validation["hooks_clean"] is True
+    assert validation["python_rng_unchanged"] is True
+    assert validation["numpy_rng_unchanged"] is True
+    assert validation["torch_rng_unchanged"] is True
+    assert validation["primary_component_matches_capability"] is True
 
 
 def test_cli_data_register_list_verify_and_replace(capsys, tmp_path):
@@ -479,6 +487,28 @@ def test_cli_search_end_to_end_with_tiny_reference_space(monkeypatch, capsys, tm
     assert result["architecture"]["search_space_id"] == "tiny_reference"
     assert (run / "search.jsonl").exists()
     assert (run / "best_architecture.json").exists()
+
+
+def test_config_does_not_override_equals_form_cli_option(monkeypatch, tmp_path):
+    config = tmp_path / "evaluate.yaml"
+    config.write_text("evaluate:\n  count: 17\n", encoding="utf-8")
+    captured = {}
+
+    def command(arguments):
+        captured["count"] = arguments.count
+
+    monkeypatch.setattr(cli, "command_evaluate", command)
+    cli.main(["evaluate", "--config", str(config), "--count=3"])
+
+    assert captured["count"] == 3
+
+
+def test_non_training_config_rejects_unknown_keys(tmp_path):
+    config = tmp_path / "evaluate.yaml"
+    config.write_text("evaluate:\n  coutn: 17\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="unknown keys: coutn"):
+        cli.main(["evaluate", "--config", str(config)])
 
 
 def test_cli_training_smoke_end_to_end_with_tiny_reference_space(

@@ -47,8 +47,22 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         with isolated_model(model):
             value = proxy.compute(model, inputs, labels, loss_fn)
         if isinstance(value, ProxyOutput):
+            if value.primary_component != proxy.capability.primary_component:
+                raise ValueError(
+                    f"{proxy_id} returned primary component {value.primary_component!r}, "
+                    f"but declared {proxy.capability.primary_component!r}"
+                )
             primary_component = value.primary_component
             normalized = {name: float(component) for name, component in value.components.items()}
+            undeclared = sorted(set(normalized).difference(proxy.capability.components))
+            if undeclared:
+                raise ValueError(
+                    f"{proxy_id} returned undeclared components: {', '.join(undeclared)}"
+                )
+            if primary_component in normalized and normalized[primary_component] != float(value.score):
+                raise ValueError(
+                    f"{proxy_id} returned a primary component value inconsistent with score"
+                )
             normalized.setdefault(primary_component, float(value.score))
             score = float(value.score)
         elif isinstance(value, dict):
