@@ -1044,6 +1044,37 @@ def plot_training(source: PathLike | pd.DataFrame | Iterable[Mapping[str, Any]],
     for field in metrics:
         frame[field] = pd.to_numeric(frame[field], errors="coerce")
     frame = frame.dropna(subset=["epoch"]).sort_values("epoch")
+    if "source_run" in frame and frame["source_run"].nunique(dropna=True) > 1:
+        figure, axes = plt.subplots(2, 2, figsize=(13, 8))
+        specifications = (
+            (axes[0, 0], "valid_top1", "Validation Top-1", "Accuracy (%)"),
+            (axes[0, 1], "valid_loss", "Validation loss", "Loss"),
+            (axes[1, 0], "duration_seconds", "Epoch duration", "Seconds"),
+            (axes[1, 1], "peak_memory_mb", "Peak allocated memory", "MiB"),
+        )
+        plotted = False
+        for source_name, group in frame.groupby("source_run", sort=True):
+            path = Path(str(source_name))
+            label = path.parent.parent.name if path.name == "training.jsonl" else path.name
+            label = label.removeprefix("darts-")
+            group = group.sort_values("epoch")
+            for axis, field, _, _ in specifications:
+                if field not in group:
+                    continue
+                values = group[["epoch", field]].dropna()
+                if values.empty:
+                    continue
+                axis.plot(values["epoch"], values[field], label=label)
+                plotted = True
+        for axis, _, title, ylabel in specifications:
+            axis.set(xlabel="Epoch", ylabel=ylabel, title=title)
+            axis.grid(alpha=0.25)
+        if axes[0, 0].lines:
+            axes[0, 0].legend(fontsize="x-small", ncol=2)
+        if not plotted:
+            raise ValueError("Training data contains no plottable values")
+        figure.tight_layout()
+        return _save_figure(figure, destination)
     figure, axes = plt.subplots(2, 2, figsize=(12, 8))
     accuracy_axis, loss_axis, schedule_axis, resource_axis = axes.ravel()
     memory_axis = resource_axis.twinx()
@@ -1133,6 +1164,11 @@ def build_report_bundle(
     scores_csv = output / "scores.csv"
     _write_csv(frame, scores_csv)
     artifacts.append(scores_csv)
+    training_frame = _event_frame(training) if training is not None else pd.DataFrame()
+    if not training_frame.empty:
+        training_csv = output / "training.csv"
+        _write_csv(training_frame, training_csv)
+        artifacts.append(training_csv)
     valid = frame[frame["status"].fillna("ok").isin(("ok", "success", "completed"))]
     paired = valid.dropna(subset=["score", "target_value"])
     if not paired.empty:
@@ -1211,7 +1247,7 @@ def build_report_bundle(
                 artifacts.append(target)
     for name, source, plotter in (
         ("search", search, plot_search),
-        ("training", training, plot_training),
+        ("training", training_frame if not training_frame.empty else None, plot_training),
     ):
         if source is None:
             continue
@@ -1226,6 +1262,8 @@ def build_report_bundle(
     return {
         "output_directory": str(output),
         "row_count": len(frame),
+        "score_row_count": len(frame),
+        "training_row_count": len(training_frame),
         "artifacts": [str(path) for path in artifacts],
     }
 

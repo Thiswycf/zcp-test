@@ -622,6 +622,41 @@ def test_bundle_supports_search_only_and_training_only_runs(tmp_path: Path) -> N
     assert (search_output / "search.svg").exists()
     assert (training_output / "training.png").exists()
     assert (training_output / "training.svg").exists()
+    assert (training_output / "training.csv").exists()
+
+
+def test_multi_run_training_bundle_retains_source_labels(tmp_path):
+    sources = []
+    for role in ("selected", "random"):
+        run = tmp_path / role / "run-id"
+        run.mkdir(parents=True)
+        source = run / "training.jsonl"
+        source.write_text(
+            "".join(
+                json.dumps(
+                    {
+                        "epoch": epoch,
+                        "valid_top1": 20 + epoch,
+                        "valid_loss": 2 - epoch * 0.1,
+                        "duration_seconds": 1 + epoch,
+                        "peak_memory_mb": 100 + epoch,
+                    }
+                )
+                + "\n"
+                for epoch in range(2)
+            ),
+            encoding="utf-8",
+        )
+        sources.append(source)
+
+    output = tmp_path / "multi-training-report"
+    result = build_report_bundle([], output, training=sources, bootstrap_samples=10)
+    training = pd.read_csv(output / "training.csv")
+
+    assert result["score_row_count"] == 0
+    assert result["training_row_count"] == 4
+    assert training["source_run"].nunique() == 2
+    assert (output / "training.svg").exists()
 
 
 def test_bundle_ignores_an_incomplete_trailing_score_record(tmp_path: Path) -> None:

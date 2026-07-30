@@ -244,6 +244,9 @@ zcp-test train --config configs/training/darts_cifar10.yaml \
 严格为 1 epoch 与完整数据，避免把任意缩小任务包装成预检。`training.jsonl` 的逐 epoch 资源字段
 包括 `train_duration_seconds`、`valid_duration_seconds`、train/validation samples/s、
 `peak_memory_mb` 和 `peak_reserved_memory_mb`；由此估算后续墙钟和显存，而不是只看进程启动负载。
+`report bundle RUN...` 在多训练 run 时写出带 `source_run` 的 `training.csv`，并用 validation top-1、
+validation loss、epoch 耗时和峰值显存四个分面比较各 run；返回值分别给出
+`score_row_count` 与 `training_row_count`，不再把只有训练数据的 bundle 误报为“0 行结果”。
 
 AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`。真实数据 loader
 使用三次 repeated augmentation；学习率按

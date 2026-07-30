@@ -235,6 +235,9 @@ This mode uses real data, the accepted batch, and the reference model, but recor
 `training_mode=real_data_preflight`. It never counts as either one-percent acceptance protocol and
 requires exactly one epoch over the complete dataset. Each training row records train/validation
 duration, sample throughput, peak allocated memory, and peak reserved memory for resource estimates.
+For multiple training runs, `report bundle RUN...` writes `training.csv` with `source_run` labels
+and compares validation accuracy, validation loss, epoch duration, and peak memory in separate
+panels. Its result reports score and training row counts independently.
 
 The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
 Repeated augmentation uses three repeats, and the effective LR follows
