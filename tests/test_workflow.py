@@ -429,6 +429,7 @@ def test_darts_real_data_modes_resolve_config_identity_and_ddp_batch(
         yield SimpleNamespace(directory=tmp_path)
 
     def fake_train_model(*args, **kwargs):
+        captured["training_config"] = args[3]
         captured["run_identity"] = kwargs["run_identity"]
         return {"best_accuracy": 0.0}
 
@@ -466,6 +467,8 @@ def test_darts_real_data_modes_resolve_config_identity_and_ddp_batch(
     assert captured["resolved"]["configured_batch_size"] == 96
     assert captured["resolved"]["per_device_batch_size"] == 48
     assert captured["resolved"]["effective_global_batch_size"] == 96
+    assert captured["resolved"]["schedule_epochs"] == 600
+    assert captured["training_config"].schedule_epochs == 600
     assert captured["resolved"]["seed"] == 42
     assert captured["resolved"]["rank_seed"] == 42
     assert captured["resolved"]["deterministic"] is True

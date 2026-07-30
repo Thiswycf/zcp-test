@@ -57,6 +57,8 @@ zcp-test train --config configs/training/darts_imagenet.yaml \
 运行分别记录 `acceptance_protocol=full_data_one_percent_epochs` 或
 `one_percent_data_protocol`，该字段同时进入解析配置和 checkpoint 恢复身份。1% 子集按 split 的
 全局目标条数精确分配类别配额；目标条数少于类别数时不会用“每类至少一条”扩大实际比例。
+6/3 epoch 模式保留正式 600/250-epoch 的 cosine/StepLR、warmup 与 drop-path 时间轴；
+`epochs` 表示实际停止点，`schedule_epochs` 表示正式总周期。禁止把 schedule 压缩到短程运行长度。
 
 正式启动前可用以下命令执行一个完整真实数据 epoch 的吞吐与流水线预检：
 

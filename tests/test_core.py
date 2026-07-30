@@ -273,6 +273,34 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
         )
 
 
+def test_short_training_prefix_preserves_formal_cosine_schedule(tmp_path):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    data = torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,)))
+    loader = torch.utils.data.DataLoader(data, batch_size=2)
+    train_model(
+        model,
+        loader,
+        loader,
+        TrainingConfig(
+            1,
+            "sgd",
+            0.025,
+            0,
+            nesterov=False,
+            drop_path_prob=0.2,
+            schedule_epochs=600,
+        ),
+        tmp_path,
+        torch.device("cpu"),
+    )
+    record = next(read_jsonl(tmp_path / "training.jsonl"))
+    assert record["learning_rate"] == pytest.approx(0.025)
+    assert record["next_learning_rate"] == pytest.approx(
+        0.025 * 0.5 * (1 + math.cos(math.pi / 600))
+    )
+    assert record["drop_path_prob"] == 0.0
+
+
 def test_restore_training_log_handles_missing_source_duplicates_and_non_primary(tmp_path):
     source = tmp_path / "source.jsonl"
     source.write_text(

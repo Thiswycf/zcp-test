@@ -36,6 +36,7 @@ class TrainingConfig:
     mixup_switch_probability: float = 0.5
     mixup_mode: str = "batch"
     gradient_accumulation_steps: int = 1
+    schedule_epochs: int | None = None
 
 
 def _restore_training_log(
@@ -123,12 +124,15 @@ def train_model(
     else:
         raise ValueError(f"Unsupported optimizer {config.optimizer}")
     scheduler_name = config.scheduler.casefold()
+    schedule_epochs = config.epochs if config.schedule_epochs is None else config.schedule_epochs
+    if schedule_epochs < config.epochs:
+        raise ValueError("schedule_epochs must be greater than or equal to epochs")
     if scheduler_name == "cosine":
         def learning_rate_multiplier(epoch: int) -> float:
             if config.warmup_epochs and epoch < config.warmup_epochs:
                 return float(epoch + 1) / config.warmup_epochs
             progress = (epoch - config.warmup_epochs) / max(
-                1, config.epochs - config.warmup_epochs
+                1, schedule_epochs - config.warmup_epochs
             )
             return 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
 
@@ -185,7 +189,7 @@ def train_model(
         unwrapped_model = getattr(model, "module", model)
         if hasattr(unwrapped_model, "drop_path_prob"):
             unwrapped_model.drop_path_prob = config.drop_path_prob * epoch / max(
-                1, config.epochs
+                1, schedule_epochs
             )
         if device.type == "cuda":
             torch.cuda.synchronize(device)

@@ -1721,6 +1721,11 @@ def command_train(args: argparse.Namespace) -> None:
         mixup_switch_probability=float(config.get("mixup_switch_probability", 0.5)),
         mixup_mode=str(config.get("mixup_mode", "batch")),
         gradient_accumulation_steps=gradient_accumulation_steps,
+        schedule_epochs=(
+            int(config["epochs"])
+            if acceptance_smoke or real_data_preflight
+            else epochs
+        ),
     )
     data_root = None if args.smoke else _resolve_data_root(args, dataset)
     if not args.smoke and not data_root:
@@ -1779,6 +1784,7 @@ def command_train(args: argparse.Namespace) -> None:
             "effective_global_batch_size": effective_global_batch_size,
             "base_learning_rate": base_learning_rate,
             "effective_learning_rate": learning_rate,
+            "schedule_epochs": training.schedule_epochs,
             "learning_rate_reference_batch_size": learning_rate_reference_batch_size,
             "learning_rate_scaling": config.get("learning_rate_scaling", "none"),
             "model_fidelity": model_fidelity,

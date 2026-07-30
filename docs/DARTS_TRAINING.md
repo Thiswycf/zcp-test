@@ -61,6 +61,9 @@ Runs record `acceptance_protocol=full_data_one_percent_epochs` or
 `one_percent_data_protocol` in both resolved configuration and checkpoint identity. The 1% subset
 uses an exact split-wide target; it does not inflate the fraction by forcing one item per class when
 the target is smaller than the class count.
+The 6/3-epoch mode is a prefix of the formal 600/250-epoch LR, warmup, and drop-path timeline.
+`epochs` is the stopping point while `schedule_epochs` retains the formal horizon; the schedule is
+never compressed to the short-run length.
 
 Before a formal launch, run one complete real-data epoch for throughput and pipeline validation:
 

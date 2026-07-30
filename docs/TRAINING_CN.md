@@ -106,3 +106,5 @@ base seed。多 rank 使用 `rank_seed = base_seed + rank`；不支持确定性�
 - `full_reference_training`：完整数据与完整正式 schedule，且所有 protocol blocker 已关闭。
 
 三类结果必须分开报告。OOM、NaN、恢复身份不一致和数据缺失均是失败，不得回退随机输入或缩小模型。
+第一类中的“6/3 epoch”是正式 600/250-epoch schedule 的前缀，而不是把 cosine、warmup 或
+drop-path 总周期压缩成 6/3；resolved config 以 `schedule_epochs` 单独记录正式周期。
