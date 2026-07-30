@@ -61,6 +61,53 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
         figure.tight_layout()
         artifacts.extend(_save_figure(figure, output, "budget_top_k_retrieval"))
         plt.close(figure)
+    controlled = tables.get("structure_controlled_correlations", pd.DataFrame())
+    if not controlled.empty and {"epoch_budget", "spearman"}.issubset(controlled):
+        figure, axis = plt.subplots(figsize=(10, 6))
+        for label, group in controlled.groupby(["proxy_id", "component"], dropna=False):
+            ordered = group.sort_values("epoch_budget")
+            axis.plot(
+                ordered["epoch_budget"],
+                ordered["spearman"],
+                marker="o",
+                label=" / ".join(map(str, label)),
+            )
+        axis.set(
+            xlabel="Epoch budget",
+            ylabel="Controlled Spearman",
+            title="NB101 ZCP correlation after structure-count controls",
+        )
+        axis.set_ylim(-1.05, 1.05)
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize="x-small", ncols=2)
+        figure.tight_layout()
+        artifacts.extend(_save_figure(figure, output, "budget_structure_controlled"))
+        plt.close(figure)
+    neighborhood = tables.get("neighborhood_correlations", pd.DataFrame())
+    if not neighborhood.empty and {
+        "epoch_budget",
+        "direction_agreement_rate",
+    }.issubset(neighborhood):
+        figure, axis = plt.subplots(figsize=(10, 6))
+        for label, group in neighborhood.groupby(["proxy_id", "component"], dropna=False):
+            ordered = group.sort_values("epoch_budget")
+            axis.plot(
+                ordered["epoch_budget"],
+                ordered["direction_agreement_rate"],
+                marker="o",
+                label=" / ".join(map(str, label)),
+            )
+        axis.set(
+            xlabel="Epoch budget",
+            ylabel="One-edit direction agreement",
+            title="NB101 local one-edit ranking agreement",
+        )
+        axis.set_ylim(-0.05, 1.05)
+        axis.grid(alpha=0.25)
+        axis.legend(fontsize="x-small", ncols=2)
+        figure.tight_layout()
+        artifacts.extend(_save_figure(figure, output, "budget_neighborhood_agreement"))
+        plt.close(figure)
     return artifacts
 
 

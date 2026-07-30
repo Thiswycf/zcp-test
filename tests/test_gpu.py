@@ -151,6 +151,102 @@ def test_auto_device_selection_skips_a_locked_best_gpu(monkeypatch):
         assert selection["torch_logical_index"] == 0
 
 
+def test_auto_device_selection_probes_all_candidates_before_waiting(monkeypatch):
+    gpus = enumerate_gpus(MockRunner())
+    best = select_gpu(gpus=gpus)
+    attempts = []
+
+    @contextmanager
+    def fake_lock(selection, *, timeout):
+        attempts.append((selection["uuid"], timeout))
+        if selection["uuid"] == best["uuid"]:
+            raise GPULockError("locked")
+        yield None
+
+    args = SimpleNamespace(
+        device=None,
+        gpu="auto",
+        gpu_model=None,
+        min_free_memory=0,
+        gpu_lock_timeout=120.0,
+        _gpu_selection=best,
+    )
+    monkeypatch.setattr(cli, "enumerate_gpus", lambda: gpus)
+    monkeypatch.setattr(cli, "gpu_lock", fake_lock)
+    monkeypatch.setattr(cli, "_device", lambda name: name)
+
+    with cli._selected_device(args) as (_, selection):
+        assert selection["uuid"] == "GPU-4090D-BUSY"
+
+    assert attempts == [("GPU-4090D", 0.0), ("GPU-4090D-BUSY", 0.0)]
+
+
+def test_auto_device_selection_polls_candidates_with_one_global_timeout(monkeypatch):
+    gpus = enumerate_gpus(MockRunner())
+    best = select_gpu(gpus=gpus)
+    attempts = []
+    sleeps = []
+
+    @contextmanager
+    def fake_lock(selection, *, timeout):
+        attempts.append((selection["uuid"], timeout))
+        if len(attempts) <= len(gpus) or selection["uuid"] != "GPU-4090D-BUSY":
+            raise GPULockError("locked")
+        yield None
+
+    args = SimpleNamespace(
+        device=None,
+        gpu="auto",
+        gpu_model=None,
+        min_free_memory=0,
+        gpu_lock_timeout=120.0,
+        _gpu_selection=best,
+    )
+    monkeypatch.setattr(cli, "enumerate_gpus", lambda: gpus)
+    monkeypatch.setattr(cli, "gpu_lock", fake_lock)
+    monkeypatch.setattr(cli, "_device", lambda name: name)
+    monkeypatch.setattr(cli.time, "sleep", sleeps.append)
+
+    with cli._selected_device(args) as (_, selection):
+        assert selection["uuid"] == "GPU-4090D-BUSY"
+
+    assert attempts[:3] == [
+        ("GPU-4090D", 0.0),
+        ("GPU-4090D-BUSY", 0.0),
+        ("GPU-4090", 0.0),
+    ]
+    assert attempts[3] == ("GPU-4090D-BUSY", 0.0)
+    assert sleeps == [0.1]
+
+
+def test_explicit_gpu_selection_waits_for_requested_timeout(monkeypatch):
+    gpus = enumerate_gpus(MockRunner())
+    selection = select_gpu(uuid="GPU-4090", gpus=gpus)
+    attempts = []
+
+    @contextmanager
+    def fake_lock(candidate, *, timeout):
+        attempts.append((candidate["uuid"], timeout))
+        raise GPULockError("locked")
+        yield None
+
+    args = SimpleNamespace(
+        device=None,
+        gpu="GPU-4090",
+        gpu_model=None,
+        min_free_memory=0,
+        gpu_lock_timeout=120.0,
+        _gpu_selection=selection,
+    )
+    monkeypatch.setattr(cli, "gpu_lock", fake_lock)
+
+    with pytest.raises(GPULockError, match="selected GPU"):
+        with cli._selected_device(args):
+            pass
+
+    assert attempts == [("GPU-4090", 120.0)]
+
+
 def test_gpu_selection_does_not_swallow_body_lock_errors(monkeypatch):
     gpus = enumerate_gpus(MockRunner())
     args = SimpleNamespace(

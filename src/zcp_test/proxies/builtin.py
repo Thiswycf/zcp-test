@@ -44,20 +44,44 @@ def _gradnorm(model: Any, inputs: Any, labels: Any, loss_fn: Any) -> float:
 def _synflow(model: Any, inputs: Any, *_: Any) -> float:
     import torch
 
-    signs = {name: torch.sign(parameter.data) for name, parameter in model.named_parameters()}
-    for parameter in model.parameters():
-        parameter.data.abs_()
-    model.zero_grad(set_to_none=True)
-    shape = list(inputs.shape)
-    shape[0] = 1
-    output = model(torch.ones(shape, device=inputs.device, dtype=inputs.dtype))
-    if isinstance(output, (tuple, list)):
-        output = output[-1]
-    output.sum().backward()
-    score = sum(float((parameter.grad * parameter).abs().sum().detach()) for parameter in model.parameters() if parameter.grad is not None)
-    for name, parameter in model.named_parameters():
-        parameter.data.mul_(signs[name])
-    return score
+    parameter_dtypes = {
+        name: parameter.dtype for name, parameter in model.named_parameters()
+    }
+    buffer_dtypes = {
+        name: buffer.dtype
+        for name, buffer in model.named_buffers()
+        if buffer.is_floating_point() or buffer.is_complex()
+    }
+    signs: dict[str, Any] = {}
+    try:
+        model.double()
+        signs = {
+            name: torch.sign(parameter.data)
+            for name, parameter in model.named_parameters()
+        }
+        for parameter in model.parameters():
+            parameter.data.abs_()
+        model.zero_grad(set_to_none=True)
+        shape = list(inputs.shape)
+        shape[0] = 1
+        output = model(torch.ones(shape, device=inputs.device, dtype=torch.float64))
+        if isinstance(output, (tuple, list)):
+            output = output[-1]
+        output.sum().backward()
+        return sum(
+            float((parameter.grad * parameter).abs().sum().detach())
+            for parameter in model.parameters()
+            if parameter.grad is not None
+        )
+    finally:
+        for name, parameter in model.named_parameters():
+            if name in signs:
+                parameter.data.mul_(signs[name])
+            parameter.data = parameter.data.to(dtype=parameter_dtypes[name])
+        for name, buffer in model.named_buffers():
+            if name in buffer_dtypes:
+                buffer.data = buffer.data.to(dtype=buffer_dtypes[name])
+        model.zero_grad(set_to_none=True)
 
 
 def _naswot(model: Any, inputs: Any, *_: Any) -> float:
@@ -345,7 +369,7 @@ _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
     "params": (_params, ProxyCapability("params", model_families=("cnn", "transformer"), requires_data=False, direction=ScoreDirection.MINIMIZE)),
     "flops": (_flops, ProxyCapability("flops", model_families=("cnn", "transformer"), direction=ScoreDirection.MINIMIZE, dependencies=("thop",))),
     "gradnorm": (_gradnorm, ProxyCapability("gradnorm", requires_labels=True)),
-    "synflow": (_synflow, ProxyCapability("synflow", model_families=("cnn", "transformer"))),
+    "synflow": (_synflow, ProxyCapability("synflow", version="double-v2", model_families=("cnn", "transformer"))),
     "naswot": (_naswot, ProxyCapability("naswot", model_families=("cnn", "transformer"))),
     "er": (_effective_rank, ProxyCapability("er", model_families=("cnn", "transformer"), components=("mean", "sum"), primary_component="mean")),
     "ter": (_effective_rank, ProxyCapability("ter", model_families=("cnn",), components=("mean", "sum"), primary_component="mean")),
@@ -358,7 +382,7 @@ _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
     "zen": (_zen, ProxyCapability("zen", version="portable-v1", model_families=("cnn", "transformer"))),
     "ntkt": (_ntkt, ProxyCapability("ntkt", version="portable-v1", model_families=("cnn", "transformer"))),
     "zico": (_zico, ProxyCapability("zico", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True)),
-    "te_nas": (_te_nas, ProxyCapability("te_nas", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, components=("synflow", "naswot", "gradnorm"), primary_component="synflow")),
+    "te_nas": (_te_nas, ProxyCapability("te_nas", version="portable-v2", model_families=("cnn", "transformer"), requires_labels=True, components=("synflow", "naswot", "gradnorm"), primary_component="synflow")),
     "az_nas": (_az_nas, ProxyCapability("az_nas", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
     "er_pr": (_topology_er("pr"), ProxyCapability("er_pr", version="fx-v1", model_families=("cnn",))),
     "er_conn": (_topology_er("conn"), ProxyCapability("er_conn", version="fx-v1", model_families=("cnn",))),

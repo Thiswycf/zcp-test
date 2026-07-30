@@ -23,8 +23,9 @@ protocols. A JSONL metric matching multiple epoch budgets now requires an explic
 
 ```bash
 zcp-test analyze benchmark \
-  --scores /path/to/run/scores.jsonl \
-  --benchmark nasbench101 --view budget --component mean \
+  --scores /path/to/shard-0/scores.jsonl /path/to/shard-1/scores.jsonl \
+           /path/to/shard-2/scores.jsonl /path/to/shard-3/scores.jsonl \
+  --benchmark nasbench101 --view budget \
   --benchmark-path /path/to/data/nasbench101/converted/full/manifest.json \
   --benchmark-version full --budgets 4 12 36 108 \
   --study-dataset cifar10 --study-split valid --study-metric final_accuracy \
@@ -32,12 +33,24 @@ zcp-test analyze benchmark \
   --output /path/to/reports/nb101-budget
 ```
 
-The report contains per-budget proxy correlations, pairwise ground-truth rank stability, and
-`top_k_retrieval.csv`. The retrieval table records precision/Jaccard, selected versus oracle
-target quality, and direction-adjusted regret for every proxy/component/budget/k combination.
+The report contains per-budget proxy correlations, pairwise ground-truth rank stability,
+`score_coverage.csv`, and `top_k_retrieval.csv`. Coverage retains failed and non-finite calls
+instead of replacing them with zero. Multiple shard files are pooled by scientific protocol;
+`run_id` and `source_run` are provenance rather than grouping fields, while evaluation `seed`
+remains separate. The retrieval table records precision/Jaccard, selected versus oracle target
+quality, and direction-adjusted regret for every proxy/component/budget/k combination.
 `budget_top_k_retrieval.png/svg` complements the correlation curve. A drop in proxy correlation
 is not attributable to the proxy alone when early- and late-budget ground-truth rankings are
 themselves unstable.
+
+NB101-specific outputs also include `architecture_features.csv`, `feature_strata.csv`, and
+`structure_controlled_correlations.csv` for vertex/edge/depth and operation-count controls.
+`edit_neighbors.csv`, `neighborhood_differences.csv`, and `neighborhood_correlations.csv` study
+sample-local one-operation or one-edge edits using indexed signatures rather than an all-pairs
+scan. `budget_structure_controlled.png/svg` and `budget_neighborhood_agreement.png/svg` make the
+controlled and local-edit results directly comparable across budgets. These controls and neighborhood contrasts are benchmark-driven project extensions, not
+causal claims reproduced directly from the NAS-Bench-101 paper. Add `--component mean` only for
+an ER-primary-component study; it would exclude proxies whose primary component has another name.
 
 ## Topology and size
 

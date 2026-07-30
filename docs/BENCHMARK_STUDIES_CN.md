@@ -70,10 +70,10 @@ NAS-Bench-101 和安全 JSONL benchmark 在一个指标匹配多个 epoch budget
 
 ```bash
 zcp-test analyze benchmark \
-  --scores /path/to/run/scores.jsonl \
+  --scores /path/to/shard-0/scores.jsonl /path/to/shard-1/scores.jsonl \
+           /path/to/shard-2/scores.jsonl /path/to/shard-3/scores.jsonl \
   --benchmark nasbench101 \
   --view budget \
-  --component mean \
   --benchmark-path /path/to/data/nasbench101/converted/full/manifest.json \
   --benchmark-version full \
   --budgets 4 12 36 108 \
@@ -90,12 +90,35 @@ zcp-test analyze benchmark \
 产物：
 
 - `detailed.csv`：architecture × proxy/component × budget 的显式 join；
+- `score_coverage.csv`：每个 proxy/component/evaluation seed 的总架构数、成功数、失败数和覆盖率；
 - `correlations.csv`：每个预算独立的 Spearman、Kendall tau-b、Pearson 和 bootstrap CI；
 - `rank_stability.csv`：预算两两之间的真值 rank correlation 和 top-k Jaccard；
 - `top_k_retrieval.csv`：每个 ZCP 在各预算的 precision@k、Jaccard、选中集合真值和 regret；
+- `architecture_features.csv`：顶点数、边数、最长输入输出路径，以及 3×3 conv、1×1 conv、
+  3×3 max-pool 数量；
+- `feature_strata.csv`：按上述结构特征取值分层后的 ZCP 与真值均值/中位数；
+- `structure_controlled_correlations.csv`：固定六项结构计数后，对组内去均值残差计算的
+  Spearman 与 Kendall tau-b；
+- `edit_neighbors.csv`：当前样本内合法 canonical DAG 的一编辑邻居，不对全体 423,624 个
+  架构做平方复杂度枚举；
+- `neighborhood_differences.csv`：每对邻居的方向修正后 ZCP 差值与预算真值差值；
+- `neighborhood_correlations.csv`：operation/edge 邻居对数量、差值相关性和方向一致率；
 - `budget_correlation.png/svg`：相关性随预算变化曲线；
 - `budget_top_k_retrieval.png/svg`：不同预算下的 top-k 检索能力；
+- `budget_structure_controlled.png/svg`：固定结构计数后的相关性随预算变化；
+- `budget_neighborhood_agreement.png/svg`：一编辑邻域排序方向一致率随预算变化；
 - `index.html`：静态预览。
+
+多个 `scores.jsonl` 会按科学协议合并：`run_id` 和读取时生成的 `source_run` 只用于溯源，不能把
+四个 shard 拆成四个相关性；evaluation `seed` 仍是协议字段，因此不同初始化 seed 独立报告。
+失败和非有限分数不会被填成 0；`score_coverage.csv` 与 `correlations.csv` 中的 `failed_count`、
+`coverage` 必须与原始调用数一致。若只研究 ER 的主分量，可显式添加 `--component mean`；不要在
+全代理命令中添加该过滤器，因为多数代理的主分量名为 `score` 或其他具名组件。
+
+一编辑邻居的定义是：canonical 邻接矩阵相同且仅一个中间操作不同，或 canonical 操作序列相同
+且严格上三角邻接仅一条边不同。它是当前分层样本内的局部敏感性分析；缺少邻居对时只能报告
+覆盖不足，不能外推到完整搜索空间。结构控制与邻域分析属于基于 NB101 特征的项目推广，不应写成
+原论文已经报告的因果结论。
 
 解释时应区分两种现象：ZCP 与 4 epoch 高相关但与 108 epoch 低相关，可能表示 ZCP 更接近早期
 优化速度；4 与 108 epoch 真值本身不稳定，则不应把下降全部归因于 ZCP。

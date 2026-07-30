@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 21:06 CST",
+  updatedAt: "2026-07-30 21:33 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -69,9 +69,9 @@ window.ZCP_PANEL_DATA = {
       content: "核查标准答案、surrogate noise、ViT slice 与 epoch/seed 指标协议。",
       purpose: "保证离线标签和 surrogate 输出不会被误标为同一标准答案。",
       estimate: "3–6 小时", startedAt: "2026-07-30 13:00", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
-      detail: "NB101、deterministic NB301、ViT main/extension/PiT 的真实 query 与构模 proxy 均通过；extension 仅含 KD/inherited，vanilla 查询按设计失败。",
+      detail: "NB101、deterministic NB301、ViT main/extension/PiT 的真实 query 与构模 proxy 均通过；extension 仅含 KD/inherited，vanilla 查询按设计失败。NB101 full 后端与 4/12/36/108 budget 语义已核验，H1 的 4,237 架构分层 manifest 已生成；这不等于 22-ZCP 正式 sweep 已完成。",
       acceptance: ["slice 身份可追溯", "surrogate noise 明确记录", "metric seed/epoch 不静默降级"],
-      evidence: ["EV-REAL-BENCHMARKS"], risks: [], updatedAt: "2026-07-30 16:28"
+      evidence: ["EV-REAL-BENCHMARKS", "EV-NB101-H1-PREPARATION"], risks: [], updatedAt: "2026-07-30 21:18"
     },
     {
       id: "C1", phase: "Reference", priority: "P0", title: "AutoFormer 静态 scratch reference",
@@ -131,10 +131,10 @@ window.ZCP_PANEL_DATA = {
       id: "E1", phase: "ZCP", priority: "P0", title: "22 ZCP 契约与算法 provenance",
       content: "逐项标记论文兼容、近似、别名和 unsupported，并建立 golden 验证。",
       purpose: "运行成功之外，验证代理公式和输入协议的可解释性。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 12:30", finishedAt: "—", status: "进行中", progress: 65,
-      detail: "22/22 CPU sweep 与 NB201 单 seed 1% 实验均已运行。摘要确认 ter→er、meco_opt→meco 为声明别名，az_nas 为以 NASWOT expressivity 为主组件的 portable approximation；near/swap 在当前协议为常数，params/flops 发生 minimize→negated 方向转换。alias、approximation、常数输出和方向语义仍需论文公式、命名与 golden fixture 审计，尚未闭环。",
+      estimate: "8–16 小时", startedAt: "2026-07-30 12:30", finishedAt: "—", status: "进行中", progress: 70,
+      detail: "22/22 CPU sweep 与多个 benchmark 的真实协议已运行。NB101 正式旧 sweep 暴露 SynFlow v1/TE-NAS portable-v1 在部分深 DAG 上 float32 溢出；失败记录保留。现已实现 SynFlow double-v2 与 TE-NAS portable-v2，深模型 dtype/state 单测通过，已知失败 index 1566 的 CPU 回归 2/2 成功。版本升级不回写旧记录；正式旧 sweep 完成其余 20 代理后，再独立补跑两个 v2。alias、approximation 和论文公式 golden 审计仍未闭环。",
       acceptance: ["全部 proxy 可分类", "论文公式 golden fixture", "alias/approximation/常数与方向审计闭环", "approximation 在 artifact 可见"],
-      evidence: ["EV-ZCP-SWEEP", "EV-NB201-1PCT-SUMMARY"], risks: ["R-PROXY"], updatedAt: "2026-07-30 19:38"
+      evidence: ["EV-ZCP-SWEEP", "EV-NB201-1PCT-SUMMARY", "EV-NB101-SYNFLOW-V2-REGRESSION"], risks: ["R-PROXY", "R-NB101-SYNFLOW-OVERFLOW"], updatedAt: "2026-07-30 21:33"
     },
     {
       id: "E2", phase: "研究", priority: "P1", title: "通用 ZCP 分析",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 48,
-      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 当前既定协议完成，H1 整体仍进行中。NATS-SSS 的 90-epoch 协议：328 架构 × 22 代理 seed 2026 共 7,216 行，全部成功且 0 重复；核心 11 代理三 seed共 10,824 行，全部成功且 0 重复。manifest SHA-256 为 07767985afbad7d498acf062620aea5ef7b66b2bfc8b3db3fea3a0fc768e1992，合并 score SHA-256 为 81622da200341d5d025086e5a8da849ae1e12b5b66d9cf78f8a0e12badf47d4d。NATS-SSS 跨 CIFAR100/ImageNet16，以及 NB101、NB301、TNB101、ViT 仍待执行。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 52,
+      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 当前既定协议完成，H1 整体仍进行中。NB101 正式旧 sweep 的四个固定 shard 均已在 GPU 上运行；auto GPU 启动延迟缺陷已修复，旧进程在约 120 秒后四卡均正常启动。旧 SynFlow v1/TE-NAS portable-v1 对部分深 NB101 架构发生 float32 溢出，失败继续保留；旧 sweep 继续收集其余 20 代理。SynFlow double-v2 与 TE-NAS portable-v2 已通过深模型单测及 index 1566 CPU 回归 2/2，待旧 sweep 结束后单独补跑，不把旧失败伪装为成功。核心 11 代理三 seed仍待；看板不固化瞬时行数。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287"], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 21:06"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW"], updatedAt: "2026-07-30 21:33"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -256,9 +256,15 @@ window.ZCP_PANEL_DATA = {
     { id: "R-PROXY", severity: "高", status: "开放", title: "代理可运行不等于论文一致", description: "22/22 sweep 不能替代公式、聚合方向和输入协议的 golden 验证。", mitigation: "为核心代理增加论文级数值 fixture 和 provenance。", taskIds: ["E1", "H1"] },
     { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 80%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
     { id: "R-PIT", severity: "中", status: "开放", title: "PiT MAC 对照尚未完成", description: "真实 GT 的 224 forward、官方参数量与参数 shape multiset 已对齐；MAC golden 尚缺。PiT 是固定 benchmark 候选，不要求重复完整训练。", mitigation: "补充同一官方 commit 的 MAC fixture 后关闭结构验收；vanilla/KD 指标继续分协议查询。", taskIds: ["C4"] },
-    { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
+    { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] },
+    { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
+    { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "监控", title: "NB101 旧 SynFlow/TE-NAS float32 溢出", description: "正式旧 sweep 中 SynFlow v1 与 TE-NAS portable-v1 对部分深 NB101 DAG 返回非有限值；这些失败必须作为旧版本结果保留。", mitigation: "使用 SynFlow double-v2 与 TE-NAS portable-v2；深模型单测和 index 1566 CPU 回归 2/2 已通过。旧 sweep 先完成其余 20 代理，再单独补跑两个新版本并按版本合并，不覆盖旧失败。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-NB101-SYNFLOW-V2-REGRESSION", time: "2026-07-30 21:33", title: "NB101 深模型 SynFlow/TE-NAS v2 回归", result: "旧 SynFlow v1/TE-NAS portable-v1 的 float32 非有限失败保留。SynFlow double-v2 使用 float64 并恢复模型 dtype/state，TE-NAS portable-v2 采用该组件；深模型单测通过，已知失败 benchmark index 1566 的 CPU 真数据回归为 synflow/te_nas 2/2 成功。正式旧 sweep 结束后仅补跑这两个新版本。", command: "pytest -q tests/test_core.py -k synflow; zcp-test evaluate --benchmark nasbench101 --sample-manifest <INDEX_1566_MANIFEST> --proxies synflow,te_nas --device cpu", taskIds: ["E1", "H1"] },
+    { id: "EV-GPU-LOCK-DELAY-FIX", time: "2026-07-30 21:33", title: "auto GPU 候选锁探测修复", result: "auto GPU 在非零 lock timeout 下现先零超时探测全部候选，再使用一个全局 timeout 轮询；tests/test_gpu.py 15 passed、Ruff 通过。修复前启动的四个 NB101 shard 在约 120 秒后均已正常运行，启动延迟未记为数据失败。", command: "pytest -q tests/test_gpu.py; ruff check src/zcp_test/cli.py src/zcp_test/gpu.py tests/test_gpu.py", taskIds: ["H1"] },
+    { id: "EV-NB101-FORMAL-SWEEP-START", time: "2026-07-30 21:23", title: "NB101 正式 22-ZCP 四分片启动", result: "4 架构 × 22 ZCP GPU smoke 已完成 88/88。正式 4,237 架构 × 22 ZCP seed 2026 在四张 GPU 上启动：shard 0 为 1,060 架构/23,320 调用，shard 1–3 各为 1,059 架构/23,298 调用；当前只判定运行中，不记录瞬时完成行数。启动时观察到的 auto GPU 锁等待延迟后续已修复，未被记为数据失败。", command: "zcp-test evaluate --benchmark nasbench101 --sample-manifest <NB101_MANIFEST> --sample-shard 0..3 --proxies <22_ZCP> --seed 2026 --gpu <FIXED_GPU>", taskIds: ["H1"] },
+    { id: "EV-NB101-H1-PREPARATION", time: "2026-07-30 21:18", title: "NB101 H1 后端、预算与抽样准备", result: "NB101 full 后端及 4/12/36/108 budget 已核验；population 423,624 的 proportional feature-stratified 1% manifest 含 4,237 架构，SHA-256 e54cba029c74197037f1268f1689ec2b198261641133fccd6acda4a89c67c347。初始 GPU 4 架构 × 22 ZCP smoke 为 88/88 成功，但风险验证仍进行中；正式 22-ZCP 与核心三 seed未执行。", command: "zcp-test benchmark sample nasbench101 --fraction 0.01 --seed 2026 --shards 4; sha256sum <AUDIT_ROOT>/sampling/nb101-1pct-seed2026.json; GPU 4-architecture × 22-ZCP smoke", taskIds: ["B3", "H1"] },
     { id: "EV-FULL-GATE-287", time: "2026-07-30 21:06", title: "NATS-SSS 与 shard grouping 修复后完整 gate", result: "全量 287 tests passed；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。回归覆盖同 seed 跨 shard 合并、不同 evaluation seed 分离及 NATS-SSS 协议。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "E2", "E3", "G1", "H1"] },
     { id: "EV-NATS-SSS-1PCT-REPORT", time: "2026-07-30 21:02", title: "NATS-SSS CIFAR10-valid 1% 中文证据", result: "NATS-SSS v1.0 的 CIFAR10-valid/90-epoch 协议完成：328×22=7,216 行全部成功，核心 11 代理三 seed=10,824 行全部成功，均无重复键；size 专属表与跨数据集待办边界均已记录。", command: "docs/evidence/NATS_SSS_ONE_PERCENT_CN.md", taskIds: ["E2", "E3", "F2", "H1"] },
     { id: "EV-NATS-SSS-1PCT-SUMMARY", time: "2026-07-30 21:02", title: "NATS-SSS CIFAR10-valid 机器摘要", result: "manifest SHA-256 07767985afbad7d498acf062620aea5ef7b66b2bfc8b3db3fea3a0fc768e1992；单 seed 7,216/7,216/0/0，核心三 seed 10,824/10,824/0/0；合并 SHA-256 81622da200341d5d025086e5a8da849ae1e12b5b66d9cf78f8a0e12badf47d4d。", command: "docs/evidence/nats_sss_one_percent_summary.json", taskIds: ["E2", "E3", "F2", "H1"] },

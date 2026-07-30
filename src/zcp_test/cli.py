@@ -277,7 +277,8 @@ def _selected_device(args: argparse.Namespace):
         return
     selection = _prepare_gpu(args)
     candidates = [selection]
-    if str(getattr(args, "gpu", "auto")).casefold() == "auto":
+    auto_selection = str(getattr(args, "gpu", "auto")).casefold() == "auto"
+    if auto_selection:
         remaining = [
             gpu for gpu in enumerate_gpus() if str(gpu["uuid"]) != str(selection["uuid"])
         ]
@@ -295,33 +296,68 @@ def _selected_device(args: argparse.Namespace):
             remaining = [
                 gpu for gpu in remaining if str(gpu["uuid"]) != str(alternative["uuid"])
             ]
-    last_error = None
     lock_timeout = getattr(args, "gpu_lock_timeout", 0.0)
-    deadline = None if lock_timeout is None else time.monotonic() + lock_timeout
-    for candidate in candidates:
-        remaining_timeout = (
-            None if deadline is None else max(0.0, deadline - time.monotonic())
-        )
+    if lock_timeout is not None and lock_timeout < 0:
+        raise ValueError("gpu_lock_timeout must be non-negative or None")
+
+    def try_lock(candidate: dict[str, Any], timeout: float | None):
         stack = ExitStack()
         try:
-            stack.enter_context(gpu_lock(candidate, timeout=remaining_timeout))
+            stack.enter_context(gpu_lock(candidate, timeout=timeout))
         except GPULockError as error:
             stack.close()
-            last_error = error
-            continue
-        with stack:
-            configured = configure_cuda(candidate)
-            configured["selection_strategy"] = (
-                "auto" if str(getattr(args, "gpu", "auto")).casefold() == "auto" else "explicit"
-            )
-            configured["nvidia_smi_index"] = configured["index"]
-            configured["torch_logical_index"] = 0
-            args._gpu_selection = configured
-            device = _device("cuda:0")
-            yield device, configured
-            return
-    if last_error is not None:
-        raise GPULockError("All matching GPUs are locked by other zcp-test processes") from last_error
+            return None, error
+        return stack, None
+
+    acquired_stack = None
+    acquired_candidate = None
+    last_error = None
+    if auto_selection:
+        for candidate in candidates:
+            acquired_stack, last_error = try_lock(candidate, 0.0)
+            if acquired_stack is not None:
+                acquired_candidate = candidate
+                break
+        if acquired_stack is None and (lock_timeout is None or lock_timeout > 0):
+            deadline = None if lock_timeout is None else time.monotonic() + lock_timeout
+            round_start = 1 % len(candidates)
+            while acquired_stack is None:
+                remaining_timeout = (
+                    None if deadline is None else deadline - time.monotonic()
+                )
+                if remaining_timeout is not None and remaining_timeout <= 0:
+                    break
+                time.sleep(
+                    0.1 if remaining_timeout is None else min(0.1, remaining_timeout)
+                )
+                for offset in range(len(candidates)):
+                    candidate = candidates[(round_start + offset) % len(candidates)]
+                    acquired_stack, last_error = try_lock(candidate, 0.0)
+                    if acquired_stack is not None:
+                        acquired_candidate = candidate
+                        break
+                round_start = (round_start + 1) % len(candidates)
+    else:
+        acquired_stack, last_error = try_lock(selection, lock_timeout)
+        if acquired_stack is not None:
+            acquired_candidate = selection
+
+    if acquired_stack is None or acquired_candidate is None:
+        message = (
+            "All matching GPUs are locked by other zcp-test processes"
+            if auto_selection
+            else "The selected GPU is locked by another zcp-test process"
+        )
+        raise GPULockError(message) from last_error
+
+    with acquired_stack:
+        configured = configure_cuda(acquired_candidate)
+        configured["selection_strategy"] = "auto" if auto_selection else "explicit"
+        configured["nvidia_smi_index"] = configured["index"]
+        configured["torch_logical_index"] = 0
+        args._gpu_selection = configured
+        device = _device("cuda:0")
+        yield device, configured
 
 
 def _prepare_gpu(args: argparse.Namespace) -> dict[str, Any] | None:

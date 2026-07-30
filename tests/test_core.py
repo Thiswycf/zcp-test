@@ -54,6 +54,24 @@ def test_proxy_state_isolation_removes_injected_buffers():
     assert set(model.state_dict()) == before
 
 
+def test_synflow_uses_float64_for_deep_models_and_restores_dtype():
+    layers = []
+    for _ in range(50):
+        layer = torch.nn.Linear(4, 4, bias=False)
+        torch.nn.init.constant_(layer.weight, 2.0)
+        layers.extend((layer, torch.nn.ReLU()))
+    model = torch.nn.Sequential(*layers)
+    before = {name: value.clone() for name, value in model.state_dict().items()}
+
+    result = evaluate_proxy("synflow", model, torch.ones(2, 4))
+
+    assert result.status.value == "ok"
+    assert result.score is not None and math.isfinite(result.score)
+    assert result.proxy_version == "double-v2"
+    assert all(parameter.dtype == torch.float32 for parameter in model.parameters())
+    assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
+
+
 def test_proxy_can_be_explicitly_marked_unsupported_by_input_contract():
     model = torch.nn.Linear(2, 2)
 
