@@ -5,9 +5,13 @@ const path = require("node:path");
 const vm = require("node:vm");
 
 const dataPath = path.join(__dirname, "data.js");
+const appPath = path.join(__dirname, "app.js");
+const indexPath = path.join(__dirname, "index.html");
 const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), context, { filename: dataPath });
 const data = context.window.ZCP_PANEL_DATA;
+const appSource = fs.readFileSync(appPath, "utf8");
+const indexSource = fs.readFileSync(indexPath, "utf8");
 const errors = [];
 
 function assert(condition, message) {
@@ -43,6 +47,22 @@ assert(data?.project?.name, "缺少 project.name");
 assert(Array.isArray(data?.tasks), "tasks 必须是数组");
 assert(Array.isArray(data?.risks), "risks 必须是数组");
 assert(Array.isArray(data?.evidence), "evidence 必须是数组");
+
+const refreshDomIds = [
+  "refresh-data", "auto-refresh-toggle", "refresh-interval", "refresh-status",
+  "refresh-success", "refresh-countdown"
+];
+for (const id of refreshDomIds) {
+  assert(indexSource.includes(`id="${id}"`), `刷新控件缺少 #${id}`);
+}
+assert(indexSource.includes('aria-live="polite"'), "刷新状态缺少 aria-live");
+assert(indexSource.includes('aria-pressed="true"'), "自动刷新按钮缺少 aria-pressed");
+assert(appSource.includes('new URL("data.js", window.location.href)'), "刷新未使用兼容 file/HTTP 的 data.js URL");
+assert(appSource.includes('url.searchParams.set("refresh"'), "刷新未对 data.js 使用缓存破坏参数");
+assert(appSource.includes('document.addEventListener("visibilitychange"'), "刷新未处理页面可见性变化");
+assert(appSource.includes("window.ZCP_PANEL_DATA = previousData"), "刷新失败时未保留旧数据");
+assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");
+assert(!/\bfetch\s*\(/.test(appSource), "看板刷新不应依赖 fetch（file:// 不兼容）");
 
 if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isArray(data.evidence)) {
   const now = Date.now();

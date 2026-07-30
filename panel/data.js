@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 18:35 CST",
+  updatedAt: "2026-07-30 19:25 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -185,10 +185,10 @@ window.ZCP_PANEL_DATA = {
       id: "F4", phase: "报告", priority: "P1", title: "HTML 实时任务看板",
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
-      estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 14:59", status: "已完成", progress: 100,
-      detail: "页面通过 HTTP server 动态加载 data.js，不整页 reload。显眼的立即刷新按钮、自动刷新开关与秒级倒计时可见；自动模式每 30 秒检查，页面恢复可见时立即刷新。请求使用唯一 cache-busting URL，并发触发合并，失败恢复旧数据；重要状态通过原子 live region 宣告，秒级倒计时不重复打扰读屏。",
-      acceptance: ["无 CDN", "任务必填字段齐全", "筛选/搜索/详情可用", "明显的立即刷新按钮", "自动刷新开关与倒计时", "visibility 恢复立即刷新", "cache-busting 数据请求", "并发去重", "失败保留旧数据", "可访问状态提示", "node --check 通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS"], risks: [], updatedAt: "2026-07-30 17:29"
+      estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
+      detail: "看板以带缓存破坏参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch，设计上兼容直接 file:// 打开和 HTTP 静态服务器。提供立即刷新、自动刷新开关、15/30/60/300 秒间隔、上次成功刷新时间和下次刷新倒计时；隐藏页暂停，恢复可见时立即检查。刷新后保留筛选状态并重绘当前视图，不重复注册静态监听器；失败时保留旧数据并通过 aria-live 显示非阻塞错误。当前新增能力仅完成静态源码与 Node 契约验收，尚未声明 file:// 或 HTTP 浏览器交互实测。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "立即刷新按钮", "自动刷新开关与 15/30/60/300 秒间隔", "上次成功刷新与下次刷新倒计时", "visibility 恢复立即检查", "cache-busting data.js 且不依赖 fetch", "保留筛选状态并避免重复静态监听器", "失败保留旧数据", "aria-live 可访问状态", "Node 语法、数据契约与 diff 检查通过", "浏览器交互实测不在当前证据范围"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE"], risks: [], updatedAt: "2026-07-30 19:25"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
@@ -259,6 +259,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-PANEL-AUTO-REFRESH-NODE", time: "2026-07-30 19:25", title: "看板刷新机制静态与 Node 验收", result: "自动刷新、立即刷新、可选轮询间隔、缓存破坏、旧数据回退、页面可见性和 ARIA DOM 契约检查通过；data.js、app.js、check-data.js 语法及 panel diff 格式检查通过。该证据不包含 file:// 或 HTTP 浏览器交互实测。", command: "node --check panel/data.js && node --check panel/app.js && node --check panel/check-data.js && node panel/check-data.js && git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-FULL-GATE-262", time: "2026-07-30 18:35", title: "最终完整质量 gate", result: "全量 262 项测试通过；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C1", "D2", "G1"] },
     { id: "EV-FINAL-2RANK-ACCEPTANCE", time: "2026-07-30 18:35", title: "最终 2-rank acceptance 1 epoch", result: "候选协议已锁定完整增强与来源字段。最终 2-rank acceptance 1 epoch 的配置将模型来源固定为 Cream commit b799630a29995163f282b15e2f38701160272fd1，将训练来源固定为 AZ-NAS commit 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47；run status=completed，training.jsonl 仅 1 行，且无 .tmp 文件。", command: "2-rank acceptance 1-epoch run；审计 config provenance、manifest status、training.jsonl 行数与 .tmp", taskIds: ["A1", "C1", "D2", "G1", "H2"] },
     { id: "EV-ACCEPTANCE-CLI", time: "2026-07-30 18:29", title: "Acceptance CLI 双模式锁定", result: "acceptance CLI 仅接受两种真实数据模式：全数据且训练不超过 1% epoch，或不超过 1% 数据且运行完整 schedule；相关 acceptance/resume 定向测试共 69 项通过。", command: "69 项 acceptance/resume 定向 pytest", taskIds: ["A1", "C1", "D2", "H2", "H3"] },

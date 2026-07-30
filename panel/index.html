@@ -28,9 +28,20 @@
           <button id="auto-refresh-toggle" class="button secondary" type="button" aria-pressed="true" aria-describedby="refresh-status refresh-countdown">
             <span id="auto-refresh-label">自动刷新：开</span>
           </button>
+          <label class="refresh-interval" for="refresh-interval">
+            <span>间隔</span>
+            <select id="refresh-interval" aria-describedby="refresh-status refresh-countdown">
+              <option value="15">15 秒</option>
+              <option value="30" selected>30 秒</option>
+              <option value="60">1 分钟</option>
+              <option value="300">5 分钟</option>
+            </select>
+          </label>
         </div>
         <div class="refresh-meta">
           <span id="refresh-status" class="muted" role="status" aria-live="polite" aria-atomic="true">自动刷新已开启</span>
+          <span aria-hidden="true">·</span>
+          <span id="refresh-success" class="muted">上次成功刷新：页面载入</span>
           <span aria-hidden="true">·</span>
           <span id="refresh-countdown" class="muted">30 秒后检查</span>
         </div>

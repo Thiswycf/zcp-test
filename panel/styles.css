@@ -61,8 +61,11 @@ button { color: inherit; }
 .refresh-control { display: grid; justify-items: end; gap: 5px; }
 .refresh-actions, .refresh-meta { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .refresh-control .muted { font-size: .72rem; font-variant-numeric: tabular-nums; }
+.refresh-interval { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: .76rem; font-weight: 700; }
+.refresh-interval select { min-height: 36px; padding: 6px 26px 6px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--text); }
 .refresh-primary { border-color: color-mix(in srgb, var(--accent) 65%, var(--line)); background: var(--accent-soft); }
 #auto-refresh-toggle[aria-pressed="false"] { color: var(--muted); border-style: dashed; }
+#auto-refresh-toggle[aria-pressed="false"] + .refresh-interval { opacity: .65; }
 .button:disabled { cursor: wait; opacity: .6; }
 #refresh-data > [aria-hidden="true"] { display: inline-block; }
 #refresh-data.is-refreshing > [aria-hidden="true"] { animation: refresh-spin .8s linear infinite; }

@@ -17,7 +17,8 @@
   let autoRefreshEnabled = true;
   let autoRefreshTimer = null;
   let nextRefreshAt = null;
-  const refreshIntervalMs = 30_000;
+  let refreshIntervalMs = 30_000;
+  const refreshIntervalStorageKey = "zcp-panel-refresh-interval";
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -390,6 +391,19 @@
     catch { return null; }
   }
 
+  function storedRefreshInterval() {
+    try {
+      const value = Number(window.localStorage.getItem(refreshIntervalStorageKey));
+      return [15, 30, 60, 300].includes(value) ? value : 30;
+    } catch {
+      return 30;
+    }
+  }
+
+  function formatClock(date = new Date()) {
+    return date.toLocaleTimeString("zh-CN", { hour12: false });
+  }
+
   function setTheme(theme, persist = false) {
     document.documentElement.dataset.theme = theme;
     const dark = theme === "dark";
@@ -494,6 +508,18 @@
     if (notify) announce(`${enabled ? "已开启" : "已暂停"}自动刷新`);
   }
 
+  function setRefreshInterval(seconds, persist = false) {
+    const normalized = [15, 30, 60, 300].includes(Number(seconds)) ? Number(seconds) : 30;
+    refreshIntervalMs = normalized * 1000;
+    $("#refresh-interval").value = String(normalized);
+    if (persist) {
+      try { window.localStorage.setItem(refreshIntervalStorageKey, String(normalized)); }
+      catch { /* Storage can be unavailable for local files. */ }
+    }
+    if (autoRefreshEnabled) scheduleAutoRefresh();
+    else updateRefreshCountdown();
+  }
+
   function refreshData(manual = false) {
     if (refreshPromise) {
       if (manual) announce("数据刷新正在进行中");
@@ -519,7 +545,8 @@
         renderCurrentData();
         const changed = data.updatedAt !== previousData.updatedAt;
         status.dataset.state = "success";
-        status.textContent = `${changed ? "已载入更新" : "已是最新"} · ${new Date().toLocaleTimeString("zh-CN", { hour12: false })}`;
+        status.textContent = changed ? "已载入更新" : "已是最新";
+        $("#refresh-success").textContent = `上次成功刷新：${formatClock()}`;
         if (manual || changed) announce(status.textContent);
       } catch (error) {
         data = previousData;
@@ -541,11 +568,16 @@
   }
 
   function initializeRefresh() {
+    setRefreshInterval(storedRefreshInterval());
     $("#refresh-data").addEventListener("click", () => {
       refreshData(true).finally(scheduleAutoRefresh);
     });
     $("#auto-refresh-toggle").addEventListener("click", () => {
       setAutoRefresh(!autoRefreshEnabled, true);
+    });
+    $("#refresh-interval").addEventListener("change", (event) => {
+      setRefreshInterval(event.target.value, true);
+      announce(`自动刷新间隔已设为${event.target.selectedOptions[0].textContent}`);
     });
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
@@ -556,6 +588,7 @@
       }
     });
     window.setInterval(updateRefreshCountdown, 1000);
+    $("#refresh-success").textContent = `上次成功刷新：页面载入 ${formatClock()}`;
     setAutoRefresh(true);
   }
 
