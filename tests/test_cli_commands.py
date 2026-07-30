@@ -47,6 +47,29 @@ class _TinyReferenceSpace:
         )
 
 
+def test_inherited_weight_mode_rejects_wrong_space_and_missing_asset(monkeypatch):
+    arguments = argparse.Namespace(weight_mode="ofa_inherited", model_checkpoint=None)
+    with pytest.raises(ValueError, match="only for ofa_proxyless_mbv2"):
+        cli._prepare_model_weights(
+            arguments,
+            argparse.Namespace(search_space_id="darts"),
+        )
+
+    class MissingRegistry:
+        def __init__(self, catalog):
+            self.catalog = catalog
+
+        def get(self, asset_id):
+            raise KeyError(asset_id)
+
+    monkeypatch.setattr(cli, "DataRegistry", MissingRegistry)
+    arguments.catalog = "missing-catalog.json"
+    with pytest.raises(FileNotFoundError, match="data bootstrap"):
+        cli._prepare_model_weights(
+            arguments,
+            argparse.Namespace(search_space_id="ofa_proxyless_mbv2"),
+        )
+
 class _TinyVisionDataset(torch.utils.data.Dataset):
     def __init__(self, *args, transform=None, **kwargs):
         self.transform = transform if transform is not None else (args[1] if len(args) > 1 else None)
@@ -239,6 +262,68 @@ def test_cli_training_smoke_end_to_end_with_tiny_reference_space(
     assert (run / "checkpoints" / "last.pt").exists()
 
 
+def test_cli_distributed_training_uses_shared_rank_zero_run(
+    monkeypatch, capsys, tmp_path
+):
+    from contextlib import contextmanager
+
+    space = _TinyReferenceSpace()
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: space)
+    monkeypatch.setenv("WORLD_SIZE", "2")
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+
+    @contextmanager
+    def training_device(arguments, world_size, rank, local_rank):
+        yield torch.device("cpu"), {
+            "selection_strategy": "test-ddp",
+            "world_size": world_size,
+            "rank": rank,
+            "local_rank": local_rank,
+        }
+
+    monkeypatch.setattr(cli, "_training_device", training_device)
+    monkeypatch.setattr(
+        torch.nn.parallel,
+        "DistributedDataParallel",
+        lambda model, **kwargs: model,
+    )
+    monkeypatch.setattr(torch.distributed, "broadcast_object_list", lambda payload, src: None)
+    config = tmp_path / "training-ddp.yaml"
+    config.write_text(
+        "space: tiny_reference\n"
+        "dataset: cifar10\n"
+        "input_size: 8\n"
+        "epochs: 1\n"
+        "optimizer: sgd\n"
+        "learning_rate: 0.01\n"
+        "weight_decay: 0.0\n"
+        "scheduler: none\n"
+        "batch_size: 2\n"
+        "formal_training_ready: true\n"
+        "protocol: test-smoke\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "training-ddp"
+    cli.main(
+        [
+            "train",
+            "--config",
+            str(config),
+            "--smoke",
+            "--classes",
+            "3",
+            "--output",
+            str(output),
+        ]
+    )
+    result = _output(capsys)
+    run = Path(result["run"])
+    assert len(list(output.iterdir())) == 1
+    assert (run / "training.jsonl").exists()
+    assert json.loads((run / "manifest.json").read_text(encoding="utf-8"))["status"] == "completed"
+
+
 def test_real_loaders_cover_cifar_and_imagenet_protocols(monkeypatch, tmp_path):
     from torchvision import datasets
 
@@ -304,6 +389,103 @@ def test_real_loaders_cover_cifar_and_imagenet_protocols(monkeypatch, tmp_path):
     )
     assert train.sampler.__class__.__name__ == "RepeatAugSampler"
     assert train.batch_sampler.sampler is train.sampler
+
+
+def test_distributed_training_device_uses_launcher_visible_rank(monkeypatch):
+    calls = []
+    monkeypatch.setenv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-first,GPU-second")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    monkeypatch.setattr(torch.cuda, "set_device", lambda rank: calls.append(("set", rank)))
+    monkeypatch.setattr(
+        torch.distributed,
+        "init_process_group",
+        lambda **kwargs: calls.append(("init", kwargs)),
+    )
+    monkeypatch.setattr(
+        torch.distributed,
+        "destroy_process_group",
+        lambda: calls.append(("destroy", None)),
+    )
+    arguments = argparse.Namespace(device=None)
+    with cli._training_device(arguments, 2, 1, 1) as (device, selection):
+        assert device == torch.device("cuda:1")
+        assert selection["selected_visible_device"] == "GPU-second"
+        assert selection["selection_strategy"] == "torchrun_launcher_managed"
+    assert calls[0] == ("set", 1)
+    assert calls[-1] == ("destroy", None)
+
+
+@pytest.mark.parametrize(
+    ("environment", "device", "message"),
+    [
+        ({"CUDA_DEVICE_ORDER": "PCI_BUS_ID", "CUDA_VISIBLE_DEVICES": "GPU-a,GPU-b"}, "cpu", "cuda:LOCAL_RANK"),
+        ({"CUDA_DEVICE_ORDER": "FASTEST_FIRST", "CUDA_VISIBLE_DEVICES": "GPU-a,GPU-b"}, None, "PCI_BUS_ID"),
+        ({"CUDA_DEVICE_ORDER": "PCI_BUS_ID", "CUDA_VISIBLE_DEVICES": "GPU-a"}, None, "WORLD_SIZE"),
+    ],
+)
+def test_distributed_training_device_rejects_unsafe_launcher_state(
+    monkeypatch, environment, device, message
+):
+    for name, value in environment.items():
+        monkeypatch.setenv(name, value)
+    with pytest.raises((ValueError, RuntimeError), match=message):
+        with cli._training_device(argparse.Namespace(device=device), 2, 0, 0):
+            pass
+
+
+
+def test_distributed_training_device_rejects_cuda_and_local_rank_mismatch(monkeypatch):
+    monkeypatch.setenv("CUDA_DEVICE_ORDER", "PCI_BUS_ID")
+    monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-a,GPU-b")
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    with pytest.raises(RuntimeError, match="requires CUDA"):
+        with cli._training_device(argparse.Namespace(device=None), 2, 0, 0):
+            pass
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    with pytest.raises(ValueError, match="LOCAL_RANK"):
+        with cli._training_device(argparse.Namespace(device=None), 2, 0, 2):
+            pass
+
+
+def test_distributed_run_context_shares_rank_zero_directory(monkeypatch, tmp_path):
+    monkeypatch.setattr(torch.distributed, "broadcast_object_list", lambda payload, src: None)
+    with cli._training_run_context(
+        tmp_path,
+        ["train"],
+        {"protocol": "fixture"},
+        {"distributed": {"world_size": 2}},
+        2,
+        0,
+    ) as run:
+        assert run.directory.parent == tmp_path
+        manifest = run.manifest_path
+    assert json.loads(manifest.read_text(encoding="utf-8"))["status"] == "completed"
+
+    shared_directory = tmp_path / "shared"
+    shared_directory.mkdir()
+
+    def broadcast(payload, src):
+        payload[0] = {"directory": str(shared_directory), "run_id": "shared-run"}
+
+    monkeypatch.setattr(torch.distributed, "broadcast_object_list", broadcast)
+    with cli._training_run_context(tmp_path, ["train"], {}, {}, 2, 1) as run:
+        assert run.directory == shared_directory
+        assert run.run_id == "shared-run"
+
+    monkeypatch.setattr(torch.distributed, "broadcast_object_list", lambda payload, src: None)
+    with pytest.raises(RuntimeError, match="did not broadcast"):
+        with cli._training_run_context(tmp_path, ["train"], {}, {}, 2, 1):
+            pass
+
+    failed_root = tmp_path / "failed"
+    with pytest.raises(ValueError, match="injected"):
+        with cli._training_run_context(failed_root, ["train"], {}, {}, 2, 0):
+            raise ValueError("injected")
+    failed_manifest = next(failed_root.glob("*/manifest.json"))
+    assert json.loads(failed_manifest.read_text(encoding="utf-8"))["status"] == "failed"
 
 
 def test_cli_data_lifecycle_control_paths(monkeypatch, capsys, tmp_path):

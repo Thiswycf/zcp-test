@@ -224,3 +224,67 @@ def test_training_sets_epoch_on_stateful_samplers(tmp_path):
     )
     assert train_sampler.epochs == [0, 1]
     assert valid_sampler.epochs == [0, 1]
+
+
+def test_training_gradient_accumulation_steps_and_no_sync(tmp_path):
+    from contextlib import contextmanager
+
+    class AccumulationModel(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.network = torch.nn.Sequential(
+                torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)
+            )
+            self.no_sync_calls = 0
+
+        @contextmanager
+        def no_sync(self):
+            self.no_sync_calls += 1
+            yield
+
+        def forward(self, inputs):
+            return self.network(inputs)
+
+    model = AccumulationModel()
+    data = torch.utils.data.TensorDataset(torch.randn(8, 3, 4, 4), torch.randint(2, (8,)))
+    loader = torch.utils.data.DataLoader(data, batch_size=2)
+    train_model(
+        model,
+        loader,
+        loader,
+        TrainingConfig(
+            1,
+            "sgd",
+            0.01,
+            0,
+            nesterov=False,
+            gradient_accumulation_steps=2,
+        ),
+        tmp_path,
+        torch.device("cpu"),
+    )
+    record = next(read_jsonl(tmp_path / "training.jsonl"))
+    assert record["optimizer_steps"] == 2
+    assert model.no_sync_calls == 2
+
+
+def test_non_primary_distributed_rank_does_not_write_artifacts(monkeypatch, tmp_path):
+    monkeypatch.setattr(torch.distributed, "is_available", lambda: True)
+    monkeypatch.setattr(torch.distributed, "is_initialized", lambda: True)
+    monkeypatch.setattr(torch.distributed, "get_rank", lambda: 1)
+    monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
+    monkeypatch.setattr(torch.distributed, "all_reduce", lambda *args, **kwargs: None)
+    monkeypatch.setattr(torch.distributed, "barrier", lambda: None)
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    data = torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,)))
+    loader = torch.utils.data.DataLoader(data, batch_size=2)
+    train_model(
+        model,
+        loader,
+        loader,
+        TrainingConfig(1, "sgd", 0.01, 0, nesterov=False),
+        tmp_path,
+        torch.device("cpu"),
+    )
+    assert not (tmp_path / "training.jsonl").exists()
+    assert not (tmp_path / "checkpoints").exists()

@@ -7,7 +7,7 @@ import torch
 import zcp_test.cli as cli
 from zcp_test.config import dump_config, load_config, merge_config
 from zcp_test.inputs import make_dataset_batch_stream, make_input_batch
-from zcp_test.training.protocols import scale_learning_rate
+from zcp_test.training.protocols import resolve_gradient_accumulation, scale_learning_rate
 
 
 class _InputDataset(torch.utils.data.Dataset):
@@ -28,6 +28,19 @@ def test_autoformer_linear_global_batch_learning_rate():
     assert learning_rate == pytest.approx(0.002)
     with pytest.raises(ValueError, match="world_size"):
         scale_learning_rate(0.0005, 256, 0, 512)
+
+
+def test_autoformer_gradient_accumulation_preserves_target_global_batch():
+    assert resolve_gradient_accumulation("auto", 256, 4, 2048, smoke=False) == 2
+    assert resolve_gradient_accumulation("auto", 256, 8, 2048, smoke=False) == 1
+    assert resolve_gradient_accumulation("auto", 2, 2, 2048, smoke=True) == 1
+    assert resolve_gradient_accumulation(3, 256, 4, None, smoke=False) == 3
+    with pytest.raises(ValueError, match="requires target"):
+        resolve_gradient_accumulation("auto", 256, 4, None, smoke=False)
+    with pytest.raises(ValueError, match="divisible"):
+        resolve_gradient_accumulation("auto", 300, 4, 2048, smoke=False)
+    with pytest.raises(ValueError, match="must be positive"):
+        resolve_gradient_accumulation(0, 256, 4, None, smoke=False)
 
 
 def test_config_load_merge_and_atomic_dump(tmp_path):

@@ -10,6 +10,8 @@ weight_decay: 0.05
 scheduler: cosine
 warmup_epochs: 20
 batch_size: 256
+target_global_batch_size: 2048
+gradient_accumulation_steps: auto
 label_smoothing: 0.1
 amp: true
 drop_path_prob: 0.1
@@ -39,5 +41,5 @@ implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c
 implementation_commit: 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47
 formal_training_ready: false
 formal_training_blockers:
-  - torchrun/DDP model wrapping, metric reduction, and rank-zero artifacts are not implemented
   - official complexity-op fixture is not independently reconciled with a standard MAC profiler
+  - full-dataset DDP resume and distributed failure-injection acceptance are not completed

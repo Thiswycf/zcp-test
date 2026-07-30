@@ -236,10 +236,11 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
   OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-
   augmentation sampler, the AZ-NAS linear LR rule (`base_lr * global_batch / 512`), and six exact
-  Cream/AZ-NAS parameter-count goldens. It still sets `formal_training_ready: false` because torchrun/
-  DDP wrapping, distributed metric reduction and rank-zero artifacts are not implemented. Multi-process
-  launches are rejected rather than silently running independent jobs. Only DARTS currently has formally
-  enabled training profiles, and only short smoke evidence is retained.
+  Cream/AZ-NAS parameter-count goldens. Mixed 4090D/4090 two-rank DARTS and AutoFormer smokes now
+  validate DDP wrapping, reduced metrics, one shared run and rank-zero-only artifacts. UUID-ordered
+  `CUDA_VISIBLE_DEVICES` is mandatory, and AutoFormer can derive accumulation to retain global batch
+  2048 (four GPUs × 256 uses two micro-steps). It still sets `formal_training_ready: false` until
+  full-data distributed resume/failure injection and an independent complexity cross-check pass.
 
 ## Proxy capability policy
 

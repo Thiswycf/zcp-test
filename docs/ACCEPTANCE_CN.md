@@ -52,9 +52,10 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 
 AutoFormer 与 Proxyless-MBV2 的仓库配置当前明确 `formal_training_ready: false`。AutoFormer 已有
 AZ-NAS repeated-augmentation sampler、`base_lr × global_batch / 512` 缩放规则，以及 Cream T/S/B
-和 AZ-NAS Tiny/Small/Base 六个精确参数量 golden；仍缺 torchrun/DDP 模型包装、跨 rank 指标归约、
-rank-zero artifact 写入，并且官方 `get_complexity` 口径尚未与独立 MAC profiler 对齐。CLI 对
-`WORLD_SIZE>1` 明确失败，避免每个 rank 静默独立训练。Proxyless-MBV2 仍缺已验证的 TensorFlow
+和 AZ-NAS Tiny/Small/Base 六个精确参数量 golden。混合 4090D/4090 的 2-rank DARTS 与 AutoFormer
+真实 GPU smoke 已验证 DDP、跨 rank 指标归约、单一共享 run 和仅 rank 0 写 artifact；失败 run
+也会标为 failed。正式 AutoFormer 仍缺完整数据 DDP 恢复/故障注入，并且官方 `get_complexity`
+口径尚未与独立 MAC profiler 对齐。Proxyless-MBV2 仍缺已验证的 TensorFlow
 风格颜色扰动、官方 MAC fixture 和分布式全局 batch。CLI 会拒绝非 smoke 训练。
 配置中的布尔值不能自行授权；正式训练还必须匹配代码内置的 DARTS 协议白名单及关键字段。
 

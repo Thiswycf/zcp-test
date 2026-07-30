@@ -92,6 +92,33 @@ def scale_learning_rate(
     return base_learning_rate * global_batch_size / reference_batch_size, global_batch_size
 
 
+def resolve_gradient_accumulation(
+    requested: int | str,
+    per_device_batch_size: int,
+    world_size: int,
+    target_global_batch_size: int | None,
+    *,
+    smoke: bool,
+) -> int:
+    """Resolve fixed or automatic micro-step accumulation without changing the protocol."""
+    if smoke:
+        return 1
+    if str(requested).casefold() != "auto":
+        steps = int(requested)
+        if steps <= 0:
+            raise ValueError("gradient_accumulation_steps must be positive")
+        return steps
+    if target_global_batch_size is None:
+        raise ValueError("automatic gradient accumulation requires target_global_batch_size")
+    micro_global_batch_size = per_device_batch_size * world_size
+    if target_global_batch_size <= 0 or target_global_batch_size % micro_global_batch_size:
+        raise ValueError(
+            "target_global_batch_size must be positive and divisible by "
+            "per-device batch_size * WORLD_SIZE"
+        )
+    return target_global_batch_size // micro_global_batch_size
+
+
 def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
     protocol = str(config.get("protocol", ""))
     expected = FORMAL_TRAINING_PROTOCOLS.get(protocol)
@@ -114,6 +141,7 @@ def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
 
 __all__ = [
     "FORMAL_TRAINING_PROTOCOLS",
+    "resolve_gradient_accumulation",
     "scale_learning_rate",
     "validate_formal_training_protocol",
 ]

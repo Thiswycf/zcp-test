@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import inspect
 import time
+from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -34,6 +35,7 @@ class TrainingConfig:
     mixup_probability: float = 1.0
     mixup_switch_probability: float = 0.5
     mixup_mode: str = "batch"
+    gradient_accumulation_steps: int = 1
 
 
 def train_model(
@@ -51,7 +53,10 @@ def train_model(
     import torch
 
     output = Path(output)
-    writer = JsonlWriter(output / "training.jsonl", fsync_every=1)
+    distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+    distributed_rank = torch.distributed.get_rank() if distributed else 0
+    primary_process = distributed_rank == 0
+    writer = JsonlWriter(output / "training.jsonl", fsync_every=1) if primary_process else None
     model.to(device)
     valid_criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
     mixup_fn = None
@@ -128,7 +133,7 @@ def train_model(
             raise ValueError("Checkpoint training config does not match the requested config")
         if checkpoint.get("run_identity") != run_identity:
             raise ValueError("Checkpoint architecture or protocol identity does not match this run")
-        model.load_state_dict(checkpoint["model"])
+        getattr(model, "module", model).load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         scheduler.load_state_dict(checkpoint["scheduler"])
         scaler.load_state_dict(checkpoint["scaler"])
@@ -178,12 +183,16 @@ def train_model(
             "optimizer_steps": optimizer_steps,
             "best": valid_accuracy > best_accuracy,
         }
-        writer.append(record)
+        if writer is not None:
+            writer.append(record)
         best_accuracy = max(best_accuracy, valid_accuracy)
-        payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), "rng": rng_state(), "config": config.__dict__, "run_identity": run_identity}
-        atomic_torch_save(payload, output / "checkpoints" / "last.pt")
-        if record["best"]:
-            atomic_torch_save(payload, output / "checkpoints" / "best.pt")
+        if primary_process:
+            payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": unwrapped_model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), "rng": rng_state(), "config": config.__dict__, "run_identity": run_identity}
+            atomic_torch_save(payload, output / "checkpoints" / "last.pt")
+            if record["best"]:
+                atomic_torch_save(payload, output / "checkpoints" / "best.pt")
+        if distributed:
+            torch.distributed.barrier()
     return {"best_accuracy": best_accuracy, "last_epoch": config.epochs - 1}
 
 
@@ -204,41 +213,79 @@ def _epoch(
     forward = getattr(model, "module", model).forward
     supports_auxiliary = "return_auxiliary" in inspect.signature(forward).parameters
     total_loss = top1_correct = top5_correct = count = optimizer_steps = 0
-    for inputs, labels in loader:
+    if config.gradient_accumulation_steps <= 0:
+        raise ValueError("gradient_accumulation_steps must be positive")
+    loader_batches = len(loader)
+    accumulated_batches = 0
+    for batch_index, (inputs, labels) in enumerate(loader):
         inputs, labels = inputs.to(device), labels.to(device)
         accuracy_labels = labels
         if training and mixup_fn is not None:
             inputs, labels = mixup_fn(inputs, labels)
-        if training:
+        if training and accumulated_batches == 0:
             optimizer.zero_grad(set_to_none=True)
-        with torch.set_grad_enabled(training), torch.autocast(device_type=device.type, enabled=scaler is not None and scaler.is_enabled()):
-            raw_output = (
-                model(inputs, return_auxiliary=True)
-                if training and supports_auxiliary and config.auxiliary_weight
-                else model(inputs)
-            )
-            auxiliary = None
-            if isinstance(raw_output, (tuple, list)):
-                output = raw_output[0]
-                auxiliary = raw_output[1] if len(raw_output) > 1 else None
-            else:
-                output = raw_output
-            loss = criterion(output, labels)
-            if training and auxiliary is not None and config.auxiliary_weight:
-                loss = loss + config.auxiliary_weight * criterion(auxiliary, labels)
+        accumulated_batches += int(training)
+        should_step = training and (
+            accumulated_batches == config.gradient_accumulation_steps
+            or batch_index + 1 == loader_batches
+        )
+        synchronization = (
+            model.no_sync()
+            if training and not should_step and hasattr(model, "no_sync")
+            else nullcontext()
+        )
+        with synchronization:
+            with torch.set_grad_enabled(training), torch.autocast(device_type=device.type, enabled=scaler is not None and scaler.is_enabled()):
+                raw_output = (
+                    model(inputs, return_auxiliary=True)
+                    if training and supports_auxiliary and config.auxiliary_weight
+                    else model(inputs)
+                )
+                auxiliary = None
+                if isinstance(raw_output, (tuple, list)):
+                    output = raw_output[0]
+                    auxiliary = raw_output[1] if len(raw_output) > 1 else None
+                else:
+                    output = raw_output
+                loss = criterion(output, labels)
+                if training and auxiliary is not None and config.auxiliary_weight:
+                    loss = loss + config.auxiliary_weight * criterion(auxiliary, labels)
+            if training:
+                scaler.scale(loss / config.gradient_accumulation_steps).backward()
         if training:
-            scaler.scale(loss).backward()
-            if config.grad_clip is not None:
+            if should_step and (
+                config.grad_clip is not None
+                or accumulated_batches != config.gradient_accumulation_steps
+            ):
                 scaler.unscale_(optimizer)
+            if should_step and accumulated_batches != config.gradient_accumulation_steps:
+                correction = config.gradient_accumulation_steps / accumulated_batches
+                for parameter in model.parameters():
+                    if parameter.grad is not None:
+                        parameter.grad.mul_(correction)
+            if should_step and config.grad_clip is not None:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), config.grad_clip)
-            scale_before = scaler.get_scale()
-            scaler.step(optimizer)
-            scaler.update()
-            optimizer_steps += int(scaler.get_scale() >= scale_before)
+            if should_step:
+                scale_before = scaler.get_scale()
+                scaler.step(optimizer)
+                scaler.update()
+                optimizer_steps += int(scaler.get_scale() >= scale_before)
+                accumulated_batches = 0
         total_loss += float(loss.detach()) * labels.size(0)
         predictions = output.topk(min(5, output.shape[1]), dim=1).indices
         matches = predictions.eq(accuracy_labels.view(-1, 1))
         top1_correct += int(matches[:, :1].any(dim=1).sum())
         top5_correct += int(matches.any(dim=1).sum())
         count += accuracy_labels.size(0)
-    return total_loss, top1_correct, top5_correct, count, optimizer_steps
+    if torch.distributed.is_available() and torch.distributed.is_initialized():
+        totals = torch.tensor(
+            [total_loss, top1_correct, top5_correct, count],
+            dtype=torch.float64,
+            device=device,
+        )
+        torch.distributed.all_reduce(totals, op=torch.distributed.ReduceOp.SUM)
+        step_count = torch.tensor(optimizer_steps, dtype=torch.int64, device=device)
+        torch.distributed.all_reduce(step_count, op=torch.distributed.ReduceOp.MAX)
+        total_loss, top1_correct, top5_correct, count = totals.tolist()
+        optimizer_steps = int(step_count.item())
+    return total_loss, int(top1_correct), int(top5_correct), int(count), optimizer_steps

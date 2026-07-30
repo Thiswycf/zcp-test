@@ -8,6 +8,7 @@ import time
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from zcp_test.artifacts import (
@@ -331,6 +332,98 @@ def _prepare_gpu(args: argparse.Namespace) -> dict[str, Any] | None:
     )
     args._gpu_selection = selection
     return selection
+
+
+@contextmanager
+def _training_device(
+    args: argparse.Namespace,
+    world_size: int,
+    rank: int,
+    local_rank: int,
+):
+    if world_size == 1:
+        with _selected_device(args) as selected:
+            yield selected
+        return
+    if getattr(args, "device", None):
+        raise ValueError("Distributed training derives cuda:LOCAL_RANK; do not pass --device")
+    if os.environ.get("CUDA_DEVICE_ORDER") != "PCI_BUS_ID":
+        raise RuntimeError("Distributed training requires CUDA_DEVICE_ORDER=PCI_BUS_ID")
+    visible_devices = os.environ.get("CUDA_VISIBLE_DEVICES", "")
+    visible_tokens = [item.strip() for item in visible_devices.split(",") if item.strip()]
+    if len(visible_tokens) < world_size:
+        raise RuntimeError(
+            "Distributed training requires CUDA_VISIBLE_DEVICES to list at least WORLD_SIZE "
+            "launcher-managed GPUs, preferably by UUID"
+        )
+    import torch
+
+    if not torch.cuda.is_available():
+        raise RuntimeError("Distributed training requires CUDA")
+    if not 0 <= local_rank < torch.cuda.device_count():
+        raise ValueError("LOCAL_RANK is outside the visible CUDA device range")
+    torch.cuda.set_device(local_rank)
+    torch.distributed.init_process_group(backend="nccl", init_method="env://")
+    selection = {
+        "selection_strategy": "torchrun_launcher_managed",
+        "rank": rank,
+        "local_rank": local_rank,
+        "world_size": world_size,
+        "torch_logical_index": local_rank,
+        "visible_devices": visible_tokens,
+        "selected_visible_device": visible_tokens[local_rank],
+    }
+    try:
+        yield torch.device("cuda", local_rank), selection
+    finally:
+        torch.distributed.destroy_process_group()
+
+
+@contextmanager
+def _training_run_context(
+    root: str | Path,
+    command: list[str],
+    config: dict[str, Any],
+    runtime: dict[str, Any],
+    world_size: int,
+    rank: int,
+):
+    if world_size == 1:
+        with RunContext(root, command, config, runtime=runtime) as run:
+            yield run
+        return
+    import torch
+
+    primary_context = None
+    payload: list[Any] = [None]
+    if rank == 0:
+        primary_context = RunContext(root, command, config, runtime=runtime)
+        primary_context.__enter__()
+        payload[0] = {
+            "directory": str(primary_context.directory),
+            "run_id": primary_context.run_id,
+        }
+    torch.distributed.broadcast_object_list(payload, src=0)
+    shared = payload[0]
+    if not isinstance(shared, dict):
+        raise RuntimeError("Rank zero did not broadcast a shared training run directory")
+    run = primary_context or SimpleNamespace(
+        directory=Path(shared["directory"]),
+        run_id=shared["run_id"],
+    )
+    caught = None
+    try:
+        yield run
+    except BaseException as error:
+        caught = error
+        raise
+    finally:
+        if primary_context is not None:
+            primary_context.__exit__(
+                None if caught is None else type(caught),
+                caught,
+                None,
+            )
 
 
 def _add_gpu_arguments(parser: argparse.ArgumentParser) -> None:
@@ -1161,18 +1254,22 @@ def command_search(args: argparse.Namespace) -> None:
 
 
 def command_train(args: argparse.Namespace) -> None:
-    from zcp_test.training.protocols import scale_learning_rate, validate_formal_training_protocol
+    from zcp_test.training.protocols import (
+        resolve_gradient_accumulation,
+        scale_learning_rate,
+        validate_formal_training_protocol,
+    )
 
     config = load_config(args.config)
     distributed_world_size = int(os.environ.get("WORLD_SIZE", "1"))
     distributed_rank = int(os.environ.get("RANK", "0"))
-    if distributed_world_size > 1:
-        raise NotImplementedError(
-            "torchrun/DDP training is not implemented yet; refusing to launch independent "
-            "per-rank training processes. Run one process or use --smoke until distributed "
-            "model wrapping, metric reduction, and rank-zero artifacts are accepted."
-        )
-    _prepare_gpu(args)
+    distributed_local_rank = int(os.environ.get("LOCAL_RANK", "0"))
+    if distributed_world_size <= 0:
+        raise ValueError("WORLD_SIZE must be positive")
+    if not 0 <= distributed_rank < distributed_world_size:
+        raise ValueError("RANK must be within WORLD_SIZE")
+    if distributed_world_size == 1:
+        _prepare_gpu(args)
     load_builtin_spaces()
     space = SPACES.create(config["space"])
     model_provenance = _space_provenance(space)
@@ -1210,7 +1307,15 @@ def command_train(args: argparse.Namespace) -> None:
     batch_size = args.batch_size or int(config.get("batch_size", 8))
     input_size = args.input_size or int(config.get("input_size", 32))
     base_learning_rate = float(config["learning_rate"])
-    gradient_accumulation_steps = int(config.get("gradient_accumulation_steps", 1))
+    requested_accumulation = config.get("gradient_accumulation_steps", 1)
+    target_global_batch_size = config.get("target_global_batch_size")
+    gradient_accumulation_steps = resolve_gradient_accumulation(
+        requested_accumulation,
+        batch_size,
+        distributed_world_size,
+        None if target_global_batch_size is None else int(target_global_batch_size),
+        smoke=args.smoke,
+    )
     learning_rate_reference_batch_size = config.get("learning_rate_reference_batch_size")
     if learning_rate_reference_batch_size is None or args.smoke:
         learning_rate = base_learning_rate
@@ -1245,14 +1350,29 @@ def command_train(args: argparse.Namespace) -> None:
         mixup_probability=float(config.get("mixup_probability", 1.0)),
         mixup_switch_probability=float(config.get("mixup_switch_probability", 0.5)),
         mixup_mode=str(config.get("mixup_mode", "batch")),
+        gradient_accumulation_steps=gradient_accumulation_steps,
     )
     data_root = None if args.smoke else _resolve_data_root(args, dataset)
     if not args.smoke and not data_root:
         raise ValueError(
             "Formal training requires --data-root; synthetic data is restricted to --smoke"
         )
-    with _selected_device(args) as (device, selection):
+    with _training_device(
+        args,
+        distributed_world_size,
+        distributed_rank,
+        distributed_local_rank,
+    ) as (device, selection):
         model = _build_training_model(space, architecture, classes, config)
+        if distributed_world_size > 1:
+            import torch
+
+            model.to(device)
+            model = torch.nn.parallel.DistributedDataParallel(
+                model,
+                device_ids=[distributed_local_rank],
+                output_device=distributed_local_rank,
+            )
         resolved = {
             **config,
             "architecture": architecture.to_dict(),
@@ -1262,6 +1382,7 @@ def command_train(args: argparse.Namespace) -> None:
             "input_size": input_size,
             "distributed_world_size": distributed_world_size,
             "distributed_rank": distributed_rank,
+            "distributed_local_rank": distributed_local_rank,
             "per_device_batch_size": batch_size,
             "gradient_accumulation_steps": gradient_accumulation_steps,
             "effective_global_batch_size": effective_global_batch_size,
@@ -1273,7 +1394,22 @@ def command_train(args: argparse.Namespace) -> None:
             "implementation_source": model_provenance["implementation_source"],
             "implementation_commit": model_provenance["implementation_commit"],
         }
-        with RunContext(args.output, sys.argv, resolved, runtime={"gpu_selection": selection}) as run:
+        runtime = {
+            "gpu_selection": selection,
+            "distributed": {
+                "world_size": distributed_world_size,
+                "backend": "nccl" if distributed_world_size > 1 else None,
+                "launcher": "torchrun" if distributed_world_size > 1 else None,
+            },
+        }
+        with _training_run_context(
+            args.output,
+            sys.argv,
+            resolved,
+            runtime,
+            distributed_world_size,
+            distributed_rank,
+        ) as run:
             batch = min(batch_size, 2 if dataset == "imagenet1k" else 4) if args.smoke else batch_size
             size = input_size if dataset == "imagenet1k" else min(input_size, 64) if args.smoke else input_size
             if args.smoke:
@@ -1311,7 +1447,8 @@ def command_train(args: argparse.Namespace) -> None:
                     "model_fidelity": model_fidelity,
                 },
             )
-            _json({"run": str(run.directory), **result})
+            if distributed_rank == 0:
+                _json({"run": str(run.directory), **result})
 
 
 def _load_architecture_spec(value: str) -> dict[str, Any]:

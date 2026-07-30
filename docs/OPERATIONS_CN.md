@@ -123,7 +123,23 @@ AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`
 `base_lr × per_device_batch × world_size × accumulation / 512` 缩放，因此官方 8×256 启动的
 有效 LR 是 `0.002`，不是 YAML 中作为基准值的 `0.0005`。Cream T/S/B 与 AZ-NAS
 Tiny/Small/Base 已有精确参数量 golden；官方自定义 `get_complexity` 仍不能称为通用 FLOPs。
-当前 `WORLD_SIZE>1` 会明确失败，直到 DDP 包装、跨 rank 指标归约和 rank-zero artifact 写入完成。
+多 GPU 使用 `torchrun`，且必须由启动器按 UUID 固定可见卡；不要同时传 `--device`：
+
+```bash
+CUDA_DEVICE_ORDER=PCI_BUS_ID \
+CUDA_VISIBLE_DEVICES=GPU-UUID-0,GPU-UUID-1,GPU-UUID-2,GPU-UUID-3 \
+torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
+  --config configs/training/autoformer_imagenet.yaml \
+  --smoke --epochs 1 --batch-size 2 --output /path/to/runs/training
+```
+
+每个进程内部使用 `cuda:LOCAL_RANK`。训练 loader 使用分布式 repeated-augmentation sampler，
+指标跨 rank 求和，只由 rank 0 写 `manifest.json`、`training.jsonl` 和 checkpoint。AutoFormer 的
+`gradient_accumulation_steps: auto` 将目标 global batch 固定为 2048：4 卡×每卡 256 时累积 2 次，
+8 卡时累积 1 次。当前真实 2 卡 DARTS/AutoFormer smoke 已通过；完整数据恢复和分布式故障注入
+尚未验收，因此 AutoFormer `formal_training_ready` 仍为 false。
+上例是可直接执行的 DDP 流水线 smoke；移除 `--smoke` 的完整数据命令会按设计被协议门禁拒绝，
+不能把未来正式命令伪装成当前可运行示例。
 
 `ofa_proxyless_mbv2` 的 architecture spec 使用官方 supernet 位置语义：`kernel_size` 和
 `expand_ratio` 均固定 21 项，五个 `depth` 决定每个最大深度 4 stage 激活多少前缀 block，最后一个

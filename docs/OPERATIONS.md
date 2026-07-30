@@ -166,8 +166,23 @@ Repeated augmentation uses three repeats, and the effective LR follows
 `base_lr * per_device_batch * world_size * accumulation / 512`; the published 8×256 launch therefore
 uses `0.002`, not `0.0005`. Exact parameter-count fixtures cover Cream T/S/B and AZ-NAS
 Tiny/Small/Base. The upstream `get_complexity` value is not reported as generic FLOPs. Distributed
-training is still blocked: `WORLD_SIZE>1` fails explicitly until DDP wrapping, metric reduction and
-rank-zero artifact ownership are implemented.
+Multi-GPU training uses launcher-managed UUID ordering and must not also pass `--device`:
+
+```bash
+CUDA_DEVICE_ORDER=PCI_BUS_ID \
+CUDA_VISIBLE_DEVICES=GPU-UUID-0,GPU-UUID-1,GPU-UUID-2,GPU-UUID-3 \
+torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
+  --config configs/training/autoformer_imagenet.yaml \
+  --smoke --epochs 1 --batch-size 2 --output /path/to/runs/training
+```
+
+Each process uses `cuda:LOCAL_RANK`; metrics are reduced across ranks, and only rank zero owns the
+run manifest, JSONL and checkpoints. Auto accumulation preserves target global batch 2048, so four
+GPUs at batch 256 use two micro-steps. Real mixed-4090D/4090 two-rank DARTS and AutoFormer smokes
+passed. Full-data distributed resume and failure injection remain unaccepted, so AutoFormer formal
+training stays disabled.
+This is an executable DDP plumbing smoke. Removing `--smoke` is intentionally rejected until the
+remaining formal gate closes; the manual does not present a future formal command as currently usable.
 
 Without `--architecture`, training samples an architecture from the configured space.
 `--architecture` accepts either an existing JSON file or inline JSON; either a top-level `spec`

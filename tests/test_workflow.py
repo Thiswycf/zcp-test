@@ -223,10 +223,11 @@ def test_incomplete_formal_training_protocol_is_rejected(tmp_path):
         main(["train", "--config", str(config), "--device", "cpu"])
 
 
-def test_train_rejects_unimplemented_torchrun_processes(monkeypatch):
+def test_train_rejects_manual_device_override_under_torchrun(monkeypatch):
     monkeypatch.setenv("WORLD_SIZE", "2")
     monkeypatch.setenv("RANK", "0")
-    with pytest.raises(NotImplementedError, match="torchrun/DDP"):
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    with pytest.raises(ValueError, match="cuda:LOCAL_RANK"):
         main(
             [
                 "train",

@@ -100,7 +100,9 @@ zcp-test data import-manifest \
 - AutoFormer：AZ-NAS Tiny/Small 为 500 epoch、Base 为 300 epoch；基础 LR `5e-4` 按
   `per_device_batch × world_size / 512` 线性缩放（官方 8×256 时有效 LR `0.002`），AdamW、
   weight decay `0.05`、cosine、20 epoch warmup。当前已接入 repeated-augmentation sampler 和
-  六个 Cream/AZ-NAS 官方子网参数量 golden；正式训练仍因 DDP 尚未实现而保持关闭。
+  六个 Cream/AZ-NAS 官方子网参数量 golden。真实 2 卡混合 4090D/4090 DDP smoke 已验证共享 run、
+  跨 rank 指标归约和仅 rank 0 写 artifact；正式训练仍因完整数据恢复/故障注入与 complexity
+  独立口径尚未验收而保持关闭。
 - OFA/Proxyless MobileNetV2：ImageNet-1k、150 epoch、SGD/Nesterov、`0.05`、weight decay `4e-5`、label smoothing `0.1`。
 - DARTS：提供 CIFAR-10 600 epoch profile。
 - DARTS：同时提供 CIFAR-100 600 epoch 适配和 ImageNet-1k 250 epoch 官方评估 profile。
@@ -115,5 +117,6 @@ zcp-test data import-manifest \
   查询；其他机器必须使用 `data bootstrap` 或本地 catalog 注册路径，仓库配置不保存本机路径。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
 - DARTS 正式 profile 已放行；AutoFormer 与 MobileNet 配置仍是可审计的候选 recipe，不得把
-  `--smoke` 或单卡构模成功写成正式训练验收。检测到 `torchrun` 多进程时 CLI 会明确拒绝，
-  防止各 rank 静默执行彼此独立的伪分布式训练。
+  `--smoke` 写成正式训练验收。`torchrun` 必须显式提供按 UUID 排列的 `CUDA_VISIBLE_DEVICES`；
+  CLI 使用 `cuda:LOCAL_RANK`、DDP、分布式 sampler/指标归约和 rank-zero artifacts。AutoFormer
+  可将梯度累积自动调整到 global batch 2048，因此 4 卡×256 使用 2 次累积。
