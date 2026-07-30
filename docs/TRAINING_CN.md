@@ -10,7 +10,7 @@
 |---|---|---|---|
 | `darts` | `reference_model` | 已放行，尚未完成高成本精度验收 | CIFAR-10/100、原始 DARTS ImageNet、TE-NAS retrain 分 profile |
 | `autoformer` | `reference_model` | **阻断** | repeated augmentation、分布式全局 batch/LR scaling、官方 fixture 未验收 |
-| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch static subnet，不是 OFA inherited；颜色扰动和官方 fixture 未验收 |
+| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 权重协议已分离；正式训练仍缺颜色扰动、MAC 与分布式验收 |
 | `zennas_plainnet_mbv2` | `reference_model` | **尚无正式配置** | ZenNAS/Zen-score 风格 PlainNet 与 Proxyless/OFA 空间必须分开 |
 | `pit` | `reference_model` | **尚无正式配置** | Auto-Prox `90ed458` 三阶段静态拓扑；ViT-Bench vanilla/KD 真值只用于查询，不等同于本项目复训 |
 | `ofa_mbv3` | `reference_model` | **尚无正式配置** | 官方五阶段/20-block 静态子网与 BN recalibration；尚未接入 inherited checkpoint/active weight export |
@@ -71,9 +71,12 @@ zcp-test train --config configs/training/ofa_proxyless_mbv2_imagenet.yaml \
   --architecture "$MBV2_ARCH" --smoke --epochs 1 --gpu auto
 ```
 
-不得把上述 smoke 写成 AZ-NAS 500 epoch 或 OFA/Proxyless 150 epoch 复现。OFA inherited subnet 还需
-官方 supernet checkpoint、active `ks/e/d/r`、静态导出和 BN recalibration；当前 scratch static
-MBV2 不提供 inherited accuracy。
+不得把上述 smoke 写成 AZ-NAS 500 epoch 或 OFA/Proxyless 150 epoch 复现。Proxyless spec 使用
+21 位固定位置 `kernel_size`/`expand_ratio`、五个可搜索 `depth`、固定 `width_mult=1.3` 和
+128–224（步长 4）的 `resolution`；不能再传旧的“仅激活块”紧凑编码。官方 supernet checkpoint
+和 active `ks/e/d` 权重导出已接入 `evaluate/search`，但每个 subnet 的独立真实数据 BN
+recalibration 与 inherited accuracy 尚未验收，不能用未校准 ZCP smoke 替代。正式 scratch 训练
+仍保持门禁阻断。
 
 ## 5. 恢复、监控与产物
 

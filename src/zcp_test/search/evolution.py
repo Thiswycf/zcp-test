@@ -5,7 +5,7 @@ import json
 import random
 import time
 from dataclasses import dataclass
-from typing import Callable
+from typing import Any, Callable, Mapping
 
 from zcp_test.artifacts import JsonlWriter
 from zcp_test.spaces.base import SearchSpace
@@ -26,7 +26,7 @@ def cache_key(architecture: Architecture, proxy_id: str, dataset: str, seed: int
 
 
 class EvolutionSearch:
-    def __init__(self, space: SearchSpace, evaluator: Callable[[Architecture], float], writer: JsonlWriter, population_size: int = 20, elite_ratio: float = 0.2, seed: int = 42) -> None:
+    def __init__(self, space: SearchSpace, evaluator: Callable[[Architecture], float], writer: JsonlWriter, population_size: int = 20, elite_ratio: float = 0.2, seed: int = 42, record_metadata: Mapping[str, Any] | None = None) -> None:
         if population_size < 2 or not 0 < elite_ratio <= 1:
             raise ValueError("Invalid population settings")
         self.space = space
@@ -39,6 +39,7 @@ class EvolutionSearch:
         self.started = time.perf_counter()
         self.cache_hits = 0
         self.evaluations = 0
+        self.record_metadata = dict(record_metadata or {})
 
     def _score(self, architecture: Architecture) -> tuple[float, bool]:
         if architecture.architecture_id in self.cache:
@@ -79,7 +80,7 @@ class EvolutionSearch:
         return max(population, key=lambda candidate: candidate.score)
 
     def _record(self, generation: int, candidate: Candidate, cache_hit: bool, selected: bool) -> None:
-        self.writer.append({"record_kind": "candidate", "generation": generation, "search_space_id": candidate.architecture.search_space_id, "architecture_id": candidate.architecture.architecture_id, "architecture": candidate.architecture.spec, "parents": candidate.parents, "operation": candidate.operation, "score": candidate.score, "cache_hit": cache_hit, "selected": selected, "cumulative_evaluations": self.evaluations, "cumulative_cache_hits": self.cache_hits, "elapsed_seconds": time.perf_counter() - self.started})
+        self.writer.append({**self.record_metadata, "record_kind": "candidate", "generation": generation, "search_space_id": candidate.architecture.search_space_id, "architecture_id": candidate.architecture.architecture_id, "architecture": candidate.architecture.spec, "parents": candidate.parents, "operation": candidate.operation, "score": candidate.score, "cache_hit": cache_hit, "selected": selected, "cumulative_evaluations": self.evaluations, "cumulative_cache_hits": self.cache_hits, "elapsed_seconds": time.perf_counter() - self.started})
 
     def _summary(self, generation: int, population: list[Candidate]) -> None:
         scores = sorted(candidate.score for candidate in population)
@@ -87,4 +88,4 @@ class EvolutionSearch:
         def percentile(fraction: float) -> float:
             return scores[round((len(scores) - 1) * fraction)]
 
-        self.writer.append({"record_kind": "generation_summary", "generation": generation, "best_so_far": max(self.cache.values()), "mean_score": sum(scores) / len(scores), "q25": percentile(0.25), "q50": percentile(0.5), "q75": percentile(0.75), "diversity": len({candidate.architecture.architecture_id for candidate in population}) / len(population), "cumulative_evaluations": self.evaluations, "cumulative_cache_hits": self.cache_hits, "elapsed_seconds": time.perf_counter() - self.started})
+        self.writer.append({**self.record_metadata, "record_kind": "generation_summary", "generation": generation, "best_so_far": max(self.cache.values()), "mean_score": sum(scores) / len(scores), "q25": percentile(0.25), "q50": percentile(0.5), "q75": percentile(0.75), "diversity": len({candidate.architecture.architecture_id for candidate in population}) / len(population), "cumulative_evaluations": self.evaluations, "cumulative_cache_hits": self.cache_hits, "elapsed_seconds": time.perf_counter() - self.started})

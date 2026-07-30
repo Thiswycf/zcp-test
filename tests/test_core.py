@@ -124,8 +124,13 @@ def test_statistics_and_search(tmp_path):
         JsonlWriter(tmp_path / "search.jsonl", 1),
         4,
         seed=3,
+        record_metadata={"weight_mode": "inherited_supernet"},
     )
     assert search.run(1).architecture.search_space_id == "darts"
+    assert all(
+        row["weight_mode"] == "inherited_supernet"
+        for row in read_jsonl(tmp_path / "search.jsonl")
+    )
 
 
 def test_training_artifacts(tmp_path):

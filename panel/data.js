@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 16:28 CST",
+  updatedAt: "2026-07-30 16:58 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "最新质量 gate 为 216 passed；第一方 coverage 86%、CLI 80%、benchmark_report 96%、reports 100%，Ruff、compileall、pip check 与 diff check 通过。覆盖率门槛已完成，仍持续记录并发工作区状态。",
+      detail: "OFA inherited 合入后的最新完整 gate 为 222 passed、第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过；search.jsonl 的 inherited provenance 也已复核。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 16:15"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-OFA-INHERITED"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 16:58"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -83,31 +83,31 @@ window.ZCP_PANEL_DATA = {
       evidence: ["EV-REFERENCE-MODELS"], risks: ["R-AUTOFORMER"], updatedAt: "2026-07-30 14:15"
     },
     {
-      id: "C2", phase: "Reference", priority: "P0", title: "分离两类 MobileNetV2",
-      content: "分别提供 skip-free PlainNet-MBV2 与 Proxyless/OFA-style static MBConv。",
-      purpose: "避免 PlainNet 搜索空间和 OFA/Proxyless 静态网络继续共用伪实现。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 13:10", finishedAt: "—", status: "进行中", progress: 75,
-      detail: "ks/e/depth/stage/stride/skip 校验、forward、metadata 和敏感性测试完成；公开架构 fixture 尚待验收。",
-      acceptance: ["两种模型类型独立", "所有编码字段生效", "非法 skip 拒绝", "官方 params/MAC fixture 对照"],
-      evidence: ["EV-REFERENCE-MODELS"], risks: ["R-OFA"], updatedAt: "2026-07-30 14:15"
+      id: "C2", phase: "Reference", priority: "P0", title: "OFA-Proxyless MBV2 官方 positional encoding/reference fixture",
+      content: "对齐 OFA-Proxyless MBV2 官方 positional encoding，并用 reference fixture 核验静态 MBConv 的结构与参数量。",
+      purpose: "在保留 PlainNet-MBV2 与 Proxyless/OFA-style MBConv 分离的同时，消除位置编码和公开架构对照缺口。",
+      estimate: "8–16 小时", startedAt: "2026-07-30 13:10", finishedAt: "2026-07-30 16:38", status: "已完成", progress: 100,
+      detail: "官方 21 dynamic-block positional encoding 已实现；registered space 固定 width 1.3、resolution 128..224 step 4。官方 commit f03b267 fixture 对齐 width1.0=2,500,632 params、width1.3=3,718,832 params，且 width1.0 参数 shape multiset 与官方完全一致。后续 inherited checkpoint 与 active-weight export 已进入 C3；MAC golden 与正式训练验收仍未完成。",
+      acceptance: ["两种模型类型独立", "官方 21-block positional encoding 一致", "registered width/resolution 边界固定", "官方 width1.0/1.3 params fixture 对照", "width1.0 参数 shape multiset 完全一致"],
+      evidence: ["EV-REFERENCE-MODELS", "EV-MBV2-FIXTURE-START", "EV-MBV2-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-MBV2-FIXTURE", "R-MBV2-REMAINING", "R-OFA"], updatedAt: "2026-07-30 16:54"
     },
     {
       id: "C3", phase: "Reference", priority: "P1", title: "OFA inherited 与 BN calibration",
       content: "加载官方 supernet/checkpoint，执行 active subnet、继承权重和 BN 统计校准。",
       purpose: "支持真正的 OFA inherited accuracy，并与 scratch 结果严格分离。",
-      estimate: "8–16 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "当前仅实现 scratch/static；不得声称支持 inherited supernet。",
-      acceptance: ["官方 checkpoint 可加载", "active subnet 一致", "BN calibration 可复现", "inherited metric 单独存储"],
-      evidence: [], risks: ["R-OFA"], updatedAt: "2026-07-30 14:15"
+      estimate: "8–16 小时", startedAt: "2026-07-30 16:54", finishedAt: "—", status: "进行中", progress: 75,
+      detail: "官方 checkpoint（32,202,338 bytes，SHA256 10ce40...6b907）已下载到外部 data root；bootstrap 数据组 ofa_proxyless_supernet 已实现，并修复 ready 文件未注册 catalog。active channel 与 7→5→3 learned kernel transform 导出已实现；混合 k/e/d 子网参数与官方 get_active_subnet 一致，同输入 max abs≈1.9e-6。真实 CPU evaluate 1 架构×params 和短 search population 2/generation 1 均成功并记录 inherited provenance。独立真实数据 BN recalibration CLI/accuracy、MAC golden 与 formal training 仍待完成。",
+      acceptance: ["官方 checkpoint 可校验和加载", "bootstrap ready 文件注册 catalog", "active channel/kernel transform 导出", "混合 k/e/d 子网与官方一致", "evaluate/search 记录 inherited provenance", "真实数据 BN recalibration accuracy"],
+      evidence: ["EV-OFA-INHERITED"], risks: ["R-OFA", "R-MBV2-REMAINING"], updatedAt: "2026-07-30 16:54"
     },
     {
       id: "C4", phase: "Reference", priority: "P3", title: "PiT 与可选 OFA-MBV3",
       content: "实现 ViT-Bench PiT reference，并评估含 SE/h-swish 的 OFA-MBV3 静态网络。",
       purpose: "补足条件性空间，同时控制非必要实现范围。",
       estimate: "8–16 小时", startedAt: "2026-07-30 15:42", finishedAt: "—", status: "进行中", progress: 85,
-      detail: "PiT 已完成真实 GT load→build→224 forward，并与 Auto-Prox 90ed458 参数量 893,828 和参数 shape multiset 对齐。OFA-MBV3 已按官方五阶段/20-block 编码实现 SE、h-swish、静态子网和 BN recalibration，官方对照参数量 3,410,792 且 shape multiset 一致。PiT 固定 benchmark 候选无需重复完整训练；两者仍缺 MAC golden，OFA inherited checkpoint/active-weight export 尚未完成。",
+      detail: "PiT 已完成真实 GT load→build→224 forward，并与 Auto-Prox 90ed458 参数量 893,828 和参数 shape multiset 对齐。OFA-MBV3 已按官方五阶段/20-block 编码实现 SE、h-swish、静态子网和 BN recalibration，官方对照参数量 3,410,792 且 shape multiset 一致。PiT 固定 benchmark 候选无需重复完整训练；两者仍缺 MAC golden。OFA-Proxyless checkpoint 与 active-weight export 已在 C3 完成，OFA-MBV3 inherited 路径仍未单独验收。",
       acceptance: ["三阶段字段进入 PiT 模型", "真实 gt_pit load→build→224 forward", "PiT 官方参数 fixture", "OFA-MBV3 官方静态结构与 BN recalibration", "MAC fixture 与 inherited 边界"],
-      evidence: ["EV-PIT-REFERENCE", "EV-MBV3-REFERENCE"], risks: ["R-PIT", "R-OFA"], updatedAt: "2026-07-30 16:13"
+      evidence: ["EV-PIT-REFERENCE", "EV-MBV3-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-PIT", "R-OFA"], updatedAt: "2026-07-30 16:54"
     },
     {
       id: "D1", phase: "训练", priority: "P0", title: "拆分 DARTS original 与 TE-NAS",
@@ -195,9 +195,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "216 项测试通过；第一方 coverage 86%、CLI 80%、benchmark_report 96%、reports 100%，Ruff、compileall、pip check 与 diff check 通过。",
+      detail: "当前完整 gate 为 222 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 16:13"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 16:58"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -250,13 +250,20 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NATIVE", severity: "高", status: "关闭", title: "真实 Benchmark index-0 smoke 已完成", description: "十个 benchmark/切片的真实 query、构模与 params proxy 均通过；external catalog 资产仍不等于 data root 自包含。", mitigation: "跨机器继续执行 bootstrap/checklist；后续 1% 相关性必须使用真实 dataset input。", taskIds: ["B1", "B3", "G2"] },
     { id: "R-TRANSNAS", severity: "中", status: "开放", title: "TransNAS task heads 不完整", description: "当前能力不能代表七个 Taskonomy 任务的完整官方网络。", mitigation: "明确 encoder/static 边界；未实现的 task head 标为 unsupported。", taskIds: ["B2"] },
     { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 尚无官方 fixture 验收", description: "静态字段敏感性已通过，但还未与发布配置参数量、FLOPs 和精度对照。", mitigation: "加入官方 Tiny/Small/Base fixture；inherited 路径保持 false。", taskIds: ["C1", "H2"] },
-    { id: "R-OFA", severity: "高", status: "开放", title: "Static scratch 不等于 OFA inherited", description: "MBV3 静态子网与 BN recalibration 已实现，但 MBV2/MBV3 仍未接入官方 inherited checkpoint、active-weight export 或 predictor。", mitigation: "scratch 与 inherited 分离；官方 checkpoint 与权重导出验收前禁止 inherited 声明。", taskIds: ["C2", "C3", "C4", "H2"] },
+    { id: "R-MBV2-FIXTURE", severity: "高", status: "关闭", title: "OFA-Proxyless MBV2 positional/params fixture 已验收", description: "官方 commit f03b267 的 21 dynamic-block positional encoding、width1.0/1.3 参数量及 width1.0 参数 shape multiset 已完成对照。", mitigation: "保留固定 commit、registered space 边界和回归测试；MAC 与训练边界由独立风险继续跟踪。", taskIds: ["C2"] },
+    { id: "R-MBV2-REMAINING", severity: "高", status: "开放", title: "OFA-Proxyless MBV2 MAC 与正式训练未验收", description: "params/shape fixture 已通过，但官方 MAC golden 尚缺，正式训练协议也未完成验收；不得由静态 reference 结论外推训练精度或成本。", mitigation: "补充同一官方 commit 的 MAC fixture；关闭训练 blocker 并完成正式 profile 验收前，仅报告 static scratch reference。", taskIds: ["C2", "H2"] },
+    { id: "R-OFA", severity: "高", status: "开放", title: "OFA inherited accuracy 与完整协议未验收", description: "官方 checkpoint、catalog bootstrap、active-weight export、子网数值一致性及 inherited evaluate/search smoke 已完成；独立真实数据 BN recalibration CLI/accuracy、MAC golden 与 formal training 仍未完成。", mitigation: "在独立真实数据上完成可复现 BN recalibration 与 accuracy 对照，补齐 MAC golden；正式训练 blocker 关闭前不得外推 inherited 或 scratch 训练结论。", taskIds: ["C2", "C3", "C4", "H2"] },
     { id: "R-PROXY", severity: "高", status: "开放", title: "代理可运行不等于论文一致", description: "22/22 sweep 不能替代公式、聚合方向和输入协议的 golden 验证。", mitigation: "为核心代理增加论文级数值 fixture 和 provenance。", taskIds: ["E1", "H1"] },
     { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "第一方 coverage 86%、CLI 80%、benchmark_report 96%、reports 100%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
     { id: "R-PIT", severity: "中", status: "开放", title: "PiT MAC 对照尚未完成", description: "真实 GT 的 224 forward、官方参数量与参数 shape multiset 已对齐；MAC golden 尚缺。PiT 是固定 benchmark 候选，不要求重复完整训练。", mitigation: "补充同一官方 commit 的 MAC fixture 后关闭结构验收；vanilla/KD 指标继续分协议查询。", taskIds: ["C4"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-OFA-INHERITED", time: "2026-07-30 16:54", title: "OFA-Proxyless inherited checkpoint 与 active subnet 阶段通过", result: "官方 checkpoint 32,202,338 bytes 已下载到外部 data root，SHA256=10ce40...6b907；新增 ofa_proxyless_supernet bootstrap 组并修复 ready 文件不注册 catalog。active channel 与 7→5→3 learned kernel transform 导出完成；混合 k/e/d 子网参数与官方 get_active_subnet 一致，同输入 max abs≈1.9e-6。真实 CPU evaluate 1架构×params 与 population2/generation1 短 search 均成功并记录 inherited provenance；随后完整 222-test gate 通过。", command: "专项 pytest（core/reference/data 组合）; OFA inherited CPU evaluate 1×params; short search population=2 generations=1", taskIds: ["A1", "C3"] },
+    { id: "EV-FULL-GATE-222", time: "2026-07-30 16:58", title: "OFA inherited 合入后完整质量 gate", result: "全量 222 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过；短 search 的 5 行 candidate/summary 记录全部携带 inherited weight mode 与 checkpoint SHA-256。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C3", "G1"] },
+    { id: "EV-FULL-GATE-219", time: "2026-07-30 16:40", title: "当前完整质量 gate 通过", result: "全量 219 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过。历史 216-test gate 继续保留为当时事件。", command: "conda run -n zcp-test pytest && conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "G1"] },
+    { id: "EV-MBV2-REFERENCE", time: "2026-07-30 16:38", title: "OFA-Proxyless MBV2 官方 positional/params fixture 通过", result: "实现官方 21 dynamic-block positional encoding；registered space 固定 width 1.3、resolution 128..224 step 4。官方 commit f03b267 fixture 中 width1.0=2,500,632 params、width1.3=3,718,832 params，width1.0 参数 shape multiset 与官方完全一致；test_reference_models 39 passed，Ruff 与 diff check 通过。", command: "pytest -q tests/test_reference_models.py && ruff check . && git diff --check", taskIds: ["C2"] },
+    { id: "EV-MBV2-FIXTURE-START", time: "2026-07-30 16:32", title: "OFA-Proxyless MBV2 官方 fixture 主任务启动", result: "当前主任务已切换为官方 positional encoding/reference fixture 对齐并标记进行中；现阶段仅记录任务边界，尚无 params/MAC fixture 通过结论。", command: "任务交接：OFA-Proxyless MBV2 official positional encoding/reference fixture", taskIds: ["C2"] },
     { id: "EV-REAL-BENCHMARKS", time: "2026-07-30 16:28", title: "全 Benchmark 真实 index-0 smoke", result: "NB101、NB201、NATS-TSS/SSS、TNB micro/macro、deterministic NB301、ViT main/extension/PiT 的 query→build→params proxy 全部 succeeded=1、failed=0；未用 synthetic benchmark 或伪造真值。", command: "zcp-test benchmark inspect ...; zcp-test evaluate --benchmark ... --proxies params --count 1 --input-source random --device cpu", taskIds: ["B1", "B2", "B3", "G2"] },
     { id: "EV-GIT-CHECKPOINT", time: "2026-07-30 16:15", title: "低成本审计阶段提交", result: "216-test/86%-coverage、PiT/OFA-MBV3 reference、训练协议白名单、文档和动态看板已提交为 9e939b8；数据、runs 和 checkpoint 未进入 Git。远端推送等待 GitHub 登录。", command: "git commit -m 'Complete low-cost audit and reference model pass'", taskIds: ["A1", "A2", "C4", "F1", "G1", "I1"] },
     { id: "EV-PIT-REFERENCE", time: "2026-07-30 16:13", title: "PiT reference 官方结构对照", result: "真实 gt_pit 规格完成 load→build→224 forward；与 Auto-Prox 90ed458 同为 893,828 参数且参数 shape multiset 一致。MAC golden 尚未完成。", command: "PYTHONPATH=/tmp/Auto-Prox-AAAI24 conda run -n zcp-test python /tmp/check_upstream_pit_isolated.py", taskIds: ["C4"] },

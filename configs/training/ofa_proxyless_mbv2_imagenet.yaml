@@ -18,5 +18,5 @@ implementation_source: https://github.com/mit-han-lab/once-for-all
 formal_training_ready: false
 formal_training_blockers:
   - TensorFlow-style color distortion is not validated
-  - official static-subnet parameter and MAC fixtures are not accepted
+  - official static-subnet MAC fixture is not accepted
   - distributed global-batch behavior is not implemented

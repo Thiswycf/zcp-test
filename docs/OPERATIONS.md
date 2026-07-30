@@ -199,3 +199,24 @@ named `darts_toy_legacy`. ZCP evaluation uses the lightweight `zcp` profile. For
 retrain profile uses SGD 0.5 with cosine scheduling, so their results must not be pooled. Use
 `--smoke --epochs 1` only for pipeline validation. Full 250/600-epoch training remains a separate,
 high-cost acceptance stage.
+
+## OFA-Proxyless inherited evaluation
+
+The registered Proxyless spec follows the official supernet positional schema: 21 kernel and
+expansion entries, five searchable stage depths, fixed width 1.3, and resolution 128–224 in steps of
+four. Bootstrap the official model asset explicitly, then opt in to trusted inherited weights:
+
+```bash
+zcp-test data bootstrap --root /path/to/data \
+  --benchmarks ofa_proxyless_supernet --catalog /path/to/data/catalog.json --yes
+zcp-test evaluate --space ofa_proxyless_mbv2 --weight-mode ofa_inherited --trusted \
+  --catalog /path/to/data/catalog.json --classes 1000 --proxies params,naswot \
+  --count 2 --input-source dataset --dataset imagenet1k --data-root /path/to/imagenet1k \
+  --input-size 224 --gpu auto --output /path/to/runs/evaluate
+```
+
+The checkpoint is loaded once per command. Static subnets select active channels and apply the
+official learned 7→5→3 kernel transforms. Score and search records identify inherited mode,
+checkpoint digest, active positions and BN status. Current records deliberately state
+`bn_recalibration_required=true` and `bn_recalibrated_batches=0`; random-input smoke is not inherited
+accuracy, and independent real-data BN calibration remains required before accuracy evaluation.

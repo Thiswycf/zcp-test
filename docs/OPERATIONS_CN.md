@@ -118,6 +118,29 @@ score/target schema；使用前必须检查转换后的 JSONL，且不要覆盖�
 AutoFormer 与 Proxyless-MBV2 配置会列出尚未验收的 blocker 并明确拒绝正式训练。`--smoke` 只验证
 合成数据上的构模和训练流水线，不解除协议 blocker。
 
+`ofa_proxyless_mbv2` 的 architecture spec 使用官方 supernet 位置语义：`kernel_size` 和
+`expand_ratio` 均固定 21 项，五个 `depth` 决定每个最大深度 4 stage 激活多少前缀 block，最后一个
+stage 固定深度 1。发布 supernet 的 `width_mult` 是 1.3，`resolution` 为 128–224、步长 4。
+旧版按 `sum(depth)` 保存的紧凑数组不会被静默重解释，必须保留在旧结果读取路径或显式转换。
+
+官方 inherited supernet 是模型资产，不是 benchmark 标准答案。首次使用先显式自举：
+
+```bash
+zcp-test data bootstrap --root /path/to/data \
+  --benchmarks ofa_proxyless_supernet --catalog /path/to/data/catalog.json --yes
+zcp-test evaluate --space ofa_proxyless_mbv2 --weight-mode ofa_inherited --trusted \
+  --catalog /path/to/data/catalog.json --classes 1000 --proxies params,naswot \
+  --count 2 --input-source dataset --dataset imagenet1k --data-root /path/to/imagenet1k \
+  --input-size 224 --gpu auto --output /path/to/runs/evaluate
+```
+
+`--trusted` 只应对已由内置 SHA-256 验证的官方 checkpoint 使用。checkpoint 在一次命令中只加载
+一次，各架构按 21 位位置选择 active channel，并应用官方学习到的 7→5→3 kernel transform。
+`scores.jsonl`/`search.jsonl` 会记录 `weight_mode=inherited_supernet`、checkpoint SHA-256、激活位置
+和 BN 校准状态。当前 CLI 不会伪造 inherited accuracy：结果标记
+`bn_recalibration_required=true`、`bn_recalibrated_batches=0`，正式精度查询前仍须使用独立真实训练
+批次完成 BN recalibration。显式 random-input smoke 只能验证导出和 ZCP 流水线。
+
 `--architecture` 接受现有 JSON 文件，或者内联 JSON 对象。两种形式都可使用带顶层 `spec` 的
 artifact，也可直接给出 spec；spec 必须与配置中的 space 匹配：
 

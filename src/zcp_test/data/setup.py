@@ -33,6 +33,7 @@ BENCHMARK_SIZES = {
     "transnasbench101": 105_000_000,
     "nasbench301_surrogate": 1_848_669_012,
     "vitbench101": 62_925,
+    "ofa_proxyless_supernet": 32_202_338,
 }
 
 
@@ -54,6 +55,9 @@ def _runtime_paths(root: Path, benchmark: str) -> tuple[Path, ...]:
             root / "vitbench101/converted/gt_autoformer.jsonl",
             root / "vitbench101/converted/gt_autoformer_2.jsonl",
             root / "vitbench101/converted/gt_pit.jsonl",
+        ),
+        "ofa_proxyless_supernet": (
+            root / "ofa/ofa_proxyless_d234_e346_k357_w1.3",
         ),
     }
     return paths[benchmark]
@@ -254,7 +258,13 @@ def _register_catalog(root: Path, catalog: Path, benchmarks: Iterable[str]) -> N
                     str(version),
                     protocol="zcp-test-bootstrap",
                     trusted=benchmark
-                    in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"},
+                    in {
+                        "nasbench201",
+                        "nats_tss",
+                        "nats_sss",
+                        "nasbench301_surrogate",
+                        "ofa_proxyless_supernet",
+                    },
                 ),
                 replace=True,
             )
@@ -289,7 +299,7 @@ def bootstrap_benchmarks(
     for benchmark in prepare:
         if any(not path.exists() for path in _runtime_paths(root, benchmark)):
             _convert(root, benchmark)
-    _register_catalog(root, catalog_path, prepare)
+    _register_catalog(root, catalog_path, selected)
     checklist = [
         item for item in data_checklist(root, catalog_path) if item["benchmark_id"] in selected
     ]

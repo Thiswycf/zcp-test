@@ -204,6 +204,18 @@ BUILTIN_ASSETS: Mapping[str, BootstrapAsset] = {
         trusted_format=True,
         source_page="https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458",
     ),
+    "ofa_proxyless_supernet": BootstrapAsset(
+        asset_id="ofa_proxyless_supernet",
+        version="d234-e346-k357-w1.3-f03b267",
+        path="ofa/ofa_proxyless_d234_e346_k357_w1.3",
+        urls=(
+            "https://raw.githubusercontent.com/han-cai/files/master/ofa/ofa_nets/"
+            "ofa_proxyless_d234_e346_k357_w1.3",
+        ),
+        sha256="10ce40eec63dd020b4fa0096b1ff3c1e81e5b740446ddef6a59651bb36e6b907",
+        trusted_format=True,
+        source_page="https://github.com/mit-han-lab/once-for-all/tree/f03b267",
+    ),
 }
 
 
@@ -219,6 +231,7 @@ BENCHMARK_ASSETS: Mapping[str, tuple[str, ...]] = {
         "vitbench101_autoformer_ext",
         "vitbench101_pit",
     ),
+    "ofa_proxyless_supernet": ("ofa_proxyless_supernet",),
 }
 
 

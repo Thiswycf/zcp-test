@@ -389,44 +389,113 @@ class MobileSpace(SearchSpace):
             "zennas_plainnet_mbv2": "https://github.com/idstcv/ZenNAS",
             "ofa_proxyless_mbv2": "https://github.com/mit-han-lab/once-for-all",
         }[variant]
+        self.implementation_commit = (
+            "f03b2673db313b9167e2a1c2b7a5cad540cc1313"
+            if variant == "ofa_proxyless_mbv2"
+            else None
+        )
 
     def canonicalize(self, specification: Mapping[str, Any]) -> Architecture:
-        canonical = {"kernel_size": list(specification["kernel_size"]), "expand_ratio": list(specification["expand_ratio"]), "depth": list(specification["depth"]), "width_mult": float(specification["width_mult"]), "resolution": int(specification["resolution"])}
+        canonical = {
+            "kernel_size": [int(value) for value in specification["kernel_size"]],
+            "expand_ratio": [int(value) for value in specification["expand_ratio"]],
+            "depth": [int(value) for value in specification["depth"]],
+            "width_mult": float(specification["width_mult"]),
+            "resolution": int(specification["resolution"]),
+        }
         if not set(canonical["kernel_size"]) <= {3, 5, 7} or not set(canonical["expand_ratio"]) <= {3, 4, 6} or not set(canonical["depth"]) <= {2, 3, 4}:
             raise ValueError("Invalid OFA choices")
         if len(canonical["depth"]) != 5:
             raise ValueError("MobileNetV2 requires five searchable stages")
-        if len(canonical["kernel_size"]) != sum(canonical["depth"]) or len(
-            canonical["expand_ratio"]
-        ) != sum(canonical["depth"]):
-            raise ValueError("kernel_size and expand_ratio must match active block count")
-        if canonical["width_mult"] not in {1.0, 1.2} or canonical["resolution"] not in {
-            192,
-            208,
-            224,
-        }:
-            raise ValueError("Invalid MobileNetV2 width multiplier or resolution")
+        if self.search_space_id == "ofa_proxyless_mbv2":
+            if len(canonical["kernel_size"]) != 21 or len(canonical["expand_ratio"]) != 21:
+                raise ValueError(
+                    "OFA Proxyless requires 21 positional kernel and expansion values"
+                )
+            if canonical["width_mult"] != 1.3:
+                raise ValueError("official OFA Proxyless supernet uses width multiplier 1.3")
+            if not 128 <= canonical["resolution"] <= 224 or canonical["resolution"] % 4:
+                raise ValueError("OFA Proxyless resolution must be 128..224 with step 4")
+        else:
+            if len(canonical["kernel_size"]) != sum(canonical["depth"]) or len(
+                canonical["expand_ratio"]
+            ) != sum(canonical["depth"]):
+                raise ValueError("kernel_size and expand_ratio must match active block count")
+            if canonical["width_mult"] not in {1.0, 1.2} or canonical["resolution"] not in {
+                192,
+                208,
+                224,
+            }:
+                raise ValueError("Invalid PlainNet MobileNetV2 width multiplier or resolution")
         return Architecture(self.search_space_id, _stable_id(self.search_space_id, canonical), canonical)
 
     def sample(self, seed: int | None = None) -> Architecture:
         rng = random.Random(seed)
         depth = [rng.choice([2, 3, 4]) for _ in range(5)]
-        blocks = sum(depth)
-        return self.canonicalize({"kernel_size": [rng.choice([3, 5, 7]) for _ in range(blocks)], "expand_ratio": [rng.choice([3, 4, 6]) for _ in range(blocks)], "depth": depth, "width_mult": rng.choice([1.0, 1.2]), "resolution": rng.choice([192, 208, 224])})
+        blocks = 21 if self.search_space_id == "ofa_proxyless_mbv2" else sum(depth)
+        return self.canonicalize(
+            {
+                "kernel_size": [rng.choice([3, 5, 7]) for _ in range(blocks)],
+                "expand_ratio": [rng.choice([3, 4, 6]) for _ in range(blocks)],
+                "depth": depth,
+                "width_mult": 1.3
+                if self.search_space_id == "ofa_proxyless_mbv2"
+                else rng.choice([1.0, 1.2]),
+                "resolution": rng.choice(range(128, 225, 4))
+                if self.search_space_id == "ofa_proxyless_mbv2"
+                else rng.choice([192, 208, 224]),
+            }
+        )
 
     def mutate(self, architecture: Architecture, seed: int | None = None) -> Architecture:
         rng = random.Random(seed)
         specification = {key: list(value) if isinstance(value, list) else value for key, value in architecture.spec.items()}
-        index = rng.randrange(len(specification["kernel_size"]))
-        specification["kernel_size"][index] = rng.choice([3, 5, 7])
-        specification["expand_ratio"][index] = rng.choice([3, 4, 6])
+        field = rng.choice(["kernel_size", "expand_ratio", "depth", "resolution"])
+        choices = {
+            "kernel_size": [3, 5, 7],
+            "expand_ratio": [3, 4, 6],
+            "depth": [2, 3, 4],
+            "resolution": list(range(128, 225, 4))
+            if self.search_space_id == "ofa_proxyless_mbv2"
+            else [192, 208, 224],
+        }
+        if field in {"kernel_size", "expand_ratio", "depth"}:
+            index = rng.randrange(len(specification[field]))
+            specification[field][index] = rng.choice(choices[field])
+        else:
+            specification[field] = rng.choice(choices[field])
         return self.canonicalize(specification)
 
     def crossover(self, left: Architecture, right: Architecture, seed: int | None = None) -> Architecture:
-        return self.mutate(random.Random(seed).choice([left, right]), seed)
+        rng = random.Random(seed)
+        if self.search_space_id == "zennas_plainnet_mbv2":
+            return self.mutate(rng.choice((left, right)), seed)
+        specification: dict[str, Any] = {}
+        for field in ("kernel_size", "expand_ratio", "depth"):
+            specification[field] = [
+                rng.choice((left.spec[field][index], right.spec[field][index]))
+                for index in range(len(left.spec[field]))
+            ]
+        specification["width_mult"] = rng.choice(
+            (left.spec["width_mult"], right.spec["width_mult"])
+        )
+        specification["resolution"] = rng.choice(
+            (left.spec["resolution"], right.spec["resolution"])
+        )
+        return self.canonicalize(specification)
 
     def build_model(self, architecture: Architecture, num_classes: int) -> Any:
-        from zcp_test.models.mobile import PlainNetMobileNetV2, StaticMobileNetV2
+        from zcp_test.models.mobile import OFAProxylessMobileNetV2, PlainNetMobileNetV2
+
+        if self.search_space_id == "ofa_proxyless_mbv2":
+            return OFAProxylessMobileNetV2(
+                num_classes=num_classes,
+                width_mult=float(architecture.spec["width_mult"]),
+                stage_depths=architecture.spec["depth"],
+                kernel_sizes=architecture.spec["kernel_size"],
+                expand_ratios=architecture.spec["expand_ratio"],
+                image_size=int(architecture.spec["resolution"]),
+            )
 
         width = float(architecture.spec["width_mult"])
         stage_channels = [max(8, int(round(value * width / 8) * 8)) for value in (24, 40, 80, 96, 192)]
@@ -440,12 +509,7 @@ class MobileSpace(SearchSpace):
             "kernel_sizes": architecture.spec["kernel_size"],
             "expand_ratios": architecture.spec["expand_ratio"],
         }
-        model_type = (
-            PlainNetMobileNetV2
-            if self.search_space_id == "zennas_plainnet_mbv2"
-            else StaticMobileNetV2
-        )
-        return model_type(**arguments)
+        return PlainNetMobileNetV2(**arguments)
 
 
 class OfaMobileNetV3Space(SearchSpace):

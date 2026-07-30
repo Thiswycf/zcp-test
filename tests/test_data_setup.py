@@ -126,6 +126,29 @@ def test_benchmark_group_expansion_preserves_order_and_deduplicates_groups():
         data_setup._expand_benchmarks(["unknown"])
 
 
+def test_bootstrap_registers_already_ready_root_asset(tmp_path, monkeypatch):
+    runtime = tmp_path / "ready.bin"
+    runtime.write_bytes(b"ready")
+    catalog = tmp_path / "catalog.json"
+    monkeypatch.setattr(
+        data_setup,
+        "BUILTIN_ASSETS",
+        {
+            "ready": BootstrapAsset(
+                "ready", "1", "ready.bin", ("https://example/ready",)
+            )
+        },
+    )
+    monkeypatch.setattr(data_setup, "BENCHMARK_ASSETS", {"ready": ("ready",)})
+    monkeypatch.setattr(data_setup, "BENCHMARK_SIZES", {"ready": 5})
+    monkeypatch.setattr(data_setup, "_runtime_paths", lambda root, benchmark: (runtime,))
+
+    result = data_setup.bootstrap_benchmarks(tmp_path, ["ready"], catalog=catalog)
+
+    assert result["ok"] is True
+    assert DataRegistry(catalog).get("ready").path == str(runtime)
+
+
 def test_export_and_verify_manifest_detects_digest_changes(tmp_path, tiny_benchmark):
     _, _, runtime = tiny_benchmark
     runtime.parent.mkdir(parents=True)

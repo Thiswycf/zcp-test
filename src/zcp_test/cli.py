@@ -109,6 +109,39 @@ def _require_research_model(space: Any, allow_approximation: bool) -> dict[str, 
     return provenance
 
 
+def _prepare_model_weights(args: argparse.Namespace, space: Any) -> tuple[Any, dict[str, Any]]:
+    weight_mode = getattr(args, "weight_mode", "independent_scratch")
+    if weight_mode == "independent_scratch":
+        return None, {"weight_mode": weight_mode}
+    if weight_mode != "ofa_inherited" or space.search_space_id != "ofa_proxyless_mbv2":
+        raise ValueError(
+            "ofa_inherited weight mode is supported only for ofa_proxyless_mbv2"
+        )
+    checkpoint = getattr(args, "model_checkpoint", None)
+    if checkpoint is None:
+        try:
+            checkpoint = DataRegistry(args.catalog).get("ofa_proxyless_supernet").path
+        except KeyError as error:
+            raise FileNotFoundError(
+                "OFA supernet is not registered; run `zcp-test data bootstrap --root "
+                "/path/to/data --benchmarks ofa_proxyless_supernet --yes` or pass "
+                "--model-checkpoint"
+            ) from error
+    from zcp_test.models.mobile import OFAProxylessCheckpoint
+
+    checkpoint_loader = OFAProxylessCheckpoint(
+        checkpoint,
+        trusted=getattr(args, "trusted", False),
+        expected_sha256="10ce40eec63dd020b4fa0096b1ff3c1e81e5b740446ddef6a59651bb36e6b907",
+    )
+    return checkpoint_loader, {
+        "weight_mode": "inherited_supernet",
+        **checkpoint_loader.source,
+        "bn_recalibration_required": True,
+        "bn_recalibrated_batches": 0,
+    }
+
+
 def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
     if getattr(args, "data_root", None):
         return str(args.data_root)
@@ -721,6 +754,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
         space = SPACES.create(args.space)
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
     model_provenance = _require_research_model(space, args.allow_approximation)
+    weight_loader, weight_provenance = _prepare_model_weights(args, space)
     target_epoch_budget = args.epoch_budget
     target_seed_reduction = args.metric_seed_reduction
     target_direction = args.target_direction
@@ -769,6 +803,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
             **_args_config(args),
             "input_protocol": batch.protocol,
             **model_provenance,
+            **weight_provenance,
         }
         runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
         with RunContext(args.output, sys.argv, run_config, runtime=runtime) as run:
@@ -781,7 +816,11 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     adapter.build_model(architecture, args.dataset)
                     if adapter
                     else space.build_model(architecture, args.classes)
-                ).to(device)
+                )
+                architecture_weight_provenance = (
+                    weight_loader.export(model) if weight_loader is not None else weight_provenance
+                )
+                model = model.to(device)
                 target = None
                 if adapter and args.target_metric:
                     target = adapter.query_metrics(
@@ -841,6 +880,8 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "benchmark_variant": benchmark_variant,
                             "benchmark_protocol": benchmark_protocol,
                             **model_provenance,
+                            **weight_provenance,
+                            **architecture_weight_provenance,
                             "status": result.status.value,
                             "error_type": result.error_type,
                             "error_message": result.error_message,
@@ -912,6 +953,7 @@ def command_search(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     space = SPACES.create(args.space)
     model_provenance = _require_research_model(space, args.allow_approximation)
+    weight_loader, weight_provenance = _prepare_model_weights(args, space)
     with _selected_device(args) as (device, selection):
         import torch
 
@@ -931,10 +973,14 @@ def command_search(args: argparse.Namespace) -> None:
             **_args_config(args),
             "input_protocol": batch.protocol,
             **model_provenance,
+            **weight_provenance,
         }
         with RunContext(args.output, sys.argv, config, runtime=runtime) as run:
             def evaluator(architecture: Any) -> float:
-                model = space.build_model(architecture, args.classes).to(device)
+                model = space.build_model(architecture, args.classes)
+                if weight_loader is not None:
+                    weight_loader.export(model)
+                model = model.to(device)
                 result = evaluate_proxy(
                     args.proxy,
                     model,
@@ -954,6 +1000,7 @@ def command_search(args: argparse.Namespace) -> None:
                 args.population,
                 args.elite_ratio,
                 args.seed,
+                record_metadata={**model_provenance, **weight_provenance},
             )
             best = search.run(args.generations)
             (run.directory / "best_architecture.json").write_text(
@@ -1509,6 +1556,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     evaluate.add_argument("--surrogate-noise", action="store_true")
     evaluate.add_argument("--allow-approximation", action="store_true")
+    evaluate.add_argument(
+        "--weight-mode",
+        choices=("independent_scratch", "ofa_inherited"),
+        default="independent_scratch",
+    )
+    evaluate.add_argument("--model-checkpoint")
     evaluate.add_argument("--proxies", default="er,naswot,synflow,gradnorm,params,flops")
     evaluate.add_argument("--count", type=int, default=1)
     evaluate.add_argument("--seed", type=int, default=42)
@@ -1541,6 +1594,13 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--seed", type=int, default=42)
     search.add_argument("--allow-approximation", action="store_true")
+    search.add_argument("--trusted", action="store_true")
+    search.add_argument(
+        "--weight-mode",
+        choices=("independent_scratch", "ofa_inherited"),
+        default="independent_scratch",
+    )
+    search.add_argument("--model-checkpoint")
     _add_gpu_arguments(search)
     search.add_argument("--batch-size", type=int, default=4)
     search.add_argument("--input-size", type=int, default=32)

@@ -382,3 +382,22 @@ implicit benchmark-path resolver.
 This separation prevents an evaluation job from unexpectedly consuming network quota, filling a
 shared filesystem, accepting upstream terms, loading a newly downloaded trusted format, or
 changing the data version during a run. Prepare and verify data as a separate auditable step.
+
+## OFA-Proxyless supernet model asset
+
+`ofa_proxyless_supernet` is an official model asset for an open search space, **not benchmark ground
+truth**. The legacy `--benchmarks` option name is retained for compatibility but also accepts this
+versioned asset group:
+
+```bash
+zcp-test data bootstrap --root /path/to/data \
+  --benchmarks ofa_proxyless_supernet --catalog /path/to/data/catalog.json --yes
+zcp-test data checklist --root /path/to/data --catalog /path/to/data/catalog.json
+```
+
+The asset comes from the Once-for-All release associated with commit `f03b267`, is `32,202,338`
+bytes, and has SHA-256
+`10ce40eec63dd020b4fa0096b1ff3c1e81e5b740446ddef6a59651bb36e6b907`. Runtime loading uses PyTorch
+`weights_only=True` and additionally requires explicit `--trusted --weight-mode ofa_inherited`.
+Ordinary evaluation never downloads it implicitly. Re-run checklist/bootstrap after cross-machine
+copying so the new absolute path is registered locally.

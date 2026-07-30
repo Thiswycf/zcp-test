@@ -359,3 +359,19 @@ benchmark 评估先解析已经存在的显式 `--benchmark-path`，再查找匹
 
 这样可以避免评估任务意外消耗网络配额、写满共享磁盘、替用户接受上游条款、加载刚下载的
 可信格式，或在一次运行中改变数据版本。数据准备与验证必须是单独、可审计的步骤。
+
+## OFA-Proxyless supernet 模型资产
+
+`ofa_proxyless_supernet` 是开放搜索空间的官方模型资产，**不是 benchmark 标准答案**。现有
+`--benchmarks` 参数名为兼容早期 CLI 保留，实际也接受此类受版本约束的数据组：
+
+```bash
+zcp-test data bootstrap --root /path/to/data \
+  --benchmarks ofa_proxyless_supernet --catalog /path/to/data/catalog.json --yes
+zcp-test data checklist --root /path/to/data --catalog /path/to/data/catalog.json
+```
+
+资产来自 Once-for-All commit `f03b267` 的发布 URL，大小 `32,202,338` bytes，SHA-256 为
+`10ce40eec63dd020b4fa0096b1ff3c1e81e5b740446ddef6a59651bb36e6b907`。运行期只在 CLI 显式
+`--trusted --weight-mode ofa_inherited` 时以 PyTorch `weights_only=True` 读取；普通 evaluate 不会
+隐式下载。跨机器复制后应重新 checklist/bootstrap 以注册本机绝对路径。

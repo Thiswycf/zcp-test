@@ -1,11 +1,15 @@
+import hashlib
+
 import pytest
 import torch
 
 from zcp_test.models.autoformer import StaticAutoFormer
 from zcp_test.models.mobile import (
+    OFAProxylessMobileNetV2,
     PlainNetMobileNetV2,
     StaticMobileNetV2,
     StaticMobileNetV3,
+    load_ofa_proxyless_inherited_weights,
     recalibrate_batch_norm,
 )
 from zcp_test.models.pit import StaticPiT
@@ -14,6 +18,59 @@ from zcp_test.spaces import SPACES, load_builtin_spaces
 
 def parameter_count(model):
     return sum(parameter.numel() for parameter in model.parameters())
+
+
+def _store_batch_norm(state, prefix, batch_norm):
+    state[f"{prefix}.weight"] = batch_norm.weight.detach().clone()
+    state[f"{prefix}.bias"] = batch_norm.bias.detach().clone()
+    state[f"{prefix}.running_mean"] = batch_norm.running_mean.detach().clone()
+    state[f"{prefix}.running_var"] = batch_norm.running_var.detach().clone()
+    state[f"{prefix}.num_batches_tracked"] = (
+        batch_norm.num_batches_tracked.detach().clone()
+    )
+
+
+def _fake_ofa_proxyless_checkpoint(model):
+    state = {"first_conv.conv.weight": model.stem[0].weight.detach().clone()}
+    _store_batch_norm(state, "first_conv.bn", model.stem[1])
+    first_depthwise, first_pointwise = model.first_block.layers
+    state["blocks.0.mobile_inverted_conv.depth_conv.conv.weight"] = (
+        first_depthwise[0].weight.detach().clone()
+    )
+    _store_batch_norm(
+        state, "blocks.0.mobile_inverted_conv.depth_conv.bn", first_depthwise[1]
+    )
+    state["blocks.0.mobile_inverted_conv.point_linear.conv.weight"] = (
+        first_pointwise[0].weight.detach().clone()
+    )
+    _store_batch_norm(
+        state, "blocks.0.mobile_inverted_conv.point_linear.bn", first_pointwise[1]
+    )
+    for stage_index, stage in enumerate(model.stages):
+        position_start, _ = model._stage_positions[stage_index]
+        for block_offset, block in enumerate(stage):
+            position = position_start + block_offset
+            prefix = f"blocks.{position + 1}.mobile_inverted_conv"
+            inverted, depthwise, pointwise = block.layers
+            state[f"{prefix}.inverted_bottleneck.conv.conv.weight"] = (
+                inverted[0].weight.detach().clone()
+            )
+            _store_batch_norm(
+                state, f"{prefix}.inverted_bottleneck.bn.bn", inverted[1]
+            )
+            state[f"{prefix}.depth_conv.conv.conv.weight"] = (
+                depthwise[0].weight.detach().clone()
+            )
+            _store_batch_norm(state, f"{prefix}.depth_conv.bn.bn", depthwise[1])
+            state[f"{prefix}.point_linear.conv.conv.weight"] = (
+                pointwise[0].weight.detach().clone()
+            )
+            _store_batch_norm(state, f"{prefix}.point_linear.bn.bn", pointwise[1])
+    state["feature_mix_layer.conv.weight"] = model.head[0].weight.detach().clone()
+    _store_batch_norm(state, "feature_mix_layer.bn", model.head[1])
+    state["classifier.linear.weight"] = model.classifier.weight.detach().clone()
+    state["classifier.linear.bias"] = model.classifier.bias.detach().clone()
+    return {"state_dict": state}
 
 
 def autoformer(**overrides):
@@ -252,7 +309,7 @@ def test_registered_autoformer_and_mobile_spaces_build_distinct_reference_models
     plain_space = SPACES.create("zennas_plainnet_mbv2")
     proxyless_space = SPACES.create("ofa_proxyless_mbv2")
     plain_architecture = plain_space.sample(4)
-    proxyless_architecture = proxyless_space.canonicalize(plain_architecture.spec)
+    proxyless_architecture = proxyless_space.sample(4)
     plain = plain_space.build_model(plain_architecture, 5)
     proxyless = proxyless_space.build_model(proxyless_architecture, 5)
     assert plain_space.model_fidelity == proxyless_space.model_fidelity == "reference_model"
@@ -265,8 +322,100 @@ def test_registered_mobile_space_rejects_inconsistent_block_encoding():
     architecture = space.sample(8)
     specification = dict(architecture.spec)
     specification["kernel_size"] = list(specification["kernel_size"][:-1])
-    with pytest.raises(ValueError, match="active block count"):
+    with pytest.raises(ValueError, match="21 positional"):
         space.canonicalize(specification)
+
+
+@pytest.mark.parametrize(
+    ("width_mult", "expected_parameters"),
+    [(1.0, 2_500_632), (1.3, 3_718_832)],
+)
+def test_ofa_proxyless_static_subnet_matches_official_active_subnet_fixture(
+    width_mult, expected_parameters
+):
+    model = OFAProxylessMobileNetV2(
+        num_classes=1000,
+        width_mult=width_mult,
+        stage_depths=[2] * 5,
+        kernel_sizes=[3] * 21,
+        expand_ratios=[3] * 21,
+        image_size=224,
+    ).eval()
+
+    assert parameter_count(model) == expected_parameters
+    assert model(torch.randn(1, 3, 64, 64)).shape == (1, 1000)
+    metadata = model.reference_metadata()
+    assert metadata["implementation_commit"] == "f03b2673db313b9167e2a1c2b7a5cad540cc1313"
+    assert metadata["positional_encoding"] == "21_dynamic_blocks_5x4_plus_fixed_final"
+
+
+def test_ofa_proxyless_space_uses_official_supernet_width_and_positions():
+    load_builtin_spaces()
+    space = SPACES.create("ofa_proxyless_mbv2")
+    architecture = space.sample(19)
+
+    assert architecture.spec["width_mult"] == 1.3
+    assert len(architecture.spec["kernel_size"]) == 21
+    assert len(architecture.spec["expand_ratio"]) == 21
+    assert 128 <= architecture.spec["resolution"] <= 224
+    assert architecture.spec["resolution"] % 4 == 0
+    with pytest.raises(ValueError, match="width multiplier 1.3"):
+        space.canonicalize({**architecture.spec, "width_mult": 1.0})
+
+
+def test_ofa_proxyless_inherited_loader_requires_trust_and_records_provenance(tmp_path):
+    configuration = {
+        "num_classes": 1000,
+        "width_mult": 0.1,
+        "stage_depths": [2] * 5,
+        "kernel_sizes": [7] * 21,
+        "expand_ratios": [3] * 21,
+        "image_size": 128,
+    }
+    source = OFAProxylessMobileNetV2(**configuration).eval()
+    checkpoint = tmp_path / "official-ofa.pt"
+    torch.save(_fake_ofa_proxyless_checkpoint(source), checkpoint)
+    checksum = hashlib.sha256(checkpoint.read_bytes()).hexdigest()
+    target = OFAProxylessMobileNetV2(**configuration).eval()
+    for parameter in target.parameters():
+        parameter.data.zero_()
+
+    with pytest.raises(PermissionError, match="trusted=True"):
+        load_ofa_proxyless_inherited_weights(target, checkpoint)
+    with pytest.raises(ValueError, match="SHA-256"):
+        load_ofa_proxyless_inherited_weights(
+            target, checkpoint, trusted=True, expected_sha256="0" * 64
+        )
+    provenance = load_ofa_proxyless_inherited_weights(
+        target, checkpoint, trusted=True, expected_sha256=checksum
+    )
+
+    assert provenance["protocol"] == "ofa_inherited_supernet"
+    assert provenance["bn_recalibration_required"] is True
+    assert target.reference_metadata()["weight_mode"] == "inherited_supernet"
+    assert target.reference_metadata()["checkpoint_provenance"] == provenance
+    source_state = source.state_dict()
+    target_state = target.state_dict()
+    assert source_state.keys() == target_state.keys()
+    assert all(torch.equal(source_state[key], target_state[key]) for key in source_state)
+
+
+def test_ofa_proxyless_bn_recalibration_is_recorded():
+    model = OFAProxylessMobileNetV2(
+        num_classes=1000,
+        width_mult=0.1,
+        stage_depths=[2] * 5,
+        kernel_sizes=[7] * 21,
+        expand_ratios=[3] * 21,
+        image_size=128,
+    ).eval()
+
+    processed = recalibrate_batch_norm(
+        model, [torch.randn(2, 3, 32, 32)], device="cpu"
+    )
+
+    assert processed == 1
+    assert model.reference_metadata()["bn_recalibrated_batches"] == 1
 
 
 def test_ofa_mbv3_static_subnet_matches_official_active_subnet_fixture():

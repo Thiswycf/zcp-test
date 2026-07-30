@@ -13,11 +13,14 @@ No dynamic supernet, inherited weights, or predictor is implemented here.
 
 from __future__ import annotations
 
+import hashlib
 from collections.abc import Iterable, Sequence
+from pathlib import Path
 from typing import Any
 
 import torch
 from torch import Tensor, nn
+from torch.nn import functional as F
 
 
 class ConvBnAct(nn.Sequential):
@@ -29,6 +32,8 @@ class ConvBnAct(nn.Sequential):
         stride: int = 1,
         groups: int = 1,
         activation: bool = True,
+        bn_eps: float = 1e-5,
+        bn_momentum: float = 0.1,
     ) -> None:
         padding = kernel_size // 2
         layers: list[nn.Module] = [
@@ -41,7 +46,7 @@ class ConvBnAct(nn.Sequential):
                 groups=groups,
                 bias=False,
             ),
-            nn.BatchNorm2d(channels_out),
+            nn.BatchNorm2d(channels_out, eps=bn_eps, momentum=bn_momentum),
         ]
         if activation:
             layers.append(nn.ReLU6(inplace=True))
@@ -57,12 +62,22 @@ class InvertedBottleneck(nn.Module):
         expand_ratio: float,
         stride: int,
         use_residual: bool,
+        bn_eps: float = 1e-5,
+        bn_momentum: float = 0.1,
     ) -> None:
         super().__init__()
         hidden_channels = max(1, int(round(channels_in * expand_ratio)))
         layers: list[nn.Module] = []
         if hidden_channels != channels_in:
-            layers.append(ConvBnAct(channels_in, hidden_channels, 1))
+            layers.append(
+                ConvBnAct(
+                    channels_in,
+                    hidden_channels,
+                    1,
+                    bn_eps=bn_eps,
+                    bn_momentum=bn_momentum,
+                )
+            )
         layers.extend(
             [
                 ConvBnAct(
@@ -71,8 +86,17 @@ class InvertedBottleneck(nn.Module):
                     kernel_size,
                     stride=stride,
                     groups=hidden_channels,
+                    bn_eps=bn_eps,
+                    bn_momentum=bn_momentum,
                 ),
-                ConvBnAct(hidden_channels, channels_out, 1, activation=False),
+                ConvBnAct(
+                    hidden_channels,
+                    channels_out,
+                    1,
+                    activation=False,
+                    bn_eps=bn_eps,
+                    bn_momentum=bn_momentum,
+                ),
             ]
         )
         self.layers = nn.Sequential(*layers)
@@ -328,6 +352,8 @@ def recalibrate_batch_norm(
             module.train(training)
     if processed == 0:
         raise ValueError("BatchNorm recalibration requires at least one batch")
+    if hasattr(model, "bn_recalibrated_batches"):
+        model.bn_recalibrated_batches = processed
     return processed
 
 
@@ -555,4 +581,296 @@ class StaticMobileNetV2(_MobileNetV2Base):
         )
 
 
-__all__ = ["PlainNetMobileNetV2", "StaticMobileNetV2"]
+class OFAProxylessMobileNetV2(nn.Module):
+    """Static subnet from the official OFA ProxylessNAS supernet schema."""
+
+    implementation_commit = "f03b2673db313b9167e2a1c2b7a5cad540cc1313"
+    _stage_positions = ((0, 4), (4, 8), (8, 12), (12, 16), (16, 20), (20, 21))
+
+    def __init__(
+        self,
+        *,
+        num_classes: int = 1000,
+        width_mult: float = 1.3,
+        stage_depths: Sequence[int],
+        kernel_sizes: Sequence[int],
+        expand_ratios: Sequence[float],
+        image_size: int = 224,
+        dropout_rate: float = 0.0,
+    ) -> None:
+        super().__init__()
+        depths = tuple(int(value) for value in stage_depths)
+        kernels = tuple(int(value) for value in kernel_sizes)
+        expansions = tuple(float(value) for value in expand_ratios)
+        if num_classes <= 0:
+            raise ValueError("num_classes must be positive")
+        if len(depths) != 5 or any(value not in {2, 3, 4} for value in depths):
+            raise ValueError("OFA Proxyless requires five searchable depths in {2, 3, 4}")
+        if len(kernels) != 21 or len(expansions) != 21:
+            raise ValueError("OFA Proxyless positional encoding requires 21 kernel and expansion values")
+        if not set(kernels) <= {3, 5, 7} or not set(expansions) <= {3.0, 4.0, 6.0}:
+            raise ValueError("OFA Proxyless kernel/expansion choices are k={3,5,7}, e={3,4,6}")
+        if width_mult <= 0:
+            raise ValueError("width_mult must be positive")
+        if image_size < 128 or image_size > 224 or image_size % 4:
+            raise ValueError("OFA Proxyless image_size must be in [128, 224] with step 4")
+
+        base_widths = (32, 16, 24, 40, 80, 96, 192, 320, 1280)
+        widths = tuple(make_divisible(value * width_mult) for value in base_widths)
+        self.num_classes = num_classes
+        self.width_mult = float(width_mult)
+        self.stage_depths = depths
+        self.kernel_sizes = kernels
+        self.expand_ratios = expansions
+        self.image_size = image_size
+        self.weight_mode = "independent_scratch"
+        self.checkpoint_provenance: dict[str, Any] | None = None
+        self.bn_recalibrated_batches = 0
+        self.stem = ConvBnAct(3, widths[0], 3, stride=2, bn_eps=1e-3)
+        self.first_block = InvertedBottleneck(
+            widths[0], widths[1], 3, 1, 1, False, bn_eps=1e-3
+        )
+
+        stage_widths = widths[2:-1]
+        stage_strides = (2, 2, 2, 1, 2, 1)
+        all_depths = depths + (1,)
+        stages: list[nn.Module] = []
+        channels_in = widths[1]
+        for stage_index, (channels_out, stride, depth) in enumerate(
+            zip(stage_widths, stage_strides, all_depths, strict=True)
+        ):
+            position_start, _ = self._stage_positions[stage_index]
+            blocks: list[nn.Module] = []
+            for block_offset in range(depth):
+                position = position_start + block_offset
+                block_stride = stride if block_offset == 0 else 1
+                blocks.append(
+                    InvertedBottleneck(
+                        channels_in,
+                        channels_out,
+                        kernels[position],
+                        expansions[position],
+                        block_stride,
+                        block_stride == 1 and channels_in == channels_out,
+                        bn_eps=1e-3,
+                    )
+                )
+                channels_in = channels_out
+            stages.append(nn.Sequential(*blocks))
+        self.stages = nn.ModuleList(stages)
+        self.head = ConvBnAct(channels_in, widths[-1], 1, bn_eps=1e-3)
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.dropout = nn.Dropout(dropout_rate)
+        self.classifier = nn.Linear(widths[-1], num_classes)
+
+    def forward_features(self, inputs: Tensor) -> Tensor:
+        if inputs.ndim != 4 or inputs.shape[1] != 3:
+            raise ValueError("MobileNetV2 inputs must have shape [batch, 3, height, width]")
+        outputs = self.first_block(self.stem(inputs))
+        for stage in self.stages:
+            outputs = stage(outputs)
+        return self.pool(self.head(outputs)).flatten(1)
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        return self.classifier(self.dropout(self.forward_features(inputs)))
+
+    def reference_metadata(self) -> dict[str, Any]:
+        return {
+            "family": "ofa_proxyless_static_mbv2",
+            "model_fidelity": "reference_model",
+            "implementation_source": "mit-han-lab/once-for-all",
+            "implementation_commit": self.implementation_commit,
+            "weight_mode": self.weight_mode,
+            "supports_inherited_supernet": True,
+            "supports_bn_recalibration": True,
+            "bn_recalibrated_batches": self.bn_recalibrated_batches,
+            "checkpoint_provenance": self.checkpoint_provenance,
+            "positional_encoding": "21_dynamic_blocks_5x4_plus_fixed_final",
+            "architecture": {
+                "kernel_size": list(self.kernel_sizes),
+                "expand_ratio": list(self.expand_ratios),
+                "depth": list(self.stage_depths),
+                "width_mult": self.width_mult,
+                "resolution": self.image_size,
+            },
+        }
+
+
+def _copy_batch_norm_from_dynamic(
+    target: nn.BatchNorm2d, state: dict[str, Tensor], prefix: str
+) -> None:
+    channels = target.num_features
+    with torch.no_grad():
+        target.weight.copy_(state[f"{prefix}.weight"][:channels])
+        target.bias.copy_(state[f"{prefix}.bias"][:channels])
+        target.running_mean.copy_(state[f"{prefix}.running_mean"][:channels])
+        target.running_var.copy_(state[f"{prefix}.running_var"][:channels])
+        tracked = state.get(f"{prefix}.num_batches_tracked")
+        if tracked is not None:
+            target.num_batches_tracked.copy_(tracked)
+
+
+def _dynamic_depthwise_filter(
+    state: dict[str, Tensor], prefix: str, channels: int, kernel_size: int
+) -> Tensor:
+    weights = state[f"{prefix}.conv.weight"][:channels]
+    current_size = int(weights.shape[-1])
+    if current_size != 7:
+        raise ValueError(f"expected a 7x7 OFA dynamic kernel at {prefix}")
+    for target_size in (5, 3):
+        if current_size <= kernel_size:
+            break
+        offset = (current_size - target_size) // 2
+        cropped = weights[:, :, offset : offset + target_size, offset : offset + target_size]
+        matrix = state[f"{prefix}.{current_size}to{target_size}_matrix"]
+        flattened = cropped.contiguous().view(-1, target_size**2)
+        weights = F.linear(flattened, matrix).view(
+            channels, 1, target_size, target_size
+        )
+        current_size = target_size
+    if current_size != kernel_size:
+        raise ValueError(f"unsupported active OFA kernel size: {kernel_size}")
+    return weights
+
+
+def _copy_conv(target: nn.Conv2d, source: Tensor) -> None:
+    with torch.no_grad():
+        target.weight.copy_(source[: target.out_channels, : target.in_channels])
+
+
+def _apply_ofa_proxyless_inherited_state(
+    model: OFAProxylessMobileNetV2,
+    state: dict[str, Tensor],
+    source: dict[str, Any],
+) -> dict[str, Any]:
+    if model.num_classes != 1000:
+        raise ValueError("official OFA Proxyless inherited checkpoint requires 1000 classes")
+    _copy_conv(model.stem[0], state["first_conv.conv.weight"])
+    _copy_batch_norm_from_dynamic(model.stem[1], state, "first_conv.bn")
+    first_depthwise = model.first_block.layers[0]
+    first_pointwise = model.first_block.layers[1]
+    _copy_conv(
+        first_depthwise[0],
+        state["blocks.0.mobile_inverted_conv.depth_conv.conv.weight"],
+    )
+    _copy_batch_norm_from_dynamic(
+        first_depthwise[1], state, "blocks.0.mobile_inverted_conv.depth_conv.bn"
+    )
+    _copy_conv(
+        first_pointwise[0],
+        state["blocks.0.mobile_inverted_conv.point_linear.conv.weight"],
+    )
+    _copy_batch_norm_from_dynamic(
+        first_pointwise[1], state, "blocks.0.mobile_inverted_conv.point_linear.bn"
+    )
+
+    selected_positions: list[int] = []
+    for stage_index, stage in enumerate(model.stages):
+        position_start, _ = model._stage_positions[stage_index]
+        for block_offset, block in enumerate(stage):
+            position = position_start + block_offset
+            selected_positions.append(position)
+            checkpoint_prefix = f"blocks.{position + 1}.mobile_inverted_conv"
+            inverted, depthwise, pointwise = block.layers
+            _copy_conv(
+                inverted[0], state[f"{checkpoint_prefix}.inverted_bottleneck.conv.conv.weight"]
+            )
+            _copy_batch_norm_from_dynamic(
+                inverted[1], state, f"{checkpoint_prefix}.inverted_bottleneck.bn.bn"
+            )
+            with torch.no_grad():
+                depthwise[0].weight.copy_(
+                    _dynamic_depthwise_filter(
+                        state,
+                        f"{checkpoint_prefix}.depth_conv.conv",
+                        depthwise[0].out_channels,
+                        depthwise[0].kernel_size[0],
+                    )
+                )
+            _copy_batch_norm_from_dynamic(
+                depthwise[1], state, f"{checkpoint_prefix}.depth_conv.bn.bn"
+            )
+            _copy_conv(
+                pointwise[0], state[f"{checkpoint_prefix}.point_linear.conv.conv.weight"]
+            )
+            _copy_batch_norm_from_dynamic(
+                pointwise[1], state, f"{checkpoint_prefix}.point_linear.bn.bn"
+            )
+
+    _copy_conv(model.head[0], state["feature_mix_layer.conv.weight"])
+    _copy_batch_norm_from_dynamic(model.head[1], state, "feature_mix_layer.bn")
+    with torch.no_grad():
+        model.classifier.weight.copy_(state["classifier.linear.weight"])
+        model.classifier.bias.copy_(state["classifier.linear.bias"])
+    provenance = {
+        **source,
+        "protocol": "ofa_inherited_supernet",
+        "implementation_commit": model.implementation_commit,
+        "selected_dynamic_positions": selected_positions,
+        "bn_recalibration_required": True,
+    }
+    model.weight_mode = "inherited_supernet"
+    model.checkpoint_provenance = provenance
+    model.bn_recalibrated_batches = 0
+    model.eval()
+    return provenance
+
+
+class OFAProxylessCheckpoint:
+    """Verified in-memory official OFA supernet checkpoint for repeated exports."""
+
+    def __init__(
+        self,
+        checkpoint: str | Path,
+        *,
+        trusted: bool = False,
+        expected_sha256: str | None = None,
+    ) -> None:
+        if not trusted:
+            raise PermissionError("official OFA checkpoint loading requires trusted=True")
+        path = Path(checkpoint).expanduser().resolve()
+        digest_builder = hashlib.sha256()
+        with path.open("rb") as handle:
+            while chunk := handle.read(1024 * 1024):
+                digest_builder.update(chunk)
+        digest = digest_builder.hexdigest()
+        if expected_sha256 is not None and digest != expected_sha256:
+            raise ValueError("OFA checkpoint SHA-256 mismatch")
+        payload = torch.load(path, map_location="cpu", weights_only=True)
+        if not isinstance(payload, dict) or not isinstance(payload.get("state_dict"), dict):
+            raise ValueError("invalid OFA checkpoint schema")
+        self.state: dict[str, Tensor] = payload["state_dict"]
+        self.source = {
+            "checkpoint": str(path),
+            "checkpoint_sha256": digest,
+        }
+
+    def export(self, model: OFAProxylessMobileNetV2) -> dict[str, Any]:
+        return _apply_ofa_proxyless_inherited_state(model, self.state, self.source)
+
+
+def load_ofa_proxyless_inherited_weights(
+    model: OFAProxylessMobileNetV2,
+    checkpoint: str | Path,
+    *,
+    trusted: bool = False,
+    expected_sha256: str | None = None,
+) -> dict[str, Any]:
+    """Select official OFA supernet weights for one static Proxyless subnet."""
+
+    return OFAProxylessCheckpoint(
+        checkpoint,
+        trusted=trusted,
+        expected_sha256=expected_sha256,
+    ).export(model)
+
+
+__all__ = [
+    "OFAProxylessMobileNetV2",
+    "OFAProxylessCheckpoint",
+    "PlainNetMobileNetV2",
+    "StaticMobileNetV2",
+    "StaticMobileNetV3",
+    "recalibrate_batch_norm",
+    "load_ofa_proxyless_inherited_weights",
+]

@@ -85,6 +85,17 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
 - The OFA-MBV3 all-3×3, expand-3, depth-2, width-1.0 subnet matches official commit `f03b267`
   at 3,410,792 parameters and the complete parameter-shape multiset; BN recalibration is implemented.
   Official inherited checkpoints, active-weight export and formal training remain outstanding.
+- OFA-Proxyless-MBV2 now uses the official 21-dynamic-block positional encoding: five searchable
+  max-depth-4 stages plus one fixed final stage. The registered space fixes width 1.3 to the released
+  supernet and accepts resolutions 128–224 in steps of four. The width-1.0 all-3×3, expansion-3,
+  searchable-depth-2 fixture has 2,500,632 parameters in both this port and official commit
+  `f03b267`, with identical parameter-shape multisets; the released width-1.3 fixture has 3,718,832
+  parameters in both. The official 32,202,338-byte supernet checkpoint is now bootstrapped under a
+  fixed SHA-256. A mixed `k/e/d` subnet exported with active channel selection and learned kernel
+  transforms matches official `get_active_subnet` parameter counts and has about `1.9e-6` maximum
+  absolute output error on the same input. Real `evaluate` and short `search` smokes record inherited
+  mode, checkpoint digest, active positions and `bn_recalibration_required`. Independent-data BN
+  calibration, inherited accuracy, MAC golden values and formal training remain unvalidated.
 
 ## High-cost acceptance not completed
 

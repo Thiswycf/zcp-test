@@ -43,6 +43,7 @@ def test_builtin_manifest_covers_supported_benchmarks():
         "transnasbench101",
         "nasbench301_surrogate",
         "vitbench101",
+        "ofa_proxyless_supernet",
     }
     assert set(asset for assets in BENCHMARK_ASSETS.values() for asset in assets) == set(
         BUILTIN_ASSETS

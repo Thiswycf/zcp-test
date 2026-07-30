@@ -52,7 +52,7 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 
 AutoFormer 与 Proxyless-MBV2 的仓库配置当前明确 `formal_training_ready: false`：前者缺 repeated
 augmentation sampler、分布式全局 batch/LR scaling 和官方参数/FLOPs fixture；后者缺已验证的
-TensorFlow 风格颜色扰动、官方静态子网 fixture 和分布式全局 batch。CLI 会拒绝非 smoke 训练。
+TensorFlow 风格颜色扰动、官方 MAC fixture 和分布式全局 batch。CLI 会拒绝非 smoke 训练。
 配置中的布尔值不能自行授权；正式训练还必须匹配代码内置的 DARTS 协议白名单及关键字段。
 
 NAS-Bench-101/201、NATS 和转换后的 TransNAS 记录只有在明确 dataset/split/budget/seed 下才是
@@ -74,6 +74,15 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 - OFA-MBV3 的全 3×3、expand 3、depth 2、width 1.0 子网与官方 commit `f03b267` 均为
   3,410,792 参数且参数 shape multiset 一致；BN recalibration 已实现。官方 inherited checkpoint、
   active-weight export 与正式训练仍未验收。
+- OFA-Proxyless-MBV2 已改为官方 21 个 dynamic block 固定位置编码（五个最大深度 4 的可搜索
+  stage，加一个固定末端 stage），正式空间固定使用发布 supernet 的 width 1.3，分辨率为
+  128–224、步长 4。width 1.0 的全 3×3、expand 3、五个可搜索 stage depth 2 fixture 与官方
+  commit `f03b267` 均为 2,500,632 参数，参数 shape multiset 一致；发布 width 1.3 对应 fixture
+  均为 3,718,832 参数。官方 32,202,338-byte supernet checkpoint 已以固定 SHA-256 自举；混合
+  `k/e/d` 子网经 active channel/kernel transform 导出后，与官方 `get_active_subnet` 参数量一致，
+  同一输入最大绝对输出误差约 `1.9e-6`。真实 `evaluate` 与短程 `search` 已记录
+  `inherited_supernet`、checkpoint 摘要、激活位置和 `bn_recalibration_required`。独立数据批次的
+  BN 校准、inherited accuracy、MAC golden 和正式训练仍未验收。
 
 ## 尚未完成的高成本验收
 
