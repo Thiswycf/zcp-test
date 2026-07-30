@@ -6,6 +6,7 @@ import pytest
 
 from zcp_test.reporting.benchmark_budget import nasbench101_budget_study
 from zcp_test.reporting.benchmark_report import write_benchmark_study
+from zcp_test.reporting.benchmark_report import _budget_plot_groups
 
 
 class FakeNasBench101Adapter:
@@ -307,3 +308,22 @@ def test_nasbench101_budget_report_plots_structure_and_neighborhood(tmp_path):
         "budget_neighborhood_agreement.png",
         "budget_neighborhood_agreement.svg",
     }.issubset(report["artifacts"])
+
+
+def test_budget_plot_groups_keep_proxy_versions_and_seeds_separate():
+    import pandas as pd
+
+    table = pd.DataFrame(
+        [
+            {"proxy_id": "synflow", "component": "score", "proxy_version": version,
+             "seed": seed, "epoch_budget": budget, "spearman": 0.5}
+            for version in ("1", "double-v2")
+            for seed in (2026, 2027)
+            for budget in (4, 108)
+        ]
+    )
+
+    fields, groups = _budget_plot_groups(table)
+
+    assert fields == ["proxy_id", "component", "proxy_version", "seed"]
+    assert len(list(groups)) == 4

@@ -9,6 +9,40 @@ import pandas as pd
 import numpy as np
 
 
+_BUDGET_PLOT_PROTOCOL_FIELDS = (
+    "proxy_id",
+    "component",
+    "proxy_version",
+    "seed",
+    "target_seed_reduction",
+    "input_source",
+    "input_fingerprint",
+    "model_fidelity",
+)
+
+
+def _budget_plot_groups(
+    table: pd.DataFrame, extra_fields: tuple[str, ...] = ()
+) -> tuple[list[str], Any]:
+    fields = [
+        field
+        for field in (*_BUDGET_PLOT_PROTOCOL_FIELDS, *extra_fields)
+        if field in table and table[field].notna().any()
+    ]
+    return fields, table.groupby(fields, dropna=False, sort=True)
+
+
+def _budget_plot_label(fields: list[str], key: Any) -> str:
+    values = key if isinstance(key, tuple) else (key,)
+    labels = []
+    for field, value in zip(fields, values, strict=True):
+        text = str(value)
+        if field == "input_fingerprint" and len(text) > 10:
+            text = text[:10]
+        labels.append(f"{field}={text}")
+    return " / ".join(labels)
+
+
 def _save_figure(figure: Any, output: Path, name: str) -> list[str]:
     artifacts = []
     for suffix in ("png", "svg"):
@@ -25,9 +59,15 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
     if table.empty or not {"epoch_budget", "spearman"}.issubset(table):
         return []
     figure, axis = plt.subplots(figsize=(8, 5))
-    for label, group in table.groupby(["proxy_id", "component"], dropna=False):
+    fields, groups = _budget_plot_groups(table)
+    for key, group in groups:
         ordered = group.sort_values("epoch_budget")
-        axis.plot(ordered["epoch_budget"], ordered["spearman"], marker="o", label=" / ".join(map(str, label)))
+        axis.plot(
+            ordered["epoch_budget"],
+            ordered["spearman"],
+            marker="o",
+            label=_budget_plot_label(fields, key),
+        )
     axis.set(xlabel="Epoch budget", ylabel="Spearman", title="ZCP correlation across budgets")
     axis.set_ylim(-1.05, 1.05)
     axis.grid(alpha=0.25)
@@ -40,15 +80,14 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
         retrieval
     ):
         figure, axis = plt.subplots(figsize=(8, 5))
-        for label, group in retrieval.groupby(
-            ["proxy_id", "component", "requested_k"], dropna=False
-        ):
+        fields, groups = _budget_plot_groups(retrieval, ("requested_k",))
+        for key, group in groups:
             ordered = group.sort_values("epoch_budget")
             axis.plot(
                 ordered["epoch_budget"],
                 ordered["precision_at_k"],
                 marker="o",
-                label=" / ".join(map(str, label)),
+                label=_budget_plot_label(fields, key),
             )
         axis.set(
             xlabel="Epoch budget",
@@ -64,13 +103,14 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
     controlled = tables.get("structure_controlled_correlations", pd.DataFrame())
     if not controlled.empty and {"epoch_budget", "spearman"}.issubset(controlled):
         figure, axis = plt.subplots(figsize=(10, 6))
-        for label, group in controlled.groupby(["proxy_id", "component"], dropna=False):
+        fields, groups = _budget_plot_groups(controlled)
+        for key, group in groups:
             ordered = group.sort_values("epoch_budget")
             axis.plot(
                 ordered["epoch_budget"],
                 ordered["spearman"],
                 marker="o",
-                label=" / ".join(map(str, label)),
+                label=_budget_plot_label(fields, key),
             )
         axis.set(
             xlabel="Epoch budget",
@@ -89,13 +129,14 @@ def _plot_budget(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
         "direction_agreement_rate",
     }.issubset(neighborhood):
         figure, axis = plt.subplots(figsize=(10, 6))
-        for label, group in neighborhood.groupby(["proxy_id", "component"], dropna=False):
+        fields, groups = _budget_plot_groups(neighborhood)
+        for key, group in groups:
             ordered = group.sort_values("epoch_budget")
             axis.plot(
                 ordered["epoch_budget"],
                 ordered["direction_agreement_rate"],
                 marker="o",
-                label=" / ".join(map(str, label)),
+                label=_budget_plot_label(fields, key),
             )
         axis.set(
             xlabel="Epoch budget",
