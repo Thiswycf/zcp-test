@@ -645,6 +645,8 @@ def rank_aggregation(source: ScoreSource, *, require_validation: bool = True) ->
     frame = _direction_adjusted(read_scores(source))
     if require_validation and "target_split" in frame and frame["target_split"].notna().any():
         frame = frame[frame["target_split"].isin(("valid", "validation"))]
+    if "proxy_alias_of" in frame:
+        frame = frame[frame["proxy_alias_of"].isna()]
     if frame.empty:
         return pd.DataFrame(columns=["architecture_id", "aggregate_rank", "proxy_count"])
     frame = frame.dropna(subset=["architecture_id", "proxy_id", "score"]).copy()

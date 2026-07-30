@@ -7,10 +7,10 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-30 当前工作树：**287 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-30 当前工作树：**303 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI 80%、analysis/proxy studies 93%、benchmark report 96%、reports 100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
-| H1：1% proxy sweep | NB201、NATS-TSS 与 NATS-SSS/CIFAR-10-valid 分别完成 22 代理 seed 2026 和核心 11 代理三 seed | **三个 benchmark 的当前既定协议完成，H1 整体进行中** | 证明独立真值/manifest/分片/相关性及核心三 seed；NATS-SSS 跨数据集与其余 benchmark 仍待 |
+| H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid 与 NB101 分别完成 22 代理 seed 2026 和核心 11 代理三 seed | **四个 benchmark 的当前既定协议完成，H1 整体进行中** | 证明独立真值/manifest/分片/相关性及核心三 seed；NB101 限定为 4,237 个分层样本，NB301、TNB101、ViT-Bench 等仍待 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
@@ -103,6 +103,13 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   核心 11 代理三 seed 为 10,824 行且全部成功。修复了专属研究把 `run_id` 当协议、导致每 shard
   单独统计的错误；正式 size 表合并为 n=328，并按 evaluation seed 分离。CIFAR-100 与
   ImageNet16-120 rank transfer 仍待。证据见 `docs/evidence/NATS_SSS_ONE_PERCENT_CN.md`。
+- H1 已完成 NB101 的正式 1% 既定协议：从 423,624 个架构中按 seed 2026 分层抽取 4,237 个；
+  22 代理 seed 2026 为 93,214/93,214 成功，核心 11 代理 seed 2026/2027/2028 为
+  139,821/139,821 成功，均无失败或重复任务键。4/12/36/108 epoch 的 repeat `mean/min/max`
+  预算分析均已完成。TE-NAS `portable-v2` 仅为仓库可移植近似，不等同官方完整 TE-NAS；本结论
+  只覆盖该固定样本和协议。证据见
+  [`docs/evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) 与
+  [`docs/evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
 - TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
   与完整 parameter-shape multiset 在七个任务均一致。真实 micro index-0 的七个 task
@@ -135,8 +142,9 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
    LR、静态 fixture 和真实图片夹具恢复机制已验收，但“全 ImageNet × 至多 1% epoch”与“1% ImageNet
    × 完整 schedule”尚未执行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
-4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS
-   与 NATS-SSS/CIFAR-10-valid 已完成，NATS-SSS 跨数据集及 NB101、NB301、TNB101、ViT-Bench 仍待。
+4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
+   NATS-SSS/CIFAR-10-valid 与 NB101 已完成各自上述限定协议，NATS-SSS 跨数据集及 NB301、TNB101、
+   ViT-Bench 等仍待，因此完整项目 H1 尚未完成。
 5. NAS-Bench-101 全量评估或 NAS-Bench-301 理论 DARTS 空间穷举。
 6. 多 GPU evaluate 的内置启动/去重合并；训练 DDP 启动与夹具级重启/故障注入已验收，但全数据级别未验收。
 7. 论文数值复现、独立 seed 置信区间及与官方代码的成本/精度比较。

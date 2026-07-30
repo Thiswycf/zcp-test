@@ -136,3 +136,25 @@ n=82 的错误分组；正式结果合并四个互斥 shard 为 n=328，并按 e
 
 当前判定更新为 **“NB201、NATS-TSS 与 NATS-SSS/CIFAR-10-valid 既定协议完成，H1 整体进行中”**。
 NATS-SSS 的 CIFAR-100/ImageNet16-120 rank transfer 属于尚未完成的定制扩展。
+
+## 9. NB101 实际验收（H1）
+
+NB101 正式 1% 既定协议已完成：从 `nasbench101@full` 的 423,624 个架构中，按 seed 2026 的
+250 个特征 strata 无放回抽取 4,237 个架构。22 代理 seed 2026 应有并成功
+`4,237 × 22 = 93,214` 个稳定任务键，失败 0、重复键 0；核心 11 代理在 seed
+2026/2027/2028 应有并成功 `4,237 × 11 × 3 = 139,821` 个稳定任务键，失败 0、重复键 0。
+
+预算研究覆盖 4/12/36/108 epoch，并分别完成 benchmark repeat 的 `mean`、`min`、`max` 聚合；
+三种聚合不可互换。结构控制覆盖 vertices、edges、DAG longest-path depth、conv3/conv1/max-pool
+计数，样本内一编辑邻居共 306 对；这些结果只描述 4,237 个抽中架构，不是 423,624 个架构的
+全空间枚举。
+
+旧 SynFlow `v1` 与 TE-NAS `portable-v1` 失败行保持不可变，正式有效集使用完整补跑的 SynFlow
+`double-v2` 与 TE-NAS `portable-v2`。其中 TE-NAS `portable-v2` 是本仓库的可移植近似，**不是
+官方完整 TE-NAS**，不得据此声称完成官方方法复现。完整协议、替换边界、SHA-256 和相关性摘要见
+[`evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) 与
+[`evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
+
+当前判定更新为 **“NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid 与 NB101 的既定协议完成，H1
+整体进行中”**。NB301、TNB101、ViT-Bench 等 benchmark 的 1% 协议仍待独立执行，完整项目 H1
+尚未完成。

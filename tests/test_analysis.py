@@ -363,6 +363,25 @@ def test_research_helper_tables_cover_aggregation_cost_convergence_and_transfer(
     assert set(transfer["benchmark_id"]) == {"bench-a", "bench-b"}
 
 
+def test_rank_aggregation_excludes_declared_proxy_aliases() -> None:
+    rows = _score_rows()
+    alias_rows = [
+        {
+            **row,
+            "proxy_id": "proxy-alias",
+            "proxy_alias_of": "proxy-a",
+            "score": float(row["score"]) * -1,
+        }
+        for row in rows
+    ]
+    for row in rows:
+        row["proxy_alias_of"] = None
+
+    aggregation = rank_aggregation([*rows, *alias_rows])
+
+    assert aggregation["proxy_count"].eq(1).all()
+
+
 def test_ranking_and_correlation_respect_minimize_direction() -> None:
     rows = [
         {

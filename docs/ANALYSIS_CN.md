@@ -32,7 +32,10 @@ zcp-test analyze correlation --scores RUN/scores.jsonl --output reports/correlat
 zcp-test analyze compare --scores RUN/scores.jsonl --output reports/compare
 
 # seed/batch/input/source 等敏感性和 sample-size convergence
-zcp-test analyze sensitivity --scores RUNS.jsonl --parameter seed --output reports/seed
+zcp-test analyze sensitivity --scores RUNS.jsonl --parameter seed \
+  --sample-sizes 10 25 50 100 250 500 1000 2000 4237 \
+  --title "NB101 core proxies · three seeds" \
+  --output reports/seed
 
 # 进化搜索 best/mean/分位数/diversity/cache/budget 曲线
 zcp-test analyze search --source RUN/search.jsonl --output RUN/reports/search
@@ -44,6 +47,8 @@ zcp-test analyze training --source RUN/training.jsonl --output RUN/reports/train
 `correlation`、`compare` 和 `sensitivity` 现在 fail closed：必须至少存在一条成功记录，且
 `architecture_id/proxy_id/component/score/target_value` 不能全空；非有限 score/真值不能组成
 报告。`sensitivity --parameter seed` 还要求至少两个非空 seed 值。验证失败时不会先创建空报告目录。
+`--sample-sizes` 应覆盖小样本区间并包含本次研究的完整架构数；若最大值仅为 100，不能据此声明
+数千架构规模已经收敛。请求值超过可用架构数时使用全部可用架构，并在 `sample_count` 中记录实际数量。
 
 schema 2 的原始 `scores.jsonl` 每个架构/代理一行；reader 会在内存中展开具名组件，但
 `analyze correlation|compare|sensitivity`、`analyze benchmark` 和 `report bundle` 默认只保留
@@ -51,6 +56,10 @@ schema 2 的原始 `scores.jsonl` 每个架构/代理一行；reader 会在内�
 只有显式传入 `--component sum` 时才研究该辅助分量。旧 schema 若没有
 `primary_component` 无法可靠推断主分量，reader 会保留其全部组件；此时应先检查字段并显式指定
 `--component`。组件展开是派生视图，不是重复评估。
+
+validation-only rank aggregation 默认排除记录中声明了 `proxy_alias_of` 的显式别名，避免同一公式
+重复计权。组合代理若主组件复用了其他代理但未声明为完整别名，工具不会仅凭数值相同自动删除；此时
+必须结合 `proxy matrix`、实现 fidelity 和 proxy–proxy 热力图人工审计后再解释聚合结果。
 
 ### 多协议 × 多 ZCP 研究
 

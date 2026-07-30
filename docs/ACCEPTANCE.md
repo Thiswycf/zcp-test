@@ -8,15 +8,15 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-30 tree: **287 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
+| Unit/integration baseline | Current 2026-07-30 tree: **303 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
 | Coverage | First-party source **87%**; CLI 80% and analysis 93% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
-| H1 one-percent correlations | NB201, NATS-TSS and NATS-SSS/CIFAR-10-valid completed their current minimum protocols | In progress overall | Independent manifests, truth adapters, shard merging and three-seed core proxies; NATS-SSS transfer and four benchmark families remain |
+| H1 one-percent correlations | NB101, NB201, NATS-TSS and NATS-SSS/CIFAR-10-valid completed their scoped protocols | In progress overall | Independent manifests, truth adapters, shard merging and three-seed core proxies; NATS-SSS transfer, NB301, TNB101 and ViT-Bench remain |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
 | Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
 
-The 287-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
+The 303-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
 low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
 NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
 external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
@@ -38,6 +38,13 @@ The NATS-TSS H1 evidence is recorded in
 [`evidence/nats_tss_one_percent_summary.json`](evidence/nats_tss_one_percent_summary.json). It uses
 `nats_bench.create(..., "tss")`, not NAS-Bench-201 truth. Among the 157 shared topology IDs, 31
 target values differ, which directly rejects treating the two benchmark adapters as interchangeable.
+
+The scoped NAS-Bench-101 H1 evidence is recorded in
+[`evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) and
+[`evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json). It covers
+4,237 stratified architectures, all 22 proxies at seed 2026, the core 11 proxies at three seeds,
+and 4/12/36/108-epoch repeat `mean/min/max` studies. TE-NAS `portable-v2` remains an approximation,
+and the evidence must not be extrapolated to all 423,624 architectures.
 
 ## DARTS smoke boundary
 
@@ -132,7 +139,8 @@ The following work is explicitly **not accepted** and must not be reported as co
    parameter/complexity fixtures, two-rank smoke and real-image-fixture recovery are accepted, but
    full ImageNet × 1%-epoch and 1%-ImageNet × full-schedule runs remain missing.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
-4. Full-scale 22-proxy evaluation across supported benchmark datasets, splits, budgets and seeds.
+4. Remaining benchmark protocols beyond the accepted scoped NB101, NB201, NATS-TSS and
+   NATS-SSS/CIFAR-10-valid runs, including NB301, TNB101, ViT-Bench and NATS-SSS transfer.
 5. Exhaustive NAS-Bench-101 evaluation or theoretical NAS-Bench-301 DARTS-space traversal.
 6. Built-in multi-GPU evaluate launch and duplicate-safe consolidation; training DDP launch and
    fixture-level restart/failure injection are accepted, but full-data-level acceptance is not.

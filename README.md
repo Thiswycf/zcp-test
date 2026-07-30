@@ -233,6 +233,13 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   macro, NAS-Bench-301 performance surrogate, and ViT-Bench AutoFormer/PiT using the machine-local
   catalog. Other machines must bootstrap or register their own paths; repository configuration
   never stores host paths.
+- The formal NAS-Bench-101 1% scoped protocol is accepted on 4,237 stratified architectures:
+  all 22 proxies at seed 2026 completed 93,214/93,214 task keys, and the core 11 proxies at seeds
+  2026/2027/2028 completed 139,821/139,821 task keys. Budget-repeat analyses for `mean`, `min`, and
+  `max` cover epochs 4/12/36/108. TE-NAS `portable-v2` remains a repository approximation rather
+  than the complete official TE-NAS method. See the
+  [human-readable evidence](docs/evidence/NB101_ONE_PERCENT_CN.md) and
+  [machine-readable summary](docs/evidence/nb101_one_percent_summary.json).
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
   OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-
   augmentation sampler, the AZ-NAS linear LR rule (`base_lr * global_batch / 512`), and six exact
@@ -252,6 +259,8 @@ Every proxy is registered with model-family, label, device, component, direction
 
 ## Validation scope
 
-Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. Full DARTS
-250/600-epoch training and all high-cost benchmark/proxy sweeps remain unaccepted; see the
-[acceptance report](docs/ACCEPTANCE.md).
+Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. The scoped 1%
+proxy sweeps for NB101, NB201, NATS-TSS, and NATS-SSS/CIFAR-10-valid are accepted under their
+documented protocols, but project-wide H1 remains incomplete: NB301, TransNAS-Bench-101,
+ViT-Bench-101, and other remaining protocols are pending. Full DARTS 250/600-epoch training also
+remains unaccepted; see the [acceptance report](docs/ACCEPTANCE.md).

@@ -1814,7 +1814,7 @@ def command_analyze(args: argparse.Namespace) -> None:
             proxy_cost_pareto(frame).to_csv(output / "proxy_cost_pareto.csv", index=False)
             transfer_correlation_table(frame).to_csv(output / "transfer.csv", index=False)
         else:
-            sample_size_convergence(frame).to_csv(
+            sample_size_convergence(frame, sizes=args.sample_sizes).to_csv(
                 output / "sample_size_convergence.csv", index=False
             )
             for suffix in ("png", "svg"):
@@ -1825,7 +1825,7 @@ def command_analyze(args: argparse.Namespace) -> None:
         result = build_report_bundle(
             frame,
             output,
-            title=f"zcp-test {args.action}",
+            title=args.title or f"zcp-test {args.action}",
             bootstrap_samples=args.bootstrap_samples,
             top_k=args.top_k,
             sensitivity_parameter=getattr(args, "parameter", "seed"),
@@ -2249,10 +2249,18 @@ def build_parser() -> argparse.ArgumentParser:
         analysis.add_argument("--scores", nargs="+", required=True)
         analysis.add_argument("--output", required=True)
         analysis.add_argument("--component")
+        analysis.add_argument("--title")
         analysis.add_argument("--bootstrap-samples", type=int, default=1000)
         analysis.add_argument("--top-k", type=int, nargs="+", default=[1, 5, 10])
         if action == "sensitivity":
             analysis.add_argument("--parameter", default="seed")
+            analysis.add_argument(
+                "--sample-sizes",
+                type=int,
+                nargs="+",
+                default=[10, 25, 50, 100],
+                help="sample counts used for convergence analysis",
+            )
         analysis.set_defaults(function=command_analyze)
     for action in ("search", "training"):
         analysis = analyze_actions.add_parser(action)

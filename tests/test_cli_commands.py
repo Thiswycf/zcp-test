@@ -71,6 +71,28 @@ def test_analysis_defaults_to_declared_primary_components():
     assert auxiliary[["proxy_id", "component"]].values.tolist() == [["er", "sum"]]
 
 
+def test_sensitivity_parser_accepts_explicit_sample_sizes():
+    args = cli.build_parser().parse_args(
+        [
+            "analyze",
+            "sensitivity",
+            "--scores",
+            "scores.jsonl",
+            "--output",
+            "report",
+            "--sample-sizes",
+            "10",
+            "100",
+            "4237",
+            "--title",
+            "NB101 core proxies",
+        ]
+    )
+
+    assert args.sample_sizes == [10, 100, 4237]
+    assert args.title == "NB101 core proxies"
+
+
 def test_benchmark_study_frame_retains_failed_primary_calls(tmp_path):
     scores = tmp_path / "scores.jsonl"
     rows = [

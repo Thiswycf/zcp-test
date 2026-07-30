@@ -1,0 +1,173 @@
+{
+  "schema_version": 1,
+  "evidence_id": "nb101_one_percent_formal_acceptance",
+  "status": "accepted_with_scope_limits",
+  "benchmark": {
+    "benchmark_id": "nasbench101",
+    "benchmark_version": "full",
+    "search_space_id": "nb101_dag",
+    "population_size": 423624
+  },
+  "sampling": {
+    "strategy": "proportional_feature_stratified",
+    "seed": 2026,
+    "sample_count": 4237,
+    "stratum_count": 250,
+    "manifest": "$ZCP_TEST_AUDIT_ROOT/sampling/nb101-1pct-seed2026.json",
+    "manifest_sha256": "e54cba029c74197037f1268f1689ec2b198261641133fccd6acda4a89c67c347"
+  },
+  "protocol": {
+    "dataset": "cifar10",
+    "target_split": "valid",
+    "target_metric": "final_accuracy",
+    "target_direction": "maximize",
+    "epoch_budgets": [
+      4,
+      12,
+      36,
+      108
+    ],
+    "repeat_reductions": [
+      "mean",
+      "min",
+      "max"
+    ],
+    "input_source": "dataset",
+    "model_fidelity": "reference_topology_pytorch_port"
+  },
+  "replacement_audit": {
+    "old_versions": {
+      "synflow": "v1",
+      "te_nas": "portable-v1"
+    },
+    "old_combined_failed_count": 2224,
+    "replacement_versions": {
+      "synflow": "double-v2",
+      "te_nas": "portable-v2"
+    },
+    "rerun_expected_count": 8474,
+    "rerun_successful_count": 8474,
+    "raw_sources_immutable": true,
+    "effective_derivation": "exclude all old synflow v1 and te_nas portable-v1 rows, then add complete double-v2 and portable-v2 reruns"
+  },
+  "all_proxies_seed_2026": {
+    "evaluation_seed": 2026,
+    "architecture_count": 4237,
+    "proxy_count": 22,
+    "expected_count": 93214,
+    "successful_count": 93214,
+    "failed_count": 0,
+    "duplicate_task_key_count": 0,
+    "scores_sha256": "d45116653a2556216190f73cd7ff11160d137ad5c3ddf882465ec05406fb93e1"
+  },
+  "core_three_seed": {
+    "evaluation_seeds": [
+      2026,
+      2027,
+      2028
+    ],
+    "architecture_count": 4237,
+    "proxy_count": 11,
+    "proxies": [
+      "az_nas",
+      "flops",
+      "gradnorm",
+      "jacob_cov",
+      "meco",
+      "naswot",
+      "params",
+      "synflow",
+      "te_nas",
+      "zen",
+      "zico"
+    ],
+    "expected_count": 139821,
+    "successful_count": 139821,
+    "failed_count": 0,
+    "duplicate_task_key_count": 0,
+    "scores_sha256": "794535f4e6a33e8ce3f13c29c8eca2d27386f42207025ef75fe024ddef20ab0b",
+    "proxy_proxy_compact_pairs_per_seed": 55,
+    "proxy_proxy_reconstructed_matrix_size": "11x11",
+    "component_reuse_cautions": [
+      "az_nas/expressivity and naswot/score are rank-identical in the current portable implementation",
+      "te_nas/synflow and synflow/score are near-identical and must not be independently double-weighted"
+    ],
+    "sample_size_convergence_points": [
+      10,
+      25,
+      50,
+      100,
+      250,
+      500,
+      1000,
+      2000,
+      4237
+    ]
+  },
+  "budget_and_structure_analysis": {
+    "epoch_budgets": [
+      4,
+      12,
+      36,
+      108
+    ],
+    "repeat_reductions": [
+      "mean",
+      "min",
+      "max"
+    ],
+    "structure_control_features": [
+      "vertices",
+      "edges",
+      "longest_path_depth",
+      "conv3_count",
+      "conv1_count",
+      "maxpool_count"
+    ],
+    "in_sample_one_edit_neighbor_pairs": 306,
+    "operation_edit_pairs": 214,
+    "edge_edit_pairs": 92
+  },
+  "report_directories": {
+    "multi_proxy": "$ZCP_TEST_AUDIT_ROOT/reports/nb101-1pct-multi-proxy",
+    "core_three_seed": "$ZCP_TEST_AUDIT_ROOT/reports/nb101-1pct-core11-three-seed",
+    "budget_repeat_mean": "$ZCP_TEST_AUDIT_ROOT/reports/nb101-1pct-budget-mean",
+    "budget_repeat_min": "$ZCP_TEST_AUDIT_ROOT/reports/nb101-1pct-budget-min",
+    "budget_repeat_max": "$ZCP_TEST_AUDIT_ROOT/reports/nb101-1pct-budget-max"
+  },
+  "limitations": [
+    "The acceptance scope is the 4237-architecture stratified sample, not an exhaustive evaluation of all 423624 architectures.",
+    "Benchmark targets and ZCP computations have different fidelity: recorded NAS-Bench-101 training repeats versus reference_topology_pytorch_port proxy evaluation.",
+    "TE-NAS portable-v2 is a repository portable approximation and must not be described as the official complete TE-NAS implementation.",
+    "Structure-controlled statistics are observational and do not establish causality.",
+    "The 306 one-edit neighbor pairs are in-sample pairs, not a full-search-space neighborhood enumeration.",
+    "Results must not be extrapolated to other datasets, fidelities, proxy implementations, repeat reductions, budgets, or unobserved seeds.",
+    "Sample-size convergence evidence must include the full 4237-architecture point; the earlier 10/25/50/100-only curve is insufficient."
+  ],
+  "report_evidence": {
+    "budget_mean_correlations": {
+      "sha256": "bd79313814a83321c32b86312f9cfcfcb23cb27f0d11aff21041fd49d7ccefe9",
+      "rows": 88
+    },
+    "budget_min_correlations": {
+      "sha256": "5f5a8018e2488891b0ef53adfc67c83d4a44de2f4c66c02f94dd4a33e9a60ed1",
+      "rows": 88
+    },
+    "budget_max_correlations": {
+      "sha256": "338bc7ffd65fe9c4877cf8d8c87d7de83ccfd351c7904cc4e7de4037ae63421f",
+      "rows": 88
+    },
+    "multi_proxy_correlations": {
+      "sha256": "e462fe65dc0b77c7ab0a3fe3a4ff2f60beb9fa664e3b8da9c66e6e0b2d219ee6",
+      "rows": 22
+    },
+    "core_three_seed_correlations": {
+      "sha256": "df9cdcbc147a704fc72d2634321835eec239c6fd70b35c28af682727e44c475c",
+      "rows": 33
+    },
+    "core_three_seed_convergence": {
+      "sha256": "939437b63632a2db2c0fee417bbcfc6610ab09a6acb4955b47d5e0a0d3429641",
+      "rows": 297
+    }
+  }
+}
