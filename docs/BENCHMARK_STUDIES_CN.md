@@ -314,9 +314,10 @@ matched pair，matched-pair 表为空；这不是错误，也不能用来支持 
 benchmark 仍需分别生成真实 score → 专属表/图证据，不能由 NB201 结果外推。
 
 在上述工作流 smoke 之外，NB201 seed 2026 已完成正式 feature-stratified 1% × 22 ZCP：157 个
-架构、3,454 行、3,451 成功、3 条明确失败、0 个重复架构—代理键。专属 topology 输出为 157 条
-architecture、942 条 edge、5 类 operation、26,880 条 correlation、3,360 条 operation effect、
-168 条 matched pair 和 168 条 matched-pair summary。完整摘要见
+架构、3,454 行、3,451 成功、3 条明确失败、0 个重复架构—代理键。修复把 `run_id` 错当协议的
+shard grouping 缺陷后，专属 topology 输出为 157 条 architecture、942 条 edge、5 类 operation、
+6,720 条 correlation、840 条 operation effect、588 条 matched pair 和 504 条 matched-pair
+summary。完整摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。H1 仍只能标为
 核心 11 代理的另外两个 seed 现已补齐，三 seed 稳定性见
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。当前状态更新为
@@ -328,6 +329,12 @@ NATS-TSS 随后已用独立 API 和真值完成相同最低规模：22 代理单
 topology operation effect 与 matched-pair 报告均已生成。157 个共同 topology 中有 31 个 NATS
 与 NB201 target 不同，直接证明共享 codec 不能替代独立查询。详见
 [`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md)。H1 整体仍进行中。
+
+NATS-SSS 已完成 CIFAR-10-valid/90-epoch 的 328 架构最低规模、22 代理单 seed 与核心三 seed。
+修复 shard grouping 后，size 视图以完整 n=328 生成 stage、总通道、stage sensitivity、
+size-controlled correlation 和 strata 表。详见
+[`evidence/NATS_SSS_ONE_PERCENT_CN.md`](evidence/NATS_SSS_ONE_PERCENT_CN.md)。跨 CIFAR-100 与
+ImageNet16-120 的 rank transfer 尚未完成，不能由当前结果外推。
 
 ## 11. 常见错误
 

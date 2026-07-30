@@ -96,8 +96,10 @@ benchmark index 3943、architecture `nb201_topology:839da408774c5a50b88c`，代�
 
 ## 专属研究与未通过项
 
-Topology 报告生成 157 条 architecture、942 条 edge、5 类 operation、26,880 条 feature
-correlation、3,360 条 operation effect、168 条 matched pair 和 168 条 matched-pair summary。
+修复 shard grouping 后，Topology 报告生成 157 条 architecture、942 条 edge、5 类 operation、
+6,720 条 feature correlation、840 条 operation effect、588 条 matched pair 和 504 条
+matched-pair summary。旧报告曾把 `run_id` 错当科学协议，现已改为合并互斥 shard、按 evaluation
+seed 分组；因此正式相关性使用完整 n=157，并包含跨 shard matched pair。
 通用 correlation、proxy–proxy、top-k、rank、scatter、静态 HTML 和 report bundle 均已生成。
 
 本轮真实运行还暴露三项不能掩盖的缺口：
@@ -107,7 +109,7 @@ correlation、3,360 条 operation effect、168 条 matched pair 和 168 条 matc
    不支持枚举时会明确失败。当前 H1 使用的 mean 数值未受该旧缺陷影响。
 2. catalog 资产版本为 `1.0-3ffb9`，而 benchmark protocol 只记录 `1.0`；后续应另存资产修订标识，
    不能把下载资产 revision 与 benchmark API version 混成一个字段。
-3. topology 专属表当前主要分析成功记录；正式页面必须同时链接通用报告中的 failed/coverage 诊断，
+3. topology 专属表主要分析成功记录；正式页面必须同时链接通用报告中的 failed/coverage 诊断，
    后续再增加专属表覆盖率字段。
 
 因此，本证据证明 NATS-TSS 既定相关性协议已执行，并证明 repeat reduction 缺陷已经修复；它不证明

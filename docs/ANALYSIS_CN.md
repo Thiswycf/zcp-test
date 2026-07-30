@@ -9,6 +9,11 @@ manifest，而不是连续 `--start/--count` 代替随机/分层样本。
 [`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md)；不得把 NB201 图表
 改标题后当作 NATS-TSS 结果。
 
+NATS-SSS 的 size 专属实例见
+[`evidence/NATS_SSS_ONE_PERCENT_CN.md`](evidence/NATS_SSS_ONE_PERCENT_CN.md)。多文件输入会合并
+互斥 shard，但不同 evaluation seed 必须保持独立；`run_id` 只属于 provenance，不能作为科学协议
+分组，否则会把总体样本量错误缩小为单 shard。
+
 ## 一键报告
 
 ```bash

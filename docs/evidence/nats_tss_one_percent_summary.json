@@ -60,15 +60,21 @@
     "architectures": 157,
     "edges": 942,
     "operations": 5,
-    "correlations": 26880,
-    "operation_effects": 3360,
-    "matched_pairs": 168,
-    "matched_pair_summary": 168
+    "correlations": 6720,
+    "operation_effects": 840,
+    "matched_pairs": 588,
+    "matched_pair_summary": 504
+  },
+  "shard_grouping_fix": {
+    "removed_protocol_fields": ["run_id", "source_run"],
+    "added_protocol_field": "seed",
+    "expected_sample_count_per_seed": 157,
+    "status": "fixed_and_regression_tested"
   },
   "completion": {
     "nats_tss_protocol": "complete",
     "h1_overall": "in_progress",
-    "remaining_benchmarks": ["nasbench101", "nats_sss", "nasbench301_surrogate", "transnasbench101", "vitbench101"]
+    "remaining_benchmarks": ["nasbench101", "nasbench301_surrogate", "transnasbench101", "vitbench101"]
   },
   "known_gaps": [
     "NATS min/max seed reduction was fixed after this run; the accepted mean protocol was unaffected.",

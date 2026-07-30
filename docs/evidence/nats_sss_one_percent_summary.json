@@ -1,0 +1,67 @@
+{
+  "schema_version": 1,
+  "benchmark": {
+    "benchmark_id": "nats_sss",
+    "benchmark_version": "1.0",
+    "search_space_id": "nats_size",
+    "dataset": "cifar10-valid",
+    "target_metric": "accuracy",
+    "target_split": "valid",
+    "target_epoch_budget": 90,
+    "target_seed_reduction": "mean",
+    "truth_source": "nats_bench.create(path, sss)"
+  },
+  "sampling": {
+    "strategy": "proportional_feature_stratified",
+    "seed": 2026,
+    "population_size": 32768,
+    "sample_count": 328,
+    "stratum_count": 66,
+    "shard_counts": [82, 82, 82, 82],
+    "manifest_sha256": "07767985afbad7d498acf062620aea5ef7b66b2bfc8b3db3fea3a0fc768e1992"
+  },
+  "all_proxies_seed_2026": {
+    "proxy_count": 22,
+    "row_count": 7216,
+    "successful_count": 7216,
+    "failed_count": 0,
+    "duplicate_key_count": 0,
+    "run_ids": ["d988cd7df0cf", "e7dc84a32893", "b56aaf841ad5", "dffe62ce66be"],
+    "scores_sha256": [
+      "f7f3152874710817ef4405a622f715f8e4ca06cc7e452c3e56fafd6e4388b896",
+      "b92875dd69ad7269fbcf309d68fa72bf6b7eb32009796a84528b0a81a00857d9",
+      "077c9f1d33b446e6b7c2dec71b49655b31c64e51921550fa677c6911e32889a0",
+      "d32bac44a516af22d15e048a9d29821f55ace543dad4f28a02f1bf52dc46e4be"
+    ]
+  },
+  "core_three_seed": {
+    "proxy_count": 11,
+    "seeds": [2026, 2027, 2028],
+    "row_count": 10824,
+    "successful_count": 10824,
+    "failed_count": 0,
+    "duplicate_key_count": 0,
+    "merged_scores_sha256": "81622da200341d5d025086e5a8da849ae1e12b5b66d9cf78f8a0e12badf47d4d"
+  },
+  "size_tables": {
+    "architectures": 328,
+    "stages": 1640,
+    "summary": 12,
+    "correlations": 3528,
+    "stage_sensitivity": 840,
+    "size_controlled_correlations": 672,
+    "size_strata": 112
+  },
+  "shard_grouping_fix": {
+    "removed_protocol_fields": ["run_id", "source_run"],
+    "added_protocol_field": "seed",
+    "expected_sample_count_per_seed": 328,
+    "status": "fixed_and_regression_tested"
+  },
+  "completion": {
+    "cifar10_valid_90_epoch_protocol": "complete",
+    "cross_dataset_transfer": "pending",
+    "h1_overall": "in_progress",
+    "remaining_benchmarks": ["nasbench101", "nasbench301_surrogate", "transnasbench101", "vitbench101"]
+  }
+}

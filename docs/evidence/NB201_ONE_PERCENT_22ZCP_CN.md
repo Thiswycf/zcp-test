@@ -76,9 +76,11 @@ architecture_id=nb201_topology:839da408774c5a50b88c / proxy_id=<上述代理>
 
 ## Topology 报告规模
 
-专属 topology 分析实际生成：157 条 architecture、942 条 edge、5 类 operation、26,880 条
-feature correlation、3,360 条 operation effect、168 条 matched pair 和 168 条 matched-pair
-summary。多组件分析会展开代理组件，因此报告行数不能误解为重新执行了更多架构。
+修复 shard grouping 后，专属 topology 分析实际生成：157 条 architecture、942 条 edge、5 类
+operation、6,720 条 feature correlation、840 条 operation effect、588 条 matched pair 和 504 条
+matched-pair summary。旧报告曾把 `run_id` 错当科学协议，产生四组 n=39/40 的相关性并漏掉跨 shard
+matched pair；现已改为按 evaluation seed 分组并合并四个互斥 shard。多组件分析会展开代理组件，
+因此报告行数不能误解为重新执行了更多架构。
 
 ## 限制与后续审计
 

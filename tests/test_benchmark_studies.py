@@ -93,6 +93,36 @@ def test_topology_and_size_studies_link_structure_to_scores_and_targets():
     assert {"size_controlled_correlations", "size_strata"}.issubset(size)
 
 
+def test_benchmark_studies_merge_shards_but_keep_evaluation_seeds_separate():
+    rows = []
+    for seed in (2026, 2027):
+        for index in range(4):
+            rows.append(
+                {
+                    "architecture_id": f"s{index}",
+                    "architecture": {"architecture": f"8:16:24:32:{40 + 8 * index}"},
+                    "proxy_id": "proxy",
+                    "component": "score",
+                    "score": float(index + seed - 2026),
+                    "target_value": float(index * 2),
+                    "direction": "maximize",
+                    "seed": seed,
+                    "run_id": f"shard-{index % 2}",
+                    "source_run": f"/runs/shard-{index % 2}",
+                }
+            )
+
+    tables = nats_size_study(pd.DataFrame(rows))
+    correlation = tables["correlations"].query(
+        "feature == 'size_last_channel' and outcome == 'target' and method == 'spearman'"
+    )
+
+    assert correlation["sample_count"].tolist() == [4, 4]
+    assert correlation["seed"].tolist() == [2026, 2027]
+    assert "run_id" not in correlation
+    assert "source_run" not in correlation
+
+
 def test_vit_and_transnas_studies_report_feature_and_task_correlations():
     vit_rows = []
     for index, hidden in enumerate((192, 216, 240), 1):

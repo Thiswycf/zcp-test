@@ -185,10 +185,16 @@
     "architectures": 157,
     "edges": 942,
     "operations": 5,
-    "correlations": 26880,
-    "operation_effects": 3360,
-    "matched_pairs": 168,
-    "matched_pair_summary": 168
+    "correlations": 6720,
+    "operation_effects": 840,
+    "matched_pairs": 588,
+    "matched_pair_summary": 504
+  },
+  "shard_grouping_fix": {
+    "removed_protocol_fields": ["run_id", "source_run"],
+    "added_protocol_field": "seed",
+    "expected_sample_count_per_seed": 157,
+    "status": "fixed_and_regression_tested"
   },
   "provenance_audit": {
     "implementation_fidelity_counts": {

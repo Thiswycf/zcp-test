@@ -35,8 +35,7 @@ _STUDY_PROTOCOL_FIELDS = (
     "model_fidelity",
     "input_source",
     "input_fingerprint",
-    "run_id",
-    "source_run",
+    "seed",
 )
 
 

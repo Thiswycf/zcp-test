@@ -123,5 +123,16 @@ NATS-TSS 已使用独立 `nats_bench.create(..., "tss")` 真值、独立 v1.0 ma
 [`evidence/nats_tss_one_percent_summary.json`](evidence/nats_tss_one_percent_summary.json)。
 
 因此 H1 当前判定为 **“NB201 与 NATS-TSS 既定 seed 协议完成，整体进行中”**；其余 benchmark
-仍需独立执行。真实运行发现的 NATS `min/max` repeat reduction 和专属 coverage 缺口必须修复，
-不能因 mean 协议通过而忽略。
+仍需独立执行。真实运行发现的 NATS `min/max` repeat reduction 与 shard grouping 已修复并回归；
+专属表仍须与通用 failed/coverage 报告配套读取，不能因 mean 协议通过而忽略失败分母。
+
+## 8. NATS-SSS 实际验收（H1）
+
+NATS-SSS 的 CIFAR-10-valid/90-epoch 协议已完成：328 架构 × 22 代理 seed 2026 为 7,216 行，
+核心 11 代理三 seed 为 10,824 行，全部成功且无重复键。size 专属报告按 5 个 stage、总通道、
+stage sensitivity 和 size-controlled strata 分析。真实运行发现并修复了 `run_id` 导致四片各自
+n=82 的错误分组；正式结果合并四个互斥 shard 为 n=328，并按 evaluation seed 分离。详见
+[`evidence/NATS_SSS_ONE_PERCENT_CN.md`](evidence/NATS_SSS_ONE_PERCENT_CN.md)。
+
+当前判定更新为 **“NB201、NATS-TSS 与 NATS-SSS/CIFAR-10-valid 既定协议完成，H1 整体进行中”**。
+NATS-SSS 的 CIFAR-100/ImageNet16-120 rank transfer 属于尚未完成的定制扩展。
