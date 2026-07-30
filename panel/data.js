@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 05:54 CST",
+  updatedAt: "2026-07-31 07:12 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -25,7 +25,7 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "当前全仓 gate 为 396 tests passed（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。380 及更早门禁保留为历史口径。",
+      detail: "当前全仓 gate 为 398 tests passed（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。396 及更早门禁保留为历史口径。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
       evidence: ["EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 05:47"
     },
@@ -196,7 +196,7 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "当前全仓门禁为 396 tests passed（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。380 及更早门禁均作为历史 gate 保留。",
+      detail: "当前全仓门禁为 398 tests passed（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。396 及更早门禁均作为历史 gate 保留。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
       evidence: ["EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 05:47"
     },
@@ -270,7 +270,8 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
-    { id: "EV-FULL-GATE-396", time: "2026-07-31 05:47", title: "最新全仓质量门禁 396", result: "28 个测试文件共 396 tests passed；第一方 source coverage 87%、CLI coverage 82%。Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过；该证据取代 380 及更早门禁成为当前口径。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "G1"] },
+    { id: "EV-FULL-GATE-398", time: "2026-07-31 06:21", title: "最新全仓质量门禁 398", result: "DDP rank-local RNG checkpoint 修复后，28 个测试文件共 398 tests passed；第一方 source coverage 87%、CLI coverage 82%。Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过；该证据取代 396 及更早门禁成为当前口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "D2", "G1"] },
+    { id: "EV-FULL-GATE-396", time: "2026-07-31 05:47", title: "历史全仓质量门禁 396", result: "历史口径：28 个测试文件共 396 tests passed；第一方 source coverage 87%、CLI coverage 82%。该证据已由 DDP rank-local RNG 修复后的 EV-FULL-GATE-398 取代。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "G1"] },
     { id: "EV-IMAGENET1K-ASSET-PREFLIGHT", time: "2026-07-31 05:54", title: "ImageNet-1k 资产与真实 loader 预检", result: "资产包含 1000 个 train 类、1000 个 val 类、1,281,167 张训练图与 50,000 张验证图，约 146 GiB；无符号链接、无零字节文件。项目真实 ImageFolder/transform loader 在确定性子集上成功解码 224×224 有限张量。该证据只解除“数据缺失”判断，不代表 DARTS ImageNet 训练通过。", command: "结构计数、空文件/链接审计；调用 zcp_test.cli._real_loaders 读取真实 ImageNet-1k batch", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "EV-DARTS-CIFAR-12-RUNS", time: "2026-07-31 05:39", title: "DARTS CIFAR 双模式 12 runs 完成", result: "CIFAR-10/100 三候选均完成 full-data×6 epoch 共 6 runs，以及 one-percent-data×600 epoch 共 6 runs，合计 12 runs；确定性预检重复一致，两个恢复审计与三组报告完成。项目仍为 active：DARTS ImageNet 资产已就绪但双重 1% 尚未完成，AutoFormer、PlainNet-MBV2、Proxyless-MBV2 双重 1% 未完成，DDP rank-local RNG 恢复审计与 launcher exit-code 风险开放。", command: "docs/evidence/DARTS_CIFAR_DUAL_ONE_PERCENT_CN.md; docs/evidence/darts_cifar_dual_one_percent_summary.json", taskIds: ["D1", "D2", "F2", "H2", "H3"] },
     { id: "EV-DARTS-ACCEPTANCE-TESTS-103", time: "2026-07-31 04:10", title: "DARTS acceptance 定向测试准确计数", result: "pytest collect-only 分文件得到 workflow 36、darts 26、config_inputs 6、core 20、gpu 15，共准确收集 103 项；同一 103 项实际执行显示 103 个通过点、进度 100% 且退出码 0。存在 4 条 THOP distutils deprecation warning，不影响通过判定；本阶段 Ruff、compileall、panel 与 diff 亦通过。", command: "conda run -n zcp-test pytest --collect-only -q tests/test_workflow.py tests/test_darts.py tests/test_config_inputs.py tests/test_core.py tests/test_gpu.py; conda run -n zcp-test pytest -q -rA tests/test_workflow.py tests/test_darts.py tests/test_config_inputs.py tests/test_core.py tests/test_gpu.py", taskIds: ["D1", "D2", "H2", "H3"] },

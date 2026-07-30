@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-31 tree: **396 tests passed** across 28 test files | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
+| Unit/integration baseline | Current 2026-07-31 tree: **398 tests passed** across 28 test files | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
 | Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |

@@ -7,7 +7,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-31 当前工作树：**396 tests passed**（28 个测试文件） | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-31 当前工作树：**398 tests passed**（28 个测试文件） | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
@@ -17,7 +17,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-396 tests（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%，以及已通过的 Ruff、
+398 tests（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%，以及已通过的 Ruff、
 compileall、pip check、repository hygiene、panel check 和 `git diff --check`，共同构成当前可复核的
 低成本软件基线。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
