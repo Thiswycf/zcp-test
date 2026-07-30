@@ -287,6 +287,12 @@ class StaticAutoFormer(nn.Module):
             "weight_mode": "independent_scratch",
             "supports_inherited_supernet": False,
             "source": "https://github.com/microsoft/Cream/tree/main/AutoFormer",
+            "cost_protocol": {
+                "name": "cream-autoformer-get-complexity",
+                "source_commit": "b799630a29995163f282b15e2f38701160272fd1",
+                "official_complexity_ops": self.official_complexity_ops(),
+                "generic_flops": False,
+            },
             "architecture": {
                 "embed_dim": self.embed_dim,
                 "depth": self.depth,
@@ -297,6 +303,29 @@ class StaticAutoFormer(nn.Module):
                 "global_pool": self.global_pool,
             },
         }
+
+    def official_complexity_ops(self) -> int:
+        """Reproduce Cream/AZ-NAS ``get_complexity`` without relabelling it FLOPs."""
+        patch_count = (self.image_size // self.patch_size) ** 2
+        total = self.patch_embed.bias.numel()
+        total += patch_count * self.patch_embed.weight.numel()
+        total += self.position_embedding.numel() / 2.0
+        block_sequence_length = patch_count + 2
+        for block in self.blocks:
+            attention = block.attention
+            total += block_sequence_length * self.embed_dim
+            total += block_sequence_length * attention.qkv.weight.numel()
+            total += 2 * block_sequence_length**2 * attention.inner_dim
+            total += block_sequence_length * attention.projection.weight.numel()
+            if self.relative_position:
+                total += 2 * self.max_relative_position * block_sequence_length**2
+                total += block_sequence_length**2 / 2.0
+                total += block_sequence_length * attention.inner_dim / 2.0
+            total += block_sequence_length * self.embed_dim
+            total += block_sequence_length * block.mlp[0].weight.numel()
+            total += block_sequence_length * block.mlp[3].weight.numel()
+        total += (patch_count + 1) * self.head.weight.numel()
+        return int(total)
 
     def forward_features(self, inputs: Tensor) -> Tensor:
         if inputs.ndim != 4 or inputs.shape[1] != 3:

@@ -239,8 +239,10 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   Cream/AZ-NAS parameter-count goldens. Mixed 4090D/4090 two-rank DARTS and AutoFormer smokes now
   validate DDP wrapping, reduced metrics, one shared run and rank-zero-only artifacts. UUID-ordered
   `CUDA_VISIBLE_DEVICES` is mandatory, and AutoFormer can derive accumulation to retain global batch
-  2048 (four GPUs × 256 uses two micro-steps). It still sets `formal_training_ready: false` until
-  full-data distributed resume/failure injection and an independent complexity cross-check pass.
+  2048 (four GPUs × 256 uses two micro-steps). Six upstream `get_complexity` goldens are retained
+  under the explicit `official_complexity_ops` name; a THOP cross-check proves that this is not a
+  generic MAC/FLOPs value. Formal readiness now remains blocked only by full-data distributed
+  resume and failure-injection acceptance.
 
 ## Proxy capability policy
 

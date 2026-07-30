@@ -164,9 +164,11 @@ input size. `--smoke` uses tiny synthetic loaders and validates plumbing, not ac
 The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
 Repeated augmentation uses three repeats, and the effective LR follows
 `base_lr * per_device_batch * world_size * accumulation / 512`; the published 8×256 launch therefore
-uses `0.002`, not `0.0005`. Exact parameter-count fixtures cover Cream T/S/B and AZ-NAS
-Tiny/Small/Base. The upstream `get_complexity` value is not reported as generic FLOPs. Distributed
-Multi-GPU training uses launcher-managed UUID ordering and must not also pass `--device`:
+uses `0.002`, not `0.0005`. Exact parameter-count and `official_complexity_ops` fixtures cover Cream
+T/S/B and AZ-NAS Tiny/Small/Base. AZ-NAS Tiny reports 1,380,128,376 upstream operations, while THOP
+reports 1,100,420,352 MACs and omits relative-position parameters; these remain separate columns and
+the upstream value is not relabelled generic FLOPs. Multi-GPU training uses launcher-managed UUID
+ordering and must not also pass `--device`:
 
 ```bash
 CUDA_DEVICE_ORDER=PCI_BUS_ID \

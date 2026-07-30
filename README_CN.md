@@ -101,8 +101,8 @@ zcp-test data import-manifest \
   `per_device_batch × world_size / 512` 线性缩放（官方 8×256 时有效 LR `0.002`），AdamW、
   weight decay `0.05`、cosine、20 epoch warmup。当前已接入 repeated-augmentation sampler 和
   六个 Cream/AZ-NAS 官方子网参数量 golden。真实 2 卡混合 4090D/4090 DDP smoke 已验证共享 run、
-  跨 rank 指标归约和仅 rank 0 写 artifact；正式训练仍因完整数据恢复/故障注入与 complexity
-  独立口径尚未验收而保持关闭。
+  跨 rank 指标归约和仅 rank 0 写 artifact。六个官方 `get_complexity` golden 已按原命名保存，
+  并与 THOP MAC 并列证明二者口径不同；正式训练仅因完整数据恢复/故障注入尚未验收而保持关闭。
 - OFA/Proxyless MobileNetV2：ImageNet-1k、150 epoch、SGD/Nesterov、`0.05`、weight decay `4e-5`、label smoothing `0.1`。
 - DARTS：提供 CIFAR-10 600 epoch profile。
 - DARTS：同时提供 CIFAR-100 600 epoch 适配和 ImageNet-1k 250 epoch 官方评估 profile。

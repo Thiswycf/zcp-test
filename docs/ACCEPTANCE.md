@@ -62,8 +62,10 @@ its critical fields, including the accepted batch and input size.
 AutoFormer now has the AZ-NAS three-repeat sampler, exact linear LR rule, and six exact
 Cream/AZ-NAS parameter-count goldens. Mixed 4090D/4090 two-rank DARTS and AutoFormer smokes validate
 torchrun/DDP wrapping, cross-rank metric reduction, a shared run and rank-zero artifact ownership.
-The remaining blockers are full-data distributed resume/failure injection and reconciliation of the
-upstream custom complexity count with an independent MAC profiler.
+All six upstream complexity values are reproduced under the explicit `official_complexity_ops`
+field. For AZ-NAS Tiny, THOP reports 1,100,420,352 MACs versus 1,380,128,376 upstream operations and
+also omits relative-position parameters; the two measures are therefore reported separately rather
+than forced into a false FLOPs equivalence. Full-data distributed resume/failure injection remains.
 
 NAS-Bench-101/201, NATS and converted TransNAS records are **standard answers** only for their
 explicit dataset/split/budget/seed protocol. NAS-Bench-301 is a **surrogate** prediction, and its
@@ -117,8 +119,8 @@ The following work is explicitly **not accepted** and must not be reported as co
 
 1. Full 600-epoch DARTS CIFAR-10/CIFAR-100 and 250-epoch DARTS ImageNet training.
 2. AutoFormer 500-epoch and Proxyless-MBV2 150-epoch formal protocols; AutoFormer sampler, LR rule,
-   parameter fixtures and two-rank smoke are accepted, but full-data distributed recovery/failure
-   injection and an independent complexity cross-check remain missing.
+   parameter/complexity fixtures and two-rank smoke are accepted, but full-data distributed
+   recovery and failure injection remain missing.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Full-scale 22-proxy evaluation across supported benchmark datasets, splits, budgets and seeds.
 5. Exhaustive NAS-Bench-101 evaluation or theoretical NAS-Bench-301 DARTS-space traversal.

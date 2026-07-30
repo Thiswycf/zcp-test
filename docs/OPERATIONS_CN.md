@@ -122,7 +122,9 @@ AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`
 使用三次 repeated augmentation；学习率按
 `base_lr × per_device_batch × world_size × accumulation / 512` 缩放，因此官方 8×256 启动的
 有效 LR 是 `0.002`，不是 YAML 中作为基准值的 `0.0005`。Cream T/S/B 与 AZ-NAS
-Tiny/Small/Base 已有精确参数量 golden；官方自定义 `get_complexity` 仍不能称为通用 FLOPs。
+Tiny/Small/Base 已有精确参数量和 `official_complexity_ops` golden。独立 THOP 对 AZ-NAS Tiny
+给出 `1,100,420,352` MAC，而官方口径为 `1,380,128,376`，且 THOP 未计全 relative-position
+参数；两列必须分开报告，官方自定义 `get_complexity` 不能称为通用 FLOPs。
 多 GPU 使用 `torchrun`，且必须由启动器按 UUID 固定可见卡；不要同时传 `--device`：
 
 ```bash

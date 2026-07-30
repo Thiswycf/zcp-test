@@ -130,13 +130,20 @@ def test_autoformer_fields_change_parameter_count():
 
 
 @pytest.mark.parametrize(
-    ("embed_dim", "num_heads", "mlp_ratio", "expected_parameters"),
+    (
+        "embed_dim",
+        "num_heads",
+        "mlp_ratio",
+        "expected_parameters",
+        "expected_official_complexity_ops",
+    ),
     [
         pytest.param(
             192,
             [3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 3, 3],
             [3.5, 3.5, 3.0, 3.5, 3.0, 3.0, 4.0, 4.0, 3.5, 4.0, 3.5, 4.0, 3.5],
             5_867_944,
+            1_344_034_362,
             id="cream-b799630-autoformer-t",
         ),
         pytest.param(
@@ -144,6 +151,7 @@ def test_autoformer_fields_change_parameter_count():
             [6, 6, 5, 7, 5, 5, 5, 6, 6, 7, 7, 6, 7],
             [3.0, 3.5, 3.0, 3.5, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 4.0, 3.5, 4.0],
             22_891_432,
+            4_892_144_730,
             id="cream-b799630-autoformer-s",
         ),
         pytest.param(
@@ -151,6 +159,7 @@ def test_autoformer_fields_change_parameter_count():
             [9, 9, 9, 9, 9, 10, 9, 9, 10, 9, 10, 9, 9, 10],
             [3.5, 3.5, 4.0, 3.5, 4.0, 3.5, 3.5, 3.0, 4.0, 4.0, 3.0, 4.0, 3.0, 3.5],
             53_691_688,
+            11_236_929_660,
             id="cream-b799630-autoformer-b",
         ),
         pytest.param(
@@ -158,6 +167,7 @@ def test_autoformer_fields_change_parameter_count():
             [4, 3, 4, 4, 4, 4, 4, 3, 3, 4, 4, 4],
             [3.5, 3.5, 3.5, 4.0, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 4.0, 4.0],
             5_921_032,
+            1_380_128_376,
             id="az-nas-5e6683-tiny",
         ),
         pytest.param(
@@ -165,6 +175,7 @@ def test_autoformer_fields_change_parameter_count():
             [7, 7, 6, 6, 5, 6, 6, 6, 7, 7, 5, 5, 6, 7],
             [3.0, 3.0, 3.0, 4.0, 3.5, 3.0, 3.0, 3.5, 4.0, 3.0, 3.0, 3.0, 3.0, 4.0],
             22_951_144,
+            4_943_341_788,
             id="az-nas-5e6683-small",
         ),
         pytest.param(
@@ -172,12 +183,17 @@ def test_autoformer_fields_change_parameter_count():
             [10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 10, 9, 10, 10, 10, 10],
             [3.0, 3.5, 3.5, 3.5, 3.0, 3.5, 3.0, 4.0, 4.0, 3.0, 3.0, 4.0, 3.5, 3.0, 4.0, 4.0],
             53_710_768,
+            11_386_130_712,
             id="az-nas-5e6683-base",
         ),
     ],
 )
 def test_autoformer_official_subnet_parameter_counts(
-    embed_dim, num_heads, mlp_ratio, expected_parameters
+    embed_dim,
+    num_heads,
+    mlp_ratio,
+    expected_parameters,
+    expected_official_complexity_ops,
 ):
     model = StaticAutoFormer(
         embed_dim=embed_dim,
@@ -189,6 +205,33 @@ def test_autoformer_official_subnet_parameter_counts(
     assert [block.num_heads for block in model.blocks] == num_heads
     assert [block.mlp_ratio for block in model.blocks] == mlp_ratio
     assert parameter_count(model) == expected_parameters
+    assert model.official_complexity_ops() == expected_official_complexity_ops
+    assert model.reference_metadata()["cost_protocol"] == {
+        "name": "cream-autoformer-get-complexity",
+        "source_commit": "b799630a29995163f282b15e2f38701160272fd1",
+        "official_complexity_ops": expected_official_complexity_ops,
+        "generic_flops": False,
+    }
+
+
+def test_autoformer_official_complexity_is_not_relabelled_as_thop_macs():
+    from thop import profile
+
+    model = StaticAutoFormer(
+        embed_dim=192,
+        depth=12,
+        num_heads=[4, 3, 4, 4, 4, 4, 4, 3, 3, 4, 4, 4],
+        mlp_ratio=[3.5, 3.5, 3.5, 4.0, 3.5, 3.5, 3.5, 3.5, 3.5, 3.5, 4.0, 4.0],
+    ).eval()
+    thop_macs, thop_parameters = profile(
+        model,
+        inputs=(torch.randn(1, 3, 224, 224),),
+        verbose=False,
+    )
+
+    assert 0 < thop_macs < model.official_complexity_ops()
+    assert thop_parameters < parameter_count(model)
+    assert model.reference_metadata()["cost_protocol"]["generic_flops"] is False
 
 
 @pytest.mark.parametrize(
