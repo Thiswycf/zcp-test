@@ -62,6 +62,17 @@ Runs record `acceptance_protocol=full_data_one_percent_epochs` or
 uses an exact split-wide target; it does not inflate the fraction by forcing one item per class when
 the target is smaller than the class count.
 
+Before a formal launch, run one complete real-data epoch for throughput and pipeline validation:
+
+```bash
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --real-data-preflight --epochs 1 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS/preflight
+```
+
+Its `training_mode` is always `real_data_preflight`; it does not count toward either acceptance
+protocol.
+
 ## TE-NAS Boundary
 
 TE-NAS commit `9df78ffd98573035375b12e19b9007578cc4155d` delegates DARTS evaluation to `chenwydj/DARTS_evaluation`. At evaluation commit `f53b2b6975107885c44cf26e66620ff90a6dac4a`, the ImageNet defaults are 250 epochs, C=48, 14 cells, global batch 768 (documented for 8 GPUs), SGD 0.5, momentum 0.9, weight decay `3e-5`, no Nesterov, cosine, five warmup epochs, label smoothing 0.1, auxiliary weight 0.4, drop-path target 0, and gradient clipping at 5.

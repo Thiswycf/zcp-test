@@ -139,7 +139,9 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 
 `--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且至少
 1% epoch”或“恰好 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
-论文精度复现。详见 [操作手册](docs/OPERATIONS_CN.md)。
+论文精度复现。`--real-data-preflight --epochs 1 --data-fraction 1.0` 只用于在启动高成本任务前
+测量一个完整数据 epoch 的吞吐、显存和流水线完整性，结果固定标记为 `real_data_preflight`，不得
+计入双重 1% 验收。详见 [操作手册](docs/OPERATIONS_CN.md)。
 
 catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、version 和 protocol；错配会明确失败。
 显式 `--benchmark-path` 不经过 catalog 完整性证明，只应在调用者已经独立核验来源时使用。

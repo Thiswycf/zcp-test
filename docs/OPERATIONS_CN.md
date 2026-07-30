@@ -231,6 +231,18 @@ manifest 的 `runtime.resume` 保存 checkpoint SHA-256 与 source run ID，且�
 checkpoint 同时嵌入截至保存 epoch 的小型 `training_history`；原 run 日志路径不可用（例如复制到
 另一台机器）时，新 run 仍可恢复连续曲线，原 JSONL 存在时则优先读取原始记录。
 
+启动 6/3 epoch 或完整 schedule 前，先对每个 profile 和候选运行一个完整数据 epoch：
+
+```bash
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --real-data-preflight --epochs 1 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS/preflight
+```
+
+该模式使用真实数据、正式 batch 和 reference 模型，但只标记为 `real_data_preflight`；它不能替代
+`full_data_one_percent_epochs` 或 `one_percent_data_protocol`，也不能用于宣称精度复现。参数必须
+严格为 1 epoch 与完整数据，避免把任意缩小任务包装成预检。
+
 AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`。真实数据 loader
 使用三次 repeated augmentation；学习率按
 `base_lr × per_device_batch × world_size × accumulation / 512` 缩放，因此官方 8×256 启动的

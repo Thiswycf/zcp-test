@@ -1574,7 +1574,8 @@ def command_train(args: argparse.Namespace) -> None:
 
     config = load_config(args.config)
     acceptance_smoke = bool(getattr(args, "acceptance_smoke", False))
-    formal_training = not args.smoke and not acceptance_smoke
+    real_data_preflight = bool(getattr(args, "real_data_preflight", False))
+    formal_training = not args.smoke and not acceptance_smoke and not real_data_preflight
     distributed_world_size = int(os.environ.get("WORLD_SIZE", "1"))
     distributed_rank = int(os.environ.get("RANK", "0"))
     distributed_local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -1610,12 +1611,12 @@ def command_train(args: argparse.Namespace) -> None:
             raise ValueError("Formal training cannot override the accepted batch_size")
         if args.input_size is not None and args.input_size != int(config["input_size"]):
             raise ValueError("Formal training cannot override the accepted input_size")
-    elif acceptance_smoke:
+    elif acceptance_smoke or real_data_preflight:
         validate_acceptance_training_protocol(config)
         if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
-            raise ValueError("Acceptance training cannot override the candidate batch_size")
+            raise ValueError("Real-data validation cannot override the candidate batch_size")
         if args.input_size is not None and args.input_size != int(config["input_size"]):
-            raise ValueError("Acceptance training cannot override the candidate input_size")
+            raise ValueError("Real-data validation cannot override the candidate input_size")
     architecture = (
         space.sample(args.seed)
         if args.architecture is None
@@ -1628,6 +1629,10 @@ def command_train(args: argparse.Namespace) -> None:
             config,
             epochs,
             args.data_fraction,
+        )
+    if real_data_preflight and (epochs != 1 or args.data_fraction != 1.0):
+        raise ValueError(
+            "Real-data preflight requires exactly one epoch over the complete dataset"
         )
     dataset = str(config["dataset"])
     classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
@@ -1718,12 +1723,15 @@ def command_train(args: argparse.Namespace) -> None:
             "data_fraction": args.data_fraction,
             "smoke": args.smoke,
             "acceptance_smoke": acceptance_smoke,
+            "real_data_preflight": real_data_preflight,
             "acceptance_protocol": acceptance_protocol,
             "training_mode": (
                 "synthetic_smoke"
                 if args.smoke
                 else "acceptance_smoke"
                 if acceptance_smoke
+                else "real_data_preflight"
+                if real_data_preflight
                 else "formal"
             ),
             "classes": classes,
@@ -1808,6 +1816,8 @@ def command_train(args: argparse.Namespace) -> None:
                         if args.smoke
                         else "acceptance_smoke"
                         if acceptance_smoke
+                        else "real_data_preflight"
+                        if real_data_preflight
                         else "formal"
                     ),
                     "acceptance_protocol": acceptance_protocol,
@@ -2387,6 +2397,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--acceptance-smoke",
         action="store_true",
         help="run a code-approved real-data 1%% acceptance protocol without enabling formal training",
+    )
+    training_mode.add_argument(
+        "--real-data-preflight",
+        action="store_true",
+        help="run exactly one real-data epoch for timing and pipeline validation only",
     )
     train.set_defaults(function=command_train)
     report = subparsers.add_parser("report")

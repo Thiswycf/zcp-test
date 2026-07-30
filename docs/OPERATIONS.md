@@ -222,6 +222,19 @@ The checkpoint also embeds the small epoch-level `training_history`; if the orig
 path is unavailable after moving the checkpoint, a new run can still reconstruct a continuous log.
 When the source JSONL exists, it remains the preferred record source.
 
+Before launching a 6/3-epoch or full-schedule job, run one complete real-data epoch for every
+profile and candidate:
+
+```bash
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --real-data-preflight --epochs 1 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS/preflight
+```
+
+This mode uses real data, the accepted batch, and the reference model, but records
+`training_mode=real_data_preflight`. It never counts as either one-percent acceptance protocol and
+requires exactly one epoch over the complete dataset.
+
 The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
 Repeated augmentation uses three repeats, and the effective LR follows
 `base_lr * per_device_batch * world_size * accumulation / 512`; the published 8×256 launch therefore

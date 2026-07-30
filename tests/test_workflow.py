@@ -389,18 +389,33 @@ def test_darts_acceptance_minimum_full_data_epochs(config_path, minimum_epochs):
 
 
 @pytest.mark.parametrize(
-    ("epochs", "data_fraction", "expected_protocol"),
+    ("mode", "epochs", "data_fraction", "expected_protocol", "expected_training_mode"),
     [
-        (6, 1.0, "full_data_one_percent_epochs"),
-        (600, 0.01, "one_percent_data_protocol"),
+        (
+            "--acceptance-smoke",
+            6,
+            1.0,
+            "full_data_one_percent_epochs",
+            "acceptance_smoke",
+        ),
+        (
+            "--acceptance-smoke",
+            600,
+            0.01,
+            "one_percent_data_protocol",
+            "acceptance_smoke",
+        ),
+        ("--real-data-preflight", 1, 1.0, None, "real_data_preflight"),
     ],
 )
-def test_darts_acceptance_resolves_config_identity_and_ddp_batch(
+def test_darts_real_data_modes_resolve_config_identity_and_ddp_batch(
     monkeypatch,
     tmp_path,
+    mode,
     epochs,
     data_fraction,
     expected_protocol,
+    expected_training_mode,
 ):
     captured = {}
 
@@ -438,7 +453,7 @@ def test_darts_acceptance_resolves_config_identity_and_ddp_batch(
             "train",
             "--config",
             "configs/training/darts_cifar10.yaml",
-            "--acceptance-smoke",
+            mode,
             "--epochs",
             str(epochs),
             "--data-fraction",
@@ -447,10 +462,12 @@ def test_darts_acceptance_resolves_config_identity_and_ddp_batch(
     )
 
     assert captured["resolved"]["acceptance_protocol"] == expected_protocol
+    assert captured["resolved"]["training_mode"] == expected_training_mode
     assert captured["resolved"]["configured_batch_size"] == 96
     assert captured["resolved"]["per_device_batch_size"] == 48
     assert captured["resolved"]["effective_global_batch_size"] == 96
     assert captured["run_identity"]["acceptance_protocol"] == expected_protocol
+    assert captured["run_identity"]["training_mode"] == expected_training_mode
 
 
 def test_training_smoke_modes_are_mutually_exclusive():
@@ -465,6 +482,50 @@ def test_training_smoke_modes_are_mutually_exclusive():
             ]
         )
     assert error.value.code == 2
+
+
+@pytest.mark.parametrize(
+    "arguments",
+    [
+        ["--epochs", "2", "--data-fraction", "1.0"],
+        ["--epochs", "1", "--data-fraction", "0.01"],
+    ],
+)
+def test_real_data_preflight_requires_one_complete_data_epoch(arguments):
+    with pytest.raises(ValueError, match="exactly one epoch over the complete dataset"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/darts_cifar10.yaml",
+                "--real-data-preflight",
+                "--device",
+                "cpu",
+                *arguments,
+            ]
+        )
+
+
+def test_real_data_preflight_requires_real_data(monkeypatch, tmp_path):
+    monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
+    with pytest.raises(ValueError, match="data-root"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/darts_cifar10.yaml",
+                "--real-data-preflight",
+                "--epochs",
+                "1",
+                "--data-fraction",
+                "1.0",
+                "--device",
+                "cpu",
+                "--output",
+                str(tmp_path),
+            ]
+        )
+    assert list(tmp_path.iterdir()) == []
 
 
 @pytest.mark.parametrize(
