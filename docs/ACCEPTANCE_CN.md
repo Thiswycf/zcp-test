@@ -149,7 +149,7 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 
 1. DARTS CIFAR-10/CIFAR-100 600 epoch 与 ImageNet 250 epoch 正式训练。
 2. AutoFormer 500 epoch 与 Proxyless-MBV2 150 epoch 正式训练协议尚未放行；AutoFormer 的 sampler、
-   LR、静态 fixture 和真实图片夹具恢复机制已验收，但“全 ImageNet × 至多 1% epoch”与“1% ImageNet
+   LR、静态 fixture 和真实图片夹具恢复机制已验收，但“全 ImageNet × 至少 1% epoch”与“1% ImageNet
    × 完整 schedule”尚未执行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、

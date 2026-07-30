@@ -137,8 +137,8 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 - DARTS：提供 CIFAR-10 600 epoch profile。
 - DARTS：同时提供 CIFAR-100 600 epoch 适配和 ImageNet-1k 250 epoch 官方评估 profile。
 
-`--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且不超过
-1% epoch”或“至多 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
+`--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且至少
+1% epoch”或“恰好 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
 论文精度复现。详见 [操作手册](docs/OPERATIONS_CN.md)。
 
 catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、version 和 protocol；错配会明确失败。

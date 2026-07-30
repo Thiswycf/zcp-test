@@ -98,9 +98,16 @@ assert(appSource.includes('`上次检查：${formatClock()}`'), "刷新完成后
 assert(appSource.includes('`数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`'), "未明确显示数据更新时间");
 assert(appSource.includes("window.scrollTo(viewport.left, viewport.top)"), "刷新后未恢复滚动位置");
 assert(appSource.includes('window.location.protocol === "file:"'), "缺少 file:// 兼容提示逻辑");
+assert(appSource.includes('$("#auto-refresh-toggle").disabled = true'), "file:// 模式未停用自动刷新控件");
+assert(appSource.includes('setAutoRefresh(false)'), "file:// 模式未停止自动刷新计时器");
+assert(indexSource.includes("只保证显示页面载入时的初始快照，自动更新已停用"), "file:// 提示仍可能误导为支持动态更新");
 assert(appSource.includes("可点击“立即刷新”重试"), "刷新失败未提示重试");
 assert(readmeSource.includes("python -m http.server 8768 --directory panel"), "README 缺少静态服务器命令");
 assert(readmeSource.includes("file://"), "README 缺少 file:// 限制说明");
+assert(readmeSource.includes("不声称能够动态取得后续更新"), "README 未明确 file:// 仅为静态快照");
+assert(appSource.includes('$("#status-filter").value = state.status'), "刷新后未恢复状态筛选");
+assert(appSource.includes('$("#phase-filter").value = state.phase'), "刷新后未恢复阶段筛选");
+assert(appSource.includes('$("#priority-filter").value = state.priority'), "刷新后未恢复优先级筛选");
 assert(appSource.includes('status.setAttribute("aria-busy", "true")'), "刷新开始时未设置 aria-busy");
 assert(appSource.includes('status.removeAttribute("aria-busy")'), "刷新结束时未清除 aria-busy");
 assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");

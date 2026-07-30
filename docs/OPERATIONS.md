@@ -191,10 +191,17 @@ match a code-owned approved protocol and its critical fields, and cannot overrid
 input size. `--smoke` uses tiny synthetic loaders and validates plumbing, not accuracy.
 
 `--acceptance-smoke` is mutually exclusive with `--smoke`, uses real data, and accepts only two
-code-locked modes: full data with at most 1% of the formal epochs (at most five for the 500-epoch
-AutoFormer profile), or at most 1% deterministic stratified data with the complete 500-epoch
+code-locked modes: full data with at least 1% of the formal epochs and no more than the complete
+schedule (five epochs is the minimum for the 500-epoch AutoFormer profile), or exactly 1%
+deterministic stratified data with the complete 500-epoch
 schedule. It does not grant formal readiness. Batch and input size overrides are rejected, and a
 real `--data-root` is mandatory:
+
+The second mode computes an exact global target of `round(N * 0.01)` per split and allocates class
+quotas with a largest-remainder rule; a fixed seed breaks equal-remainder ties. If the target is
+smaller than the number of classes (for example, 500 samples from the 50,000-image ImageNet-1k
+validation split), covering every class is mathematically impossible. The tool does not silently
+inflate the subset to 2% by forcing one sample per class.
 
 ```bash
 export CUDA_DEVICE_ORDER=PCI_BUS_ID

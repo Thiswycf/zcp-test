@@ -604,8 +604,15 @@
     const loadedAt = formatClock();
     $("#refresh-success").textContent = `最后成功刷新：页面载入 ${loadedAt}`;
     $("#refresh-checked").textContent = `上次检查：页面载入 ${loadedAt}`;
-    $("#refresh-file-hint").hidden = window.location.protocol !== "file:";
-    setAutoRefresh(true);
+    const isFileProtocol = window.location.protocol === "file:";
+    $("#refresh-file-hint").hidden = !isFileProtocol;
+    if (isFileProtocol) {
+      setAutoRefresh(false);
+      $("#auto-refresh-toggle").disabled = true;
+      $("#refresh-status").textContent = "file:// 仅显示初始快照；自动更新已停用";
+    } else {
+      setAutoRefresh(true);
+    }
   }
 
   $("#project-purpose").textContent = data.project.purpose;

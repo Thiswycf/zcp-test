@@ -1,14 +1,20 @@
 import json
+from contextlib import contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import torch
 import yaml
 
+import zcp_test.cli as cli
 from zcp_test.artifacts import normalize_score_records
 from zcp_test.cli import _load_architecture_spec, _stratified_subset, main
 from zcp_test.inputs import make_input_batch
-from zcp_test.training.protocols import validate_candidate_training_protocol
+from zcp_test.training.protocols import (
+    resolve_acceptance_protocol,
+    validate_candidate_training_protocol,
+)
 
 
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):
@@ -178,6 +184,23 @@ def test_one_percent_subset_is_deterministic_and_stratified():
     assert {Dataset.targets[index] for index in first.indices} == {0, 1, 2, 3}
 
 
+def test_one_percent_subset_uses_exact_global_target_for_many_small_classes():
+    class Dataset(torch.utils.data.Dataset):
+        targets = [class_index for class_index in range(1000) for _ in range(50)]
+
+        def __len__(self):
+            return len(self.targets)
+
+        def __getitem__(self, index):
+            return index, self.targets[index]
+
+    first = _stratified_subset(Dataset(), 0.01, 2026)
+    second = _stratified_subset(Dataset(), 0.01, 2026)
+    assert len(first) == 500
+    assert first.indices == second.indices
+    assert len({Dataset.targets[index] for index in first.indices}) == 500
+
+
 def test_config_cannot_enable_trusted_execution(tmp_path):
     config = tmp_path / "evaluate.yaml"
     config.write_text(
@@ -246,12 +269,12 @@ def test_autoformer_candidate_training_protocol_is_locked():
 @pytest.mark.parametrize(
     "arguments",
     [
-        ["--epochs", "6", "--data-fraction", "1.0"],
+        ["--epochs", "4", "--data-fraction", "1.0"],
         ["--epochs", "500", "--data-fraction", "0.02"],
     ],
 )
 def test_autoformer_acceptance_training_rejects_non_one_percent_protocol(arguments):
-    with pytest.raises(ValueError, match="at most 1%"):
+    with pytest.raises(ValueError, match="1%"):
         main(
             [
                 "train",
@@ -261,6 +284,24 @@ def test_autoformer_acceptance_training_rejects_non_one_percent_protocol(argumen
                 "--device",
                 "cpu",
                 *arguments,
+            ]
+        )
+
+
+def test_autoformer_acceptance_training_rejects_less_than_one_percent_data():
+    with pytest.raises(ValueError, match="exactly 1% data"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/autoformer_imagenet.yaml",
+                "--acceptance-smoke",
+                "--device",
+                "cpu",
+                "--epochs",
+                "500",
+                "--data-fraction",
+                "0.005",
             ]
         )
 
@@ -299,12 +340,117 @@ def test_autoformer_acceptance_training_requires_real_data(monkeypatch, tmp_path
                 "--device",
                 "cpu",
                 "--epochs",
-                "1",
+                "5",
                 "--output",
                 str(tmp_path),
             ]
         )
     assert list(tmp_path.iterdir()) == []
+
+
+def test_darts_formal_protocol_is_allowed_for_one_percent_acceptance(monkeypatch, tmp_path):
+    monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
+    with pytest.raises(ValueError, match="data-root"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/darts_cifar10.yaml",
+                "--acceptance-smoke",
+                "--device",
+                "cpu",
+                "--epochs",
+                "6",
+                "--data-fraction",
+                "1.0",
+                "--output",
+                str(tmp_path),
+            ]
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    ("config_path", "minimum_epochs"),
+    [
+        ("configs/training/darts_cifar10.yaml", 6),
+        ("configs/training/darts_cifar100.yaml", 6),
+        ("configs/training/darts_imagenet.yaml", 3),
+    ],
+)
+def test_darts_acceptance_minimum_full_data_epochs(config_path, minimum_epochs):
+    config = yaml.safe_load(Path(config_path).read_text(encoding="utf-8"))
+    assert (
+        resolve_acceptance_protocol(config, minimum_epochs, 1.0)
+        == "full_data_one_percent_epochs"
+    )
+    with pytest.raises(ValueError, match="at least 1% epochs"):
+        resolve_acceptance_protocol(config, minimum_epochs - 1, 1.0)
+
+
+@pytest.mark.parametrize(
+    ("epochs", "data_fraction", "expected_protocol"),
+    [
+        (6, 1.0, "full_data_one_percent_epochs"),
+        (600, 0.01, "one_percent_data_protocol"),
+    ],
+)
+def test_darts_acceptance_resolves_config_identity_and_ddp_batch(
+    monkeypatch,
+    tmp_path,
+    epochs,
+    data_fraction,
+    expected_protocol,
+):
+    captured = {}
+
+    @contextmanager
+    def training_device(*args, **kwargs):
+        yield torch.device("cpu"), {"selection_strategy": "test"}
+
+    @contextmanager
+    def training_run_context(output, argv, resolved, runtime, world_size, rank):
+        captured["resolved"] = resolved
+        yield SimpleNamespace(directory=tmp_path)
+
+    def fake_train_model(*args, **kwargs):
+        captured["run_identity"] = kwargs["run_identity"]
+        return {"best_accuracy": 0.0}
+
+    monkeypatch.setenv("WORLD_SIZE", "2")
+    monkeypatch.setenv("RANK", "0")
+    monkeypatch.setenv("LOCAL_RANK", "0")
+    monkeypatch.setattr(cli, "_prepare_gpu", lambda args: None)
+    monkeypatch.setattr(cli, "_training_device", training_device)
+    monkeypatch.setattr(cli, "_training_run_context", training_run_context)
+    monkeypatch.setattr(cli, "_build_training_model", lambda *args: torch.nn.Linear(1, 1))
+    monkeypatch.setattr(
+        torch.nn.parallel,
+        "DistributedDataParallel",
+        lambda model, **kwargs: model,
+    )
+    monkeypatch.setattr(cli, "_resolve_data_root", lambda args, dataset: tmp_path)
+    monkeypatch.setattr(cli, "_real_loaders", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(cli, "train_model", fake_train_model)
+
+    main(
+        [
+            "train",
+            "--config",
+            "configs/training/darts_cifar10.yaml",
+            "--acceptance-smoke",
+            "--epochs",
+            str(epochs),
+            "--data-fraction",
+            str(data_fraction),
+        ]
+    )
+
+    assert captured["resolved"]["acceptance_protocol"] == expected_protocol
+    assert captured["resolved"]["configured_batch_size"] == 96
+    assert captured["resolved"]["per_device_batch_size"] == 48
+    assert captured["resolved"]["effective_global_batch_size"] == 96
+    assert captured["run_identity"]["acceptance_protocol"] == expected_protocol
 
 
 def test_training_smoke_modes_are_mutually_exclusive():

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import os
 import signal
 import sys
@@ -709,6 +708,7 @@ def _real_loaders(
 
 
 def _stratified_subset(dataset: Any, fraction: float, seed: int) -> Any:
+    import math
     import random
     import torch
 
@@ -725,10 +725,33 @@ def _stratified_subset(dataset: Any, fraction: float, seed: int) -> Any:
     for index, target in enumerate(targets):
         groups.setdefault(int(target), []).append(index)
     rng = random.Random(seed)
+    target_size = max(1, round(len(targets) * fraction))
+    class_order = list(groups)
+    rng.shuffle(class_order)
+    quotas: dict[int, int] = {}
+    remainders: dict[int, float] = {}
+    for class_id, indices in groups.items():
+        ideal = len(indices) * target_size / len(targets)
+        quotas[class_id] = math.floor(ideal)
+        remainders[class_id] = ideal - quotas[class_id]
+    remaining = target_size - sum(quotas.values())
+    tie_order = {class_id: index for index, class_id in enumerate(class_order)}
+    allocation_order = sorted(
+        groups,
+        key=lambda class_id: (-remainders[class_id], tie_order[class_id]),
+    )
+    for class_id in allocation_order:
+        if remaining == 0:
+            break
+        if quotas[class_id] < len(groups[class_id]):
+            quotas[class_id] += 1
+            remaining -= 1
+    if remaining:
+        raise RuntimeError("failed to allocate the requested stratified subset size")
     selected: list[int] = []
-    for indices in groups.values():
+    for class_id, indices in groups.items():
         rng.shuffle(indices)
-        selected.extend(indices[: max(1, round(len(indices) * fraction))])
+        selected.extend(indices[: quotas[class_id]])
     return torch.utils.data.Subset(dataset, sorted(selected))
 
 
@@ -1542,9 +1565,10 @@ def command_search(args: argparse.Namespace) -> None:
 def command_train(args: argparse.Namespace) -> None:
     from zcp_test.training.protocols import (
         resolve_gradient_accumulation,
+        resolve_acceptance_protocol,
         resolve_per_device_batch_size,
         scale_learning_rate,
-        validate_candidate_training_protocol,
+        validate_acceptance_training_protocol,
         validate_formal_training_protocol,
     )
 
@@ -1587,7 +1611,7 @@ def command_train(args: argparse.Namespace) -> None:
         if args.input_size is not None and args.input_size != int(config["input_size"]):
             raise ValueError("Formal training cannot override the accepted input_size")
     elif acceptance_smoke:
-        validate_candidate_training_protocol(config)
+        validate_acceptance_training_protocol(config)
         if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
             raise ValueError("Acceptance training cannot override the candidate batch_size")
         if args.input_size is not None and args.input_size != int(config["input_size"]):
@@ -1598,22 +1622,18 @@ def command_train(args: argparse.Namespace) -> None:
         else space.canonicalize(_load_architecture_spec(args.architecture))
     )
     epochs = args.epochs if args.epochs is not None else int(config["epochs"])
+    acceptance_protocol = None
     if acceptance_smoke:
-        one_percent_epochs = max(1, math.ceil(int(config["epochs"]) * 0.01))
-        full_data_short_schedule = args.data_fraction == 1.0 and epochs <= one_percent_epochs
-        one_percent_data_full_schedule = (
-            args.data_fraction <= 0.01 and epochs == int(config["epochs"])
+        acceptance_protocol = resolve_acceptance_protocol(
+            config,
+            epochs,
+            args.data_fraction,
         )
-        if not (full_data_short_schedule or one_percent_data_full_schedule):
-            raise ValueError(
-                "Acceptance training must use either full data with at most 1% epochs or "
-                "at most 1% data with the complete epoch schedule"
-            )
     dataset = str(config["dataset"])
     classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
     configured_batch_size = int(config.get("batch_size", 8))
     batch_size_semantics = str(config.get("batch_size_semantics", "per_device"))
-    if formal_training:
+    if not args.smoke and batch_size_semantics == "global":
         batch_size = resolve_per_device_batch_size(
             configured_batch_size,
             distributed_world_size,
@@ -1698,6 +1718,7 @@ def command_train(args: argparse.Namespace) -> None:
             "data_fraction": args.data_fraction,
             "smoke": args.smoke,
             "acceptance_smoke": acceptance_smoke,
+            "acceptance_protocol": acceptance_protocol,
             "training_mode": (
                 "synthetic_smoke"
                 if args.smoke
@@ -1789,6 +1810,7 @@ def command_train(args: argparse.Namespace) -> None:
                         if acceptance_smoke
                         else "formal"
                     ),
+                    "acceptance_protocol": acceptance_protocol,
                 },
             )
             if distributed_rank == 0:

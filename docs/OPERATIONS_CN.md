@@ -203,8 +203,12 @@ AutoFormer 与 Proxyless-MBV2 配置会列出尚未验收的 blocker 并明确�
 
 `--acceptance-smoke` 与 `--smoke` 互斥，使用真实数据且只接受两种代码锁定模式：
 
-- 全数据、最多正式 epoch 的 1%；AutoFormer 500 epoch profile 即最多 5 epoch；
-- 最多 1% 确定性分层数据、完整 500 epoch schedule。
+- 全数据、至少正式 epoch 的 1% 且不超过完整 schedule；AutoFormer 500 epoch profile 的最低值为 5 epoch；
+- 恰好 1% 确定性分层数据、完整 500 epoch schedule。
+
+第二种模式按整个 split 的 `round(N × 0.01)` 计算精确目标条数，再用最大余数法分配类别配额；
+同余数类别使用固定 seed 决定顺序。若目标条数小于类别数（例如 ImageNet-1k 的 50,000 条
+validation 数据只取 500 条），数学上不可能覆盖每一类，工具不会通过“每类至少一条”把 1% 偷换成 2%。
 
 它允许在 `formal_training_ready: false` 时验证候选 recipe，但不会将候选协议升级为正式协议。
 batch size 和 input size 不能通过 CLI 改写，缺少 `--data-root` 时直接失败。例如：
@@ -220,7 +224,7 @@ torchrun --standalone --nproc-per-node=2 -m zcp_test.cli train \
 ```
 
 另一模式必须保留 `--epochs 500 --data-fraction 0.01`。短程真实图片夹具可验证 DDP、中断和恢复
-机制，但不得记录为 `full_data_one_percent_epoch_protocol`。当前已通过的 2-rank 夹具验收生成一个
+机制，但不得记录为 `full_data_one_percent_epochs`。当前已通过的 2-rank 夹具验收生成一个
 `interrupted` run 和一个新目录 completed run；恢复后的 `training.jsonl` 连续包含 epoch 0–4，
 manifest 的 `runtime.resume` 保存 checkpoint SHA-256 与 source run ID，且无残留 `.tmp`。由于尚未
 在完整 ImageNet-1k 上执行上述两种协议，AutoFormer 正式门禁继续关闭。

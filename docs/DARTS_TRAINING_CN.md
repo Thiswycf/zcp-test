@@ -33,6 +33,31 @@ zcp-test train --config configs/training/darts_imagenet.yaml --data-root DATA/Im
 
 配置中的 AMP 与安全 checkpoint/manifest 是本项目运行时扩展，不来自 2018 年上游脚本；它们不能提供逐 bit 等价保证。三个正式 DARTS profile 将发布值明确标为 `batch_size_semantics: global`，DDP 会要求该值可被 `WORLD_SIZE` 整除并换算为每卡 batch，例如 CIFAR 的 96 在 4 rank 下为每卡 24；学习率和有效全局 batch 保持发布值。无法整除时直接失败，不静默改变协议。DDP 本身仍是现代运行时扩展，不能据此声称逐 bit 复现。
 
+## 双重 1% 验收
+
+`--acceptance-smoke` 使用真实数据，但不把短程结果冒充完整精度复现。正式 DARTS profile 只接受：
+
+- 完整数据且不少于正式 epoch 的 1%：CIFAR-10/100 最少 6 epoch，ImageNet-1k 最少 3 epoch；
+- 恰好 1% 确定性分层数据并跑完整 schedule：CIFAR-10/100 为 600 epoch，ImageNet-1k 为 250 epoch。
+
+```bash
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --acceptance-smoke --epochs 6 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS
+
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --acceptance-smoke --epochs 600 --data-fraction 0.01 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS
+
+zcp-test train --config configs/training/darts_imagenet.yaml \
+  --acceptance-smoke --epochs 3 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/ImageNet1k --output RUNS
+```
+
+运行分别记录 `acceptance_protocol=full_data_one_percent_epochs` 或
+`one_percent_data_protocol`，该字段同时进入解析配置和 checkpoint 恢复身份。1% 子集按 split 的
+全局目标条数精确分配类别配额；目标条数少于类别数时不会用“每类至少一条”扩大实际比例。
+
 ## TE-NAS 边界
 
 TE-NAS 主仓库 commit `9df78ffd98573035375b12e19b9007578cc4155d` 指向独立的 `chenwydj/DARTS_evaluation`；该评估仓库 commit `f53b2b6975107885c44cf26e66620ff90a6dac4a` 的 ImageNet 默认配方是 250 epoch、C=48、14 cells、全局 batch 768（README 明示面向 8 GPU）、SGD 0.5、momentum 0.9、weight decay `3e-5`、不启用 Nesterov、cosine、前 5 epoch warmup、label smoothing 0.1、auxiliary weight 0.4、drop-path target 0 和梯度裁剪 5。

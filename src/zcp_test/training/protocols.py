@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from typing import Any
 
@@ -239,12 +240,38 @@ def validate_candidate_training_protocol(config: Mapping[str, Any]) -> str:
     return protocol
 
 
+def validate_acceptance_training_protocol(config: Mapping[str, Any]) -> str:
+    protocol = str(config.get("protocol", ""))
+    if protocol in FORMAL_TRAINING_PROTOCOLS:
+        return validate_formal_training_protocol(config)
+    return validate_candidate_training_protocol(config)
+
+
+def resolve_acceptance_protocol(
+    config: Mapping[str, Any],
+    epochs: int,
+    data_fraction: float,
+) -> str:
+    formal_epochs = int(config["epochs"])
+    minimum_full_data_epochs = max(1, math.ceil(formal_epochs * 0.01))
+    if data_fraction == 1.0 and minimum_full_data_epochs <= epochs <= formal_epochs:
+        return "full_data_one_percent_epochs"
+    if data_fraction == 0.01 and epochs == formal_epochs:
+        return "one_percent_data_protocol"
+    raise ValueError(
+        "Acceptance training must use either full data with at least 1% epochs or "
+        "exactly 1% data with the complete epoch schedule"
+    )
+
+
 __all__ = [
     "CANDIDATE_TRAINING_PROTOCOLS",
     "FORMAL_TRAINING_PROTOCOLS",
     "resolve_gradient_accumulation",
+    "resolve_acceptance_protocol",
     "resolve_per_device_batch_size",
     "scale_learning_rate",
+    "validate_acceptance_training_protocol",
     "validate_candidate_training_protocol",
     "validate_formal_training_protocol",
 ]

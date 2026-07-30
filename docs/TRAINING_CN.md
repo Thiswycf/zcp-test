@@ -94,7 +94,7 @@ optimizer、scheduler、AMP scaler 与 RNG。`--trusted` 只确认操作者信�
 ## 6. 高成本验收标签
 
 - `full_data_one_percent_epochs`：完整数据，至少正式 epoch 的 1%；
-- `one_percent_data_protocol`：确定性分层 1% 数据，跑完整 schedule；
+- `one_percent_data_protocol`：确定性分层恰好 1% 数据，跑完整 schedule；
 - `full_reference_training`：完整数据与完整正式 schedule，且所有 protocol blocker 已关闭。
 
 三类结果必须分开报告。OOM、NaN、恢复身份不一致和数据缺失均是失败，不得回退随机输入或缩小模型。

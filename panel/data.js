@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 03:48 CST",
+  updatedAt: "2026-07-31 04:10 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -114,19 +114,19 @@ window.ZCP_PANEL_DATA = {
       id: "D1", phase: "训练", priority: "P0", title: "拆分 DARTS original 与 TE-NAS",
       content: "分离 optimizer、scheduler、drop-path 和 provenance 不同的训练 profile。",
       purpose: "修复原始 DARTS 与 TE-NAS retrain recipe 混用。",
-      estimate: "2–4 小时", startedAt: "2026-07-30 12:40", finishedAt: "—", status: "进行中", progress: 80,
-      detail: "配置和 scheduler 路径已拆分；GPU、恢复训练和完整 profile 复验待 gate。",
-      acceptance: ["original/TE-NAS 名称分离", "step/cosine 行为测试", "恢复训练 LR 连续"],
-      evidence: ["EV-TRAINING"], risks: [], updatedAt: "2026-07-30 14:10"
+      estimate: "2–4 小时", startedAt: "2026-07-30 12:40", finishedAt: "—", status: "进行中", progress: 92,
+      detail: "DARTS original/TE-NAS 配置和 scheduler 已拆分；--acceptance-smoke 现支持三个正式 DARTS profile。full-data 最低 epoch 为 CIFAR-10/100 各 6、ImageNet 3；DDP 将正式 global batch 96 在 2 rank 下严格拆为每 rank 48。协议控制已验收，但真实高成本训练仍未执行。",
+      acceptance: ["original/TE-NAS 名称分离", "step/cosine 行为测试", "恢复训练 LR 连续", "正式 DARTS profile acceptance-smoke", "global batch 96/2=48 且语义不漂移"],
+      evidence: ["EV-TRAINING", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-DARTS-ACCEPTANCE-TESTS-103"], risks: ["R-DARTS-HIGH-COST-NOT-RUN"], updatedAt: "2026-07-31 04:10"
     },
     {
       id: "D2", phase: "训练", priority: "P1", title: "scheduler、恢复身份与 1% 数据",
       content: "实现 cosine/step/none、严格 checkpoint identity 和确定性分层子集。",
       purpose: "支持双重 1% 可恢复训练验收。",
       estimate: "3–6 小时", startedAt: "2026-07-30 12:45", finishedAt: "2026-07-30 13:37", status: "已完成", progress: 100,
-      detail: "定向单测覆盖 scheduler、身份不匹配拒绝、分层子集、梯度累积与 non-primary artifact 禁写；acceptance CLI 锁定为全数据且不超过 1% epoch，或不超过 1% 数据且运行完整 schedule，候选配置同时锁定完整增强与来源字段。真实双卡中断/恢复验证新 run 的 epoch 0–4 连续、checkpoint SHA-256/source_run_id lineage 及仅 rank 0 写 artifacts；最终 2-rank acceptance 1 epoch run completed、仅 1 行训练记录且无 .tmp。",
-      acceptance: ["三种 scheduler 有测试", "错误 checkpoint 身份拒绝", "全数据且不超过 1% epoch", "不超过 1% 数据且完整 schedule", "trusted checkpoint 恢复 lineage 可追溯", "仅 rank 0 写 artifacts"],
-      evidence: ["EV-TRAINING", "EV-DDP-SMOKE", "EV-FULL-GATE-251", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME"], risks: [], updatedAt: "2026-07-30 18:35"
+      detail: "acceptance_protocol 已进入 resolved config 与 checkpoint/run identity。full-data 必须达到正式 epoch 的至少 1%；one_percent_data 必须严格 data_fraction=0.01 并运行完整 schedule。分层抽样已移除逐类 min1 导致 ImageNet validation 1% 膨胀到 2% 的缺陷，现按全局 round(N×0.01) 与最大余数法精确、确定性分配。恢复 lineage 与仅 rank 0 写 artifacts 的既有边界保持不变。",
+      acceptance: ["三种 scheduler 有测试", "错误 checkpoint 身份拒绝", "acceptance_protocol 进入 resolved config/checkpoint identity", "full-data 至少 1% 正式 epoch", "严格 0.01 数据且完整 schedule", "分层子集全局目标精确", "trusted checkpoint 恢复 lineage 可追溯", "仅 rank 0 写 artifacts"],
+      evidence: ["EV-TRAINING", "EV-DDP-SMOKE", "EV-FULL-GATE-251", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-STRATIFIED-EXACT-ONE-PERCENT", "EV-DARTS-ACCEPTANCE-TESTS-103"], risks: ["R-DARTS-HIGH-COST-NOT-RUN"], updatedAt: "2026-07-31 04:10"
     },
     {
       id: "E1", phase: "ZCP", priority: "P0", title: "22 ZCP 契约与算法 provenance",
@@ -187,9 +187,9 @@ window.ZCP_PANEL_DATA = {
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
-      detail: "看板无需 F5：每次刷新均通过带唯一 cache-busting 参数重新加载 data.js，而不是只重绘旧内存。顶部提供可见立即刷新、默认开启的自动刷新开关和 5/15/30/60 秒间隔；显示数据更新时间、最后成功刷新、上次检查、刷新中状态与下次倒计时。页面隐藏时暂停，恢复可见立即刷新；初始化 guard、单计时器和共享 Promise 防止重复事件与并发重入。刷新保留筛选和滚动位置；失败保留当前内容，显示非阻断错误并提示立即重试。file:// 保留初始可读回退，并明确提示使用 panel README 中的静态服务器命令。",
-      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "默认自动刷新与 5/15/30/60 秒间隔", "每次重新加载 cache-busted data.js", "数据更新时间、最后成功刷新、检查时间与倒计时", "刷新中 aria-busy 状态", "visibility 隐藏暂停且恢复立即检查", "保留筛选与滚动位置", "初始化、计时器和并发请求去重", "失败保留旧数据并提示重试", "file:// 限制与静态服务器命令有文档", "纯静态 HTTP 托管兼容", "Node 语法、数据契约与 diff 检查通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT", "EV-PANEL-LIVE-REFRESH-V2"], risks: [], updatedAt: "2026-07-31 02:55"
+      detail: "看板无需 F5：HTTP 服务下每次刷新均通过唯一 cache-busting URL 重新加载 data.js，而不是只重绘旧对象。顶部提供立即刷新、默认 30 秒自动刷新、5/15/30/60 秒间隔与暂停；显示数据更新时间、最后成功刷新、检查状态和倒计时。页面隐藏时暂停，恢复可见立即检查；共享 Promise、单计时器与初始化 guard 防并发重入。刷新间隔持久化，并保留搜索、筛选、排序和滚动位置；失败保留旧数据。file:// 仅显示初始快照，自动更新明确停用并引导使用静态 HTTP 服务。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "HTTP 默认 30 秒自动刷新与 5/15/30/60 秒间隔", "每次重新加载 cache-busted data.js", "数据更新时间、最后成功刷新、检查时间与倒计时", "刷新中 aria-busy 状态", "visibility 隐藏暂停且恢复立即检查", "保留搜索、筛选、排序、滚动位置与刷新间隔", "初始化、计时器和并发请求去重", "失败保留旧数据并提示重试", "file:// 仅初始快照且停用自动更新", "纯静态 HTTP 托管兼容", "Node 语法、数据契约、HTTP 拉取与 diff 检查通过"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT", "EV-PANEL-LIVE-REFRESH-V2", "EV-PANEL-HTTP-FILE-GUARD"], risks: [], updatedAt: "2026-07-31 03:57"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
@@ -223,18 +223,18 @@ window.ZCP_PANEL_DATA = {
       content: "在全训练数据上执行约 1% 正式 epoch，并验证曲线与恢复。",
       purpose: "验收 reference 模型、优化器、数据增强和 checkpoint。",
       estimate: "12–24 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "acceptance CLI 已锁定全数据且不超过 1% epoch，并完成最终 2-rank acceptance 1 epoch 的配置 provenance 与 artifact 生命周期验证；本项完整真实 ImageNet 全数据协议仍未执行。",
-      acceptance: ["真实全数据", "不超过 1% epoch", "恢复结果连续", "协议 metadata 完整"],
-      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-FINAL-2RANK-ACCEPTANCE"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA"], updatedAt: "2026-07-30 18:35"
+      detail: "正式 acceptance-smoke 启动门禁已完成：full-data 最低 CIFAR-10/100=6 epoch、ImageNet=3 epoch，acceptance_protocol 写入 resolved config 与 checkpoint identity；但三项真实全数据高成本运行均尚未开始，本任务保持待开始。",
+      acceptance: ["真实全数据", "CIFAR-10/100 至少 6 epoch", "ImageNet 至少 3 epoch", "恢复结果连续", "协议 metadata 完整"],
+      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-DARTS-ACCEPTANCE-TESTS-103"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA", "R-DARTS-HIGH-COST-NOT-RUN"], updatedAt: "2026-07-31 04:10"
     },
     {
       id: "H3", phase: "高成本", priority: "P2", title: "1% 数据 × 完整 schedule",
       content: "使用确定性 1% 数据跑完整 scheduler 和 checkpoint 生命周期。",
       purpose: "验证长期调度和监控，不作为正式精度结论。",
       estimate: "24–48 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "acceptance CLI 已锁定不超过 1% 数据且运行完整 schedule；当前仅完成真实 ImageNet 极小夹具的恢复机制验证，本项长期 schedule 尚未执行。",
-      acceptance: ["不超过 1% 数据", "完整 schedule", "监控产物持续写入", "48 小时内停止", "报告不声称正式精度"],
-      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME"], risks: ["R-BUDGET", "R-AUTOFORMER"], updatedAt: "2026-07-30 18:29"
+      detail: "one_percent_data 启动门禁现严格要求 fraction=0.01 且运行正式完整 schedule；分层子集按全局 round(N×0.01)+最大余数法精确分配。协议与抽样实现已验收，但长期完整 schedule 尚未执行，本任务保持待开始。",
+      acceptance: ["严格 fraction=0.01", "精确全局分层样本数", "完整 schedule", "监控产物持续写入", "48 小时内停止", "报告不声称正式精度"],
+      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-STRATIFIED-EXACT-ONE-PERCENT", "EV-DARTS-ACCEPTANCE-TESTS-103"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-DARTS-HIGH-COST-NOT-RUN"], updatedAt: "2026-07-31 04:10"
     },
     {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
@@ -262,10 +262,15 @@ window.ZCP_PANEL_DATA = {
     { id: "R-VIT-H1-IDENTITIES", severity: "高", status: "受阻", title: "ViT 正式 H1 缺少完整候选身份与 60/40 划分", description: "公开三切片可做 minimum-5×22 preacceptance，但论文完整 500 AutoFormer + 500 PiT 架构身份及无重叠 60/40 development/test identity 未公开。", mitigation: "公开切片只标 partial_release_slice_preacceptance；在可信完整 identity 与 split 发布前，不将其写成正式 1% H1 或无泄漏论文协议复现。", taskIds: ["B3", "H1"] },
     { id: "R-NATS-SSS-CROSS-SEED", severity: "中", status: "监控", title: "NATS-SSS 跨数据集当前只完成单 seed", description: "CIFAR100 与 ImageNet16-120 的 328×22 运行均全成功，三数据集四类分析表已生成；当前完成判定仅覆盖 1% 单 seed 子项，不代表跨数据集核心代理三 seed。", mitigation: "报告持续标注 single-seed scope；若后续执行核心代理多 seed，单独记录 manifest、有效行数与跨 seed 稳定性，不回写现有证据。", taskIds: ["B1", "E3", "F2", "H1", "I1"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] },
+    { id: "R-DARTS-HIGH-COST-NOT-RUN", severity: "高", status: "开放", title: "DARTS acceptance 协议可启动但真实高成本训练未执行", description: "正式 profile、双重 1% 门禁、DDP global batch 语义、checkpoint identity 与精确分层抽样均已通过定向测试；这只证明控制路径，不是 CIFAR/ImageNet 高成本训练完成或精度复现。", mitigation: "H2/H3 保持待开始；仅在真实数据运行生成完整 training.jsonl、checkpoint、恢复和报告证据后，分别更新对应训练状态。", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-DARTS-ACCEPTANCE-TESTS-103", time: "2026-07-31 04:10", title: "DARTS acceptance 定向测试准确计数", result: "pytest collect-only 分文件得到 workflow 36、darts 26、config_inputs 6、core 20、gpu 15，共准确收集 103 项；同一 103 项实际执行显示 103 个通过点、进度 100% 且退出码 0。存在 4 条 THOP distutils deprecation warning，不影响通过判定；本阶段 Ruff、compileall、panel 与 diff 亦通过。", command: "conda run -n zcp-test pytest --collect-only -q tests/test_workflow.py tests/test_darts.py tests/test_config_inputs.py tests/test_core.py tests/test_gpu.py; conda run -n zcp-test pytest -q -rA tests/test_workflow.py tests/test_darts.py tests/test_config_inputs.py tests/test_core.py tests/test_gpu.py", taskIds: ["D1", "D2", "H2", "H3"] },
+    { id: "EV-DARTS-ACCEPTANCE-PROTOCOL", time: "2026-07-31 04:10", title: "DARTS 正式 profile 双重 1% 门禁完成", result: "--acceptance-smoke 支持正式 DARTS profile；full-data 最低 CIFAR-10/100=6 epoch、ImageNet=3 epoch；one_percent_data 严格 fraction=0.01 并运行完整 schedule。acceptance_protocol 进入 resolved config 与 checkpoint identity；DDP global batch 96 在 2 rank 下为每 rank 48。", command: "targeted acceptance protocol, resolved-config identity and DDP global-batch tests", taskIds: ["D1", "D2", "H2", "H3"] },
+    { id: "EV-STRATIFIED-EXACT-ONE-PERCENT", time: "2026-07-31 04:10", title: "1% 分层抽样全局精确分配修复", result: "移除逐类 min1 导致 ImageNet validation 1% 膨胀为约 2% 的逻辑；现按全局 round(N×0.01) 确定目标总数，并用最大余数法跨类别精确、确定性分配。1000 类×50 样本 fixture 精确选出 500 条。", command: "pytest tests/test_workflow.py -k 'one_percent_subset'", taskIds: ["D2", "H3"] },
+    { id: "EV-PANEL-HTTP-FILE-GUARD", time: "2026-07-31 03:57", title: "HTTP 动态刷新与 file 快照边界复核", result: "HTTP 下立即刷新与自动刷新均使用唯一 cache-busting data.js URL；默认 30 秒并支持 5/15/30/60 秒、暂停、隐藏页恢复即查、失败旧数据回退、并发去重和视图状态保留。file:// 现只声明初始快照并停用自动刷新，不再暗示可靠动态更新；README 与静态契约检查同步更新。", command: "node --check panel/data.js; node --check panel/app.js; node --check panel/check-data.js; node panel/check-data.js; HTTP manual/auto cache-busting curl+cmp; git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-FULL-GATE-380", time: "2026-07-31 03:48", title: "ImageNet16 路径边界修复后全仓门禁", result: "380 tests passed、第一方 source coverage 87%；新增安全 manifest 的绝对路径和 ../ 路径逃逸拒绝测试，Ruff、compileall、pip check、panel、仓库卫生与 diff 均通过。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; pytest tests/test_repository_hygiene.py; git diff --check", taskIds: ["A1", "B1", "G1", "H1"] },
     { id: "EV-FULL-GATE-379", time: "2026-07-31 03:40", title: "NATS-SSS 跨数据集阶段全仓门禁", result: "379 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel 与 diff 均通过。365 及更早门禁保留为历史口径。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check -- panel", taskIds: ["A1", "B1", "E3", "G1", "H1"] },
     { id: "EV-IMAGENET16-SAFE-CONVERSION", time: "2026-07-31 03:40", title: "ImageNet16-120 安全转换与 registry shard 完整性", result: "ImageNet16-120 安全转换及 registry shard 完整性校验完成；raw acceptance SHA-256 为 96f83e82ddda9d12a2123c8bee3d13b8ef3074fb0ba2f4dabe5f4b7efc02e707。", command: "safe ImageNet16-120 conversion; registry shard integrity validation; raw acceptance checksum", taskIds: ["B1", "F2", "H1"] },

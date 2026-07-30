@@ -33,6 +33,35 @@ The formal protocol gate checks dataset, model scale, epochs, optimizer, momentu
 
 AMP and safe checkpoint/manifest handling in these configs are project runtime extensions, not features of the 2018 upstream scripts, and do not imply bitwise equivalence. All three formal DARTS profiles mark the published value as `batch_size_semantics: global`. DDP requires divisibility by `WORLD_SIZE` and derives the per-rank batch—for example, CIFAR batch 96 becomes 24 on four ranks—while preserving the published LR and effective global batch. Non-divisible launches fail instead of changing the protocol silently. DDP remains a modern runtime extension and is not evidence of bitwise reproduction.
 
+## Dual One-Percent Acceptance
+
+`--acceptance-smoke` uses real data without relabelling a shortened run as a full accuracy
+reproduction. An approved DARTS profile accepts only:
+
+- full data with at least 1% of the formal epochs: at least 6 epochs for CIFAR-10/100 and 3 for
+  ImageNet-1k; or
+- exactly 1% deterministic stratified data with the complete schedule: 600 CIFAR epochs or 250
+  ImageNet-1k epochs.
+
+```bash
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --acceptance-smoke --epochs 6 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS
+
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --acceptance-smoke --epochs 600 --data-fraction 0.01 \
+  --architecture ARCH.json --data-root DATA/cifar10 --output RUNS
+
+zcp-test train --config configs/training/darts_imagenet.yaml \
+  --acceptance-smoke --epochs 3 --data-fraction 1.0 \
+  --architecture ARCH.json --data-root DATA/ImageNet1k --output RUNS
+```
+
+Runs record `acceptance_protocol=full_data_one_percent_epochs` or
+`one_percent_data_protocol` in both resolved configuration and checkpoint identity. The 1% subset
+uses an exact split-wide target; it does not inflate the fraction by forcing one item per class when
+the target is smaller than the class count.
+
 ## TE-NAS Boundary
 
 TE-NAS commit `9df78ffd98573035375b12e19b9007578cc4155d` delegates DARTS evaluation to `chenwydj/DARTS_evaluation`. At evaluation commit `f53b2b6975107885c44cf26e66620ff90a6dac4a`, the ImageNet defaults are 250 epochs, C=48, 14 cells, global batch 768 (documented for 8 GPUs), SGD 0.5, momentum 0.9, weight decay `3e-5`, no Nesterov, cosine, five warmup epochs, label smoothing 0.1, auxiliary weight 0.4, drop-path target 0, and gradient clipping at 5.
