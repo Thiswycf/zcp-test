@@ -468,6 +468,7 @@ def test_darts_real_data_modes_resolve_config_identity_and_ddp_batch(
     assert captured["resolved"]["effective_global_batch_size"] == 96
     assert captured["resolved"]["seed"] == 42
     assert captured["resolved"]["rank_seed"] == 42
+    assert captured["resolved"]["deterministic"] is True
     assert captured["run_identity"]["acceptance_protocol"] == expected_protocol
     assert captured["run_identity"]["training_mode"] == expected_training_mode
     assert captured["run_identity"]["seed"] == 42

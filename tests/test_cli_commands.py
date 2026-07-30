@@ -710,15 +710,23 @@ def test_training_seed_covers_python_numpy_and_torch():
 
     import numpy as np
 
-    first_state = cli._seed_training(2026, 3)
-    first = (random.random(), float(np.random.random()), float(torch.rand(1)))
-    second_state = cli._seed_training(2026, 3)
-    second = (random.random(), float(np.random.random()), float(torch.rand(1)))
+    previous = torch.are_deterministic_algorithms_enabled()
+    previous_cudnn = torch.backends.cudnn.deterministic
+    try:
+        first_state = cli._seed_training(2026, 3, True)
+        first = (random.random(), float(np.random.random()), float(torch.rand(1)))
+        second_state = cli._seed_training(2026, 3, True)
+        second = (random.random(), float(np.random.random()), float(torch.rand(1)))
 
-    assert first == second
-    assert first_state == second_state
-    assert first_state["base_seed"] == 2026
-    assert first_state["rank_seed"] == 2029
+        assert first == second
+        assert first_state == second_state
+        assert first_state["base_seed"] == 2026
+        assert first_state["rank_seed"] == 2029
+        assert first_state["deterministic_algorithms"] is True
+        assert first_state["cudnn_deterministic"] is True
+    finally:
+        torch.use_deterministic_algorithms(previous)
+        torch.backends.cudnn.deterministic = previous_cudnn
 
 
 def test_distributed_run_context_shares_rank_zero_directory(monkeypatch, tmp_path):

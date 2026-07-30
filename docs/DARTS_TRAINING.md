@@ -91,10 +91,12 @@ zcp-test train --config CONFIG \
 ```
 
 A checkpoint stores and restores the model, optimizer, scheduler, AMP scaler, RNG state, epoch, best metric, and portable training-log history. Resume strictly compares `TrainingConfig` and the run's `search_space_id`, canonical `architecture_id`, dataset, protocol, class count, input size, model fidelity, and training mode. Changes to architecture, protocol, scheduler/Nesterov configuration, or smoke/formal identity are rejected. In formal mode, protocol validation also prevents silent changes to auxiliary loss, drop path, or critical augmentation fields under an unchanged protocol name.
-Before model construction, the training entry point seeds Python, NumPy, and PyTorch CPU/CUDA RNGs;
-the base seed is part of checkpoint identity, while manifests record the per-rank seed and current
-cuDNN/deterministic-algorithm state. This fixes model initialization that previously escaped
-`--seed`, but it is not a claim of bitwise determinism for every CUDA kernel.
+Before model construction, the training entry point seeds Python, NumPy, and PyTorch CPU/CUDA RNGs.
+Formal profiles lock `deterministic: true`, enable deterministic PyTorch/cuDNN behavior and a fixed
+CUBLAS workspace, and fail when an operation lacks a deterministic implementation. The base seed is
+part of checkpoint identity, while manifests record per-rank seeds and backend state. This fixes
+model initialization that previously escaped `--seed`; bitwise equivalence across software or
+driver versions is still not claimed.
 
 ## Evidence Boundary
 

@@ -14,6 +14,7 @@ target_global_batch_size: 2048
 gradient_accumulation_steps: auto
 label_smoothing: 0.1
 amp: true
+deterministic: true
 drop_path_prob: 0.1
 color_jitter: 0.4
 auto_augment: rand-m9-mstd0.5-inc1

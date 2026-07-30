@@ -87,8 +87,9 @@ zcp-test train --config CONFIG \
 
 checkpoint 同时保存并恢复 model、optimizer、scheduler、AMP scaler、RNG、epoch、best metric 和训练日志历史。恢复前会严格比较 `TrainingConfig`，并比较 `search_space_id`、canonical `architecture_id`、dataset、protocol、classes、input size、model fidelity 和 training mode；架构、协议、scheduler/Nesterov 等训练配置或 smoke/formal 身份变化都会拒绝恢复。正式模式下协议门禁还防止在保留同一 protocol 名时静默修改 auxiliary、drop-path 或数据增强关键字段。
 训练入口在模型构建前设置 Python、NumPy 与 PyTorch CPU/CUDA RNG，并将 base seed 纳入 checkpoint
-identity；manifest 同时记录各 rank 实际 seed 和 cuDNN/deterministic-algorithm 状态。该措施修复
-过去 `--seed` 只控制 DataLoader、却未控制模型初始化的问题，但不等价于承诺 CUDA 逐 bit 复现。
+identity；正式 profile 锁定 `deterministic: true`，manifest 同时记录各 rank 实际 seed 和
+cuDNN/deterministic-algorithm 状态。不支持确定性实现的算子会失败，不回退非确定模式。该措施修复
+过去 `--seed` 只控制 DataLoader、却未控制模型初始化的问题；跨软件/驱动版本仍不承诺逐 bit 一致。
 
 ## 证据边界
 

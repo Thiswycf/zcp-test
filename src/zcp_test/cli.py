@@ -117,12 +117,18 @@ def _space_provenance(space: Any) -> dict[str, Any]:
     }
 
 
-def _seed_training(seed: int, rank: int) -> dict[str, Any]:
+def _seed_training(seed: int, rank: int, deterministic: bool) -> dict[str, Any]:
     import random
 
     import numpy as np
     import torch
 
+    if deterministic:
+        os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+    torch.use_deterministic_algorithms(deterministic)
+    torch.backends.cudnn.deterministic = deterministic
+    if deterministic:
+        torch.backends.cudnn.benchmark = False
     rank_seed = (int(seed) + int(rank)) % (2**32)
     random.seed(rank_seed)
     np.random.seed(rank_seed)
@@ -1727,7 +1733,8 @@ def command_train(args: argparse.Namespace) -> None:
         distributed_rank,
         distributed_local_rank,
     ) as (device, selection):
-        seed_state = _seed_training(args.seed, distributed_rank)
+        deterministic = bool(config.get("deterministic", True))
+        seed_state = _seed_training(args.seed, distributed_rank, deterministic)
         model = _build_training_model(space, architecture, classes, config)
         if distributed_world_size > 1:
             import torch
@@ -1766,6 +1773,7 @@ def command_train(args: argparse.Namespace) -> None:
             "distributed_local_rank": distributed_local_rank,
             "seed": args.seed,
             "rank_seed": seed_state["rank_seed"],
+            "deterministic": deterministic,
             "per_device_batch_size": batch_size,
             "gradient_accumulation_steps": gradient_accumulation_steps,
             "effective_global_batch_size": effective_global_batch_size,
