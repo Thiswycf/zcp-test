@@ -70,6 +70,7 @@ def test_synflow_uses_float64_for_deep_models_and_restores_dtype():
     assert result.proxy_version == "double-v2"
     assert all(parameter.dtype == torch.float32 for parameter in model.parameters())
     assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
+    assert PROXIES.create("synflow").capability.requires_data is False
 
 
 def test_proxy_can_be_explicitly_marked_unsupported_by_input_contract():
