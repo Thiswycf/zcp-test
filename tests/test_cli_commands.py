@@ -705,6 +705,22 @@ def test_distributed_training_device_rejects_cuda_and_local_rank_mismatch(monkey
             pass
 
 
+def test_training_seed_covers_python_numpy_and_torch():
+    import random
+
+    import numpy as np
+
+    first_state = cli._seed_training(2026, 3)
+    first = (random.random(), float(np.random.random()), float(torch.rand(1)))
+    second_state = cli._seed_training(2026, 3)
+    second = (random.random(), float(np.random.random()), float(torch.rand(1)))
+
+    assert first == second
+    assert first_state == second_state
+    assert first_state["base_seed"] == 2026
+    assert first_state["rank_seed"] == 2029
+
+
 def test_distributed_run_context_shares_rank_zero_directory(monkeypatch, tmp_path):
     monkeypatch.setattr(torch.distributed, "broadcast_object_list", lambda payload, src: None)
     with cli._training_run_context(

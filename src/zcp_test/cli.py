@@ -117,6 +117,27 @@ def _space_provenance(space: Any) -> dict[str, Any]:
     }
 
 
+def _seed_training(seed: int, rank: int) -> dict[str, Any]:
+    import random
+
+    import numpy as np
+    import torch
+
+    rank_seed = (int(seed) + int(rank)) % (2**32)
+    random.seed(rank_seed)
+    np.random.seed(rank_seed)
+    torch.manual_seed(rank_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(rank_seed)
+    return {
+        "base_seed": int(seed),
+        "rank_seed": rank_seed,
+        "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
+        "cudnn_deterministic": bool(torch.backends.cudnn.deterministic),
+        "cudnn_benchmark": bool(torch.backends.cudnn.benchmark),
+    }
+
+
 def _require_research_model(space: Any, allow_approximation: bool) -> dict[str, Any]:
     provenance = _space_provenance(space)
     if (
@@ -1706,6 +1727,7 @@ def command_train(args: argparse.Namespace) -> None:
         distributed_rank,
         distributed_local_rank,
     ) as (device, selection):
+        seed_state = _seed_training(args.seed, distributed_rank)
         model = _build_training_model(space, architecture, classes, config)
         if distributed_world_size > 1:
             import torch
@@ -1742,6 +1764,8 @@ def command_train(args: argparse.Namespace) -> None:
             "distributed_world_size": distributed_world_size,
             "distributed_rank": distributed_rank,
             "distributed_local_rank": distributed_local_rank,
+            "seed": args.seed,
+            "rank_seed": seed_state["rank_seed"],
             "per_device_batch_size": batch_size,
             "gradient_accumulation_steps": gradient_accumulation_steps,
             "effective_global_batch_size": effective_global_batch_size,
@@ -1761,6 +1785,7 @@ def command_train(args: argparse.Namespace) -> None:
         }
         runtime = {
             "gpu_selection": selection,
+            "seed_state": seed_state,
             "resume": _checkpoint_lineage(args.resume) if args.resume else None,
             "distributed": {
                 "world_size": distributed_world_size,
@@ -1811,6 +1836,7 @@ def command_train(args: argparse.Namespace) -> None:
                     "classes": classes,
                     "input_size": input_size,
                     "model_fidelity": model_fidelity,
+                    "seed": args.seed,
                     "training_mode": (
                         "synthetic_smoke"
                         if args.smoke

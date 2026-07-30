@@ -93,6 +93,9 @@ optimizer、scheduler、AMP scaler 与 RNG。`--trusted` 只确认操作者信�
 每个 epoch 还记录 train/validation 耗时、样本吞吐、CUDA 峰值 allocated/reserved 显存；CPU 运行的
 显存字段为 `null`。训练图将 accuracy、loss、LR/drop-path 与 epoch 耗时/峰值显存分面展示，避免
 把量纲不同的优化指标混在同一纵轴。
+模型构建前统一设置 Python、NumPy、PyTorch CPU/CUDA RNG；manifest 记录 base seed、rank seed、
+deterministic-algorithm 与 cuDNN 状态，checkpoint identity 记录 base seed。多 rank 使用
+`rank_seed = base_seed + rank`；这提供显式 RNG 复现边界，但不宣称所有 CUDA kernel 逐 bit 确定。
 
 ## 6. 高成本验收标签
 
