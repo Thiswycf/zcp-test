@@ -90,3 +90,49 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 
 正式验收必须保留 manifest、resolved config、commit、环境、输入 hash、结果类型、失败行和准确命令。
 在证据齐全前，只能声明轻量软件验收与 smoke 覆盖。
+
+## 真实标准答案 index-0 验收（2026-07-30）
+
+以下结果来自本机 catalog 与 `/path/to/data` 等价的数据根配置。表中的 `external catalog` 表示本机可用，
+但文件不位于所检查的数据根目录；迁移到另一台机器时仍须执行 `data bootstrap` 或重新 `data register`，
+不能复制仓库配置后假定可用。
+
+| Benchmark / slice | 规模或协议 | index-0 查询 | 当前位置语义 |
+|---|---|---:|---|
+| NAS-Bench-101 full | 423,624 架构；4/12/36/108 epoch × 3 repeats | CIFAR-10 valid 108-epoch mean `0.9264155825` | data root |
+| NAS-Bench-201 v1.1 | native API；200 epoch | CIFAR-10-valid valid accuracy `81.98266666` | external catalog |
+| NATS-TSS v1.0 | `nats_bench.create(..., "tss")`；200 epoch | CIFAR-10-valid valid accuracy `81.98266666` | external catalog |
+| NATS-SSS v1.0 | `nats_bench.create(..., "sss")`；90 epoch | CIFAR-10-valid valid accuracy `76.88799999` | external catalog |
+| TNB101 micro | 4,096 架构 | class-scene valid top-1 `7.48407650` | data root / safe JSONL |
+| TNB101 macro | 3,256 架构 | class-scene valid top-1 `52.97074127` | data root / safe JSONL |
+| NB301 v1.0 | deterministic XGBoost surrogate | sampled DARTS accuracy `93.45854187` | external catalog |
+| ViT AutoFormer main | 100 条 | CIFAR-100 vanilla `68.66` | data root / safe JSONL |
+| ViT AutoFormer extension | 100 条；来源单独报告 | CIFAR-100 KD `78.07` | data root / safe JSONL |
+| ViT PiT | 100 条 | CIFAR-100 vanilla `68.33` | data root / safe JSONL |
+
+NB201 与 NATS-TSS 的 index-0 architecture ID 相同，证明 topology codec 可共享；二者的
+`benchmark_id`、版本、加载 API 和指标来源仍保持独立，禁止合并成一个 benchmark。NB301 数值是
+surrogate prediction，不是候选真实训练精度。AutoFormer extension 不含 vanilla 指标；对它查询
+`accuracy_vanilla` 会失败，必须显式使用 `accuracy_kd` 或 `accuracy_inherited`。
+
+可移植复验模板：
+
+```bash
+zcp-test data checklist --root /path/to/data --json
+zcp-test benchmark inspect nasbench101 --data-root /path/to/data \
+  --dataset cifar10 --split valid --metric-name final_accuracy \
+  --epoch-budget 108 --metric-seed-reduction mean
+zcp-test benchmark inspect nasbench201 --trusted --data-root /path/to/data \
+  --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
+zcp-test benchmark inspect nats_tss --trusted --data-root /path/to/data \
+  --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
+zcp-test benchmark inspect nats_sss --trusted --data-root /path/to/data \
+  --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 90
+```
+
+同一轮还对上述十个 benchmark/切片执行了真实 index-0 `build_model → params proxy`。所有调用均为
+`succeeded=1, failed=0, score_rows=1`；参数量依次为 NB101 `8,555,530`、NB201/NATS-TSS
+`129,306`、NATS-SSS `11,714`、TNB micro `24,618`、TNB macro `2,318,890`、NB301 DARTS
+`239,802`、ViT main `5,710,180`、ViT extension `8,755,324`、PiT `893,828`。该 smoke 显式使用
+`input_source=random` 且只运行数据无关的 `params`，因此仅证明真实架构能够构模并进入统一 evaluator，
+不能作为真实输入消融或相关性结果。

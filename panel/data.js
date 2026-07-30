@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 16:15 CST",
+  updatedAt: "2026-07-30 16:28 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -50,10 +50,10 @@ window.ZCP_PANEL_DATA = {
       id: "B1", phase: "Benchmark", priority: "P0", title: "NB201 与 NATS-SSS reference topology",
       content: "实现 topology、reduction stage 与 stage width 可感知的 PyTorch 模型构建。",
       purpose: "确保架构字段真实进入模型和 ZCP 计算。",
-      estimate: "4–8 小时", startedAt: "2026-07-30 12:10", finishedAt: "—", status: "进行中", progress: 75,
-      detail: "模型和定向测试已实现；native API 对照与真实数据 smoke 待最终 gate。",
+      estimate: "4–8 小时", startedAt: "2026-07-30 12:10", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
+      detail: "NB201、NATS-TSS 和 NATS-SSS 的 native index-0 query→build→params proxy 均通过；NB201/TSS 共享 architecture ID 但 benchmark/API 身份保持独立。",
       acceptance: ["字段敏感性测试", "native API 架构对照", "真实样本 query→build→proxy"],
-      evidence: ["EV-NB201"], risks: ["R-NATIVE"], updatedAt: "2026-07-30 14:15"
+      evidence: ["EV-NB201", "EV-REAL-BENCHMARKS"], risks: [], updatedAt: "2026-07-30 16:28"
     },
     {
       id: "B2", phase: "Benchmark", priority: "P1", title: "TransNAS 端到端构模契约",
@@ -68,10 +68,10 @@ window.ZCP_PANEL_DATA = {
       id: "B3", phase: "Benchmark", priority: "P1", title: "NB101、NB301 与 ViT 指标语义复核",
       content: "核查标准答案、surrogate noise、ViT slice 与 epoch/seed 指标协议。",
       purpose: "保证离线标签和 surrogate 输出不会被误标为同一标准答案。",
-      estimate: "3–6 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 45,
-      detail: "主要 adapter 边界已梳理；真实资产联合验证仍在进行。",
+      estimate: "3–6 小时", startedAt: "2026-07-30 13:00", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
+      detail: "NB101、deterministic NB301、ViT main/extension/PiT 的真实 query 与构模 proxy 均通过；extension 仅含 KD/inherited，vanilla 查询按设计失败。",
       acceptance: ["slice 身份可追溯", "surrogate noise 明确记录", "metric seed/epoch 不静默降级"],
-      evidence: [], risks: ["R-NATIVE"], updatedAt: "2026-07-30 14:15"
+      evidence: ["EV-REAL-BENCHMARKS"], risks: [], updatedAt: "2026-07-30 16:28"
     },
     {
       id: "C1", phase: "Reference", priority: "P0", title: "AutoFormer 静态 scratch reference",
@@ -203,10 +203,10 @@ window.ZCP_PANEL_DATA = {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
       content: "在本机已注册真实资产上完成初始化、query、build 和最小 proxy。",
       purpose: "验证 adapter 与本地数据的实际可用性。",
-      estimate: "3–8 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 10,
-      detail: "TransNAS 单架构已通过，其余统一 smoke 尚未开始。",
+      estimate: "3–8 小时", startedAt: "2026-07-30 16:18", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
+      detail: "NB101、NB201、NATS-TSS/SSS、TNB micro/macro、NB301、ViT main/extension/PiT 共十个切片均完成真实 index-0 query→build→params proxy，全部 succeeded=1、failed=0。random input 仅作构模 smoke，不进入相关性结论。",
       acceptance: ["每个已注册 benchmark 有真实 smoke", "失败资产明确记录", "无 synthetic 替代"],
-      evidence: ["EV-TRANSNAS"], risks: ["R-NATIVE"], updatedAt: "2026-07-30 14:15"
+      evidence: ["EV-TRANSNAS", "EV-REAL-BENCHMARKS"], risks: [], updatedAt: "2026-07-30 16:28"
     },
     {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
@@ -247,7 +247,7 @@ window.ZCP_PANEL_DATA = {
   ],
   risks: [
     { id: "R-CONCURRENCY", severity: "高", status: "开放", title: "并发工作区冲突", description: "多个工作者正在修改仓库，状态和测试基线可能快速变化。", mitigation: "只修改授权路径；最终 gate 前重新读取 git status，不回退他人改动。", taskIds: ["A1", "F1", "G1", "I1"] },
-    { id: "R-NATIVE", severity: "高", status: "开放", title: "真实 Benchmark 资产尚未全部复验", description: "定向模型测试通过不等同于 native API、真实文件和 surrogate 全部可用。", mitigation: "执行统一真实资产 smoke，并逐项记录缺失依赖或资产。", taskIds: ["B1", "B3", "G2"] },
+    { id: "R-NATIVE", severity: "高", status: "关闭", title: "真实 Benchmark index-0 smoke 已完成", description: "十个 benchmark/切片的真实 query、构模与 params proxy 均通过；external catalog 资产仍不等于 data root 自包含。", mitigation: "跨机器继续执行 bootstrap/checklist；后续 1% 相关性必须使用真实 dataset input。", taskIds: ["B1", "B3", "G2"] },
     { id: "R-TRANSNAS", severity: "中", status: "开放", title: "TransNAS task heads 不完整", description: "当前能力不能代表七个 Taskonomy 任务的完整官方网络。", mitigation: "明确 encoder/static 边界；未实现的 task head 标为 unsupported。", taskIds: ["B2"] },
     { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 尚无官方 fixture 验收", description: "静态字段敏感性已通过，但还未与发布配置参数量、FLOPs 和精度对照。", mitigation: "加入官方 Tiny/Small/Base fixture；inherited 路径保持 false。", taskIds: ["C1", "H2"] },
     { id: "R-OFA", severity: "高", status: "开放", title: "Static scratch 不等于 OFA inherited", description: "MBV3 静态子网与 BN recalibration 已实现，但 MBV2/MBV3 仍未接入官方 inherited checkpoint、active-weight export 或 predictor。", mitigation: "scratch 与 inherited 分离；官方 checkpoint 与权重导出验收前禁止 inherited 声明。", taskIds: ["C2", "C3", "C4", "H2"] },
@@ -257,6 +257,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-REAL-BENCHMARKS", time: "2026-07-30 16:28", title: "全 Benchmark 真实 index-0 smoke", result: "NB101、NB201、NATS-TSS/SSS、TNB micro/macro、deterministic NB301、ViT main/extension/PiT 的 query→build→params proxy 全部 succeeded=1、failed=0；未用 synthetic benchmark 或伪造真值。", command: "zcp-test benchmark inspect ...; zcp-test evaluate --benchmark ... --proxies params --count 1 --input-source random --device cpu", taskIds: ["B1", "B2", "B3", "G2"] },
     { id: "EV-GIT-CHECKPOINT", time: "2026-07-30 16:15", title: "低成本审计阶段提交", result: "216-test/86%-coverage、PiT/OFA-MBV3 reference、训练协议白名单、文档和动态看板已提交为 9e939b8；数据、runs 和 checkpoint 未进入 Git。远端推送等待 GitHub 登录。", command: "git commit -m 'Complete low-cost audit and reference model pass'", taskIds: ["A1", "A2", "C4", "F1", "G1", "I1"] },
     { id: "EV-PIT-REFERENCE", time: "2026-07-30 16:13", title: "PiT reference 官方结构对照", result: "真实 gt_pit 规格完成 load→build→224 forward；与 Auto-Prox 90ed458 同为 893,828 参数且参数 shape multiset 一致。MAC golden 尚未完成。", command: "PYTHONPATH=/tmp/Auto-Prox-AAAI24 conda run -n zcp-test python /tmp/check_upstream_pit_isolated.py", taskIds: ["C4"] },
     { id: "EV-MBV3-REFERENCE", time: "2026-07-30 16:13", title: "OFA-MBV3 静态 reference 对照", result: "按官方五阶段/20-block 编码实现 SE、h-swish、width rounding 与 BN recalibration；全 3×3/e3/d2/w1.0 子网双方均为 3,410,792 参数且 shape multiset 一致。", command: "PYTHONPATH=/tmp/once-for-all conda run -n zcp-test python /tmp/check_ofa_mbv3.py", taskIds: ["C4"] },

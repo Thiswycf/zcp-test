@@ -103,3 +103,21 @@ The following work is explicitly **not accepted** and must not be reported as co
 Formal acceptance requires retained manifests, resolved configs, commit identity, environment,
 input hashes, explicit result type, failure rows and exact commands. Until then, the project may
 claim lightweight software acceptance and smoke coverage only.
+
+## Real standard-answer index-0 acceptance (2026-07-30)
+
+The machine-local catalog successfully queried NB101 full (423,624 architectures), NB201 v1.1,
+NATS-TSS/SSS, TransNAS micro/macro, deterministic NB301, and all three ViT release slices. Assets
+reported as `external catalog` are usable on this machine but are not contained by the inspected data
+root; another machine must bootstrap or register them again.
+
+Key values were NB101 CIFAR-10 valid/108 mean `0.9264155825`, NB201 and NATS-TSS CIFAR-10-valid
+accuracy `81.98266666`, NATS-SSS 90-epoch accuracy `76.88799999`, TNB101 class-scene valid top-1
+`7.48407650` (micro) and `52.97074127` (macro), and deterministic NB301 `93.45854187`. ViT main,
+extension and PiT returned CIFAR-100 `68.66` vanilla, `78.07` KD and `68.33` vanilla respectively.
+The extension slice has no vanilla metric; an explicit vanilla query correctly fails. NB201 and
+NATS-TSS share the index-0 topology ID but retain distinct benchmark IDs, API sources and protocols.
+
+A matching ten-slice index-0 `build_model → params proxy` sweep completed with one successful row and
+no failure per slice. It used explicit random input and the data-independent `params` proxy, so it
+proves adapter-to-model-to-evaluator wiring only, not dataset-input or correlation validity.
