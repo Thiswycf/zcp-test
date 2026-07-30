@@ -74,6 +74,10 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 - 多个上游原生资产没有固定 checksum，路径存在不等于真实性。
 - bootstrap 和 index-0 smoke 不证明全记录、全部 budget/split 或跨机器覆盖。
 - `--start/--count` 没有已验收 launcher/merge CLI；多文件分析可用，端到端多 GPU 尚未验收。
+- 通用 correlation/compare/seed-sensitivity 与 NB201 topology 已用两组真实 CIFAR 输入、真实
+  NB201 真值的 20 架构 run 完成工作流验收。每个 run 60 行；NASWOT 对 index 12 的非有限结果
+  保留为 failed。该连续小样本不是 feature-stratified 1%，不得作为论文数值。证据见
+  `docs/evidence/E2_E3_NB201_REAL_CN.md`。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
 - TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
   与完整 parameter-shape multiset 在七个任务均一致。真实 micro index-0 的七个 task

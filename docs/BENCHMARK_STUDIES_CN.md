@@ -306,6 +306,13 @@ ruff check src/zcp_test/reporting tests/test_proxy_studies.py \
 验收还会执行 `examples/studies/data/*.jsonl` 的七个典型命令。仓库保留输入 fixture、命令和预期
 表名；`/tmp/zcp-test-examples`、pytest cache、`__pycache__`、临时 PNG/HTML 均删除，不进入 Git。
 
+此外，NAS-Bench-201 topology 视图已用真实 benchmark 真值和真实 CIFAR 输入完成 20 架构工作流
+验收，生成 20 条 architecture、120 条 edge、5 类 operation、720 条 feature correlation 和
+90 条 operation effect。精简证据见
+[`evidence/E2_E3_NB201_REAL_CN.md`](evidence/E2_E3_NB201_REAL_CN.md)。由于连续样本未形成合法
+matched pair，matched-pair 表为空；这不是错误，也不能用来支持 matched-contrast 结论。其余
+benchmark 仍需分别生成真实 score → 专属表/图证据，不能由 NB201 结果外推。
+
 ## 11. 常见错误
 
 - `multiple epoch budgets`：evaluate 或查询缺少 `--epoch-budget`。

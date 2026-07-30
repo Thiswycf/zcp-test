@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evidence_kind": "small_real_benchmark_workflow_acceptance",
+  "benchmark_id": "nasbench201",
+  "benchmark_version": "1.1",
+  "search_space_id": "nb201_topology",
+  "dataset": "cifar10-valid",
+  "target": {
+    "metric": "valid-accuracy",
+    "split": "valid",
+    "epoch_budget": 200,
+    "seed_reduction": "mean",
+    "direction": "maximize"
+  },
+  "architecture_indices": [0, 19],
+  "architecture_count_per_run": 20,
+  "proxy_ids": ["params", "naswot", "synflow"],
+  "input_source": "dataset",
+  "batch_size": 2,
+  "seeds": [
+    {
+      "seed": 7,
+      "run_id": "cb2af3773246",
+      "input_fingerprint": "0bb4ef482796f0fc7cb23eafe94987fb615d3247e25f88718f34fc6e87274339",
+      "scores_sha256": "3730991664d85cce0ed3bda573fa888263d1b9f83b7ec18dd3cd09433dd02d76"
+    },
+    {
+      "seed": 8,
+      "run_id": "958c76fc3b69",
+      "scores_sha256": "8658070628253e38a1effd4aafd718e1bf3c7bd94bf889078eed83c8916468db"
+    }
+  ],
+  "seed_7_status": {
+    "score_rows": 60,
+    "successful_rows": 59,
+    "failed_rows": 1,
+    "failure": {
+      "benchmark_index": 12,
+      "proxy_id": "naswot",
+      "error_type": "ValueError",
+      "error_message": "proxy returned NaN or infinity"
+    }
+  },
+  "seed_7_correlations": {
+    "params": {"sample_count": 20, "spearman": -0.41244800494906203},
+    "naswot": {"sample_count": 19, "spearman": 0.31052631578947365},
+    "synflow": {"sample_count": 20, "spearman": 0.5759398496240601}
+  },
+  "topology_tables": {
+    "architectures": 20,
+    "edges": 120,
+    "operations": 5,
+    "correlations": 720,
+    "operation_effects": 90,
+    "matched_pairs": 0
+  },
+  "code_commit": "f62693d91abfca871c92e0bcae5c85d65b3db5d6",
+  "limitations": [
+    "The 20 architectures are a contiguous workflow sample, not the planned stratified 1% scientific sample.",
+    "Correlation values validate the real-data workflow and must not be presented as paper-comparison results.",
+    "The failed NASWOT row is retained and excluded only by explicit valid-row filtering."
+  ]
+}

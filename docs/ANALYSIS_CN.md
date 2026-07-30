@@ -27,6 +27,10 @@ zcp-test analyze search --source RUN/search.jsonl --output RUN/reports/search
 zcp-test analyze training --source RUN/training.jsonl --output RUN/reports/training
 ```
 
+`correlation`、`compare` 和 `sensitivity` 现在 fail closed：必须至少存在一条成功记录，且
+`architecture_id/proxy_id/component/score/target_value` 不能全空；非有限 score/真值不能组成
+报告。`sensitivity --parameter seed` 还要求至少两个非空 seed 值。验证失败时不会先创建空报告目录。
+
 schema 2 的原始 `scores.jsonl` 每个架构/代理一行；分析 CSV 会按组件展开，因而 ER 等多组件代理会增加明细行。这是派生视图，不是重复评估。
 
 ### 多协议 × 多 ZCP 研究
@@ -73,6 +77,10 @@ zcp-test analyze compare \
 ```
 
 验收时应看到 2 个 budget 协议、3 个代理、3 组 proxy-pair；不得把两个 budget 平均成一列。
+
+真实 NB201/CIFAR 输入的小样本工作流证据、原始 JSONL SHA-256、显式 failure 和完整命令见
+[`evidence/E2_E3_NB201_REAL_CN.md`](evidence/E2_E3_NB201_REAL_CN.md)。该 20 架构连续样本只验证
+通用分析接线，不是 1% 科学样本或论文相关性结果。
 
 ## 论文依据与推广边界
 
