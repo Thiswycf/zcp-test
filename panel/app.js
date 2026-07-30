@@ -14,8 +14,10 @@
   let dialogOpener = null;
   let refreshPromise = null;
   let refreshRequestId = 0;
+  let refreshInitialized = false;
   let autoRefreshEnabled = true;
   let autoRefreshTimer = null;
+  let refreshCountdownTimer = null;
   let nextRefreshAt = null;
   let refreshIntervalMs = 30_000;
   const refreshIntervalStorageKey = "zcp-panel-refresh-interval";
@@ -449,7 +451,7 @@
     rebuildIndexes();
     populateFilters();
     $("#project-purpose").textContent = data.project.purpose;
-    $("#last-updated").textContent = `数据版本 ${data.schemaVersion} · 更新于 ${data.updatedAt}`;
+    $("#last-updated").textContent = `数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`;
     renderRisks();
     renderEvidence();
     renderAllTaskViews();
@@ -546,7 +548,6 @@
         const changed = data.updatedAt !== previousData.updatedAt;
         status.dataset.state = "success";
         status.textContent = changed ? "已载入更新" : "已是最新";
-        $("#refresh-success").textContent = `上次成功刷新：${formatClock()}`;
         if (manual || changed) announce(status.textContent);
       } catch (error) {
         data = previousData;
@@ -556,6 +557,7 @@
         status.textContent = `刷新失败，继续显示上次数据：${error.message}`;
         announce(status.textContent);
       } finally {
+        $("#refresh-success").textContent = `上次检查时间：${formatClock()}`;
         status.removeAttribute("aria-busy");
         button.classList.remove("is-refreshing");
         button.disabled = false;
@@ -568,6 +570,8 @@
   }
 
   function initializeRefresh() {
+    if (refreshInitialized) return;
+    refreshInitialized = true;
     setRefreshInterval(storedRefreshInterval());
     $("#refresh-data").addEventListener("click", () => {
       refreshData(true).finally(scheduleAutoRefresh);
@@ -587,13 +591,15 @@
         updateRefreshCountdown();
       }
     });
-    window.setInterval(updateRefreshCountdown, 1000);
-    $("#refresh-success").textContent = `上次成功刷新：页面载入 ${formatClock()}`;
+    if (refreshCountdownTimer === null) {
+      refreshCountdownTimer = window.setInterval(updateRefreshCountdown, 1000);
+    }
+    $("#refresh-success").textContent = `上次检查时间：页面载入 ${formatClock()}`;
     setAutoRefresh(true);
   }
 
   $("#project-purpose").textContent = data.project.purpose;
-  $("#last-updated").textContent = `数据版本 ${data.schemaVersion} · 更新于 ${data.updatedAt}`;
+  $("#last-updated").textContent = `数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`;
   initializeTheme();
   initializeRefresh();
   populateFilters();

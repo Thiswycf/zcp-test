@@ -7,11 +7,13 @@ const vm = require("node:vm");
 const dataPath = path.join(__dirname, "data.js");
 const appPath = path.join(__dirname, "app.js");
 const indexPath = path.join(__dirname, "index.html");
+const stylesPath = path.join(__dirname, "styles.css");
 const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), context, { filename: dataPath });
 const data = context.window.ZCP_PANEL_DATA;
 const appSource = fs.readFileSync(appPath, "utf8");
 const indexSource = fs.readFileSync(indexPath, "utf8");
+const stylesSource = fs.readFileSync(stylesPath, "utf8");
 const errors = [];
 
 function assert(condition, message) {
@@ -58,6 +60,14 @@ for (const id of refreshDomIds) {
 assert(indexSource.includes('aria-live="polite"'), "刷新状态缺少 aria-live");
 assert(indexSource.includes('aria-atomic="true"'), "刷新状态缺少 aria-atomic");
 assert(indexSource.includes('aria-pressed="true"'), "自动刷新按钮缺少 aria-pressed");
+assert(indexSource.includes('http-equiv="Cache-Control"'), "页面缺少静态托管 no-store 提示");
+assert(indexSource.includes('no-cache, no-store, must-revalidate'), "页面 Cache-Control 未声明 no-store");
+assert(indexSource.includes("上次检查时间"), "刷新栏未显示上次检查时间");
+assert(indexSource.includes('<script src="data.js"></script>'), "file:// 回退缺少直接 data.js 脚本");
+assert(indexSource.indexOf('<script src="data.js"></script>') < indexSource.indexOf('<script src="app.js"></script>'), "data.js 必须先于 app.js 加载");
+assert(stylesSource.includes(".refresh-primary"), "立即刷新按钮缺少可见样式");
+assert(!/\.refresh-primary\s*\{[^}]*display\s*:\s*none/is.test(stylesSource), "立即刷新按钮被样式隐藏");
+assert(stylesSource.includes('#refresh-status[data-state="error"]'), "刷新失败缺少非阻断错误样式");
 for (const seconds of [15, 30, 60, 300]) {
   assert(indexSource.includes(`<option value="${seconds}"`), `刷新间隔缺少 ${seconds} 秒选项`);
 }
@@ -76,7 +86,11 @@ assert(appSource.includes('document.visibilityState !== "visible"'), "隐藏页�
 assert(appSource.includes('cancelScheduledRefresh()'), "缺少自动刷新定时器取消逻辑");
 assert(appSource.includes('if (refreshPromise)'), "刷新请求缺少并发去重判断");
 assert(appSource.includes('return refreshPromise'), "并发刷新未复用当前请求");
+assert(appSource.includes('if (refreshInitialized) return'), "刷新初始化缺少重复事件保护");
+assert(appSource.includes('if (refreshCountdownTimer === null)'), "刷新倒计时缺少重复计时器保护");
 assert(appSource.includes("window.ZCP_PANEL_DATA = previousData"), "刷新失败时未保留旧数据");
+assert(appSource.includes('`上次检查时间：${formatClock()}`'), "刷新完成后未更新时间戳");
+assert(appSource.includes('`数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`'), "未明确显示数据更新时间");
 assert(appSource.includes('status.setAttribute("aria-busy", "true")'), "刷新开始时未设置 aria-busy");
 assert(appSource.includes('status.removeAttribute("aria-busy")'), "刷新结束时未清除 aria-busy");
 assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");

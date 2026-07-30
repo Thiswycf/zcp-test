@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 01:02 CST",
+  updatedAt: "2026-07-31 01:12 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -186,9 +186,9 @@ window.ZCP_PANEL_DATA = {
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
-      detail: "看板以带缓存破坏参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch。提供立即刷新、自动刷新开关、15/30/60/300 秒间隔、上次成功刷新时间和倒计时；隐藏页暂停，恢复可见时立即检查。刷新请求复用同一 in-flight Promise，避免手动与定时触发并发重复；刷新后保留筛选状态并重绘，失败时恢复旧 data 对象并显示非阻塞错误。HTTP 静态服务审计已验证 index.html、app.js 与手动/自动两个不同 cache-busting query 的 data.js 均返回 200；源码契约检查覆盖控制项、visibility、失败回退、并发去重和 ARIA 状态。",
-      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "立即刷新按钮", "自动刷新开关与 15/30/60/300 秒间隔", "上次成功刷新与下次刷新倒计时", "visibility 隐藏暂停且恢复立即检查", "cache-busting data.js 且不依赖 fetch 或整页 reload", "保留筛选状态并避免重复静态监听器", "并发刷新复用当前请求", "失败保留旧数据", "aria-live/aria-atomic/aria-busy 可访问状态", "HTTP 静态资源与不同 query 实测 200", "Node 语法、数据契约与 diff 检查通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT"], risks: [], updatedAt: "2026-07-30 23:03"
+      detail: "看板以带唯一 cache-busting 参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch；HTML 同时声明 no-cache/no-store 供静态 HTTP 托管使用，file:// 仍由初始 data.js 提供可读回退。提供可见立即刷新、默认自动刷新开关、15/30/60/300 秒间隔、数据更新时间、每次成功或失败后的上次检查时间及下次刷新倒计时；隐藏页暂停，恢复可见时立即检查。初始化 guard、单倒计时器和共享 in-flight Promise 防止重复事件、计时器与请求；失败时恢复旧 data 并显示非阻断错误。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "默认自动刷新与 15/30/60/300 秒间隔", "数据更新时间、上次检查时间与下次刷新倒计时", "visibility 隐藏暂停且恢复立即检查", "cache-busting data.js 与 HTML no-store 提示", "file:// 初始 data.js 可读回退", "初始化、计时器和并发请求去重", "失败保留旧数据并显示非阻断错误", "aria-live/aria-atomic/aria-busy 可访问状态", "纯静态 HTTP 托管兼容", "Node 语法、数据契约与 diff 检查通过"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT"], risks: [], updatedAt: "2026-07-31 01:12"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
@@ -240,9 +240,9 @@ window.ZCP_PANEL_DATA = {
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
       estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 70,
-      detail: "阶段性结果已提交为 28943b4 并推送远端；当前最终 gate 的大文件、凭据与 unsafe pickle/torch.load 边界检查通过。NB301 scoped H1 已完成，但本轮按要求不提交；完整发布仍等待 TNB101、ViT 和其余高成本验收。",
+      detail: "阶段性结果已提交为 28943b4 并推送远端；当前最终 gate 的大文件、凭据与 unsafe pickle/torch.load 边界检查通过。NB301 scoped H1 已提交并推送；完整发布仍等待 TNB101、ViT 和其余高成本验收。",
       acceptance: ["无凭据和本机路径", "无数据/大模型误提交", "状态与验收报告一致"],
-      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-FULL-GATE-309", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-31 01:02"
+      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-FULL-GATE-309", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-31 01:12"
     }
   ],
   risks: [
@@ -263,6 +263,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-PANEL-NOF5-NOSTORE-AUDIT", time: "2026-07-31 01:12", title: "看板无需 F5 与静态缓存策略复核", result: "可见立即刷新、默认 30 秒自动刷新、15/30/60/300 秒切换、隐藏暂停/恢复即查、唯一 cache-busting URL、HTML no-store 提示、每次检查时间、倒计时、失败旧数据回退、初始化/计时器/请求去重和 file:// 初始 data.js 回退均已锁定；不引入服务端依赖。", command: "node --check panel/data.js; node --check panel/app.js; node --check panel/check-data.js; node panel/check-data.js; static HTTP cache-busting audit; git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-SECURITY-BOUNDARY-309", time: "2026-07-31 01:02", title: "最终安全与仓库卫生检查", result: "大文件与凭据扫描通过；unsafe pickle/torch.load 仅保留在显式 trusted 转换、checkpoint 和 vendor native 边界，普通不可信数据路径不允许使用。", command: "large-file scan; credential scan; unsafe pickle/eval/torch.load boundary audit", taskIds: ["A1", "G1", "I1"] },
     { id: "EV-FULL-GATE-309", time: "2026-07-31 01:02", title: "最终全仓质量 gate", result: "309 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel、diff、大文件和凭据检查全部通过。该 gate 取代 304/307 作为当前门禁口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check; repository hygiene scans", taskIds: ["A1", "E1", "G1", "H1", "I1"] },
     { id: "EV-DIRECTION-CURRENT-SCOPE-CLOSED", time: "2026-07-31 01:02", title: "Params/FLOPs 方向修复当前范围闭环", result: "历史证据重算、v2 只读迁移和混合 shard bundle 回归均完成；migration provenance 不再错误拆分 heatmap，raw artifacts 保持不改写，并通过最终 309-test gate。", command: "rebuild direction evidence; test legacy v2 reader and mixed-shard bundle; run final gate", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
