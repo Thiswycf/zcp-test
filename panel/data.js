@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 21:33 CST",
+  updatedAt: "2026-07-30 23:03 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -186,9 +186,9 @@ window.ZCP_PANEL_DATA = {
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
-      detail: "看板以带缓存破坏参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch。提供立即刷新、自动刷新开关、15/30/60/300 秒间隔、上次成功刷新时间和倒计时；隐藏页暂停，恢复可见时立即检查。刷新后保留筛选状态并重绘，失败时恢复旧 data 对象并显示非阻塞错误。HTTP 静态服务审计已验证 index.html、app.js 与两个不同 cache-busting query 的 data.js 均返回 200；源码契约检查覆盖手动/自动触发、定时重排、visibility 暂停和失败回退。",
-      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "立即刷新按钮", "自动刷新开关与 15/30/60/300 秒间隔", "上次成功刷新与下次刷新倒计时", "visibility 隐藏暂停且恢复立即检查", "cache-busting data.js 且不依赖 fetch 或整页 reload", "保留筛选状态并避免重复静态监听器", "失败保留旧数据", "aria-live 可访问状态", "HTTP 静态资源与不同 query 实测 200", "Node 语法、数据契约与 diff 检查通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT"], risks: [], updatedAt: "2026-07-30 20:17"
+      detail: "看板以带缓存破坏参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch。提供立即刷新、自动刷新开关、15/30/60/300 秒间隔、上次成功刷新时间和倒计时；隐藏页暂停，恢复可见时立即检查。刷新请求复用同一 in-flight Promise，避免手动与定时触发并发重复；刷新后保留筛选状态并重绘，失败时恢复旧 data 对象并显示非阻塞错误。HTTP 静态服务审计已验证 index.html、app.js 与手动/自动两个不同 cache-busting query 的 data.js 均返回 200；源码契约检查覆盖控制项、visibility、失败回退、并发去重和 ARIA 状态。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "立即刷新按钮", "自动刷新开关与 15/30/60/300 秒间隔", "上次成功刷新与下次刷新倒计时", "visibility 隐藏暂停且恢复立即检查", "cache-busting data.js 且不依赖 fetch 或整页 reload", "保留筛选状态并避免重复静态监听器", "并发刷新复用当前请求", "失败保留旧数据", "aria-live/aria-atomic/aria-busy 可访问状态", "HTTP 静态资源与不同 query 实测 200", "Node 语法、数据契约与 diff 检查通过"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT"], risks: [], updatedAt: "2026-07-30 23:03"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
@@ -261,6 +261,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "监控", title: "NB101 旧 SynFlow/TE-NAS float32 溢出", description: "正式旧 sweep 中 SynFlow v1 与 TE-NAS portable-v1 对部分深 NB101 DAG 返回非有限值；这些失败必须作为旧版本结果保留。", mitigation: "使用 SynFlow double-v2 与 TE-NAS portable-v2；深模型单测和 index 1566 CPU 回归 2/2 已通过。旧 sweep 先完成其余 20 代理，再单独补跑两个新版本并按版本合并，不覆盖旧失败。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-PANEL-REFRESH-COMPLETE-AUDIT", time: "2026-07-30 23:03", title: "无需 F5 刷新完整复核", result: "立即刷新、自动刷新开关、15/30/60/300 秒间隔、隐藏页暂停及恢复即查、cache-busting、失败保留旧数据、并发 Promise 去重和 aria-live/aria-atomic/aria-busy 状态均通过源码契约检查。独立 HTTP 静态服务实际拉取 index.html、app.js 及手动/自动两个不同 refresh query 的 data.js 均返回 200，响应与当前文件逐字一致。", command: "python -m http.server 18769 --bind 127.0.0.1 --directory panel; curl index.html app.js 'data.js?refresh=audit-manual-20260730-1' 'data.js?refresh=audit-auto-20260730-2'; cmp responses with panel sources; node panel/check-data.js", taskIds: ["F4"] },
     { id: "EV-NB101-SYNFLOW-V2-REGRESSION", time: "2026-07-30 21:33", title: "NB101 深模型 SynFlow/TE-NAS v2 回归", result: "旧 SynFlow v1/TE-NAS portable-v1 的 float32 非有限失败保留。SynFlow double-v2 使用 float64 并恢复模型 dtype/state，TE-NAS portable-v2 采用该组件；深模型单测通过，已知失败 benchmark index 1566 的 CPU 真数据回归为 synflow/te_nas 2/2 成功。正式旧 sweep 结束后仅补跑这两个新版本。", command: "pytest -q tests/test_core.py -k synflow; zcp-test evaluate --benchmark nasbench101 --sample-manifest <INDEX_1566_MANIFEST> --proxies synflow,te_nas --device cpu", taskIds: ["E1", "H1"] },
     { id: "EV-GPU-LOCK-DELAY-FIX", time: "2026-07-30 21:33", title: "auto GPU 候选锁探测修复", result: "auto GPU 在非零 lock timeout 下现先零超时探测全部候选，再使用一个全局 timeout 轮询；tests/test_gpu.py 15 passed、Ruff 通过。修复前启动的四个 NB101 shard 在约 120 秒后均已正常运行，启动延迟未记为数据失败。", command: "pytest -q tests/test_gpu.py; ruff check src/zcp_test/cli.py src/zcp_test/gpu.py tests/test_gpu.py", taskIds: ["H1"] },
     { id: "EV-NB101-FORMAL-SWEEP-START", time: "2026-07-30 21:23", title: "NB101 正式 22-ZCP 四分片启动", result: "4 架构 × 22 ZCP GPU smoke 已完成 88/88。正式 4,237 架构 × 22 ZCP seed 2026 在四张 GPU 上启动：shard 0 为 1,060 架构/23,320 调用，shard 1–3 各为 1,059 架构/23,298 调用；当前只判定运行中，不记录瞬时完成行数。启动时观察到的 auto GPU 锁等待延迟后续已修复，未被记为数据失败。", command: "zcp-test evaluate --benchmark nasbench101 --sample-manifest <NB101_MANIFEST> --sample-shard 0..3 --proxies <22_ZCP> --seed 2026 --gpu <FIXED_GPU>", taskIds: ["H1"] },
