@@ -238,6 +238,8 @@ duration, sample throughput, peak allocated memory, and peak reserved memory for
 For multiple training runs, `report bundle RUN...` writes `training.csv` with `source_run` labels
 and compares validation accuracy, validation loss, epoch duration, and peak memory in separate
 panels. Its result reports score and training row counts independently.
+Training-only bundles do not create an empty `scores.csv`; derived files are created only for data
+that is actually present.
 
 The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
 Repeated augmentation uses three repeats, and the effective LR follows

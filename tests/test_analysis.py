@@ -623,6 +623,7 @@ def test_bundle_supports_search_only_and_training_only_runs(tmp_path: Path) -> N
     assert (training_output / "training.png").exists()
     assert (training_output / "training.svg").exists()
     assert (training_output / "training.csv").exists()
+    assert not (training_output / "scores.csv").exists()
 
 
 def test_multi_run_training_bundle_retains_source_labels(tmp_path):

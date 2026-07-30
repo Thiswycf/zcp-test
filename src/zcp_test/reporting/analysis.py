@@ -1161,9 +1161,10 @@ def build_report_bundle(
     output.mkdir(parents=True, exist_ok=True)
     frame = read_scores(scores, include_failed=True)
     artifacts: list[Path] = []
-    scores_csv = output / "scores.csv"
-    _write_csv(frame, scores_csv)
-    artifacts.append(scores_csv)
+    if not frame.empty:
+        scores_csv = output / "scores.csv"
+        _write_csv(frame, scores_csv)
+        artifacts.append(scores_csv)
     training_frame = _event_frame(training) if training is not None else pd.DataFrame()
     if not training_frame.empty:
         training_csv = output / "training.csv"

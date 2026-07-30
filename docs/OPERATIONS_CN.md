@@ -247,6 +247,7 @@ zcp-test train --config configs/training/darts_cifar10.yaml \
 `report bundle RUN...` 在多训练 run 时写出带 `source_run` 的 `training.csv`，并用 validation top-1、
 validation loss、epoch 耗时和峰值显存四个分面比较各 run；返回值分别给出
 `score_row_count` 与 `training_row_count`，不再把只有训练数据的 bundle 误报为“0 行结果”。
+训练-only bundle 不创建空 `scores.csv`；搜索-only 或 score-only 产物也按同样的实际需要生成。
 
 AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`。真实数据 loader
 使用三次 repeated augmentation；学习率按
