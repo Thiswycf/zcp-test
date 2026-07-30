@@ -1,8 +1,9 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 02:55 CST",
+  updatedAt: "2026-07-31 03:02 CST",
   project: {
     name: "zcp-test",
+    status: "active",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
   },
   statuses: {
@@ -167,10 +168,10 @@ window.ZCP_PANEL_DATA = {
       id: "F2", phase: "报告", priority: "P1", title: "验收报告与复现实例",
       content: "整理完整、部分、受阻结论及对应命令、文件和运行产物。",
       purpose: "让所有验收判断都能被第三方复核。",
-      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 80,
-      detail: "已链接 NB201、NATS-TSS、NATS-SSS、NB101 与 NB301 的正式证据；新增 TransNAS preflight 中文报告和 summary JSON，明确资产 SHA、有限 target、1% strata、contract provider、CLI 修复及 EULA/未公开协议 blocker。TNB101 正式 H1、ViT 和高成本训练结果仍待。",
+      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 85,
+      detail: "已链接 NB201、NATS-TSS、NATS-SSS、NB101、NB301 与 ViT 公开 release-slice preacceptance 证据；ViT 阶段提交 43f1a5030deb8cdc8b3fe71177c801b127c9cb4a 已推送并与 origin/main 一致。项目总状态仍为 active：TransNAS 正式输入、ViT 完整 identity、NATS-SSS 跨数据集协议及高成本训练仍未完成。",
       acceptance: ["每个结论链接证据", "受阻原因明确", "不把 smoke 写成完整训练"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-SCIENTIFIC-BLOCKER"], risks: ["R-TRANSNAS"], updatedAt: "2026-07-31 01:43"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY", "EV-GIT-PUSH-43F1A503"], risks: ["R-TRANSNAS", "R-VIT-H1-IDENTITIES"], updatedAt: "2026-07-31 03:02"
     },
     {
       id: "F3", phase: "报告", priority: "P1", title: "report/monitor/run 发现",
@@ -239,10 +240,10 @@ window.ZCP_PANEL_DATA = {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
-      estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 70,
-      detail: "阶段性结果已提交为 28943b4 并推送远端；当前最终 gate 的大文件、凭据与 unsafe pickle/torch.load 边界检查通过。NB301 scoped H1 已提交并推送；完整发布仍等待 TNB101、ViT 和其余高成本验收。",
+      estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 78,
+      detail: "NB301 scoped H1 阶段提交 28943b4 已推送；ViT release-slice preacceptance 已提交为 43f1a5030deb8cdc8b3fe71177c801b127c9cb4a（Complete ViT release-slice preacceptance）并推送，origin/main 已一致且提交后工作树干净。项目总状态仍为 active；完整发布仍等待 TransNAS 正式输入、ViT 完整 identity、NATS-SSS 跨数据集协议及其余高成本训练验收。",
       acceptance: ["无凭据和本机路径", "无数据/大模型误提交", "状态与验收报告一致"],
-      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-FULL-GATE-309", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-31 01:12"
+      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-GIT-PUSH-43F1A503", "EV-FULL-GATE-365", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY", "R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-BUDGET"], updatedAt: "2026-07-31 03:02"
     }
   ],
   risks: [
@@ -264,6 +265,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-GIT-PUSH-43F1A503", time: "2026-07-31 03:02", title: "ViT release-slice preacceptance 已提交并推送", result: "提交 43f1a5030deb8cdc8b3fe71177c801b127c9cb4a（Complete ViT release-slice preacceptance）已推送；origin/main 与本地一致，提交后工作树干净。该提交完成的是公开 release-slice preacceptance，不代表 ViT 完整 identity H1 已完成。", command: "git rev-parse HEAD; git rev-parse origin/main; git status --short", taskIds: ["F2", "H1", "I1"] },
     { id: "EV-FULL-GATE-365", time: "2026-07-31 02:55", title: "ViT 阶段当前全仓门禁", result: "365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 保留为历史门禁，不再代表当前口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B3", "C4", "G1", "H1"] },
     { id: "EV-VIT-SLICE-PREACCEPTANCE", time: "2026-07-31 02:55", title: "ViT 三公开切片 minimum-5×22 preacceptance", result: "三个公开切片均完成 bootstrap/runtime SHA 验证；每片 5 架构×22 ZCP=110 行，结果均为 80 ok、30 unsupported、0 failed。该结果严格标为 partial_release_slice_preacceptance，不等同完整 ViT H1。", command: "bootstrap and runtime SHA verification; minimum-5 x 22 ZCP sweep for each public ViT slice", taskIds: ["B3", "H1"] },
     { id: "EV-VIT-CATALOG-INTEGRITY", time: "2026-07-31 02:55", title: "ViT catalog 与 canonical ID 完整性门禁", result: "catalog 在打开 benchmark 前校验 SHA、version 与 protocol；ViT source SHA 固定；JSONL 中重复 canonical architecture ID 明确拒绝，不静默覆盖。", command: "catalog pre-open validation and duplicate canonical-ID fail-closed tests", taskIds: ["B3", "H1"] },
@@ -279,7 +281,7 @@ window.ZCP_PANEL_DATA = {
     { id: "EV-FULL-GATE-309", time: "2026-07-31 01:02", title: "最终全仓质量 gate", result: "309 tests passed、第一方 source coverage 87%；Ruff、compileall、pip check、panel、diff、大文件和凭据检查全部通过。该 gate 取代 304/307 作为当前门禁口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check; repository hygiene scans", taskIds: ["A1", "E1", "G1", "H1", "I1"] },
     { id: "EV-DIRECTION-CURRENT-SCOPE-CLOSED", time: "2026-07-31 01:02", title: "Params/FLOPs 方向修复当前范围闭环", result: "历史证据重算、v2 只读迁移和混合 shard bundle 回归均完成；migration provenance 不再错误拆分 heatmap，raw artifacts 保持不改写，并通过最终 309-test gate。", command: "rebuild direction evidence; test legacy v2 reader and mixed-shard bundle; run final gate", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
     { id: "EV-NB301-STANDARD-ANALYZE", time: "2026-07-31 01:02", title: "NB301 标准 sensitivity 分析完成", result: "标准 analyze sensitivity 生成 33 条相关性、33 条跨 seed canonical-ID rank stability 和 231 条 sample-size 记录；同时修复 migration provenance 拆分 heatmap 的通用缺陷。", command: "analyze sensitivity on NB301 1000-candidate locked protocol", taskIds: ["E2", "H1"] },
-    { id: "EV-NB301-LOCKED-COMPLETE", time: "2026-07-31 01:02", title: "NB301 1000-candidate locked protocol 完成", result: "22 代理 seed 2026 为 22,000/22,000；核心 11 代理三 seed为 33,000/33,000，均 0 failed、0 duplicate；effective SHA feecded…e172。结论仅适用于 locked deterministic runtime，H1 仍等待 TNB101 与 ViT。", command: "merge and validate NB301 single-seed/core-three-seed effective scores; verify locked runtime provenance", taskIds: ["B3", "E1", "E2", "H1"] },
+    { id: "EV-NB301-LOCKED-COMPLETE", time: "2026-07-31 01:02", title: "NB301 1000-candidate locked protocol 完成", result: "22 代理 seed 2026 为 22,000/22,000；核心 11 代理三 seed为 33,000/33,000，均 0 failed、0 duplicate；effective SHA feecded…e172。结论仅适用于 locked deterministic runtime；后续 ViT 公开切片 preacceptance 已完成，但完整 identity 与 TransNAS 正式 H1 仍未完成。", command: "merge and validate NB301 single-seed/core-three-seed effective scores; verify locked runtime provenance", taskIds: ["B3", "E1", "E2", "H1"] },
     { id: "EV-INTERMEDIATE-GATE-307", time: "2026-07-31 00:30", title: "历史中间 gate 307", result: "307 tests passed、第一方 source coverage 87%；其后补充 reader legacy version/direction 迁移测试，现已由最终 309-test gate 取代。", command: "coverage run -m pytest; coverage report", taskIds: ["A1", "E1", "G1", "H1"] },
     { id: "EV-DIRECTION-HISTORY-REBUILT", time: "2026-07-31 00:30", title: "Params/FLOPs 历史方向证据重算", result: "历史 Params/FLOPs 方向证据已从原始 scores 重算并同步；reader 显式迁移 legacy version/direction，raw 文件不改写。该阶段结果随后通过混合 shard bundle 回归与最终 309-test gate。", command: "rebuild historical correlation/report evidence from raw scores; verify legacy reader migration without rewriting raw artifacts", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
     { id: "EV-NB301-SEED2027-SHARD2-RERUN", time: "2026-07-31 00:30", title: "NB301 seed 2027 shard 2 补跑完成", result: "补跑新 run bd2481702c70 为 2,750/2,750 ok、0 duplicate，scores SHA 1dbb91…a0bf；旧 0 行失败 run 保留且未改写。seed 2027/2028 的 8 个额外核心分片均完成，但 33,000 effective 合并与三 seed报告仍在进行，NB301 尚未完成。", command: "audit run bd2481702c70; merge pending after all core shards", taskIds: ["E1", "H1"] },
