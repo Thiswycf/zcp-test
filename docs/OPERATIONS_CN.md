@@ -223,28 +223,101 @@ architecture/config，并在 CLI 显式传入 `--trusted`。
 TransNAS 的 `dataset` 参数实际选择 Taskonomy 任务，不能再统一解释为分类数据集。当前官方
 PyTorch port 对应 commit `6d4231b`：
 
-| task | model output | 主真值方向 | 当前 ZCP 输入边界 |
-|---|---|---|---|
-| `class_scene` | `[B,47]` | top-1/top-5 最大化 | 4D 图像；真实 Taskonomy 数据需另行注册 |
-| `class_object` | `[B,75]` | top-1/top-5 最大化 | 同上 |
-| `room_layout` | `[B,9]` | loss 最小化 / neg-loss 最大化 | 回归标签 provider 尚未接入 |
-| `jigsaw` | `[B,1000]` | top-1/top-5 最大化 | 必须是 `[B,9,3,64,64]`；provider 尚未接入 |
-| `segmentsemantic` | `[B,17,256,256]` | mIoU/acc 最大化 | dense label provider 尚未接入 |
-| `normal` | `[B,3,256,256]` | SSIM 最大化 / L1 最小化 | dense label provider 尚未接入 |
-| `autoencoder` | `[B,3,256,256]` | SSIM 最大化 / L1 最小化 | dense target provider 尚未接入 |
+| task | model output | 正式 validation target | budget | 方向 |
+|---|---|---|---:|---|
+| `class_scene` | `[B,47]` | `valid_top1` | 25 | maximize |
+| `class_object` | `[B,75]` | `valid_top1` | 25 | maximize |
+| `room_layout` | `[B,9]` | `valid_loss` | 25 | minimize |
+| `jigsaw` | `[B,1000]` | `valid_top1` | 10 | maximize |
+| `segmentsemantic` | `[B,17,256,256]` | `valid_mIoU` | 30 | maximize |
+| `normal` | `[B,3,256,256]` | `valid_ssim` | 30 | maximize |
+| `autoencoder` | `[B,3,256,256]` | `valid_ssim` | 30 | maximize |
 
-真实标准答案仍通过 adapter 按 task/split/metric/budget 查询。只验证构模和参数代理可运行：
+### 标准答案与真实输入是两组不同资产
+
+`data bootstrap --benchmarks transnasbench101` 下载的是约 105 MB 的 tabular 标准答案，可用于
+query；它不包含 Taskonomy 图像和标签。Taskonomy 数据受独立 EULA 约束，新访问必须走
+[官方获取方式](https://docs.omnidata.vision/starter_dataset_download.html#Examples)，不得由本项目静默
+下载或再分发。许可文本见
+[StanfordVL/taskonomy data LICENSE](https://github.com/StanfordVL/taskonomy/blob/master/data/LICENSE)。
+
+更重要的是，论文正式实验使用随机选择的 24 栋建筑、120K 图像（80K/20K/20K），但公开仓库和
+发布资产没有给出可验证的 24-building split、最终训练配置或逐任务完整 transform。因此，用户提供
+Taskonomy split 后得到的是 **真实数据 contract protocol**，不是已证明的 TransNAS benchmark
+reference input。除非作者 split/config 另行取得并校验，正式 H1 输入协议必须保持 blocked。
+
+用户依法取得 TransNAS 使用的 Taskonomy/5k 子集后，数据根目录应保留上游模板结构，例如
+`building/{domain}/point_0_view_0_domain_{domain}.png`。官方 split JSON 的 `filename_list` 指向
+数据根目录内的逐 building JSON；逐 building JSON 列出包含 `{domain}` 的相对模板。生成安全索引：
+
+```bash
+zcp-test data prepare-transnas-input \
+  --data-root /path/to/taskonomy-transnas5k \
+  --split-json /path/to/taskonomy-train-split.json \
+  --split train --verify-files
+```
+
+预期输出为 `/path/to/taskonomy-transnas5k/transnas-inputs.json`。生成器拒绝绝对路径、`..`、逃逸
+symlink、重复 sample ID、缺失 domain 文件和错误上游 commit。运行期只读取该 manifest；不会回退
+CIFAR 或随机输入。跨机器复制整个数据根目录后，输入 fingerprint 保持稳定。
+
+将七任务共享根目录注册一次：
+
+```bash
+zcp-test data register dataset_transnas_taskonomy /path/to/taskonomy-transnas5k \
+  --version taskonomy-contract-v1 \
+  --protocol licensed-external-taskonomy-manifest-v1 --trusted --replace
+```
+
+分类任务使用上游 final5k mask 得到 75/47 类硬标签；Jigsaw 使用上游 1000 个 permutation，生成
+确定性的 `[B,9,3,64,64]`；其余任务读取真实回归或 dense target。评估变换标记为
+`zcp-test-deterministic-evaluation`，并记录 `training_augmentation_match=false`，因此不冒充官方训练增强。
+
+### 1% 抽样与运行
+
+micro 是 4,096 个架构的有限全集，最低 1% 为 41；macro 是 3,256 个架构，最低 1% 为 33：
+
+```bash
+CATALOG=~/.config/zcp-test/data.json
+AUDIT=/path/to/audit
+
+zcp-test benchmark sample transnasbench101 --catalog "$CATALOG" \
+  --version v10141024 --transnas-space micro --fraction 0.01 \
+  --seed 2026 --shards 4 --output "$AUDIT/transnas-micro-1pct-seed2026.json"
+
+zcp-test benchmark sample transnasbench101 --catalog "$CATALOG" \
+  --version v10141024 --transnas-space macro --fraction 0.01 \
+  --seed 2026 --shards 4 --output "$AUDIT/transnas-macro-1pct-seed2026.json"
+```
+
+架构 1% manifest 保存 `search_space_id`、micro/macro variant、原始标准答案 SHA-256 和转换文件
+SHA-256；它与输入 split fidelity 相互独立。下面的 class-object micro **contract-input** 示例产生
+`41 × 22 = 902` 行，每个“架构 × 代理”一行，但在缺少作者 24-building split/config 时不得标为
+正式 TransNAS H1：
 
 ```bash
 zcp-test evaluate --benchmark transnasbench101 \
-  --benchmark-path /path/to/data/transnasbench101/converted/transnas_micro.jsonl \
-  --transnas-space micro --dataset segmentsemantic --proxies params --count 1 \
-  --input-source random --input-size 256 --batch-size 1 --device cpu \
-  --output /path/to/runs/evaluate
+  --catalog "$CATALOG" --benchmark-version v10141024 --transnas-space micro \
+  --sample-manifest "$AUDIT/transnas-micro-1pct-seed2026.json" \
+  --dataset class_object --target-split valid --target-metric valid_top1 \
+  --epoch-budget 25 --target-direction maximize --metric-seed-reduction mean \
+  --input-source dataset --batch-size 2 --input-size 256 --classes 75 \
+  --proxies az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico \
+  --seed 2026 --gpu auto --output "$AUDIT/runs/transnas-micro-class-object"
 ```
 
-七个 head 的官方参数量与参数 shape multiset 已对照一致，但这不等于任务训练数值复现。对
-`room_layout/jigsaw/segmentsemantic/normal/autoencoder` 使用 `gradnorm/zico/te_nas/az_nas` 等标签依赖
-代理时，当前 evaluator 返回 `unsupported` 和缺失的 task input/label 协议，不伪造分类标签，也不
-静默改用随机目标。label-free proxy 若显式使用 random 输入，报告必须保留 input source/size；它不能
-与未来真实 Taskonomy 输入的结果直接合并。
+Jigsaw 必须改为 `--input-size 64`。当前标签依赖 ZCP 仅对 `class_scene`、`class_object` 和
+`jigsaw` 启用；`room_layout`、`segmentsemantic`、`normal`、`autoencoder` 尚缺经上游配置证明的统一
+ZCP loss 契约，相关调用明确写为 `unsupported`。这不是失败伪装，也不能从 coverage 分母中删除。
+专属报告的 `score_coverage.csv` 同时统计 `ok/failed/unsupported/skipped` 和 finite/paired coverage。
+
+逐 task、逐 space 生成报告，禁止跨不同 metric 平均：
+
+```bash
+zcp-test analyze benchmark --scores /path/to/effective/transnas-micro.jsonl \
+  --benchmark transnasbench101 --view transfer --benchmark-variant micro \
+  --output /path/to/reports/transnas-micro
+```
+
+七个 head 的官方参数量与参数 shape multiset 已对照一致，但这不等于真实任务数值复现。显式
+`--input-source random` 只能作为消融，不能与真实 Taskonomy 输入合并。

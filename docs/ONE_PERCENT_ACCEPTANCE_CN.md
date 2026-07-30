@@ -25,7 +25,7 @@ zcp-test benchmark sample nasbench201 --trusted \
 | NAS-Bench-201 / NATS-TSS | 六条边上的 operation 计数 | 两者可用相同 codec，但必须分别生成 manifest |
 | NATS-SSS | 总通道 bin、不同宽度数、是否非递减 | 用于避免只抽到相邻 size 编码 |
 | NAS-Bench-301 | normal/reduction 的 skip、pool、sep、dil 与重复 parent 数 | 结果仍是 surrogate association |
-| TransNAS-Bench-101 | base width 与编码 digit 计数 | micro/macro 分别生成 |
+| TransNAS-Bench-101 | base channel、macro module 计数；micro 另按六条 cell edge operation 计数 | micro/macro 严格分离，manifest 锁定 variant、source/converted SHA |
 | ViT-Bench-101 | depth 与 hidden/base dimension | AutoFormer main/ext/PiT 分切片生成 |
 
 这是**比例分层**，不是每层等量抽样；极稀有层在小样本时可能分配为 0。manifest 是抽样真源，后续

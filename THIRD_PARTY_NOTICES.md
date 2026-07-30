@@ -10,5 +10,6 @@
 - NAS-Bench-301: the official `nasbench301==0.3` package and v1.0 surrogate models are BSD-3-Clause. The adapter uses its inference API while deliberately bypassing eager imports of unused PyG-based surrogate-training classes.
 - NAS-Bench and NATS benchmark data may have separate distribution terms. `zcp-test` does not redistribute large benchmark files.
 - NAS-Bench-101 `model_metrics.proto` and its generated compatibility module derive from `google-research/nasbench@b94247037ee470418a3e56dcb83814e9be83f3a8`, Apache-2.0. The full TFRecord remains external data and is never committed.
+- TransNAS-Bench-101 commit `6d4231b1eb04e95750a5b2b6cf391db770bc25d6` is MIT licensed. The packaged `class_object_final5k.npy`, `class_scene_final5k.npy`, and `permutations_hamming_max_1000.npy` resources are copied unchanged from that commit and retain its MIT terms. Taskonomy images and labels remain external: users must obtain them lawfully under the applicable Taskonomy/TransNAS data terms; this project neither downloads nor redistributes them.
 
 Before redistributing converted ViT-Bench-101 data, confirm the data-specific permission with the Auto-Prox authors; the release does not contain a separate data manifest.

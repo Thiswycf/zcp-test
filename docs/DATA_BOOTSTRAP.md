@@ -266,6 +266,33 @@ zcp-test data bootstrap --root /path/to/data --benchmarks nasbench301_surrogate 
 zcp-test data bootstrap --root /path/to/data --benchmarks vitbench101 --catalog /path/to/data/catalog.json --yes
 ```
 
+### TransNAS Taskonomy input is not a bootstrap asset
+
+The 105 MB TransNAS file above is the tabular standard answer only. It does not include RGB images
+or seven-task labels. Taskonomy has a separate EULA that requires new access through its official
+distribution method, so `zcp-test data bootstrap` deliberately does not download or redistribute it.
+After lawful access, build a safe input manifest and register one shared root:
+
+```bash
+zcp-test data prepare-transnas-input \
+  --data-root /path/to/taskonomy-transnas5k \
+  --split-json /path/to/taskonomy-train-split.json \
+  --split train --verify-files
+
+zcp-test data register dataset_transnas_taskonomy /path/to/taskonomy-transnas5k \
+  --version taskonomy-contract-v1 \
+  --protocol licensed-external-taskonomy-manifest-v1 --trusted --replace
+```
+
+See [the Taskonomy download instructions](https://docs.omnidata.vision/starter_dataset_download.html#Examples),
+[the dataset EULA](https://github.com/StanfordVL/taskonomy/blob/master/data/LICENSE), and the detailed
+[TransNAS operations section](OPERATIONS.md#transnas-bench-101-task-model-contracts). A missing
+licensed input root is an explicit blocker for formal TransNAS ZCP evaluation, not a reason to use
+random or CIFAR data silently.
+The published benchmark describes a 24-building, 120K-image split but does not release a verifiable
+split or final transform configuration. Registered Taskonomy data is therefore contract-smoke input
+unless those author artifacts are independently supplied and checked.
+
 ViT-Bench-101 pins these source-file hashes:
 
 | Slice | SHA-256 | Metric-protocol rule |

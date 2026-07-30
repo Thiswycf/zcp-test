@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-31 tree: **309 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
+| Unit/integration baseline | Current 2026-07-31 tree: **342 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
 | Coverage | First-party source **87%**; CLI 80% and analysis 93% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
 | H1 one-percent correlations | NB101, NB201, NATS-TSS, NATS-SSS/CIFAR-10-valid and the NB301 deterministic surrogate completed their scoped protocols | In progress overall | Independent manifests, truth adapters, shard merging and three-seed core proxies; NATS-SSS transfer, TNB101 and ViT-Bench remain |
@@ -16,7 +16,7 @@ reproduction or formal benchmark accuracy.
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
 | Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
 
-The 309-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
+The 342-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
 low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
 NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
 external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
@@ -71,7 +71,7 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 |---|---|---|
 | `reference_model` | `darts`, `autoformer`, `pit`, `zennas_plainnet_mbv2`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
 | `reference_topology_pytorch_port` | `nb101_dag`, `nb201_topology`, `nats_size` | Topology is represented by a port; ZCP values are not automatically identical to the original training implementation |
-| `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; Taskonomy input/label providers remain unavailable |
+| `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; a safe Taskonomy contract provider exists, but the formal 24-building split/config is unpublished and licensed data is unavailable here |
 | `proxy_approximation` | legacy toy spaces | Explicit opt-in method smoke only; formal training and reference conclusions are prohibited |
 
 Static model fidelity does not grant formal-training readiness. Only DARTS profiles currently set
@@ -112,10 +112,15 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
 - `portable-v1` proxies and topology ports need numerical comparison with official implementations
   before paper-reproduction claims.
 - TransNAS now separates all seven task heads against upstream commit `6d4231b`; one micro fixture
-  matches official parameter counts and complete parameter-shape multisets for every task. Real
-  micro index-0 `build→params` succeeds for all tasks, and label-dependent proxies without a
-  Taskonomy provider return `unsupported`. This does not validate training numbers, real-task-input
-  ZCP values, or official latency/FLOP measurements.
+  matches official parameter counts and complete parameter-shape multisets for every task. A safe
+  manifest, seven-task real input/target loader, final5k masks and deterministic jigsaw protocol are
+  implemented. The 105 MB raw standard answer and both converted tables are checksum-locked;
+  4,096/3,256 records and all selected validation targets are complete, and 41/33-architecture 1%
+  manifests are frozen. The paper's 24-building/120K split and final transform/config were not
+  released, and separately licensed Taskonomy data is not present on this machine. Formal real-input
+  GPU ZCP therefore remains blocked. Fixtures, arbitrary Taskonomy splits, and random inputs are not
+  accepted as formal substitutes; label-dependent regression/dense proxies remain explicitly
+  unsupported pending a source-backed loss contract.
 - The released PiT example completes `load → build → forward`; its 893,828 parameters and parameter
   shape multiset match Auto-Prox `90ed458`. MAC validation, formal training and KD reproduction are
   still outstanding, and vanilla/KD standard answers remain separate query protocols.

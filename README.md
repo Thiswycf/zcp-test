@@ -233,6 +233,13 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   macro, NAS-Bench-301 performance surrogate, and ViT-Bench AutoFormer/PiT using the machine-local
   catalog. Other machines must bootstrap or register their own paths; repository configuration
   never stores host paths.
+- TransNAS tabular answers and Taskonomy inputs are separate assets. The raw/converted answers and
+  41/33-architecture micro/macro 1% manifests are checksum-locked, and a safe seven-task input
+  contract provider is implemented. The paper's 24-building/120K split and final config are not
+  public, and separately licensed Taskonomy data is not present on this machine. The formal real-input
+  22-proxy sweep therefore remains blocked; arbitrary Taskonomy splits and random/CIFAR fixtures are
+  not substitutes.
+  See the [TransNAS preflight evidence](docs/evidence/TRANSNAS_PREFLIGHT_CN.md).
 - The formal NAS-Bench-101 1% scoped protocol is accepted on 4,237 stratified architectures:
   all 22 proxies at seed 2026 completed 93,214/93,214 task keys, and the core 11 proxies at seeds
   2026/2027/2028 completed 139,821/139,821 task keys. Budget-repeat analyses for `mean`, `min`, and

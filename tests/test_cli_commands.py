@@ -113,6 +113,47 @@ def test_nb301_sample_parser_accepts_generated_population_count():
     assert args.count == 1000
 
 
+@pytest.mark.parametrize(
+    ("metric_name", "expected"),
+    [
+        ("valid_neg_loss", "maximize"),
+        ("valid-negative-loss", "maximize"),
+        ("valid_loss", "minimize"),
+        ("final_training_time", "minimize"),
+        ("valid_top1", "maximize"),
+    ],
+)
+def test_target_direction_inference_preserves_negative_loss_semantics(
+    metric_name, expected
+):
+    assert cli._infer_target_direction(metric_name) == expected
+
+
+def test_prepare_transnas_input_parser_defaults_output_to_data_root():
+    args = cli.build_parser().parse_args(
+        [
+            "data",
+            "prepare-transnas-input",
+            "--data-root",
+            "/taskonomy",
+            "--split-json",
+            "/taskonomy/train.json",
+            "--verify-files",
+        ]
+    )
+
+    assert args.action == "prepare-transnas-input"
+    assert args.output is None
+    assert args.verify_files is True
+
+
+def test_transnas_proxy_support_reflects_real_jigsaw_input_contract():
+    assert cli._transnas_unsupported_reason("transnasbench101", "jigsaw", "gradnorm") is None
+    reason = cli._transnas_unsupported_reason("transnasbench101", "normal", "gradnorm")
+    assert reason is not None and "label protocol is not implemented" in reason
+    assert cli._transnas_unsupported_reason("transnasbench101", "normal", "params") is None
+
+
 def test_benchmark_study_frame_retains_failed_primary_calls(tmp_path):
     scores = tmp_path / "scores.jsonl"
     rows = [
@@ -301,6 +342,25 @@ def test_cli_path_resolution_failures(tmp_path):
     )
     with pytest.raises(FileNotFoundError, match="data bootstrap"):
         cli._resolve_benchmark_path(args)
+
+
+def test_transnas_tasks_share_one_registered_taskonomy_root(tmp_path):
+    root = tmp_path / "taskonomy"
+    root.mkdir()
+    catalog = tmp_path / "catalog.json"
+    cli.DataRegistry(catalog).register(
+        cli.DataAsset(
+            "dataset_transnas_taskonomy",
+            str(root),
+            "transnas-final5k",
+            protocol="licensed-external-taskonomy-manifest-v1",
+            trusted=True,
+        )
+    )
+    args = argparse.Namespace(data_root=None, catalog=str(catalog))
+
+    assert cli._resolve_data_root(args, "class_object") == str(root)
+    assert cli._resolve_data_root(args, "segmentsemantic") == str(root)
 
 
 def test_inline_architecture_validation_errors(tmp_path):

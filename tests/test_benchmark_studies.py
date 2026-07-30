@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 
 import pandas as pd
+import pytest
 
 from zcp_test.cli import main
 from zcp_test.reporting.benchmark_darts import nasbench301_darts_study
@@ -169,6 +170,47 @@ def test_vit_and_transnas_studies_report_feature_and_task_correlations():
         transfer
     )
     assert len(transfer["architecture_factors"]) == 33
+    assert transfer["score_coverage"]["paired_coverage"].eq(1.0).all()
+
+
+def test_transnas_transfer_study_reports_failed_and_unsupported_coverage(tmp_path):
+    rows = []
+    for architecture_id, score, target, status in (
+        ("a", 1.0, 1.0, "ok"),
+        ("b", 2.0, 2.0, "ok"),
+        ("c", None, 3.0, "failed"),
+        ("d", None, 4.0, "unsupported"),
+    ):
+        rows.append(
+            {
+                "search_space_id": "transnas_micro",
+                "dataset": "normal",
+                "architecture_id": architecture_id,
+                "proxy_id": "proxy",
+                "component": "score",
+                "score": score,
+                "target_value": target,
+                "direction": "maximize",
+                "status": status,
+            }
+        )
+
+    tables = transnas_transfer_study(pd.DataFrame(rows))
+    coverage = tables["score_coverage"].iloc[0]
+    assert coverage["total_calls"] == 4
+    assert coverage["ok_calls"] == 2
+    assert coverage["failed_calls"] == 1
+    assert coverage["unsupported_calls"] == 1
+    assert coverage["paired_count"] == 2
+    assert coverage["paired_coverage"] == pytest.approx(0.5)
+    report = write_benchmark_study(
+        tables,
+        tmp_path / "transnas-transfer",
+        view="transfer",
+        benchmark_id="transnasbench101",
+    )
+    assert "score_coverage.csv" in report["artifacts"]
+    assert (tmp_path / "transnas-transfer" / "score_coverage.csv").is_file()
 
 
 def test_pit_features_use_stage_embedding_dimensions_and_task_transfer_ignores_target_fields():

@@ -58,18 +58,43 @@ def architecture_stratum(benchmark_id: str, specification: Mapping[str, Any]) ->
         return _stable_key(result)
     if benchmark_id == "transnasbench101":
         encoding = str(specification["architecture"])
-        width, _, topology = encoding.partition("-")
-        digits = Counter(character for character in topology if character.isdigit())
-        return _stable_key(
-            {
-                "width": int(width),
-                "zeros": digits["0"],
-                "ones": digits["1"],
-                "twos": digits["2"],
-                "threes": digits["3"],
-                "fours": digits["4"],
-            }
-        )
+        parts = encoding.split("-")
+        if len(parts) != 3:
+            raise ValueError(f"Invalid TransNAS architecture: {encoding!r}")
+        base_channel, macro_code, cell_code = parts
+        if not base_channel.isdigit() or not macro_code or any(
+            digit not in "1234" for digit in macro_code
+        ):
+            raise ValueError(f"Invalid TransNAS architecture: {encoding!r}")
+        macro_digits = Counter(macro_code)
+        stratum: dict[str, Any] = {
+            "variant": "macro" if cell_code == "basic" else "micro",
+            "base_channel": int(base_channel),
+            "macro_module_count": len(macro_code),
+            "macro_code_1_count": macro_digits["1"],
+            "macro_code_2_count": macro_digits["2"],
+            "macro_code_3_count": macro_digits["3"],
+            "macro_code_4_count": macro_digits["4"],
+        }
+        if cell_code != "basic":
+            cell_groups = cell_code.split("_")
+            if tuple(map(len, cell_groups)) != (1, 2, 3) or any(
+                operation not in "0123"
+                for group in cell_groups
+                for operation in group
+            ):
+                raise ValueError(f"Invalid TransNAS micro architecture: {encoding!r}")
+            cell_operations = Counter("".join(cell_groups))
+            stratum.update(
+                {
+                    "cell_operation_count": 6,
+                    "cell_op_0_count": cell_operations["0"],
+                    "cell_op_1_count": cell_operations["1"],
+                    "cell_op_2_count": cell_operations["2"],
+                    "cell_op_3_count": cell_operations["3"],
+                }
+            )
+        return _stable_key(stratum)
     if benchmark_id == "vitbench101":
         depth = specification.get("depth")
         if isinstance(depth, list):
@@ -119,10 +144,15 @@ def create_sample_manifest(
         raise ValueError("shards must be positive")
     groups: dict[str, list[dict[str, Any]]] = defaultdict(list)
     architecture_ids: set[str] = set()
+    search_space_ids: set[str] = set()
+    sampling_provenance = dict(
+        getattr(architectures, "sampling_provenance", {}) or {}
+    )
     for position, architecture in enumerate(architectures):
         if architecture.architecture_id in architecture_ids:
             raise ValueError(f"Duplicate architecture ID: {architecture.architecture_id}")
         architecture_ids.add(architecture.architecture_id)
+        search_space_ids.add(architecture.search_space_id)
         index = position if architecture.benchmark_index is None else architecture.benchmark_index
         stratum = architecture_stratum(benchmark_id, architecture.spec)
         groups[stratum].append(
@@ -147,10 +177,17 @@ def create_sample_manifest(
         selected.extend(records[: allocations[key]])
     selected.sort(key=lambda record: record["benchmark_index"])
     shard_records = [selected[index::shards] for index in range(shards)]
-    return {
+    if len(search_space_ids) != 1:
+        raise ValueError("Sample population must contain exactly one search space")
+    search_space_id = next(iter(search_space_ids))
+    recorded_search_space = sampling_provenance.get("search_space_id")
+    if recorded_search_space and recorded_search_space != search_space_id:
+        raise ValueError("Sampling provenance search_space_id does not match architectures")
+    manifest = {
         "schema_version": 1,
         "benchmark_id": benchmark_id,
         "benchmark_version": benchmark_version,
+        "search_space_id": search_space_id,
         "strategy": "proportional_feature_stratified",
         "seed": seed,
         "population_size": population_size,
@@ -167,6 +204,21 @@ def create_sample_manifest(
             for index, records in enumerate(shard_records)
         ],
     }
+    if benchmark_id == "transnasbench101":
+        variant = sampling_provenance.get("benchmark_variant")
+        expected_variant = search_space_id.removeprefix("transnas_")
+        if variant and variant != expected_variant:
+            raise ValueError("Sampling provenance variant does not match search_space_id")
+        manifest.update(
+            {
+                "benchmark_variant": variant or expected_variant,
+                "source_sha256": sampling_provenance.get("source_sha256"),
+                "converted_file_sha256": sampling_provenance.get(
+                    "converted_file_sha256"
+                ),
+            }
+        )
+    return manifest
 
 
 def load_sample_indices(
@@ -174,6 +226,7 @@ def load_sample_indices(
     *,
     benchmark_id: str,
     benchmark_version: str | None,
+    search_space_id: str | None = None,
     shard_index: int | None = None,
 ) -> tuple[list[int], dict[str, Any]]:
     source = Path(path)
@@ -185,6 +238,9 @@ def load_sample_indices(
     recorded_version = manifest.get("benchmark_version")
     if recorded_version and benchmark_version and str(recorded_version) != str(benchmark_version):
         raise ValueError("Sample manifest benchmark_version does not match evaluate benchmark")
+    recorded_space = manifest.get("search_space_id")
+    if recorded_space and search_space_id and str(recorded_space) != str(search_space_id):
+        raise ValueError("Sample manifest search_space_id does not match evaluate search space")
     if shard_index is None:
         indices = [int(record["benchmark_index"]) for record in manifest["selected"]]
     else:

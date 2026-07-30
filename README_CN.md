@@ -120,6 +120,11 @@ zcp-test data import-manifest \
 - 已通过机器本地 catalog 完成 NAS-Bench-101、NAS-Bench-201、NATS-TSS/SSS、TransNAS
   micro/macro、NAS-Bench-301 performance surrogate、ViT-Bench AutoFormer/PiT 的真实 index-0
   查询；其他机器必须使用 `data bootstrap` 或本地 catalog 注册路径，仓库配置不保存本机路径。
+- TransNAS 的 tabular 标准答案与 Taskonomy 输入是不同资产。原始/转换标准答案和 41/33 个架构的
+  1% micro/macro manifest 已锁定；安全七任务 contract input provider 已实现。论文所用
+  24-building/120K split 与最终 config 未公开，Taskonomy 数据还受独立 EULA 约束且本机尚未取得，
+  因此正式真实输入 22-ZCP sweep 仍为 blocked，不能用任意 Taskonomy split、random/CIFAR fixture
+  冒充。见 [TransNAS 预检证据](docs/evidence/TRANSNAS_PREFLIGHT_CN.md)。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
 - DARTS 正式 profile 已放行；AutoFormer 与 MobileNet 配置仍是可审计的候选 recipe，不得把
   `--smoke` 写成正式训练验收。`torchrun` 必须显式提供按 UUID 排列的 `CUDA_VISIBLE_DEVICES`；

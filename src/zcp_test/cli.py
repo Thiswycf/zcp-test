@@ -183,17 +183,25 @@ def _transnas_unsupported_reason(
         return None
     load_builtin_proxies()
     capability = PROXIES.create(proxy_id).capability
-    if capability.requires_labels and task not in {"class_scene", "class_object"}:
+    if capability.requires_labels and task not in {
+        "class_scene",
+        "class_object",
+        "jigsaw",
+    }:
         return (
             f"{proxy_id} requires labels/loss, but the {task} Taskonomy label protocol "
             "is not implemented"
         )
-    if task == "jigsaw" and capability.requires_data:
-        return (
-            f"{proxy_id} requires the TransNAS jigsaw [batch,9,3,64,64] input protocol, "
-            "which is not implemented"
-        )
     return None
+
+
+def _infer_target_direction(metric_name: str | None) -> str:
+    normalized = str(metric_name or "").casefold().replace("-", "_")
+    if any(token in normalized for token in ("neg_loss", "negative_loss")):
+        return "maximize"
+    if any(token in normalized for token in ("loss", "error", "time", "latency")):
+        return "minimize"
+    return "maximize"
 
 
 def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
@@ -202,16 +210,22 @@ def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
     catalog = getattr(args, "catalog", None)
     if not catalog:
         return None
-    asset_id = f"dataset_{'cifar10' if dataset == 'cifar10-valid' else dataset}"
     registry = DataRegistry(catalog)
-    try:
-        asset = registry.get(asset_id)
-    except KeyError:
-        return None
-    verification = registry.verify(asset_id)
-    if not verification["valid"]:
-        raise FileNotFoundError(f"Registered dataset asset is invalid: {asset_id}")
-    return asset.path
+    asset_ids = [f"dataset_{'cifar10' if dataset == 'cifar10-valid' else dataset}"]
+    from zcp_test.data.transnas_inputs import is_transnas_task
+
+    if is_transnas_task(dataset):
+        asset_ids.append("dataset_transnas_taskonomy")
+    for asset_id in asset_ids:
+        try:
+            asset = registry.get(asset_id)
+        except KeyError:
+            continue
+        verification = registry.verify(asset_id)
+        if not verification["valid"]:
+            raise FileNotFoundError(f"Registered dataset asset is invalid: {asset_id}")
+        return asset.path
+    return None
 
 
 def _resolve_benchmark_path(args: argparse.Namespace) -> str:
@@ -960,6 +974,26 @@ def command_benchmark_sample(args: argparse.Namespace) -> None:
 
 
 def command_data(args: argparse.Namespace) -> None:
+    if args.action == "prepare-transnas-input":
+        from zcp_test.data.transnas_inputs import generate_transnas_input_manifest
+
+        output = args.output or str(Path(args.data_root) / "transnas-inputs.json")
+        manifest = generate_transnas_input_manifest(
+            args.split_json,
+            args.data_root,
+            output,
+            split=args.split,
+            verify_files=args.verify_files,
+        )
+        _json(
+            {
+                "output": str(Path(output).expanduser().resolve()),
+                "records": len(manifest["records"]),
+                "split": manifest["split"],
+                "upstream_commit": manifest["upstream"]["commit"],
+            }
+        )
+        return
     if args.action == "checklist":
         records = data_checklist(args.root, args.catalog)
         if args.json:
@@ -1094,6 +1128,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                 args.sample_manifest,
                 benchmark_id=adapter.benchmark_id,
                 benchmark_version=resolved_benchmark_version,
+                search_space_id=adapter.search_space_id,
                 shard_index=args.sample_shard,
             )
             expected_ids = {
@@ -1145,12 +1180,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     "specify --epoch-budget"
                 )
     if target_direction == "auto":
-        metric_name = str(args.target_metric or "").casefold()
-        target_direction = (
-            "minimize"
-            if any(token in metric_name for token in ("loss", "error", "time", "latency"))
-            else "maximize"
-        )
+        target_direction = _infer_target_direction(args.target_metric)
     with _selected_device(args) as (device, selection):
         import torch
 
@@ -2086,6 +2116,13 @@ def build_parser() -> argparse.ArgumentParser:
     convert_vit.add_argument("--trusted", action="store_true")
     convert_vit.add_argument("--catalog", default=data_default)
     convert_vit.set_defaults(function=command_data)
+    prepare_transnas_input = data_actions.add_parser("prepare-transnas-input")
+    prepare_transnas_input.add_argument("--data-root", required=True)
+    prepare_transnas_input.add_argument("--split-json", required=True)
+    prepare_transnas_input.add_argument("--output")
+    prepare_transnas_input.add_argument("--split")
+    prepare_transnas_input.add_argument("--verify-files", action="store_true")
+    prepare_transnas_input.set_defaults(function=command_data)
     for command, registry in (("benchmark", "benchmark"), ("space", "space")):
         group = subparsers.add_parser(command)
         actions = group.add_subparsers(dest="action", required=True)

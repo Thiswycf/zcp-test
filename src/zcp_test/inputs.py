@@ -78,20 +78,30 @@ def make_input_batch(
     elif source == "dataset":
         if not data_root:
             raise ValueError("--input-source dataset requires --data-root or a configured dataset asset")
-        inputs, labels, sample_ids, transform_name = _dataset_batch(
-            dataset, Path(data_root).expanduser(), batch_size, input_size, seed
+        from zcp_test.data.transnas_inputs import (
+            is_transnas_task,
+            load_transnas_input_batch,
         )
-        protocol = {
-            "source": "dataset",
-            "dataset": dataset,
-            "seed": seed,
-            "sample_ids": sample_ids,
-            "transform": transform_name,
-            "batch_size": batch_size,
-            "input_size": input_size,
-            "label_protocol": "published-labels",
-            "data_root": str(Path(data_root).expanduser().resolve()),
-        }
+
+        if is_transnas_task(dataset):
+            inputs, labels, protocol = load_transnas_input_batch(
+                dataset, data_root, batch_size, input_size, seed
+            )
+        else:
+            inputs, labels, sample_ids, transform_name = _dataset_batch(
+                dataset, Path(data_root).expanduser(), batch_size, input_size, seed
+            )
+            protocol = {
+                "source": "dataset",
+                "dataset": dataset,
+                "seed": seed,
+                "sample_ids": sample_ids,
+                "transform": transform_name,
+                "batch_size": batch_size,
+                "input_size": input_size,
+                "label_protocol": "published-labels",
+                "data_root": str(Path(data_root).expanduser().resolve()),
+            }
     else:
         raise ValueError(f"Unknown input source: {source}")
     fingerprint = _fingerprint(inputs, labels, protocol)

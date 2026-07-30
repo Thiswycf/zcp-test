@@ -288,7 +288,39 @@ logits, semantic segmentation produces `[B,17,256,256]`, and normal/autoencoder 
 `[B,3,256,256]`. Official parameter counts and complete parameter-shape multisets match for all seven
 heads.
 
-Ground truth remains task/split/metric/budget-specific. Until Taskonomy input and label providers are
-registered, `params` can validate model construction, while label-dependent proxies on regression,
-jigsaw and dense tasks return `unsupported` with an explicit protocol reason. Random-input,
-label-free ZCP runs remain labelled ablations and must not be pooled with future real-task input.
+The tabular benchmark and Taskonomy inputs are separate assets. Bootstrap downloads the public
+105 MB standard-answer file; it does not download Taskonomy. New Taskonomy access must follow the
+[official distribution method](https://docs.omnidata.vision/starter_dataset_download.html#Examples)
+and its [dataset EULA](https://github.com/StanfordVL/taskonomy/blob/master/data/LICENSE). After lawful
+access, create a safe relative-path manifest and register one shared root:
+
+The paper used a random 24-building, 120K-image split (80K/20K/20K), but the public release does not
+contain a verifiable building split, final training config, or complete per-task transforms. A
+user-supplied Taskonomy split therefore supports a real-data **contract protocol**, not an accepted
+TransNAS reference-input reproduction. Formal H1 remains blocked unless the author split/config is
+obtained and verified.
+
+```bash
+zcp-test data prepare-transnas-input \
+  --data-root /path/to/taskonomy-transnas5k \
+  --split-json /path/to/taskonomy-train-split.json \
+  --split train --verify-files
+
+zcp-test data register dataset_transnas_taskonomy /path/to/taskonomy-transnas5k \
+  --version taskonomy-contract-v1 \
+  --protocol licensed-external-taskonomy-manifest-v1 --trusted --replace
+```
+
+The loader rejects absolute/escaping paths and missing task assets, never substitutes CIFAR or
+random inputs, and records sample IDs, upstream commit, manifest checksum, transform fidelity and
+license boundary. Class-object/scene use the official final5k masks, and jigsaw uses the official
+1,000-permutation `[B,9,3,64,64]` protocol. The deterministic evaluation transform is explicitly not
+claimed to reproduce upstream training augmentation.
+
+Formal validation targets are: class scene/object `valid_top1@25`, room layout `valid_loss@25`
+(minimize), jigsaw `valid_top1@10`, segmentation `valid_mIoU@30`, and normal/autoencoder
+`valid_ssim@30`. Micro and macro are finite populations of 4,096 and 3,256 architectures, so 1%
+means 41 and 33 architectures. Analyze every task and space separately. Label-dependent proxies are
+enabled for the three classification tasks; regression and dense tasks remain explicitly
+`unsupported` until a source-backed ZCP loss contract is implemented. The transfer report includes
+`score_coverage.csv` with ok/failed/unsupported/skipped counts and paired coverage.

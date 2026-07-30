@@ -38,6 +38,9 @@ zcp-test = "zcp_test.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+zcp_test = ["resources/transnas/*.npy"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"

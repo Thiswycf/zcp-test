@@ -1157,6 +1157,11 @@ def transnas_transfer_study(
             "filter the desired metric and split explicitly before calling it"
         )
     working = frame.assign(
+        status=(
+            frame["status"].fillna("failed").astype(str).str.casefold()
+            if "status" in frame
+            else "ok"
+        ),
         adjusted_score=np.where(
             directions.eq("minimize"),
             -pd.to_numeric(frame["score"], errors="coerce"),
@@ -1165,6 +1170,39 @@ def transnas_transfer_study(
         numeric_target=pd.to_numeric(frame["target_value"], errors="coerce"),
     )
     group_columns = list(protocol_fields)
+    valid_statuses = {"ok", "failed", "unsupported", "skipped"}
+    invalid_statuses = sorted(set(working["status"]) - valid_statuses)
+    if invalid_statuses:
+        raise ValueError(
+            f"TransNAS transfer study has invalid statuses: {invalid_statuses}"
+        )
+    coverage = (
+        working.assign(
+            finite_score=np.isfinite(working["adjusted_score"]),
+            finite_target=np.isfinite(working["numeric_target"]),
+            paired=lambda value: value["finite_score"] & value["finite_target"],
+            ok=lambda value: value["status"].eq("ok"),
+            failed=lambda value: value["status"].eq("failed"),
+            unsupported=lambda value: value["status"].eq("unsupported"),
+            skipped=lambda value: value["status"].eq("skipped"),
+        )
+        .groupby(group_columns, as_index=False, dropna=False)
+        .agg(
+            total_calls=("architecture_id", "size"),
+            unique_architectures=("architecture_id", "nunique"),
+            ok_calls=("ok", "sum"),
+            failed_calls=("failed", "sum"),
+            unsupported_calls=("unsupported", "sum"),
+            skipped_calls=("skipped", "sum"),
+            finite_score_count=("finite_score", "sum"),
+            finite_target_count=("finite_target", "sum"),
+            paired_count=("paired", "sum"),
+        )
+    )
+    coverage["score_coverage"] = coverage["finite_score_count"] / coverage[
+        "total_calls"
+    ]
+    coverage["paired_coverage"] = coverage["paired_count"] / coverage["total_calls"]
     quality_records: list[dict[str, Any]] = []
     for key, group in working.groupby(group_columns, dropna=False, sort=True):
         identifiers = dict(zip(group_columns, key, strict=True))
@@ -1233,6 +1271,7 @@ def transnas_transfer_study(
         )
     )
     result = {
+        "score_coverage": coverage,
         "task_quality": task_quality,
         "task_transfer": task_transfer,
         "space_summary": space_summary,

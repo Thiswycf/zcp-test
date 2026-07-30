@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "benchmark_id": "transnasbench101",
+  "benchmark_version": "v10141024",
+  "implementation_commit": "6d4231b1eb04e95750a5b2b6cf391db770bc25d6",
+  "status": "blocked_pending_author_split_config_and_licensed_taskonomy_data",
+  "raw_sha256": "1974b0ba21872494fabb541616e9bdae740242eecd6df5c5893747291364bc10",
+  "spaces": {
+    "micro": {
+      "population": 4096,
+      "unique_architectures": 4096,
+      "converted_sha256": "cc6c9fb2cd62e9394deecdb24f86c58536976a5315c7ebe8dfdbe57b93753ee2",
+      "sample_count": 41,
+      "stratum_count": 84,
+      "sample_manifest_sha256": "4bb5793fd50ae85e260acd763237c8e93dcf118af6307c56e6a008fe3b4863cc"
+    },
+    "macro": {
+      "population": 3256,
+      "unique_architectures": 3256,
+      "converted_sha256": "4818b9e6f6b72a0f089eb82797ade56c6626531911c8f6edde61a83c66ae6bd4",
+      "sample_count": 33,
+      "stratum_count": 81,
+      "sample_manifest_sha256": "d58a74138bcf1d2e624a932695e0aa50f49d421ad6b7c1114c9ce9e26d233ede"
+    }
+  },
+  "targets_complete": {
+    "class_scene": "valid_top1@25:maximize",
+    "class_object": "valid_top1@25:maximize",
+    "room_layout": "valid_loss@25:minimize",
+    "jigsaw": "valid_top1@10:maximize",
+    "segmentsemantic": "valid_mIoU@30:maximize",
+    "normal": "valid_ssim@30:maximize",
+    "autoencoder": "valid_ssim@30:maximize"
+  },
+  "formal_gpu_sweep_completed": false,
+  "formal_gpu_sweep_blocker": "The author 24-building split/final config is not public, and separately licensed Taskonomy inputs are not present on this machine"
+}

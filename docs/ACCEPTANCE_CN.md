@@ -7,7 +7,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-31 当前工作树：**309 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-31 当前工作树：**342 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI 80%、analysis/proxy studies 93%、benchmark report 96%、reports 100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic surrogate 分别完成 22 代理 seed 2026 和核心 11 代理三 seed | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | 证明独立真值/manifest/分片/相关性及核心三 seed；NB101 限定为 4,237 个分层样本，NB301 限定为 1,000 个 surrogate 候选，TNB101 与 ViT-Bench 仍待 |
@@ -15,7 +15,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
 
-309 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
+342 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
 `scores.jsonl` SHA、失败键和相关性摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
@@ -54,7 +54,7 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 | Fidelity | 空间 | 验收后果 |
 |---|---|---|
 | `reference_topology_pytorch_port` | `nb101_dag`、`nb201_topology`、`nats_size` | 拓扑由 port 表示，ZCP 不自动等同 benchmark 原训练实现 |
-| `reference_topology_pytorch_port` | `transnas_micro`、`transnas_macro` | 官方 encoder 与七个 task head 的 PyTorch port；Taskonomy input/label provider 尚未接入 |
+| `reference_topology_pytorch_port` | `transnas_micro`、`transnas_macro` | 官方 encoder 与七个 task head 的 PyTorch port；真实 Taskonomy contract provider 已实现，但正式 24-building split/config 未公开且本机无许可数据 |
 | `reference_model` | `darts`、`autoformer`、`pit`、`zennas_plainnet_mbv2`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
 | `proxy_approximation` | legacy toy | 只适合显式 opt-in 的方法学 smoke，不得参与正式训练或 reference 结论 |
 
@@ -113,9 +113,14 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   [`docs/evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
 - TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
-  与完整 parameter-shape multiset 在七个任务均一致。真实 micro index-0 的七个 task
-  `build→params` 全部成功；缺 Taskonomy label/provider 的标签依赖代理明确为 `unsupported`。这仍不
-  证明训练数值、真实 task-input ZCP 或官方 latency/FLOPs 复现。
+  与完整 parameter-shape multiset 在七个任务均一致。已实现受控 Taskonomy manifest、七任务真实
+  input/target loader、final5k 分类 mask 和确定性 Jigsaw。原始 105 MB 标准答案 SHA-256 为
+  `1974b0ba…1364bc10`，micro/macro 转换表分别锁定为 `cc6c9fb2…3753ee2` 与
+  `4818b9e6…6ae6bd4`；4,096/3,256 条及七任务 validation target 均完整有限。正式 1% manifest
+  已冻结为 41/33 个架构。论文使用的 24-building/120K split 与最终 transform/config 未随公开发布；
+  本机也尚无用户依法取得的 Taskonomy 数据。因此真实 task-input GPU ZCP 仍为 blocked，不能用
+  fixture、Taskonomy 任意 split 或 random 输入冒充正式 H1；回归/dense 标签依赖 ZCP 也继续明确
+  `unsupported`，直至 loss 契约有上游证据。
 - PiT 已对发布切片的三阶段规格完成 `load → build → forward`；同一规格与 Auto-Prox
   `90ed458` 上游均为 893,828 参数且参数 shape multiset 一致。MAC golden、正式训练和 KD 复现
   仍未完成；vanilla/KD 标准答案只作为独立指标查询。
