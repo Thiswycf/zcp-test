@@ -2,7 +2,8 @@
 
 通用相关性只能回答“某个 ZCP 与某个真值是否同序”。不同 benchmark 还需要检查不同的结构
 因素：NAS-Bench-101 的训练预算、NAS-Bench-201/NATS-TSS 的固定边操作、NATS-SSS 的逐 stage
-通道、TransNAS-Bench-101 的任务迁移，以及 ViT-Bench-101 的深度、维度、head 和 MLP ratio。
+通道、NAS-Bench-301 的 DARTS operation×topology、TransNAS-Bench-101 的任务与架构因素，
+以及 ViT-Bench-101 的深度、维度、head 和 MLP ratio。
 
 统一入口为：
 
@@ -22,6 +23,7 @@ zcp-test analyze benchmark \
 | `nasbench201` | `topology` | 六条固定边上的操作分布与结构偏置 |
 | `nats_tss` | `topology` | 与 NB201 共享 topology，但真值来源保持 NATS-TSS 身份 |
 | `nats_sss` | `size` | 五个 stage 的 channel 与整体宽度结构 |
+| `nasbench301_surrogate` | `darts` | normal/reduce cell 的操作、来源节点和位置交互 |
 | `transnasbench101` | `transfer` | micro/macro 内不同任务的 ZCP transfer |
 | `vitbench101` | `architecture` | AutoFormer/PiT 的结构特征相关性 |
 
@@ -121,6 +123,8 @@ benchmark 标签。
   中位数及相对该 edge 总体均值的偏移；
 - `topology_operations.png/svg`：操作分布。
 - `topology_feature_correlations.png/svg`：结构特征相关性预览。
+- `matched_pairs.csv`、`matched_pair_summary.csv`：固定其余五条边、仅一条边操作不同的局部
+  对比、方向一致率与 ties；这是观察性 matched contrast，不是因果替换实验。
 
 `operation_effects.csv` 可以直接检查某个 ZCP 是否系统性偏好特定边上的 `skip_connect`、卷积或
 `none`，无需手工 join。但它仍是观察性条件统计：操作之间存在强组合约束，不能把 delta 解释为
@@ -147,13 +151,45 @@ zcp-test analyze benchmark \
 - `stage_sensitivity.csv`：只保留逐 stage channel，便于比较早期与后期 stage 的敏感性；
 - `size_stages.png/svg`：逐 stage channel 分布。
 - `size_feature_correlations.png/svg`：宽度特征相关性预览。
+- `size_controlled_correlations.csv`：控制总 channel sum 后的 partial Spearman；
+- `size_strata.csv`：总宽度分位区间内的 ZCP—真值相关性，用于检查规模混杂。
 
 先比较 `outcome=score` 与 `outcome=target`：若某个宽度特征与 ZCP 高相关、与真值低相关，ZCP
 可能主要编码模型规模；若两者都高，还需在 `size_channel_sum` 分位区间内重复通用相关性，排除
 规模混杂。stage channel 是离散变量且 ties 较多，优先解读 Spearman/Kendall，不应只看 Pearson。
 不要把 NATS-SSS 的 90-epoch 结果与 TSS 的 200-epoch 结果放在同一相关性组。
 
-## 5. TransNAS-Bench-101 任务迁移
+## 5. NAS-Bench-301 DARTS 联合研究
+
+```bash
+zcp-test analyze benchmark \
+  --scores /path/to/nb301/scores.jsonl \
+  --benchmark nasbench301_surrogate \
+  --view darts \
+  --component score \
+  --output /path/to/reports/nb301-darts
+```
+
+产物包括 `architectures.csv`、`edges.csv`、`correlations.csv`、
+`operation_topology_interactions.csv` 和交互热力图。特征分开记录 normal/reduce cell 的 operation
+count、source node、cell input/intermediate edge、edge span、normal-reduce balance 和 cell
+interaction。条件效应按 `cell × node × source_class × operation` 计算，并保留样本量。
+
+NB301 真值是 surrogate prediction；`with_noise=False` 与 noisy repeat 必须分协议。当前视图支持
+deterministic surrogate 结果；如果输入含不同 surrogate seed/noise 协议，必须先过滤或分别报告。
+NAS-Bench-Suite-Zero 和 MeCo 对 NB301 有直接 ZCP 研究依据；本项目的 operation×topology
+条件分解是依据 DARTS 编码特点的推广，不是上述论文原表复刻。
+
+典型实例：
+
+```bash
+zcp-test analyze benchmark \
+  --scores examples/studies/data/nasbench301_darts.jsonl \
+  --benchmark nasbench301_surrogate \
+  --output /tmp/zcp-test-examples/nb301
+```
+
+## 6. TransNAS-Bench-101 任务与架构
 
 先为多个任务分别 evaluate，保证相同 space、architecture ID 集合、metric 和 split。然后：
 
@@ -168,13 +204,25 @@ zcp-test analyze benchmark \
   --output /path/to/reports/transnas-transfer
 ```
 
-产物：`task_quality.csv`、`task_transfer.csv`、`space_summary.csv` 和静态图。micro 与 macro
+产物：`task_quality.csv`、`task_transfer.csv`、`space_summary.csv`、`architecture_features.csv`、
+`architecture_factors.csv`、`feature_correlations.csv`、`factor_effects.csv` 和 task-transfer heatmap。
+micro 编码拆分六条 edge 的 `none/skip/conv1x1/conv3x3`；macro 编码拆分 module 的 normal、
+channel×2、resolution/2 和联合缩放。micro 与 macro
 必须分开；同一 task/architecture/proxy/component 存在重复行时命令会失败，要求先明确选择
 metric、split、budget 或 run，而不是任意取第一条。
 
 搜索和聚合权重只能由 validation 协议确定。test task/metric 只能用于最终报告。
 
-## 6. ViT-Bench-101 结构研究
+典型实例：
+
+```bash
+zcp-test analyze benchmark \
+  --scores examples/studies/data/transnas_tasks.jsonl \
+  --benchmark transnasbench101 \
+  --output /tmp/zcp-test-examples/tnb101
+```
+
+## 7. ViT-Bench-101 结构研究
 
 ```bash
 zcp-test analyze benchmark \
@@ -186,13 +234,47 @@ zcp-test analyze benchmark \
   --output /path/to/reports/vit-architecture
 ```
 
-`features.csv` 包含总 depth、stage 数、hidden/base dimension、head 与 MLP ratio 的均值/范围/
-标准差和派生宽度；`correlations.csv` 分别报告特征与 target、特征与 ZCP score 的相关性。
+`features.csv` 包含总 depth、stage 数、hidden/base dimension、head dimension、MLP ratio、
+MLP width 以及明确标为 proxy 的 attention/MLP block parameter 指标；`layers.csv` 展开每层/stage；
+`correlations.csv` 分别报告特征与 target、特征与 ZCP score 的相关性。AutoFormer 的
+`hidden_dim` 是总 embedding width；PiT 发布编码中的 stage embedding width 为
+`base_dim × stage_num_heads`，因此不能把 PiT 的 `base_dim` 直接当作各 stage 总宽度。
 
 `autoformer_main`、`autoformer_ext` 和 `pit` 必须独立报告。vanilla、KD 与 inherited-supernet
 accuracy 是不同协议；跨指标比较只能按 architecture ID 取交集，并报告交集样本量。
 
-## 7. 过滤与防止协议混合
+典型实例：
+
+```bash
+zcp-test analyze benchmark \
+  --scores examples/studies/data/vit_autoformer.jsonl \
+  --benchmark vitbench101 \
+  --output /tmp/zcp-test-examples/vit
+```
+
+AZ-NAS 对 AutoFormer/ImageNet 属于同搜索空间的部分直接依据，但不是 ViT-Bench-101 发布 GT
+切片实验；PiT 尚无对应直接依据，当前分析属于按 stage/downsampling 特点推广。
+
+## 8. NAS-Bench-101/NATS 典型实例
+
+```bash
+zcp-test analyze benchmark \
+  --scores examples/studies/data/nasbench101_budget.jsonl \
+  --benchmark nasbench101 \
+  --benchmark-path /path/to/data/nasbench101/converted/full \
+  --budgets 4 12 36 108 --top-k 2 \
+  --output /tmp/zcp-test-examples/nb101
+
+zcp-test analyze benchmark \
+  --scores examples/studies/data/nats_tss_topology.jsonl \
+  --benchmark nats_tss --output /tmp/zcp-test-examples/nats-tss
+
+zcp-test analyze benchmark \
+  --scores examples/studies/data/nats_sss_size.jsonl \
+  --benchmark nats_sss --output /tmp/zcp-test-examples/nats-sss
+```
+
+## 9. 过滤与防止协议混合
 
 统一入口支持：
 
@@ -212,7 +294,19 @@ split、target direction、epoch budget 和 seed reduction 分组。不同协议
 旧 schema 仍可做通用分析；若缺少专属视图需要的 `architecture` 或协议字段，定制分析会明确
 失败。不要为了得到图表而补造 budget、task 或 direction。
 
-## 8. 常见错误
+## 10. 验收与清理
+
+```bash
+pytest -q tests/test_proxy_studies.py tests/test_analysis.py \
+  tests/test_benchmark_budget.py tests/test_benchmark_studies.py
+ruff check src/zcp_test/reporting tests/test_proxy_studies.py \
+  tests/test_benchmark_budget.py tests/test_benchmark_studies.py
+```
+
+验收还会执行 `examples/studies/data/*.jsonl` 的七个典型命令。仓库保留输入 fixture、命令和预期
+表名；`/tmp/zcp-test-examples`、pytest cache、`__pycache__`、临时 PNG/HTML 均删除，不进入 Git。
+
+## 11. 常见错误
 
 - `multiple epoch budgets`：evaluate 或查询缺少 `--epoch-budget`。
 - `auto requires exactly one benchmark_id`：输入混有多个 benchmark；先用参数或拆分文件过滤。

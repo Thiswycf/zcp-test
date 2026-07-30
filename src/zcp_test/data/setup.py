@@ -31,6 +31,7 @@ BENCHMARK_SIZES = {
     "nats_tss": 1_100_000_000,
     "nats_sss": 1_100_000_000,
     "transnasbench101": 105_000_000,
+    "nasbench301_surrogate": 1_848_669_012,
     "vitbench101": 62_925,
 }
 
@@ -44,6 +45,10 @@ def _runtime_paths(root: Path, benchmark: str) -> tuple[Path, ...]:
         "transnasbench101": (
             root / "transnasbench101/converted/transnas_micro.jsonl",
             root / "transnasbench101/converted/transnas_macro.jsonl",
+        ),
+        "nasbench301_surrogate": (
+            root / "nasbench301/nb_models/xgb_v1.0",
+            root / "nasbench301/nb_models/lgb_runtime_v1.0",
         ),
         "vitbench101": (
             root / "vitbench101/converted/gt_autoformer.jsonl",
@@ -63,23 +68,35 @@ def _transfer_paths(root: Path, benchmark: str) -> tuple[Path, ...]:
     return directories.get(benchmark, _runtime_paths(root, benchmark))
 
 
-def _catalog_status(catalog: Path, benchmark: str, runtime_paths: tuple[Path, ...]) -> str:
+def _catalog_paths(
+    catalog: Path, benchmark: str, runtime_paths: tuple[Path, ...]
+) -> tuple[str, tuple[Path, ...]]:
     if not catalog.is_file():
-        return "missing"
+        return "missing", ()
     expected_ids = (
         (benchmark,)
         if len(runtime_paths) == 1
         else tuple(f"{benchmark}_{index}" for index in range(len(runtime_paths)))
     )
+    registry = DataRegistry(catalog)
     try:
-        registered = {asset.asset_id: asset for asset in DataRegistry(catalog).list()}
+        registered = {asset.asset_id: asset for asset in registry.list()}
     except (OSError, TypeError, ValueError):
-        return "corrupt"
+        return "corrupt", ()
     if not all(asset_id in registered for asset_id in expected_ids):
-        return "missing"
+        return "missing", ()
     expected_paths = [path.resolve() for path in runtime_paths]
     actual_paths = [Path(registered[asset_id].path).expanduser().resolve() for asset_id in expected_ids]
-    return "ready" if actual_paths == expected_paths else "stale"
+    try:
+        verified = [registry.verify(asset_id) for asset_id in expected_ids]
+    except (OSError, TypeError, ValueError):
+        return "corrupt", tuple(actual_paths)
+    if not all(item["valid"] for item in verified):
+        return "corrupt", tuple(actual_paths)
+    return (
+        ("ready" if actual_paths == expected_paths else "external_ready"),
+        tuple(actual_paths),
+    )
 
 
 def data_checklist(
@@ -115,6 +132,7 @@ def data_checklist(
             else:
                 asset_states.append(AssetState.PARTIAL if partial.is_file() else AssetState.MISSING)
         runtime_paths = _runtime_paths(root, benchmark)
+        catalog_state, catalog_paths = _catalog_paths(catalog_path, benchmark, runtime_paths)
         if any(state is AssetState.CORRUPT for state in asset_states):
             state = AssetState.CORRUPT
         elif not all(state is AssetState.READY for state in asset_states):
@@ -123,6 +141,12 @@ def data_checklist(
             state = AssetState.CONVERSION_REQUIRED
         else:
             state = AssetState.READY
+        if state in {AssetState.MISSING, AssetState.CONVERSION_REQUIRED} and catalog_state in {
+            "ready",
+            "external_ready",
+        }:
+            state = AssetState.READY
+            runtime_paths = catalog_paths
         records.append(
             {
                 "benchmark_id": benchmark,
@@ -131,7 +155,10 @@ def data_checklist(
                 "raw_paths": [str(BUILTIN_ASSETS[item].installed_path(root)) for item in asset_ids],
                 "runtime_paths": [str(path) for path in runtime_paths],
                 "catalog_path": str(catalog_path),
-                "catalog_state": _catalog_status(catalog_path, benchmark, runtime_paths),
+                "catalog_state": catalog_state,
+                "location": "catalog_external"
+                if catalog_state == "external_ready"
+                else "data_root",
                 "estimated_bytes": BENCHMARK_SIZES[benchmark],
                 "partial_bytes": partial_bytes,
                 "sources": list(dict.fromkeys(sources)),
@@ -209,20 +236,23 @@ def _download(url: str, destination: Path, *, sha256: str | None) -> Path:
     return destination
 
 
-def _register_catalog(root: Path, catalog: Path) -> None:
+def _register_catalog(root: Path, catalog: Path, benchmarks: Iterable[str]) -> None:
     registry = DataRegistry(catalog)
-    for record in data_checklist(root):
-        if record["state"] != AssetState.READY.value:
+    for benchmark in benchmarks:
+        runtime_paths = _runtime_paths(root, benchmark)
+        if not all(path.exists() for path in runtime_paths):
             continue
-        for index, runtime_path in enumerate(record["runtime_paths"]):
-            suffix = "" if len(record["runtime_paths"]) == 1 else f"_{index}"
+        version = BUILTIN_ASSETS[BENCHMARK_ASSETS[benchmark][0]].version
+        for index, runtime_path in enumerate(runtime_paths):
+            suffix = "" if len(runtime_paths) == 1 else f"_{index}"
             registry.register(
                 DataAsset(
-                    f"{record['benchmark_id']}{suffix}",
-                    runtime_path,
-                    str(record["version"]),
+                    f"{benchmark}{suffix}",
+                    str(runtime_path),
+                    str(version),
                     protocol="zcp-test-bootstrap",
-                    trusted=record["benchmark_id"] in {"nasbench201", "nats_tss", "nats_sss"},
+                    trusted=benchmark
+                    in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"},
                 ),
                 replace=True,
             )
@@ -236,21 +266,38 @@ def bootstrap_benchmarks(
 ) -> dict[str, Any]:
     root = Path(data_root).expanduser().resolve()
     selected = tuple(dict.fromkeys(benchmarks))
-    asset_ids = _expand_benchmarks(selected)
-    result: BootstrapResult = bootstrap_data(root, asset_ids, downloader=_download)
+    catalog_path = Path(catalog).expanduser() if catalog else Path.home() / ".config/zcp-test/data.json"
+    existing = {
+        item["benchmark_id"]: item
+        for item in data_checklist(root, catalog_path)
+        if item["benchmark_id"] in selected
+    }
+    prepare = tuple(
+        benchmark for benchmark in selected if existing[benchmark]["state"] != AssetState.READY.value
+    )
+    asset_ids = _expand_benchmarks(prepare)
+    result: BootstrapResult = (
+        bootstrap_data(root, asset_ids, downloader=_download)
+        if asset_ids
+        else BootstrapResult((), ())
+    )
     failed = [asdict(item) for item in result.items if not item.ready]
     if failed:
         return {"ok": False, "downloads": [asdict(item) for item in result.items], "failed": failed}
-    for benchmark in selected:
+    for benchmark in prepare:
         if any(not path.exists() for path in _runtime_paths(root, benchmark)):
             _convert(root, benchmark)
-    catalog_path = Path(catalog).expanduser() if catalog else Path.home() / ".config/zcp-test/data.json"
-    _register_catalog(root, catalog_path)
+    _register_catalog(root, catalog_path, prepare)
+    checklist = [
+        item for item in data_checklist(root, catalog_path) if item["benchmark_id"] in selected
+    ]
+    incomplete = [item for item in checklist if item["state"] != AssetState.READY.value]
     return {
-        "ok": True,
+        "ok": not incomplete,
         "benchmarks": selected,
         "catalog": str(catalog_path),
-        "checklist": [item for item in data_checklist(root) if item["benchmark_id"] in selected],
+        "checklist": checklist,
+        "failed": incomplete,
     }
 
 

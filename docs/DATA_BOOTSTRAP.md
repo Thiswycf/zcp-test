@@ -31,7 +31,7 @@ Possible states are:
 | `partial` | At least one raw asset is absent and one or more download `.part` files exist. | Rerun the same bootstrap command to resume. |
 | `corrupt` | A raw file with a built-in SHA-256 exists but does not match it. | Quarantine or remove it, then bootstrap again. |
 | `conversion_required` | All raw assets satisfy the available checks, but at least one runtime path is absent. | Rerun bootstrap; it performs the required conversion. |
-| `ready` | Every raw asset passes the checks available to the tool and every declared runtime path exists. | Run a benchmark smoke test before a formal evaluation. |
+| `ready` | Either the selected root passes raw/runtime checks, or every required catalog entry passes path and declared SHA-256 verification. | Check `location`, then run a benchmark smoke test before a formal evaluation. |
 
 ### 2. Bootstrap only the benchmarks needed
 
@@ -95,16 +95,24 @@ zcp-test data verify nasbench101 --catalog /path/to/data/catalog.json
 
 Catalog verification is not a substitute for checklist or a query smoke. Bootstrap-generated
 runtime catalog entries currently have no SHA-256, so their registry verification proves path
-existence only. A minimal safe-runtime smoke for NAS-Bench-101 is:
+existence only. `benchmark inspect` resolves paths from `--catalog`; native serialized formats
+still require explicit `--trusted`. Minimal index-0 query smokes are:
 
 ```bash
-zcp-test benchmark inspect nasbench101 \
-  --path /path/to/data/nasbench101/converted/full/manifest.json \
-  --version full
+CATALOG=/path/to/data/catalog.json
+zcp-test benchmark inspect nasbench101 --catalog "$CATALOG" --dataset cifar10 --split valid --metric-name final_accuracy --epoch-budget 108
+zcp-test benchmark inspect nasbench201 --trusted --catalog "$CATALOG" --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
+zcp-test benchmark inspect nats_tss --trusted --catalog "$CATALOG" --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
+zcp-test benchmark inspect nats_sss --trusted --catalog "$CATALOG" --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 90
+zcp-test benchmark inspect transnasbench101 --catalog "$CATALOG" --transnas-space micro --dataset class_object --split valid --metric-name valid_top1 --epoch-budget 25
+zcp-test benchmark inspect transnasbench101 --catalog "$CATALOG" --transnas-space macro --dataset class_object --split valid --metric-name valid_top1 --epoch-budget 25
+zcp-test benchmark inspect nasbench301_surrogate --trusted --catalog "$CATALOG" --dataset cifar10 --split test --metric-name accuracy
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" --slice-id autoformer_main --dataset cifar100 --split test --metric-name accuracy_vanilla
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" --slice-id pit --dataset cifar100 --split test --metric-name accuracy_vanilla
 
 zcp-test evaluate \
   --benchmark nasbench101 \
-  --benchmark-path /path/to/data/nasbench101/converted/full/manifest.json \
+  --catalog "$CATALOG" \
   --benchmark-version full \
   --proxies params \
   --count 1 \
@@ -113,9 +121,9 @@ zcp-test evaluate \
   --output /path/to/data/smoke/nasbench101
 ```
 
-Treat the smoke as successful only if the commands exit zero, the adapter reports the expected
-version and capabilities, and the evaluation writes a non-failed score record. It is a wiring
-check, not scientific validation of the complete benchmark.
+Treat the smoke as successful only if each command exits zero, the adapter reports the expected
+identity/version, and `query.value` is finite. The optional evaluation must write a non-failed
+score record. These are wiring checks, not scientific validation of the complete benchmarks.
 
 ### 4. Export an offline-transfer manifest
 
@@ -179,13 +187,17 @@ zcp-test data register \
 
 ## What `ready` does and does not guarantee
 
-A benchmark group is exactly `ready` when both conditions hold:
+A benchmark group is exactly `ready` through one of two routes:
 
 1. Every built-in raw asset's installed path exists. If that asset has a built-in SHA-256 and
    is a file, the digest must match. Raw assets without a pinned digest pass this stage by
    existence alone; extracted archive directories also pass by existence.
-2. Every runtime path declared for the benchmark exists. Catalog registration is reported
-   separately as `catalog_state`; it is not hidden inside the installation state.
+2. Every runtime path declared for the benchmark exists.
+
+Alternatively, all expected machine-local catalog IDs may resolve to existing runtime paths and
+pass each catalog entry's declared SHA-256 check. This route reports
+`catalog_state=external_ready` and `location=catalog_external`; it does not claim that raw files
+exist below `--root`. Catalog entries without SHA-256 are existence-checked only.
 
 The checklist deliberately does not deserialize native `.pth`/pickle benchmark files merely to
 claim readiness: doing so would violate its read-only safety boundary and can be expensive.
@@ -210,6 +222,7 @@ or sufficient-space guarantees. Conversion output, extracted archives, retained 
 | `nats_tss` | Topology search space, v1.0 `3ffb9`, 12/200 epochs | 1,100,000,000 B (about 1.02 GiB) | Not pinned | [NATS-Bench](https://github.com/D-X-Y/NATS-Bench); Google Drive tar, extracted native API directory |
 | `nats_sss` | Size search space, v1.0 `50262`, 12/90 epochs | 1,100,000,000 B (about 1.02 GiB) | Not pinned | [NATS-Bench](https://github.com/D-X-Y/NATS-Bench); separate Google Drive tar and API directory from TSS |
 | `transnasbench101` | Official v10141024; micro and macro are separate runtime tables | 105,000,000 B (about 100 MiB) | Not pinned | [Upstream Drive folder](https://drive.google.com/drive/folders/1HlLr2ihZX_ZuV3lJX_4i7q4w-ZBdhJ6o); trusted `.pth` conversion produces `transnas_micro.jsonl` and `transnas_macro.jsonl` |
+| `nasbench301_surrogate` | Official surrogate models v1.0; performance/runtime remain separate | 1,848,669,012 B (about 1.72 GiB) | `e807411d6a454841965d3157a977896683b716dc48743049bd6be0ce94210824` | [Official Figshare](https://figshare.com/articles/software/nasbench301_models_v1_0_zip/13061510); safely extracted `xgb_v1.0` and `lgb_runtime_v1.0` |
 | `vitbench101` | Auto-Prox commit `90ed458`; main AutoFormer, extension AutoFormer, and PiT remain separate | 62,925 B planning estimate | Three pinned hashes listed below | [Auto-Prox source](https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458); trusted `.pth` conversion produces three JSONL tables |
 
 Run one group at a time when quota or storage is constrained:
@@ -220,6 +233,7 @@ zcp-test data bootstrap --root /path/to/data --benchmarks nasbench201 --catalog 
 zcp-test data bootstrap --root /path/to/data --benchmarks nats_tss --catalog /path/to/data/catalog.json --yes
 zcp-test data bootstrap --root /path/to/data --benchmarks nats_sss --catalog /path/to/data/catalog.json --yes
 zcp-test data bootstrap --root /path/to/data --benchmarks transnasbench101 --catalog /path/to/data/catalog.json --yes
+zcp-test data bootstrap --root /path/to/data --benchmarks nasbench301_surrogate --catalog /path/to/data/catalog.json --yes
 zcp-test data bootstrap --root /path/to/data --benchmarks vitbench101 --catalog /path/to/data/catalog.json --yes
 ```
 
@@ -234,9 +248,15 @@ ViT-Bench-101 pins these source-file hashes:
 Vanilla, knowledge-distillation, and inherited-supernet accuracy are distinct metric protocols.
 Do not combine them under one target metric.
 
-NAS-Bench-301 surrogate data is not a built-in bootstrap group. Obtain the ensemble and its
-architecture table according to the upstream release, verify them independently, and pass
-explicit paths from `/path/to/data`; do not expect `data bootstrap --all` to install it.
+NAS-Bench-301 surrogate models v1.0 are a built-in bootstrap group sourced from official
+Figshare. Performance and runtime ensembles remain separate. Deterministic DARTS sampling is the
+default candidate source; a fixed safe architecture JSONL remains optional. The `nb301` dependency
+group pins the legacy-compatible `ConfigSpace==0.4.21` and supplies the official package's omitted
+inference imports. It does not install PyG; unused GNN-surrogate training modules are not loaded.
+
+Existing data may stay outside `--root`. Register absolute runtime paths in the machine-local
+catalog; checklist then reports `catalog_state=external_ready` and `location=catalog_external`.
+Repository configuration keeps `/path/to/data` placeholders and never stores host-specific paths.
 
 ## Source, checksum, trust, and upstream terms
 
@@ -319,7 +339,9 @@ record = read_indexed_record(
 ```
 
 Do not disable CRC verification merely to make a damaged TFRecord convert. A complete conversion
-still needs the adapter smoke shown earlier. No real-data smoke result is claimed by this guide.
+still needs the adapter smoke shown earlier. Release validation on 2026-07-30 completed the
+documented index-0 queries for all listed adapters; every new machine must repeat them against its
+own catalog because that result does not validate copied files or a future dependency stack.
 
 ## Why `evaluate` never bootstraps implicitly
 

@@ -2,7 +2,9 @@ benchmark_id: transnasbench101
 search_space_id: transnas_micro
 space: micro
 version: v10141024
-path: /path/to/data/transnasbench101/converted/transnas-bench_v10141024.jsonl
+paths:
+  micro: /path/to/data/transnasbench101/converted/transnas_micro.jsonl
+  macro: /path/to/data/transnasbench101/converted/transnas_macro.jsonl
 source:
   path: /path/to/data/transnasbench101/transnas-bench_v10141024.pth
   trusted_conversion_required: true

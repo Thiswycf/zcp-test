@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import inspect
 import json
 import os
 import sys
 import time
 from contextlib import ExitStack, contextmanager
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -57,6 +57,7 @@ from zcp_test.reporting.analysis import (
     transfer_correlation_table,
 )
 from zcp_test.reporting.benchmark_budget import nasbench101_budget_study
+from zcp_test.reporting.benchmark_darts import nasbench301_darts_study
 from zcp_test.reporting.benchmark_report import write_benchmark_study
 from zcp_test.reporting.benchmark_studies import (
     nats_size_study,
@@ -111,6 +112,7 @@ def _resolve_benchmark_path(args: argparse.Namespace) -> str:
         "nasbench201": "nasbench201",
         "nats_tss": "nats_tss",
         "nats_sss": "nats_sss",
+        "nasbench301_surrogate": "nasbench301_surrogate_0",
         "transnasbench101": "transnasbench101_0"
         if args.transnas_space == "micro"
         else "transnasbench101_1",
@@ -132,6 +134,20 @@ def _resolve_benchmark_path(args: argparse.Namespace) -> str:
         f"zcp-test data checklist --root {root} && "
         f"zcp-test data bootstrap --root {root} --benchmarks {args.benchmark}"
     )
+
+
+def _resolve_nb301_runtime_path(args: argparse.Namespace) -> str | None:
+    if args.runtime_benchmark_path:
+        path = Path(args.runtime_benchmark_path).expanduser()
+        if not path.exists():
+            raise FileNotFoundError(f"NAS-Bench-301 runtime ensemble does not exist: {path}")
+        return str(path)
+    try:
+        asset = DataRegistry(args.catalog).get("nasbench301_surrogate_1")
+    except (KeyError, FileNotFoundError, ValueError):
+        return None
+    path = Path(asset.path).expanduser()
+    return str(path) if path.exists() else None
 
 
 def _device(name: str) -> Any:
@@ -430,28 +446,71 @@ def command_registry(args: argparse.Namespace, registry: str) -> None:
     if args.action == "list":
         _json(target.names())
         return
-    if registry == "benchmark" and not getattr(args, "path", None):
-        factory = dict(target.items())[args.name]
-        _json({"benchmark_id": args.name, "factory": f"{factory.__module__}.{factory.__name__}", "constructor": str(inspect.signature(factory)), "requires_data_path": True})
-        return
     kwargs: dict[str, Any] = {}
     if registry == "benchmark":
         if args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
             raise PermissionError(
                 f"{args.name} uses a native serialized format; pass --trusted only for a verified source"
             )
-        kwargs["path"] = args.path
-        if args.version:
-            kwargs["version"] = args.version
+        if args.path:
+            resolved_path = args.path
+        else:
+            resolver_args = argparse.Namespace(
+                benchmark=args.name,
+                benchmark_path=None,
+                catalog=args.catalog,
+                data_root=args.data_root,
+                transnas_space=args.transnas_space,
+                slice_id=args.slice_id,
+            )
+            resolved_path = _resolve_benchmark_path(resolver_args)
+        kwargs["path"] = resolved_path
+        versions = {
+            "nasbench101": "full",
+            "nasbench201": "1.1",
+            "nats_tss": "1.0",
+            "nats_sss": "1.0",
+            "nasbench301_surrogate": "1.0",
+            "transnasbench101": "v10141024",
+        }
+        version = args.version or versions.get(args.name)
+        if version:
+            kwargs["version"] = version
         if args.name == "vitbench101":
             kwargs["slice_id"] = args.slice_id
         if args.name == "transnasbench101":
             kwargs["space"] = args.transnas_space
         if args.name == "nasbench301_surrogate":
             kwargs["architecture_path"] = args.architecture_path
+            runtime_args = argparse.Namespace(
+                runtime_benchmark_path=args.runtime_path,
+                catalog=args.catalog,
+            )
+            runtime_path = _resolve_nb301_runtime_path(runtime_args)
+            if runtime_path:
+                kwargs["runtime_path"] = runtime_path
     instance = target.create(args.name, **kwargs)
     if registry == "benchmark":
-        _json({"metadata": instance.metadata(), "capabilities": instance.capabilities()})
+        result = {"metadata": instance.metadata(), "capabilities": instance.capabilities()}
+        if args.metric_name:
+            architecture = next(instance.iter_architectures(args.start, args.start + 1))
+            metric = MetricSpec(
+                args.dataset,
+                args.split,
+                args.metric_name,
+                args.epoch_budget,
+                args.metric_seed,
+                args.metric_seed_reduction,
+                version,
+                args.surrogate_noise,
+            )
+            result["query"] = {
+                "architecture_id": architecture.architecture_id,
+                "benchmark_index": architecture.benchmark_index,
+                "metric_spec": asdict(metric),
+                "value": instance.query_metrics(architecture, metric),
+            }
+        _json(result)
     elif registry == "proxy":
         _json(instance.capability.__dict__)
     else:
@@ -569,6 +628,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
             kwargs["version"] = args.benchmark_version
         elif args.benchmark == "nasbench301_surrogate":
             kwargs["architecture_path"] = args.architecture_path
+            runtime_path = _resolve_nb301_runtime_path(args)
+            if runtime_path:
+                kwargs["runtime_path"] = runtime_path
         adapter = BENCHMARKS.create(args.benchmark, **kwargs)
         space = SPACES.create(adapter.search_space_id)
         architectures = list(adapter.iter_architectures(args.start, args.start + args.count))
@@ -1033,6 +1095,7 @@ def command_analyze_benchmark(args: argparse.Namespace) -> None:
         "nasbench201": "topology",
         "nats_tss": "topology",
         "nats_sss": "size",
+        "nasbench301_surrogate": "darts",
         "transnasbench101": "transfer",
         "vitbench101": "architecture",
     }
@@ -1069,6 +1132,10 @@ def command_analyze_benchmark(args: argparse.Namespace) -> None:
         if benchmark_id != "nats_sss":
             raise ValueError("The size view supports nats_sss")
         tables = nats_size_study(frame)
+    elif view == "darts":
+        if benchmark_id != "nasbench301_surrogate":
+            raise ValueError("The DARTS interaction view supports nasbench301_surrogate")
+        tables = nasbench301_darts_study(frame)
     elif view == "architecture":
         if benchmark_id != "vitbench101":
             raise ValueError("The architecture view currently supports vitbench101")
@@ -1197,6 +1264,19 @@ def build_parser() -> argparse.ArgumentParser:
             inspect.add_argument("--slice-id", default="autoformer_main")
             inspect.add_argument("--transnas-space", default="micro")
             inspect.add_argument("--architecture-path")
+            inspect.add_argument("--runtime-path")
+            inspect.add_argument("--catalog", default=data_default)
+            inspect.add_argument("--data-root")
+            inspect.add_argument("--start", type=int, default=0)
+            inspect.add_argument("--dataset", default="cifar10")
+            inspect.add_argument("--split", default="valid")
+            inspect.add_argument("--metric-name")
+            inspect.add_argument("--epoch-budget", type=int)
+            inspect.add_argument("--metric-seed", type=int)
+            inspect.add_argument(
+                "--metric-seed-reduction", choices=("mean", "min", "max"), default="mean"
+            )
+            inspect.add_argument("--surrogate-noise", action="store_true")
         inspect.set_defaults(function=lambda args, name=registry: command_registry(args, name))
     proxy = subparsers.add_parser("proxy")
     proxy_actions = proxy.add_subparsers(dest="action", required=True)
@@ -1216,6 +1296,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--trusted", action="store_true")
     evaluate.add_argument("--benchmark-version", default="1.0")
     evaluate.add_argument("--architecture-path")
+    evaluate.add_argument("--runtime-benchmark-path")
     evaluate.add_argument("--slice-id", default="autoformer_main")
     evaluate.add_argument("--transnas-space", default="micro")
     evaluate.add_argument("--start", type=int, default=0)
@@ -1313,7 +1394,7 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_actions = analyze.add_subparsers(dest="action", required=True)
     for action in ("correlation", "compare", "sensitivity"):
         analysis = analyze_actions.add_parser(action)
-        analysis.add_argument("--scores", required=True)
+        analysis.add_argument("--scores", nargs="+", required=True)
         analysis.add_argument("--output", required=True)
         analysis.add_argument("--component")
         analysis.add_argument("--bootstrap-samples", type=int, default=1000)
@@ -1338,12 +1419,15 @@ def build_parser() -> argparse.ArgumentParser:
             "nasbench201",
             "nats_tss",
             "nats_sss",
+            "nasbench301_surrogate",
             "transnasbench101",
             "vitbench101",
         ),
     )
     benchmark_analysis.add_argument(
-        "--view", default="auto", choices=("auto", "budget", "topology", "size", "architecture", "transfer")
+        "--view",
+        default="auto",
+        choices=("auto", "budget", "topology", "size", "darts", "architecture", "transfer"),
     )
     benchmark_analysis.add_argument("--component")
     benchmark_analysis.add_argument("--dataset")

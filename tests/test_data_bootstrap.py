@@ -1,6 +1,7 @@
 import hashlib
 import io
 import tarfile
+import zipfile
 
 import pytest
 
@@ -13,6 +14,7 @@ from zcp_test.data.bootstrap import (
     bootstrap_data,
     resumable_http_download,
     safe_extract_tar,
+    safe_extract_zip,
 )
 
 
@@ -39,6 +41,7 @@ def test_builtin_manifest_covers_supported_benchmarks():
         "nats_tss",
         "nats_sss",
         "transnasbench101",
+        "nasbench301_surrogate",
         "vitbench101",
     }
     assert set(asset for assets in BENCHMARK_ASSETS.values() for asset in assets) == set(
@@ -148,6 +151,21 @@ def test_safe_tar_extracts_regular_files(tmp_path):
 
     assert (tmp_path / "output/bundle/data.txt").read_bytes() == b"payload"
     assert tmp_path / "output/bundle/data.txt" in paths
+
+
+def test_safe_zip_extracts_regular_files_and_rejects_traversal(tmp_path):
+    archive = tmp_path / "fixture.zip"
+    with zipfile.ZipFile(archive, "w") as output:
+        output.writestr("bundle/data.txt", "payload")
+    paths = safe_extract_zip(archive, tmp_path / "output")
+    assert (tmp_path / "output/bundle/data.txt").read_text() == "payload"
+    assert tmp_path / "output/bundle/data.txt" in paths
+
+    unsafe = tmp_path / "unsafe.zip"
+    with zipfile.ZipFile(unsafe, "w") as output:
+        output.writestr("../escape.txt", "bad")
+    with pytest.raises(ValueError, match="safe relative|Unsafe|path"):
+        safe_extract_zip(unsafe, tmp_path / "unsafe-output")
 
 
 @pytest.mark.parametrize(

@@ -7,6 +7,7 @@ import pytest
 
 from zcp_test.data import setup as data_setup
 from zcp_test.data.bootstrap import BootstrapAsset
+from zcp_test.data.assets import DataAsset, DataRegistry
 from zcp_test.cli import command_data
 
 
@@ -55,6 +56,59 @@ def test_data_checklist_transitions_missing_conversion_required_ready(
     ready = data_setup.data_checklist(tmp_path)[0]
     assert ready["state"] == "ready"
     assert ready["remediation"] is None
+
+
+def test_data_checklist_accepts_valid_external_catalog_runtime(tmp_path, tiny_benchmark):
+    _, _, _ = tiny_benchmark
+    external = tmp_path / "external/data.jsonl"
+    external.parent.mkdir(parents=True)
+    external.write_text('{}\n', encoding="utf-8")
+    catalog = tmp_path / "catalog.json"
+    DataRegistry(catalog).register(DataAsset("tiny", str(external), "test-1", trusted=True))
+
+    record = data_setup.data_checklist(tmp_path / "empty-root", catalog)[0]
+
+    assert record["state"] == "ready"
+    assert record["catalog_state"] == "external_ready"
+    assert record["location"] == "catalog_external"
+    assert record["runtime_paths"] == [str(external)]
+
+
+def test_external_catalog_honors_declared_checksum_and_bootstrap_skips_ready_asset(
+    monkeypatch, tmp_path, tiny_benchmark
+):
+    _, _, _ = tiny_benchmark
+    external = tmp_path / "external/data.jsonl"
+    external.parent.mkdir(parents=True)
+    external.write_text('{}\n', encoding="utf-8")
+    catalog = tmp_path / "catalog.json"
+    DataRegistry(catalog).register(
+        DataAsset("tiny", str(external), "test-1", sha256="0" * 64, trusted=True)
+    )
+    assert data_setup.data_checklist(tmp_path / "empty-root", catalog)[0]["state"] == "missing"
+
+    DataRegistry(catalog).register(
+        DataAsset(
+            "tiny",
+            str(external),
+            "test-1",
+            sha256=hashlib.sha256(external.read_bytes()).hexdigest(),
+            trusted=True,
+        ),
+        replace=True,
+    )
+    monkeypatch.setattr(
+        data_setup,
+        "bootstrap_data",
+        lambda *args, **kwargs: pytest.fail("ready external asset must not be downloaded"),
+    )
+
+    result = data_setup.bootstrap_benchmarks(
+        tmp_path / "empty-root", ["tiny"], catalog=catalog
+    )
+
+    assert result["ok"] is True
+    assert result["checklist"][0]["catalog_state"] == "external_ready"
 
 
 def test_benchmark_group_expansion_preserves_order_and_deduplicates_groups():

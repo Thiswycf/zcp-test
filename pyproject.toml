@@ -28,7 +28,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-nb301 = ["nasbench301==0.3", "ConfigSpace>=0.6,<1", "xgboost>=2,<3", "lightgbm>=4,<5"]
+nb301 = ["nasbench301==0.3", "ConfigSpace==0.4.21", "xgboost>=2,<3", "lightgbm>=4,<5", "scikit-learn>=1.5,<2", "seaborn>=0.13,<0.14"]
 transnas = ["scikit-image>=0.22,<1", "transforms3d>=0.4,<1", "yacs>=0.1.8,<1"]
 dev = ["pytest>=8,<9", "pytest-cov>=5,<6", "ruff>=0.6,<1"]
 

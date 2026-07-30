@@ -7,6 +7,7 @@ import tarfile
 import tempfile
 import urllib.error
 import urllib.request
+import zipfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -48,7 +49,7 @@ class BootstrapAsset:
 
     def __post_init__(self) -> None:
         _validate_relative_path(self.path, "path")
-        if self.archive not in {None, "tar"}:
+        if self.archive not in {None, "tar", "zip"}:
             raise ValueError(f"Unsupported archive type: {self.archive}")
         if self.archive_name is not None:
             _validate_relative_path(self.archive_name, "archive_name")
@@ -155,6 +156,18 @@ BUILTIN_ASSETS: Mapping[str, BootstrapAsset] = {
         trusted_format=True,
         source_page="https://drive.google.com/drive/folders/1HlLr2ihZX_ZuV3lJX_4i7q4w-ZBdhJ6o",
     ),
+    "nasbench301_models": BootstrapAsset(
+        asset_id="nasbench301_models",
+        version="1.0",
+        path="nasbench301/nb_models/xgb_v1.0",
+        urls=("https://ndownloader.figshare.com/files/24992018",),
+        sha256="e807411d6a454841965d3157a977896683b716dc48743049bd6be0ce94210824",
+        archive="zip",
+        archive_name="nasbench301_models_v1.0.zip",
+        extract_root="nasbench301",
+        trusted_format=True,
+        source_page="https://figshare.com/articles/software/nasbench301_models_v1_0_zip/13061510",
+    ),
     "vitbench101_autoformer_main": BootstrapAsset(
         asset_id="vitbench101_autoformer_main",
         version="auto-prox-90ed458",
@@ -200,6 +213,7 @@ BENCHMARK_ASSETS: Mapping[str, tuple[str, ...]] = {
     "nats_tss": ("nats_tss",),
     "nats_sss": ("nats_sss",),
     "transnasbench101": ("transnasbench101",),
+    "nasbench301_surrogate": ("nasbench301_models",),
     "vitbench101": (
         "vitbench101_autoformer_main",
         "vitbench101_autoformer_ext",
@@ -313,6 +327,31 @@ def safe_extract_tar(archive: str | Path, destination: str | Path) -> tuple[Path
     return tuple(extracted)
 
 
+def safe_extract_zip(archive: str | Path, destination: str | Path) -> tuple[Path, ...]:
+    archive_path = Path(archive).expanduser()
+    target = Path(destination).expanduser()
+    if target.is_symlink():
+        raise ValueError(f"Extraction destination is a symlink: {target}")
+    _reject_symlinks(target)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    extracted: list[Path] = []
+    with zipfile.ZipFile(archive_path) as source:
+        members = source.infolist()
+        for member in members:
+            relative = _safe_tar_path(member.filename)
+            mode = member.external_attr >> 16
+            if mode and (mode & 0o170000) == 0o120000:
+                raise ValueError(f"Unsafe zip symlink: {member.filename}")
+            if relative.parts:
+                extracted.append(target / Path(*relative.parts))
+        with tempfile.TemporaryDirectory(prefix=f".{target.name}-", dir=target.parent) as temporary:
+            staging = Path(temporary)
+            source.extractall(staging)
+            target.mkdir(parents=True, exist_ok=True)
+            shutil.copytree(staging, target, dirs_exist_ok=True)
+    return tuple(extracted)
+
+
 def bootstrap_data(
     data_root: str | Path,
     asset_ids: Iterable[str] | None = None,
@@ -357,6 +396,10 @@ def bootstrap_data(
                 downloader(url, download_path, sha256=asset.sha256)
                 if asset.archive == "tar":
                     extractor(download_path, root / asset.extract_root if asset.extract_root else root)
+                elif asset.archive == "zip":
+                    safe_extract_zip(
+                        download_path, root / asset.extract_root if asset.extract_root else root
+                    )
                 error = None
                 break
             except (OSError, ValueError, urllib.error.URLError) as candidate:
@@ -483,4 +526,5 @@ __all__ = [
     "quarantine_file",
     "resumable_http_download",
     "safe_extract_tar",
+    "safe_extract_zip",
 ]

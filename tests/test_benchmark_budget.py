@@ -76,3 +76,26 @@ def test_nasbench101_budget_study_rejects_hash_and_budget_mismatch():
         nasbench101_budget_study(invalid, adapter)
     with pytest.raises(ValueError, match="Unsupported"):
         nasbench101_budget_study(_rows(), adapter, budgets=(200,))
+
+
+def test_nasbench101_budget_study_keeps_proxy_seed_separate_from_target_repeat():
+    rows = _rows()
+    seeded = []
+    for seed in (1, 2):
+        for row in rows:
+            record = dict(row)
+            record["seed"] = seed
+            if seed == 2:
+                record["score"] = -float(record["score"])
+            seeded.append(record)
+
+    result = nasbench101_budget_study(
+        seeded,
+        FakeNasBench101Adapter(),
+        budgets=(12,),
+        repeat_index=0,
+        bootstrap_samples=0,
+    )
+
+    assert set(result["correlations"]["seed"]) == {1, 2}
+    assert set(result["detailed"]["target_seed"]) == {0}

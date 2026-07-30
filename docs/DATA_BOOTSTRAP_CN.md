@@ -29,7 +29,7 @@ URL、规划大小、断点字节数、文件系统探测到的剩余空间和�
 | `partial` | 至少一个原始资产不存在，并发现一个或多个下载 `.part`。 | 原样重跑同一 bootstrap 命令以续传。 |
 | `corrupt` | 带内置 SHA-256 的原始文件存在，但摘要不匹配。 | 隔离或删除损坏文件，再重新自举。 |
 | `conversion_required` | 原始资产通过当前可用检查，但至少一个运行期路径不存在。 | 重跑 bootstrap，让它完成转换。 |
-| `ready` | 每个原始资产通过工具现有检查，且全部声明的运行期路径存在。 | 正式评估前再做 benchmark smoke。 |
+| `ready` | 数据根目录通过原始/运行格式检查，或全部必要 catalog 条目通过路径及其声明的 SHA-256 检查。 | 先检查 `location`，正式评估前再做 benchmark smoke。 |
 
 ### 2. 只自举实际需要的 benchmark
 
@@ -90,16 +90,24 @@ zcp-test data verify nasbench101 --catalog /path/to/data/catalog.json
 ```
 
 catalog 验证不能替代 checklist 和查询 smoke。bootstrap 自动注册的运行期条目目前不带
-SHA-256，因此 registry 层的验证只证明路径存在。NAS-Bench-101 的最小安全格式 smoke 为：
+SHA-256，因此 registry 层的验证只证明路径存在。`benchmark inspect` 会从 `--catalog` 解析
+路径；原生序列化格式仍必须显式传入 `--trusted`。index-0 最小查询 smoke 为：
 
 ```bash
-zcp-test benchmark inspect nasbench101 \
-  --path /path/to/data/nasbench101/converted/full/manifest.json \
-  --version full
+CATALOG=/path/to/data/catalog.json
+zcp-test benchmark inspect nasbench101 --catalog "$CATALOG" --dataset cifar10 --split valid --metric-name final_accuracy --epoch-budget 108
+zcp-test benchmark inspect nasbench201 --trusted --catalog "$CATALOG" --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
+zcp-test benchmark inspect nats_tss --trusted --catalog "$CATALOG" --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
+zcp-test benchmark inspect nats_sss --trusted --catalog "$CATALOG" --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 90
+zcp-test benchmark inspect transnasbench101 --catalog "$CATALOG" --transnas-space micro --dataset class_object --split valid --metric-name valid_top1 --epoch-budget 25
+zcp-test benchmark inspect transnasbench101 --catalog "$CATALOG" --transnas-space macro --dataset class_object --split valid --metric-name valid_top1 --epoch-budget 25
+zcp-test benchmark inspect nasbench301_surrogate --trusted --catalog "$CATALOG" --dataset cifar10 --split test --metric-name accuracy
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" --slice-id autoformer_main --dataset cifar100 --split test --metric-name accuracy_vanilla
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" --slice-id pit --dataset cifar100 --split test --metric-name accuracy_vanilla
 
 zcp-test evaluate \
   --benchmark nasbench101 \
-  --benchmark-path /path/to/data/nasbench101/converted/full/manifest.json \
+  --catalog "$CATALOG" \
   --benchmark-version full \
   --proxies params \
   --count 1 \
@@ -108,8 +116,9 @@ zcp-test evaluate \
   --output /path/to/data/smoke/nasbench101
 ```
 
-只有命令退出码为零、adapter 报告预期版本和能力、评估产生非 failed 的 score 记录时，才能
-把该 smoke 视为通过。它只验证接线，不代表完整 benchmark 的科研语义已被复核。
+只有每条命令退出码为零、adapter 身份/版本正确且 `query.value` 有限时，查询 smoke 才通过；
+可选 evaluate 还必须产生非 failed 的 score 记录。这些步骤只验证接线，不代表完整 benchmark
+的科研语义已被复核。
 
 ### 4. 导出离线迁移 manifest
 
@@ -171,12 +180,16 @@ zcp-test data register \
 
 ## `ready` 保证什么、不保证什么
 
-benchmark 组仅在同时满足以下条件时精确地成为 `ready`：
+benchmark 组可通过两条路径之一成为 `ready`：
 
 1. 每个内置原始资产的安装路径存在。如果该资产是文件且内置了 SHA-256，摘要必须匹配。
    没有固定摘要的原始资产只按“存在”通过；解压目录同样只按“存在”通过。
 2. 该 benchmark 声明的每个运行期路径都存在。catalog 注册状态通过 `catalog_state` 单独报告，
    不会被隐藏到安装状态中。
+
+或者，机器本地 catalog 中全部预期 ID 都指向存在的运行资产，并通过各条目声明的 SHA-256
+核验。此时显示 `catalog_state=external_ready` 与 `location=catalog_external`，不表示原始文件位于
+`--root` 下；未声明 SHA-256 的 catalog 条目只能完成存在性检查。
 
 checklist 不会为了声称 ready 而反序列化原生 `.pth`/pickle；那会破坏只读安全边界，也可能很
 昂贵。因此 `ready` 后仍必须执行文档中的 adapter smoke。NB101 转换 manifest 与离线迁移
@@ -198,6 +211,7 @@ manifest 还会使用 SHA-256 绑定索引、offset 和全部分片。
 | `nats_tss` | 拓扑搜索空间，v1.0 `3ffb9`，12/200 epoch | 1,100,000,000 B（约 1.02 GiB） | 未固定 | [NATS-Bench](https://github.com/D-X-Y/NATS-Bench)；Google Drive tar，解压为原生 API 目录 |
 | `nats_sss` | 尺寸搜索空间，v1.0 `50262`，12/90 epoch | 1,100,000,000 B（约 1.02 GiB） | 未固定 | [NATS-Bench](https://github.com/D-X-Y/NATS-Bench)；与 TSS 分离的 tar 和 API 目录 |
 | `transnasbench101` | 官方 v10141024；micro 与 macro 是两个运行期表 | 105,000,000 B（约 100 MiB） | 未固定 | [上游 Drive 目录](https://drive.google.com/drive/folders/1HlLr2ihZX_ZuV3lJX_4i7q4w-ZBdhJ6o)；可信 `.pth` 转换为 `transnas_micro.jsonl` 和 `transnas_macro.jsonl` |
+| `nasbench301_surrogate` | 官方 surrogate models v1.0；performance/runtime 分离 | 1,848,669,012 B（约 1.72 GiB） | `e807411d6a454841965d3157a977896683b716dc48743049bd6be0ce94210824` | [官方 Figshare](https://figshare.com/articles/software/nasbench301_models_v1_0_zip/13061510)；安全解压为 `xgb_v1.0` 与 `lgb_runtime_v1.0` |
 | `vitbench101` | Auto-Prox commit `90ed458`；AutoFormer 主集、扩展集和 PiT 保持分离 | 62,925 B 规划值 | 三个固定摘要见下表 | [Auto-Prox 来源](https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458)；可信 `.pth` 转换为三个 JSONL 表 |
 
 配额或磁盘紧张时逐个执行：
@@ -208,6 +222,7 @@ zcp-test data bootstrap --root /path/to/data --benchmarks nasbench201 --catalog 
 zcp-test data bootstrap --root /path/to/data --benchmarks nats_tss --catalog /path/to/data/catalog.json --yes
 zcp-test data bootstrap --root /path/to/data --benchmarks nats_sss --catalog /path/to/data/catalog.json --yes
 zcp-test data bootstrap --root /path/to/data --benchmarks transnasbench101 --catalog /path/to/data/catalog.json --yes
+zcp-test data bootstrap --root /path/to/data --benchmarks nasbench301_surrogate --catalog /path/to/data/catalog.json --yes
 zcp-test data bootstrap --root /path/to/data --benchmarks vitbench101 --catalog /path/to/data/catalog.json --yes
 ```
 
@@ -222,8 +237,18 @@ ViT-Bench-101 固定了以下源文件摘要：
 vanilla、knowledge-distillation、inherited-supernet accuracy 是三种不同指标协议，不得合并为
 同一个 target metric。
 
-NAS-Bench-301 surrogate 不是内置 bootstrap 组。应按上游发布方式获取 ensemble 和架构表，
-独立验证后从 `/path/to/data` 传入显式路径；不要预期 `data bootstrap --all` 会安装它。
+NAS-Bench-301 使用官方 Figshare v1.0 ensemble。performance 与 runtime 模型分别注册；默认
+架构候选由标准 DARTS codec 按 seed 确定性采样，因此普通抽样 evaluate 不再要求伪造一个
+“标准答案架构表”。如需分析固定候选集，仍可显式传入安全 JSONL `--architecture-path`。
+`nb301` 依赖组固定使用兼容旧模型的 `ConfigSpace==0.4.21`，补齐官方包漏声明的推理依赖，且
+不会安装 PyG；未使用的 GNN surrogate 训练模块不会被加载。
+
+### 复用已有的外部数据目录
+
+数据不必复制到 checklist 的 `--root`。可用 `data register` 把任意绝对路径写入机器本地 catalog；
+当注册条目存在且有效时，checklist 显示 `state=ready`、`catalog_state=external_ready` 和
+`location=catalog_external`。这表示运行时直接复用外部路径，不表示数据已经复制到 `--root`。
+仓库配置只保留 `/path/to/data`，本机绝对路径只存在于 `~/.config/zcp-test/data.json`。
 
 ## 来源、checksum、信任与上游条款
 
@@ -296,8 +321,9 @@ record = read_indexed_record(
 )
 ```
 
-不要为了让损坏 TFRecord 转换成功而关闭 CRC。完整转换后仍应运行前文 adapter smoke。本文不
-声称已经完成任何真实数据 smoke。
+不要为了让损坏 TFRecord 转换成功而关闭 CRC。完整转换后仍应运行前文 adapter smoke。
+2026-07-30 的发布验收已完成前文全部 adapter 的真实 index-0 查询；每台新机器仍必须用自己的
+catalog 重跑，因为该结果不能替代对迁移文件或未来依赖栈的验证。
 
 ## 为什么 `evaluate` 不隐式自举
 

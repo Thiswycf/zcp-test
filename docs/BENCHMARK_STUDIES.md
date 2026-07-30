@@ -10,7 +10,7 @@ zcp-test analyze benchmark \
 ```
 
 Automatic views are: NAS-Bench-101 `budget`, NAS-Bench-201/NATS-TSS `topology`, NATS-SSS
-`size`, TransNAS-Bench-101 `transfer`, and ViT-Bench-101 `architecture`.
+`size`, NAS-Bench-301 `darts`, TransNAS-Bench-101 `transfer`, and ViT-Bench-101 `architecture`.
 
 ## Target protocol schema
 
@@ -49,15 +49,31 @@ zcp-test analyze benchmark --scores /path/to/nats-sss/scores.jsonl \
 ```
 
 Topology reports expose the six fixed edges, per-edge operations, operation coverage, numeric
-feature correlations, and `operation_effects.csv`. The effect table stratifies target and
+feature correlations, `operation_effects.csv`, and one-edge `matched_pairs.csv`. The effect table stratifies target and
 direction-adjusted proxy values by edge and operation, including deltas from each edge baseline.
 It diagnoses structural preference but is observational, not a causal replacement effect.
 
 Size reports expose per-stage channels, aggregate width statistics, feature correlations, and a
-focused `stage_sensitivity.csv`. Compare `outcome=score` with `outcome=target` to detect proxies
+focused `stage_sensitivity.csv`. `size_controlled_correlations.csv` reports partial Spearman after
+controlling channel sum; `size_strata.csv` reports quality within total-size quantiles. Compare `outcome=score` with `outcome=target` to detect proxies
 that mostly encode width. Prefer rank correlations for discrete channel choices with many ties.
 NAS-Bench-201 and NATS-TSS may share a topology parser but never share benchmark identity or
 targets; NATS-SSS results must not be pooled with TSS.
+
+## NAS-Bench-301 DARTS
+
+```bash
+zcp-test analyze benchmark \
+  --scores examples/studies/data/nasbench301_darts.jsonl \
+  --benchmark nasbench301_surrogate --view darts \
+  --output /tmp/zcp-test-examples/nb301
+```
+
+The report separates normal/reduction cell operation counts, source nodes, edge spans, cell
+balance, and `cell × node × source-class × operation` effects. Deterministic and noisy surrogate
+protocols must remain separate. NAS-Bench-Suite-Zero and MeCo directly study ZCPs on NB301; this
+fine-grained interaction decomposition is a benchmark-driven extension, not a reproduced paper
+table.
 
 ## TransNAS and ViT
 
@@ -73,9 +89,21 @@ zcp-test analyze benchmark --scores /path/to/vit/scores.jsonl \
 ```
 
 TransNAS micro and macro runs must remain separate. Duplicate task/architecture/proxy/component
-rows require explicit metric, split, budget, or run filtering. ViT main, extension, and PiT slices
+rows require explicit metric, split, budget, or run filtering. Reports include a task-transfer
+matrix and official micro operation/macro module factors. ViT reports include per-layer/stage
+tables, head dimension, MLP width, and explicitly named parameter proxies. ViT main, extension, and PiT slices
 remain independent, as do vanilla, KD, and inherited-supernet metrics.
+AutoFormer `hidden_dim` is the embedding width. For PiT, the released encoding uses stage width
+`base_dim * stage_num_heads`; feature and parameter proxies apply that stage-specific rule.
 
 Only validation protocols may determine search or aggregation weights. Test targets are reserved
 for final reporting. See the Chinese guide for complete output-table interpretation, filters, and
 troubleshooting: [BENCHMARK_STUDIES_CN.md](BENCHMARK_STUDIES_CN.md).
+
+## Reproducible examples and evidence
+
+Small deterministic JSONL examples for all six benchmark families and the generic multi-proxy
+study are retained under `examples/studies/data/`. Generated reports belong in `/tmp` or a run
+directory and are not committed. The complete evidence boundary—direct paper experiment,
+same-space partial evidence, or project extension—is documented in
+[RESEARCH_EVIDENCE.md](RESEARCH_EVIDENCE.md).

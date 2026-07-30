@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
@@ -128,13 +129,16 @@ def convert_transnasbench101(
                         (candidate for candidate in ("train", "valid", "test") if candidate in lowered),
                         "benchmark",
                     )
+                    value = float(values[-1])
+                    if not math.isfinite(value):
+                        continue
                     metrics.append(
                         {
                             "dataset": task,
                             "split": split,
                             "metric_name": metric_name,
                             "epoch_budget": budget,
-                            "value": float(values[-1]),
+                            "value": value,
                         }
                     )
             yield {"architecture": str(architecture)}, metrics

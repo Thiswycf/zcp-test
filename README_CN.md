@@ -27,6 +27,8 @@ zcp-test doctor --catalog configs/data.example.json
 
 - [Benchmark 数据自举与离线迁移](docs/DATA_BOOTSTRAP_CN.md)
 - [Benchmark 定制研究：预算、拓扑、size、任务迁移与 ViT 结构](docs/BENCHMARK_STUDIES_CN.md)
+- [高引 ZCP 工作证据与本项目推广边界](docs/RESEARCH_EVIDENCE_CN.md)
+- [保留的可复现研究实例](examples/studies/README_CN.md)
 - [GPU 选择](docs/GPU_CN.md)
 - [ZCP 评估与结果行数](docs/EVALUATE_CN.md)
 - [新增代理](docs/ADD_PROXY_CN.md)
@@ -36,7 +38,7 @@ zcp-test doctor --catalog configs/data.example.json
 ```bash
 zcp-test data list --catalog configs/data.example.json
 zcp-test benchmark list
-zcp-test benchmark inspect nasbench201
+zcp-test benchmark inspect nasbench201 --trusted --catalog /path/to/data/catalog.json
 zcp-test space inspect autoformer
 zcp-test proxy inspect er
 
@@ -53,9 +55,10 @@ ViT-Bench-101 的 AutoFormer 主切片、扩展切片与 PiT 分开转换和报�
 ## 首次使用：显式准备 benchmark 数据
 
 `evaluate` 不会隐式下载 benchmark 或训练数据。数据准备应作为独立、可审计的流程执行。
-`ready` 的精确定义是：每个预期原始路径通过当前可用的 checksum/存在性检查，且每个声明的
-运行期路径存在；`catalog_state` 单独报告。只读 checklist 不会反序列化原生 pickle/PyTorch
-文件，因此正式研究前仍需执行文档中的 adapter smoke。
+`ready` 的精确定义是：所选数据根目录通过当前可用的原始文件/运行格式检查，或者机器本地
+catalog 已指向全部有效运行资产。后一种情况会显示 `catalog_state=external_ready` 与
+`location=catalog_external`，不表示文件已复制到 `--root`。只读 checklist 不会反序列化原生
+pickle/PyTorch 文件，因此正式研究前仍需执行文档中的 adapter smoke。
 
 ```bash
 # 1. 查看来源、大小、目标路径、断点文件和磁盘余量。
@@ -104,6 +107,8 @@ zcp-test data import-manifest \
 ## 当前边界
 
 - 评估命令支持 `--start/--count` 范围切分；多 GPU 目前采用每张卡独立启动一个范围并在结束后合并 JSONL，尚未内置多进程调度器。
-- NAS-Bench-101 的下载、转换和 adapter 已提供，但本机没有官方 TFRecord，因此未执行真实 NB101 集成 smoke。
+- 已通过机器本地 catalog 完成 NAS-Bench-101、NAS-Bench-201、NATS-TSS/SSS、TransNAS
+  micro/macro、NAS-Bench-301 performance surrogate、ViT-Bench AutoFormer/PiT 的真实 index-0
+  查询；其他机器必须使用 `data bootstrap` 或本地 catalog 注册路径，仓库配置不保存本机路径。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
 - 150/300/600 epoch 正式训练配置已提供，本次仅执行短程 GPU smoke 与 checkpoint 恢复。

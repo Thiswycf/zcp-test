@@ -24,11 +24,17 @@ def _finite_correlation(left: pd.Series, right: pd.Series, method: str) -> float
 
 
 def _top_k_set(values: pd.Series, k: int) -> set[str]:
-    return set(values.nlargest(min(k, len(values))).index.astype(str))
+    table = pd.DataFrame(
+        {"architecture_id": values.index.astype(str), "value": pd.to_numeric(values, errors="coerce")}
+    ).reset_index(drop=True).dropna(subset=["value"])
+    table = table.sort_values(
+        ["value", "architecture_id"], ascending=[False, True], kind="mergesort"
+    )
+    return set(table.head(min(k, len(table)))["architecture_id"])
 
 
 def _rank_stability(targets: pd.DataFrame, top_k: Iterable[int]) -> pd.DataFrame:
-    pivot = targets.pivot(index="architecture_id", columns="epoch_budget", values="target_value")
+    pivot = targets.pivot(index="architecture_id", columns="epoch_budget", values="ranking_target")
     records: list[dict[str, Any]] = []
     budgets = sorted(int(value) for value in pivot.columns)
     for left_index, left_budget in enumerate(budgets):
@@ -54,7 +60,26 @@ def _rank_stability(targets: pd.DataFrame, top_k: Iterable[int]) -> pd.DataFrame
 
 def _top_k_retrieval(detailed: pd.DataFrame, top_k: Iterable[int]) -> pd.DataFrame:
     records: list[dict[str, Any]] = []
+    protocol_candidates = (
+        "benchmark_id",
+        "benchmark_version",
+        "benchmark_variant",
+        "benchmark_protocol",
+        "search_space_id",
+        "proxy_version",
+        "input_source",
+        "input_fingerprint",
+        "model_fidelity",
+        "seed",
+        "run_id",
+        "source_run",
+    )
     group_columns = ["proxy_id", "component", "direction", "epoch_budget"]
+    group_columns.extend(
+        field
+        for field in protocol_candidates
+        if field in detailed and detailed[field].notna().any() and field not in group_columns
+    )
     for key, group in detailed.groupby(group_columns, dropna=False, sort=True):
         identifiers = dict(zip(group_columns, key, strict=True))
         direction = str(identifiers["direction"]).casefold()
@@ -67,7 +92,7 @@ def _top_k_retrieval(detailed: pd.DataFrame, top_k: Iterable[int]) -> pd.DataFra
         ranked = ranked.dropna(subset=["adjusted_score"]).drop_duplicates("architecture_id")
         if ranked.empty:
             continue
-        target = ranked.set_index("architecture_id")["target_value"]
+        target = ranked.set_index("architecture_id")["ranking_target"]
         score = ranked.set_index("architecture_id")["adjusted_score"]
         for requested_k in top_k:
             effective_k = min(int(requested_k), len(ranked))
@@ -131,17 +156,49 @@ def nasbench101_budget_study(
     if target_direction not in {"maximize", "minimize"}:
         raise ValueError("target_direction must be maximize or minimize")
 
-    score_groups = ["architecture_id", "proxy_id", "component", "direction"]
+    score_protocol_fields = [
+        field
+        for field in (
+            "benchmark_id",
+            "benchmark_version",
+            "benchmark_variant",
+            "benchmark_protocol",
+            "search_space_id",
+            "proxy_version",
+            "input_source",
+            "input_fingerprint",
+            "model_fidelity",
+            "seed",
+            "run_id",
+            "source_run",
+        )
+        if field in frame and frame[field].notna().any()
+    ]
+    score_groups = [
+        "architecture_id",
+        "proxy_id",
+        "component",
+        "direction",
+        *score_protocol_fields,
+    ]
     scores = (
         frame.dropna(subset=["architecture_id", "proxy_id", "score"])
         .groupby(score_groups, dropna=False, as_index=False)
         .agg(score=("score", "mean"), observation_count=("score", "size"))
     )
-    specifications = (
-        frame.dropna(subset=["architecture_id"])
-        .drop_duplicates("architecture_id")
-        .set_index("architecture_id")["architecture"]
-    )
+    specification_rows = frame.dropna(subset=["architecture_id"])[
+        ["architecture_id", "architecture"]
+    ].copy()
+    conflicts = specification_rows.assign(
+        _stable_spec=specification_rows["architecture"].map(
+            lambda value: repr(value) if not isinstance(value, dict) else repr(sorted(value.items()))
+        )
+    ).groupby("architecture_id")["_stable_spec"].nunique()
+    if conflicts.gt(1).any():
+        raise ValueError("NAS-Bench-101 architecture_id maps to multiple specifications")
+    specifications = specification_rows.drop_duplicates("architecture_id").set_index(
+        "architecture_id"
+    )["architecture"]
     target_rows: list[dict[str, Any]] = []
     for architecture_id, specification in specifications.items():
         canonical = adapter.canonicalize(specification)
@@ -166,21 +223,28 @@ def nasbench101_budget_study(
                 {
                     "architecture_id": expected_id,
                     "epoch_budget": budget,
-                    "target_value": -value if target_direction == "minimize" else value,
+                    "target_value": value,
+                    "ranking_target": -value if target_direction == "minimize" else value,
                     "raw_target_value": value,
                     "target_direction": target_direction,
                     "dataset": dataset,
                     "target_split": split,
                     "target_metric": metric_name,
-                    "seed": repeat_index,
-                    "seed_reduction": seed_reduction,
+                    "target_seed": repeat_index,
+                    "target_seed_reduction": seed_reduction,
                 }
             )
     targets = pd.DataFrame.from_records(target_rows)
     detailed = scores.merge(targets, on="architecture_id", validate="many_to_many")
+    correlation_groups = [
+        "proxy_id",
+        "component",
+        "epoch_budget",
+        *score_protocol_fields,
+    ]
     correlations = correlation_table(
         detailed,
-        group_by=("proxy_id", "component", "epoch_budget"),
+        group_by=correlation_groups,
         bootstrap_samples=bootstrap_samples,
     )
     stability = _rank_stability(targets, top_k)

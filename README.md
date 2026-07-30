@@ -23,10 +23,12 @@ Native serialized benchmarks and resumed checkpoints require an explicit `--trus
 ## First use: prepare benchmark data explicitly
 
 `evaluate` never downloads benchmark or training data implicitly. Run data preparation as a
-separate, auditable workflow. `ready` means that every expected raw path passes the available
-checksum/existence checks and every declared runtime path exists; `catalog_state` is reported
-separately. Native pickle/PyTorch files are not deserialized by a read-only checklist, so run the
-documented adapter smoke before research use.
+separate, auditable workflow. `ready` means either that the selected root passes the available
+raw/runtime checks or that a valid machine-local catalog points to all required runtime assets.
+In the latter case, checklist reports `catalog_state=external_ready` and
+`location=catalog_external`; it does not imply that files were copied below `--root`. Native
+pickle/PyTorch files are not deserialized by a read-only checklist, so run the documented adapter
+smoke before research use.
 
 ```bash
 # 1. Plan and inspect source, size, paths, partial downloads, and free space.
@@ -64,6 +66,13 @@ planning sizes, pinned and missing checksums, protocol boundaries, Google Drive 
 corruption and disk recovery, offline transfer, and the dedicated NAS-Bench-101 safe interface.
 
 ## Key commands
+
+Research manuals:
+
+- [Generic multi-proxy analysis](docs/ANALYSIS_CN.md)
+- [Benchmark-specific studies](docs/BENCHMARK_STUDIES.md)
+- [Paper evidence and extension boundaries](docs/RESEARCH_EVIDENCE.md)
+- [Retained reproducible examples](examples/studies/README_CN.md)
 
 ```bash
 zcp-test data list --catalog configs/data.example.json
@@ -115,7 +124,10 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
 ## Current boundaries
 
 - `evaluate` supports range partitioning with `--start/--count`. Multi-GPU execution currently uses one process and disjoint range per GPU followed by JSONL merge; there is no built-in process launcher yet.
-- NAS-Bench-101 download, conversion and adapter support are implemented, but the official TFRecord is not present on this host, so no real NB101 integration smoke was run.
+- Real index-0 queries completed for NAS-Bench-101, NAS-Bench-201, NATS-TSS/SSS, TransNAS micro/
+  macro, NAS-Bench-301 performance surrogate, and ViT-Bench AutoFormer/PiT using the machine-local
+  catalog. Other machines must bootstrap or register their own paths; repository configuration
+  never stores host paths.
 - MobileNetV3 remains an optional adapter. Formal 150/300/600-epoch profiles are provided, while this build validation runs only short GPU smoke and checkpoint resume.
 
 ## Proxy capability policy

@@ -7,6 +7,7 @@
 - Once-for-All / OFA: MIT license. MobileNet search-space definitions and training defaults are independently adapted.
 - PiT: source notices identify NAVER and Apache-2.0.
 - DARTS: upstream implementation is MIT licensed.
+- NAS-Bench-301: the official `nasbench301==0.3` package and v1.0 surrogate models are BSD-3-Clause. The adapter uses its inference API while deliberately bypassing eager imports of unused PyG-based surrogate-training classes.
 - NAS-Bench and NATS benchmark data may have separate distribution terms. `zcp-test` does not redistribute large benchmark files.
 - NAS-Bench-101 `model_metrics.proto` and its generated compatibility module derive from `google-research/nasbench@b94247037ee470418a3e56dcb83814e9be83f3a8`, Apache-2.0. The full TFRecord remains external data and is never committed.
 

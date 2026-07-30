@@ -84,8 +84,9 @@ def test_bootstrap_correlation_and_group_table_are_reproducible() -> None:
     assert first["estimate"] == pytest.approx(1.0)
     assert first["lower"] == pytest.approx(1.0)
     table = correlation_table(_score_rows(), bootstrap_samples=50)
-    assert table.loc[0, "spearman"] == pytest.approx(1.0)
-    assert table.loc[0, "sample_count"] == 6
+    assert len(table) == 2
+    assert table["spearman"].eq(1.0).all()
+    assert table["sample_count"].eq(3).all()
 
 
 def test_bundle_writes_static_csv_png_svg_and_html(tmp_path: Path) -> None:
@@ -155,10 +156,15 @@ def test_research_helper_tables_cover_aggregation_cost_convergence_and_transfer(
     convergence = sample_size_convergence(rows, sizes=(2, 4), seed=3)
     transfer = transfer_correlation_table(rows)
 
-    assert list(aggregation["architecture_id"]) == [f"a{index}" for index in range(6, 0, -1)]
+    assert set(aggregation["benchmark_id"]) == {"bench-a", "bench-b"}
+    assert set(aggregation["architecture_id"]) == {f"a{index}" for index in range(1, 7)}
+    for _, protocol in aggregation.groupby(["benchmark_id", "seed"]):
+        assert protocol["aggregate_rank"].is_monotonic_increasing
     assert aggregation["proxy_count"].eq(1).all()
     assert pareto.loc[0, "pareto"]
-    assert list(convergence["sample_count"]) == [2, 4]
+    assert set(convergence["requested_size"]) == {2, 4}
+    assert convergence["sample_count"].le(convergence["requested_size"]).all()
+    assert set(convergence["benchmark_id"]) == {"bench-a", "bench-b"}
     assert set(transfer["benchmark_id"]) == {"bench-a", "bench-b"}
 
 

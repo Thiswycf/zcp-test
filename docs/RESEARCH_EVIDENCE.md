@@ -1,0 +1,23 @@
+# ZCP Research Evidence and Extension Boundaries
+
+The project distinguishes **direct evidence** (the paper evaluates the same benchmark/search
+space), **partial evidence** (the same model family or search space but a different released
+artifact), and **project extension** (a new benchmark-driven analysis).
+
+| Work | Common experimental pattern | Direct scope here |
+|---|---|---|
+| [NASWOT](https://proceedings.mlr.press/v139/mellor21a.html) | rank correlation, selection, initialization/batch/random-input stability, wall time | NB101 and NATS-SSS |
+| [Zero-Cost Proxies](https://arxiv.org/abs/2101.08134) | global and top-region rank, edit-distance-one neighborhoods, search warmup/proposals | NB101 |
+| [TE-NAS](https://arxiv.org/abs/2102.11535) | trainability/expressivity, operation pruning, ablations and search cost | DARTS space only; not NB301 surrogate data |
+| [NAS-Bench-Suite-Zero](https://arxiv.org/abs/2210.03230) | proxy-proxy relations, task transfer, structural bias, cost, predictor augmentation | NB101, NB301, TNB micro/macro |
+| [ZiCo](https://arxiv.org/abs/2301.11300) | Spearman/Kendall, Params/FLOPs baselines, repeated search | NB101, NATS-TSS/SSS, TNB micro |
+| [MeCo](https://papers.nips.cc/paper_files/paper/2023/hash/bfa815ac6f08f4ada34fe22be054f2b9-Abstract-Conference.html) | cross-benchmark Spearman, input/channel ablations, ZC-PT search | NB101, NATS-TSS/SSS, NB301, TNB micro/macro |
+| [AZ-NAS](https://openaccess.thecvf.com/content/CVPR2024/html/Lee_AZ-NAS_Assembling_Zero-Cost_Proxies_for_Network_Architecture_Search_CVPR_2024_paper.html) | multi-proxy rank aggregation, component ablations, correlation/time, AutoFormer search | AutoFormer search space, not ViT-Bench GT; no direct PiT evidence |
+
+Project extensions include NATS one-edge matched contrasts, NATS-SSS size-controlled stage
+analysis, NB301 operation/topology interactions, unified TNB macro/micro factors, and ViT/PiT
+layer-stage parameter analysis. These are observational diagnostics and are never presented as
+causal effects or as experiments already reported by the cited papers.
+
+See [RESEARCH_EVIDENCE_CN.md](RESEARCH_EVIDENCE_CN.md) for the detailed experiment-to-artifact
+mapping and official code links.

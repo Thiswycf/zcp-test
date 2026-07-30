@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import pandas as pd
+import numpy as np
 
 
 def _save_figure(figure: Any, output: Path, name: str) -> list[str]:
@@ -134,6 +135,71 @@ def _plot_correlation_bars(
     return artifacts
 
 
+def _plot_transfer_matrix(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
+    import matplotlib.pyplot as plt
+
+    table = tables.get("task_transfer", pd.DataFrame())
+    if table.empty or not {"source_task", "target_task", "correlation"}.issubset(table):
+        return []
+    selected = table[table["method"].eq("spearman")] if "method" in table else table
+    if selected.empty:
+        return []
+    grouping = [field for field in ("search_space_id", "proxy_id", "component") if field in selected]
+    artifacts: list[str] = []
+    for index, (key, group) in enumerate(selected.groupby(grouping, dropna=False, sort=True)):
+        matrix = group.pivot(index="source_task", columns="target_task", values="correlation")
+        figure, axis = plt.subplots(figsize=(max(6, len(matrix.columns)), max(5, len(matrix))))
+        image = axis.imshow(matrix.to_numpy(float), cmap="coolwarm", vmin=-1, vmax=1)
+        axis.set_xticks(range(len(matrix.columns)), matrix.columns, rotation=35, ha="right")
+        axis.set_yticks(range(len(matrix.index)), matrix.index)
+        axis.set(xlabel="Target task", ylabel="Source task", title=f"Task transfer: {key}")
+        for row in range(len(matrix.index)):
+            for column in range(len(matrix.columns)):
+                value = matrix.iloc[row, column]
+                if pd.notna(value):
+                    axis.text(column, row, f"{value:.2f}", ha="center", va="center", fontsize=8)
+        figure.colorbar(image, ax=axis, shrink=0.85)
+        figure.tight_layout()
+        artifacts.extend(_save_figure(figure, output, f"task_transfer_{index}"))
+        plt.close(figure)
+    return artifacts
+
+
+def _plot_darts_interactions(tables: dict[str, pd.DataFrame], output: Path) -> list[str]:
+    import matplotlib.pyplot as plt
+
+    table = tables.get("operation_topology_interactions", pd.DataFrame())
+    required = {"cell", "node", "operation", "target_delta_from_interaction_mean"}
+    if table.empty or not required.issubset(table):
+        return []
+    selected = table.copy()
+    if "proxy_id" in selected:
+        first = selected[["proxy_id", "component"]].drop_duplicates().iloc[0]
+        selected = selected[
+            selected["proxy_id"].eq(first["proxy_id"])
+            & selected["component"].eq(first["component"])
+        ]
+    selected["location"] = selected["cell"].astype(str) + "/node" + selected["node"].astype(str)
+    matrix = selected.pivot_table(
+        index="operation",
+        columns="location",
+        values="target_delta_from_interaction_mean",
+        aggfunc="mean",
+    )
+    figure, axis = plt.subplots(figsize=(max(7, len(matrix.columns)), max(4, 0.6 * len(matrix))))
+    maximum = np.nanmax(np.abs(matrix.to_numpy(float))) if matrix.size else 1.0
+    maximum = maximum if np.isfinite(maximum) and maximum > 0 else 1.0
+    image = axis.imshow(matrix.to_numpy(float), cmap="coolwarm", vmin=-maximum, vmax=maximum)
+    axis.set_xticks(range(len(matrix.columns)), matrix.columns, rotation=35, ha="right")
+    axis.set_yticks(range(len(matrix.index)), matrix.index)
+    axis.set_title("DARTS operation × topology target effects")
+    figure.colorbar(image, ax=axis, shrink=0.85)
+    figure.tight_layout()
+    artifacts = _save_figure(figure, output, "darts_operation_topology_interactions")
+    plt.close(figure)
+    return artifacts
+
+
 def write_benchmark_study(
     tables: dict[str, pd.DataFrame],
     destination: str | Path,
@@ -167,6 +233,13 @@ def write_benchmark_study(
                 tables, output, "size_feature_correlations", "NATS-SSS feature correlations"
             )
         )
+    elif view == "darts":
+        artifacts.extend(
+            _plot_correlation_bars(
+                tables, output, "darts_feature_correlations", "DARTS feature correlations"
+            )
+        )
+        artifacts.extend(_plot_darts_interactions(tables, output))
     elif view == "architecture":
         artifacts.extend(
             _plot_correlation_bars(tables, output, "architecture_features", "Architecture feature correlations")
@@ -175,6 +248,7 @@ def write_benchmark_study(
         artifacts.extend(
             _plot_correlation_bars(tables, output, "task_quality", "Cross-task ZCP quality")
         )
+        artifacts.extend(_plot_transfer_matrix(tables, output))
     manifest = {
         "schema_version": 1,
         "benchmark_id": benchmark_id,

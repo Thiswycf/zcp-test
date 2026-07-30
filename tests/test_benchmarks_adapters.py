@@ -10,6 +10,7 @@ from zcp_test.benchmarks.nats import NatsSssAdapter, NatsTssAdapter
 from zcp_test.benchmarks.transnasbench101 import TransNasBench101Adapter
 from zcp_test.benchmarks.vitbench101 import VitBench101Adapter
 from zcp_test.types import MetricSpec
+from zcp_test.spaces.darts import DartsSpace
 
 
 class FakeApi:
@@ -98,7 +99,7 @@ def test_nb301_is_deterministic_unless_noise_requested(tmp_path):
     model_path = tmp_path / "ensemble"
     model_path.mkdir()
     architecture_path = tmp_path / "darts.jsonl"
-    spec = {"normal": [["skip_connect", 0]], "normal_concat": [2], "reduce": [["max_pool_3x3", 0]], "reduce_concat": [2]}
+    spec = DartsSpace().sample(0).spec
     write_jsonl(architecture_path, [{"record_kind": "benchmark_architecture", "benchmark_id": "nasbench301_surrogate", "search_space_id": "darts", "benchmark_version": "1.0", "benchmark_index": 0, "specification": spec, "metrics": []}])
 
     class Ensemble:
@@ -114,3 +115,10 @@ def test_nb301_is_deterministic_unless_noise_requested(tmp_path):
     result = adapter.query_metrics(adapter.sample_architecture(0), MetricSpec("cifar10", "test", "accuracy"))
     assert result == {"accuracy": 93.2}
     assert ensemble.noise is False
+
+    generated = NasBench301SurrogateAdapter(
+        str(model_path), ensemble_loader=lambda _: ensemble
+    )
+    generated_architecture = next(generated.iter_architectures(2, 3))
+    assert generated_architecture.architecture_id == DartsSpace().sample(2).architecture_id
+    assert generated.metadata()["architecture_source"] == "deterministic_darts_sampling"

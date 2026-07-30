@@ -2,5 +2,6 @@ benchmark_id: nasbench301_surrogate
 search_space_id: darts
 version: "1.0"
 path: /path/to/data/nasbench301/nb_models/xgb_v1.0
-architecture_path: /path/to/data/nasbench301/darts_architectures.jsonl
+runtime_path: /path/to/data/nasbench301/nb_models/lgb_runtime_v1.0
+architecture_source: deterministic_darts_sampling
 surrogate_noise: false

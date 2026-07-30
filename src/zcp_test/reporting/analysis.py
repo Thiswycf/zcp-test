@@ -148,6 +148,15 @@ def read_scores(source: ScoreSource, *, include_failed: bool = False) -> pd.Data
         rows = _read_jsonl(_score_path(source))
     else:
         rows = list(source)
+        if rows and all(isinstance(item, (str, Path)) for item in rows):
+            frames = []
+            for item in rows:
+                frame = read_scores(item, include_failed=include_failed)
+                if len(rows) > 1:
+                    frame = frame.copy()
+                    frame["source_run"] = str(item)
+                frames.append(frame)
+            return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
     normalized_rows = [normalized for row in rows for normalized in _expand_score_row(row)]
     frame = pd.DataFrame(normalized_rows)
     for field in _SCORE_FIELDS:
@@ -190,6 +199,11 @@ PROTOCOL_FIELDS = (
     "target_direction",
     "target_epoch_budget",
     "target_seed_reduction",
+    "target_seed",
+    "input_source",
+    "input_fingerprint",
+    "model_fidelity",
+    "seed",
 )
 
 
@@ -277,7 +291,10 @@ def correlation_table(
 ) -> pd.DataFrame:
     frame = _direction_adjusted(read_scores(source))
     if group_by is None:
-        group_by = protocol_group_fields(frame, ("proxy_id", "component"))
+        proxy_fields = ["proxy_id", "component"]
+        if "proxy_version" in frame and frame["proxy_version"].notna().any():
+            proxy_fields.append("proxy_version")
+        group_by = protocol_group_fields(frame, proxy_fields)
     required = [*group_by, "target_value", "score"]
     missing = [field for field in required if field not in frame]
     if missing:
@@ -376,11 +393,20 @@ def plot_heatmap(
     if table.empty:
         raise ValueError("Cannot plot empty correlation data")
     table["proxy"] = table["proxy_id"].astype(str) + " / " + table["component"].astype(str)
-    column = "dataset" if "dataset" in table and table["dataset"].notna().any() else "proxy"
-    if column == "proxy":
+    protocol_fields = [
+        field
+        for field in PROTOCOL_FIELDS
+        if field in table and table[field].notna().any()
+    ]
+    if not protocol_fields:
         matrix = table.set_index("proxy")[[method]].T
     else:
-        matrix = table.pivot_table(index="proxy", columns=column, values=method, aggfunc="mean")
+        table["protocol"] = table.apply(
+            lambda row: " | ".join(f"{field}={row[field]}" for field in protocol_fields), axis=1
+        )
+        if table.duplicated(["proxy", "protocol"], keep=False).any():
+            raise ValueError("Correlation heatmap has duplicate proxy/protocol rows")
+        matrix = table.pivot(index="proxy", columns="protocol", values=method)
     figure, axis = plt.subplots(figsize=(max(6, 1.1 * matrix.shape[1]), max(3, 0.55 * matrix.shape[0])))
     image = axis.imshow(matrix.to_numpy(dtype=float), cmap="coolwarm", vmin=-1, vmax=1, aspect="auto")
     axis.set_xticks(range(matrix.shape[1]), matrix.columns, rotation=35, ha="right")
@@ -402,7 +428,10 @@ def top_k_comparison(source: ScoreSource, *, k: int | Sequence[int] = 10) -> pd.
     )
     requested = [k] if isinstance(k, int) else list(k)
     records: list[dict[str, Any]] = []
-    group_fields = protocol_group_fields(frame, ("proxy_id", "component"))
+    proxy_fields = ["proxy_id", "component"]
+    if "proxy_version" in frame and frame["proxy_version"].notna().any():
+        proxy_fields.append("proxy_version")
+    group_fields = protocol_group_fields(frame, proxy_fields)
     for label, group in frame.groupby(list(group_fields), dropna=False):
         labels = label if isinstance(label, tuple) else (label,)
         group_identity = dict(zip(group_fields, labels, strict=True))
@@ -435,13 +464,15 @@ def rank_aggregation(source: ScoreSource, *, require_validation: bool = True) ->
     if frame.empty:
         return pd.DataFrame(columns=["architecture_id", "aggregate_rank", "proxy_count"])
     frame = frame.dropna(subset=["architecture_id", "proxy_id", "score"]).copy()
-    frame["normalized_rank"] = frame.groupby(["proxy_id", "component"])["score"].rank(
+    protocol_fields = protocol_group_fields(frame, ())
+    proxy_fields = [*protocol_fields, "proxy_id", "component"]
+    frame["normalized_rank"] = frame.groupby(proxy_fields, dropna=False)["score"].rank(
         method="average", pct=True, ascending=False
     )
     return (
-        frame.groupby("architecture_id", as_index=False)
+        frame.groupby([*protocol_fields, "architecture_id"], as_index=False, dropna=False)
         .agg(aggregate_rank=("normalized_rank", "mean"), proxy_count=("proxy_id", "nunique"))
-        .sort_values(["aggregate_rank", "architecture_id"])
+        .sort_values([*protocol_fields, "aggregate_rank", "architecture_id"])
     )
 
 
@@ -453,13 +484,14 @@ def proxy_cost_pareto(source: ScoreSource) -> pd.DataFrame:
             return float("nan")
         return float(pd.to_numeric(group[field], errors="coerce").median())
 
-    for (proxy_id, component), group in frame.groupby(["proxy_id", "component"], dropna=False):
+    group_fields = protocol_group_fields(frame, ("proxy_id", "component"))
+    for key, group in frame.groupby(list(group_fields), dropna=False):
+        values = key if isinstance(key, tuple) else (key,)
         target, score = _paired_values(group["target_value"], group["score"])
         correlation = _correlation(target, score, "spearman")
         records.append(
             {
-                "proxy_id": proxy_id,
-                "component": component,
+                **dict(zip(group_fields, values, strict=True)),
                 "spearman": correlation,
                 "median_duration_seconds": median_numeric(group, "duration_seconds"),
                 "median_peak_memory_mb": median_numeric(group, "peak_memory_mb"),
@@ -469,42 +501,45 @@ def proxy_cost_pareto(source: ScoreSource) -> pd.DataFrame:
     if table.empty:
         table["pareto"] = pd.Series(dtype=bool)
         return table
-    objectives = table[["spearman", "median_duration_seconds", "median_peak_memory_mb"]].copy()
-    objectives["spearman"] = objectives["spearman"].fillna(float("-inf"))
-    objectives[["median_duration_seconds", "median_peak_memory_mb"]] = objectives[
-        ["median_duration_seconds", "median_peak_memory_mb"]
-    ].fillna(float("inf"))
-    pareto = []
-    for _, row in objectives.iterrows():
-        dominated = (
-            (objectives["spearman"] >= row["spearman"])
-            & (objectives["median_duration_seconds"] <= row["median_duration_seconds"])
-            & (objectives["median_peak_memory_mb"] <= row["median_peak_memory_mb"])
-            & (
-                (objectives["spearman"] > row["spearman"])
-                | (objectives["median_duration_seconds"] < row["median_duration_seconds"])
-                | (objectives["median_peak_memory_mb"] < row["median_peak_memory_mb"])
-            )
-        ).any()
-        pareto.append(not bool(dominated))
-    table["pareto"] = pareto
+    protocol_only = [field for field in group_fields if field not in {"proxy_id", "component"}]
+    table["pareto"] = False
+    groups = table.groupby(protocol_only, dropna=False) if protocol_only else [((), table)]
+    for _, protocol in groups:
+        objectives = protocol[["spearman", "median_duration_seconds", "median_peak_memory_mb"]].copy()
+        objectives["spearman"] = objectives["spearman"].fillna(float("-inf"))
+        objectives[["median_duration_seconds", "median_peak_memory_mb"]] = objectives[
+            ["median_duration_seconds", "median_peak_memory_mb"]
+        ].fillna(float("inf"))
+        for index, row in objectives.iterrows():
+            dominated = (
+                (objectives["spearman"] >= row["spearman"])
+                & (objectives["median_duration_seconds"] <= row["median_duration_seconds"])
+                & (objectives["median_peak_memory_mb"] <= row["median_peak_memory_mb"])
+                & (
+                    (objectives["spearman"] > row["spearman"])
+                    | (objectives["median_duration_seconds"] < row["median_duration_seconds"])
+                    | (objectives["median_peak_memory_mb"] < row["median_peak_memory_mb"])
+                )
+            ).any()
+            table.loc[index, "pareto"] = not bool(dominated)
     return table
 
 
 def sample_size_convergence(
     source: ScoreSource, *, sizes: Sequence[int] = (10, 25, 50, 100), seed: int = 0
 ) -> pd.DataFrame:
-    frame = read_scores(source).dropna(subset=["target_value", "score"])
+    frame = _direction_adjusted(read_scores(source)).dropna(subset=["target_value", "score"])
     records: list[dict[str, Any]] = []
-    for (proxy_id, component), group in frame.groupby(["proxy_id", "component"], dropna=False):
+    group_fields = protocol_group_fields(frame, ("proxy_id", "component"))
+    for key, group in frame.groupby(list(group_fields), dropna=False):
+        values = key if isinstance(key, tuple) else (key,)
         group = group.sample(frac=1, random_state=seed)
         for size in sizes:
             sample = group.iloc[: min(size, len(group))]
             target, score = _paired_values(sample["target_value"], sample["score"])
             records.append(
                 {
-                    "proxy_id": proxy_id,
-                    "component": component,
+                    **dict(zip(group_fields, values, strict=True)),
                     "requested_size": size,
                     "sample_count": len(sample),
                     "spearman": _correlation(target, score, "spearman"),
@@ -515,8 +550,7 @@ def sample_size_convergence(
 
 def transfer_correlation_table(source: ScoreSource) -> pd.DataFrame:
     frame = read_scores(source).dropna(subset=["target_value", "score"])
-    groups = [field for field in ("benchmark_id", "dataset", "proxy_id", "component") if field in frame]
-    return correlation_table(frame, group_by=groups)
+    return correlation_table(frame)
 
 
 def plot_top_k_compare(
@@ -765,6 +799,28 @@ def build_report_bundle(
                 target = output / f"{name}.{suffix}"
                 figure = plotter(target)
                 plt.close(figure)
+                artifacts.append(target)
+        from zcp_test.reporting.proxy_studies import (
+            plot_proxy_proxy_heatmap,
+            plot_proxy_target_heatmap,
+            proxy_study,
+        )
+
+        multi_proxy = proxy_study(paired, k=top_k)
+        for name, table in multi_proxy.items():
+            path = output / f"{name}.csv"
+            _write_csv(table, path)
+            artifacts.append(path)
+        for suffix in ("png", "svg"):
+            target = output / f"proxy_target_protocol_heatmap.{suffix}"
+            plot_proxy_target_heatmap(multi_proxy, target)
+            plt.close()
+            artifacts.append(target)
+        if not multi_proxy["proxy_proxy_correlations"].empty:
+            for suffix in ("png", "svg"):
+                target = output / f"proxy_proxy_heatmap.{suffix}"
+                plot_proxy_proxy_heatmap(multi_proxy["proxy_proxy_correlations"], target)
+                plt.close()
                 artifacts.append(target)
     for name, source, plotter in (
         ("search", search, plot_search),

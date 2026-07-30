@@ -5,6 +5,7 @@ import json
 import pandas as pd
 
 from zcp_test.cli import main
+from zcp_test.reporting.benchmark_darts import nasbench301_darts_study
 from zcp_test.reporting.benchmark_report import write_benchmark_study
 from zcp_test.reporting.benchmark_studies import (
     nats_size_study,
@@ -12,6 +13,7 @@ from zcp_test.reporting.benchmark_studies import (
     transnas_transfer_study,
     vit_architecture_study,
 )
+from zcp_test.spaces.darts import DartsSpace
 
 
 def test_topology_and_nats_size_studies_extract_canonical_factors(tmp_path):
@@ -72,7 +74,7 @@ def test_topology_and_size_studies_link_structure_to_scores_and_targets():
         )
 
     topology = topology_study(pd.DataFrame(topology_rows))
-    assert {"correlations", "operation_effects"}.issubset(topology)
+    assert {"correlations", "operation_effects", "matched_pairs", "matched_pair_summary"}.issubset(topology)
     assert set(topology["operation_effects"]["edge"]) == {
         "0->1", "0->2", "1->2", "0->3", "1->3", "2->3"
     }
@@ -88,6 +90,7 @@ def test_topology_and_size_studies_link_structure_to_scores_and_targets():
     assert set(size["stage_sensitivity"]["feature"]) == {
         f"stage_{index}_channel" for index in range(5)
     }
+    assert {"size_controlled_correlations", "size_strata"}.issubset(size)
 
 
 def test_vit_and_transnas_studies_report_feature_and_task_correlations():
@@ -110,8 +113,10 @@ def test_vit_and_transnas_studies_report_feature_and_task_correlations():
         "feature == 'vit_dimension' and outcome == 'target' and method == 'spearman'"
     )
     assert hidden_target.iloc[0]["correlation"] == 1.0
+    assert len(vit["layers"]) == 6
 
     transfer_rows = []
+    encodings = ("64-41414-1_02_333", "64-41414-2_13_001", "64-41414-3_21_012")
     for task in ("class_object", "segmentsemantic"):
         for index in range(1, 4):
             transfer_rows.append(
@@ -119,6 +124,7 @@ def test_vit_and_transnas_studies_report_feature_and_task_correlations():
                     "search_space_id": "transnas_micro",
                     "dataset": task,
                     "architecture_id": f"a{index}",
+                    "architecture": {"architecture": encodings[index - 1]},
                     "proxy_id": "proxy",
                     "component": "score",
                     "score": float(index),
@@ -129,6 +135,85 @@ def test_vit_and_transnas_studies_report_feature_and_task_correlations():
     transfer = transnas_transfer_study(pd.DataFrame(transfer_rows))
     assert set(transfer["task_quality"]["dataset"]) == {"class_object", "segmentsemantic"}
     assert transfer["task_transfer"]["sample_count"].eq(3).all()
+    assert {"architecture_features", "architecture_factors", "factor_effects"}.issubset(
+        transfer
+    )
+    assert len(transfer["architecture_factors"]) == 33
+
+
+def test_pit_features_use_stage_embedding_dimensions_and_task_transfer_ignores_target_fields():
+    pit_rows = [
+        {
+            "architecture_id": "pit-a",
+            "architecture": {"depth": [1, 1], "base_dim": 16, "num_heads": [2, 4], "mlp_ratio": 4},
+            "search_space_id": "pit",
+            "proxy_id": "proxy",
+            "component": "score",
+            "score": 1.0,
+            "target_value": 1.0,
+            "direction": "maximize",
+        }
+    ]
+    vit = vit_architecture_study(pd.DataFrame(pit_rows))
+    assert list(vit["layers"]["dimension"]) == [32.0, 64.0]
+    assert list(vit["layers"]["head_dimension"]) == [16.0, 16.0]
+
+    transfer_rows = []
+    for task, metric, fingerprint in (
+        ("class_object", "valid_top1", "class-batch"),
+        ("segmentsemantic", "valid_mIoU", "segmentation-batch"),
+    ):
+        for index in range(1, 4):
+            transfer_rows.append(
+                {
+                    "search_space_id": "transnas_micro",
+                    "dataset": task,
+                    "target_metric": metric,
+                    "target_split": "valid",
+                    "input_fingerprint": fingerprint,
+                    "architecture_id": f"a{index}",
+                    "proxy_id": "proxy",
+                    "component": "score",
+                    "score": float(index),
+                    "target_value": float(index),
+                    "direction": "maximize",
+                }
+            )
+    transfer = transnas_transfer_study(pd.DataFrame(transfer_rows))
+    assert len(transfer["task_transfer"]) == 2 * 2 * 2
+
+
+def test_nasbench301_darts_study_reports_joint_operation_topology_effects(tmp_path):
+    space = DartsSpace()
+    rows = []
+    for index in range(4):
+        architecture = space.sample(seed=index)
+        rows.append(
+            {
+                "benchmark_id": "nasbench301_surrogate",
+                "search_space_id": "darts",
+                "architecture_id": architecture.architecture_id,
+                "architecture": architecture.spec,
+                "proxy_id": "proxy",
+                "component": "score",
+                "score": float(index),
+                "target_value": float(index * 2),
+                "direction": "maximize",
+            }
+        )
+
+    tables = nasbench301_darts_study(pd.DataFrame(rows))
+    assert {"architectures", "edges", "correlations", "operation_topology_interactions"} == set(
+        tables
+    )
+    assert set(tables["edges"]["cell"]) == {"normal", "reduce"}
+    assert {"node", "source_class", "operation"}.issubset(
+        tables["operation_topology_interactions"]
+    )
+    report = write_benchmark_study(
+        tables, tmp_path / "nb301", view="darts", benchmark_id="nasbench301_surrogate"
+    )
+    assert "darts_operation_topology_interactions.svg" in report["artifacts"]
 
 
 def test_benchmark_analysis_cli_auto_dispatches_topology(tmp_path):
