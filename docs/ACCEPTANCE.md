@@ -65,7 +65,10 @@ torchrun/DDP wrapping, cross-rank metric reduction, a shared run and rank-zero a
 All six upstream complexity values are reproduced under the explicit `official_complexity_ops`
 field. For AZ-NAS Tiny, THOP reports 1,100,420,352 MACs versus 1,380,128,376 upstream operations and
 also omits relative-position parameters; the two measures are therefore reported separately rather
-than forced into a false FLOPs equivalence. Full-data distributed resume/failure injection remains.
+than forced into a false FLOPs equivalence. Two-rank interruption and new-run recovery on a tiny
+fixture made from real ImageNet images now validates an `interrupted` manifest, checkpoint SHA-256/
+source-run lineage, continuous epoch 0–4 logs and `.tmp` cleanup. This is recovery-mechanism evidence,
+not either full ImageNet 1% protocol.
 
 NAS-Bench-101/201, NATS and converted TransNAS records are **standard answers** only for their
 explicit dataset/split/budget/seed protocol. NAS-Bench-301 is a **surrogate** prediction, and its
@@ -119,12 +122,13 @@ The following work is explicitly **not accepted** and must not be reported as co
 
 1. Full 600-epoch DARTS CIFAR-10/CIFAR-100 and 250-epoch DARTS ImageNet training.
 2. AutoFormer 500-epoch and Proxyless-MBV2 150-epoch formal protocols; AutoFormer sampler, LR rule,
-   parameter/complexity fixtures and two-rank smoke are accepted, but full-data distributed
-   recovery and failure injection remain missing.
+   parameter/complexity fixtures, two-rank smoke and real-image-fixture recovery are accepted, but
+   full ImageNet × 1%-epoch and 1%-ImageNet × full-schedule runs remain missing.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Full-scale 22-proxy evaluation across supported benchmark datasets, splits, budgets and seeds.
 5. Exhaustive NAS-Bench-101 evaluation or theoretical NAS-Bench-301 DARTS-space traversal.
-6. Multi-GPU launch, duplicate-safe consolidation, restart and failure-injection acceptance.
+6. Built-in multi-GPU evaluate launch and duplicate-safe consolidation; training DDP launch and
+   fixture-level restart/failure injection are accepted, but full-data-level acceptance is not.
 7. Paper-number reproduction, independent-seed confidence intervals and official-code cost/accuracy
    comparison.
 

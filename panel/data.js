@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 18:12 CST",
+  updatedAt: "2026-07-30 18:35 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "AutoFormer 官方 complexity_ops 与 THOP 分口径交叉检查后的最新完整 gate 为 252 passed、第一方 source coverage 86%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "最新完整 gate 为 262 passed、第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 18:12"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 18:35"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -78,9 +78,9 @@ window.ZCP_PANEL_DATA = {
       content: "提供可独立构建的静态 subnet，使逐层 depth、head 与 MLP ratio 真实影响模型。",
       purpose: "支撑无 inherited supernet 条件下的 AZ-NAS scratch/static 研究。",
       estimate: "6–12 小时", startedAt: "2026-07-30 13:00", finishedAt: "—", status: "进行中", progress: 95,
-      detail: "六个 Cream/AZ-NAS 官方逐层配置的参数量与 official_complexity_ops golden 均通过；THOP 交叉检查证明不能混称 FLOPs。三次 RA、LR 线性缩放、2-rank DDP 和 global batch 2048 自动累积已验证；仅完整数据分布式恢复/故障注入尚未验收。",
+      detail: "六个 Cream/AZ-NAS 官方逐层配置的参数量与 official_complexity_ops golden 均通过；THOP 交叉检查证明不能混称 FLOPs。候选协议已锁定完整增强与来源字段；最终 2-rank acceptance 1 epoch 验证配置分别记录 Cream 模型 commit b799630… 与 AZ-NAS 训练 commit 5e6683…，run completed、training.jsonl 仅 1 行且无 .tmp。恢复机制已验证，但双重 1% 正式协议尚未完成，formal_training_ready 仍为 false。",
       acceptance: ["逐层字段改变参数或算子", "分类 forward 通过", "非法编码拒绝", "metadata 明确不支持 inherited", "官方 fixture 对照"],
-      evidence: ["EV-REFERENCE-MODELS", "EV-AUTOFORMER-PROTOCOL", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-FULL-GATE-252"], risks: ["R-AUTOFORMER"], updatedAt: "2026-07-30 18:12"
+      evidence: ["EV-REFERENCE-MODELS", "EV-AUTOFORMER-PROTOCOL", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME"], risks: ["R-AUTOFORMER"], updatedAt: "2026-07-30 18:35"
     },
     {
       id: "C2", phase: "Reference", priority: "P0", title: "OFA-Proxyless MBV2 官方 positional encoding/reference fixture",
@@ -123,9 +123,9 @@ window.ZCP_PANEL_DATA = {
       content: "实现 cosine/step/none、严格 checkpoint identity 和确定性分层子集。",
       purpose: "支持双重 1% 可恢复训练验收。",
       estimate: "3–6 小时", startedAt: "2026-07-30 12:45", finishedAt: "2026-07-30 13:37", status: "已完成", progress: 100,
-      detail: "定向单测覆盖 scheduler、身份不匹配拒绝、分层子集、梯度累积与 non-primary artifact 禁写；2-rank GPU smoke 验证共享 run 和跨 rank 指标归约。",
-      acceptance: ["三种 scheduler 有测试", "错误 checkpoint 身份拒绝", "1% subset 可复现"],
-      evidence: ["EV-TRAINING", "EV-DDP-SMOKE", "EV-FULL-GATE-251"], risks: [], updatedAt: "2026-07-30 18:04"
+      detail: "定向单测覆盖 scheduler、身份不匹配拒绝、分层子集、梯度累积与 non-primary artifact 禁写；acceptance CLI 锁定为全数据且不超过 1% epoch，或不超过 1% 数据且运行完整 schedule，候选配置同时锁定完整增强与来源字段。真实双卡中断/恢复验证新 run 的 epoch 0–4 连续、checkpoint SHA-256/source_run_id lineage 及仅 rank 0 写 artifacts；最终 2-rank acceptance 1 epoch run completed、仅 1 行训练记录且无 .tmp。",
+      acceptance: ["三种 scheduler 有测试", "错误 checkpoint 身份拒绝", "全数据且不超过 1% epoch", "不超过 1% 数据且完整 schedule", "trusted checkpoint 恢复 lineage 可追溯", "仅 rank 0 写 artifacts"],
+      evidence: ["EV-TRAINING", "EV-DDP-SMOKE", "EV-FULL-GATE-251", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME"], risks: [], updatedAt: "2026-07-30 18:35"
     },
     {
       id: "E1", phase: "ZCP", priority: "P0", title: "22 ZCP 契约与算法 provenance",
@@ -195,9 +195,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "当前完整 gate 为 252 项测试通过；第一方 source coverage 86%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "当前完整 gate 为 262 项测试通过；第一方 source coverage 87%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 18:12"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 18:35"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -222,18 +222,18 @@ window.ZCP_PANEL_DATA = {
       content: "在全训练数据上执行约 1% 正式 epoch，并验证曲线与恢复。",
       purpose: "验收 reference 模型、优化器、数据增强和 checkpoint。",
       estimate: "12–24 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "reference fixture 和 G1 gate 通过后执行。",
-      acceptance: ["真实全数据", "约 1% epoch", "恢复结果连续", "协议 metadata 完整"],
-      evidence: [], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA"], updatedAt: "2026-07-30 13:50"
+      detail: "acceptance CLI 已锁定全数据且不超过 1% epoch，并完成最终 2-rank acceptance 1 epoch 的配置 provenance 与 artifact 生命周期验证；本项完整真实 ImageNet 全数据协议仍未执行。",
+      acceptance: ["真实全数据", "不超过 1% epoch", "恢复结果连续", "协议 metadata 完整"],
+      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-FINAL-2RANK-ACCEPTANCE"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA"], updatedAt: "2026-07-30 18:35"
     },
     {
       id: "H3", phase: "高成本", priority: "P2", title: "1% 数据 × 完整 schedule",
       content: "使用确定性 1% 数据跑完整 scheduler 和 checkpoint 生命周期。",
       purpose: "验证长期调度和监控，不作为正式精度结论。",
       estimate: "24–48 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "设置 24 小时检查点和 48 小时硬停止。",
-      acceptance: ["完整 schedule", "监控产物持续写入", "48 小时内停止", "报告不声称正式精度"],
-      evidence: [], risks: ["R-BUDGET"], updatedAt: "2026-07-30 13:50"
+      detail: "acceptance CLI 已锁定不超过 1% 数据且运行完整 schedule；当前仅完成真实 ImageNet 极小夹具的恢复机制验证，本项长期 schedule 尚未执行。",
+      acceptance: ["不超过 1% 数据", "完整 schedule", "监控产物持续写入", "48 小时内停止", "报告不声称正式精度"],
+      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME"], risks: ["R-BUDGET", "R-AUTOFORMER"], updatedAt: "2026-07-30 18:29"
     },
     {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
@@ -249,16 +249,20 @@ window.ZCP_PANEL_DATA = {
     { id: "R-CONCURRENCY", severity: "高", status: "开放", title: "并发工作区冲突", description: "多个工作者正在修改仓库，状态和测试基线可能快速变化。", mitigation: "只修改授权路径；最终 gate 前重新读取 git status，不回退他人改动。", taskIds: ["A1", "F1", "G1", "I1"] },
     { id: "R-NATIVE", severity: "高", status: "关闭", title: "真实 Benchmark index-0 smoke 已完成", description: "十个 benchmark/切片的真实 query、构模与 params proxy 均通过；external catalog 资产仍不等于 data root 自包含。", mitigation: "跨机器继续执行 bootstrap/checklist；后续 1% 相关性必须使用真实 dataset input。", taskIds: ["B1", "B3", "G2"] },
     { id: "R-TRANSNAS", severity: "中", status: "开放", title: "TransNAS Taskonomy input/label provider 未接入", description: "七任务 encoder/head 结构已对照官方，但真实 task input、dense/regression label、训练数值、latency/FLOPs 尚未复现。", mitigation: "后续接入受许可的 Taskonomy 数据与 task-specific loss；在此之前标签依赖代理返回 unsupported，random-input 结果只作消融。", taskIds: ["B2", "H1"] },
-    { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 完整数据分布式恢复尚未验收", description: "六个官方参数量/complexity_ops golden、THOP 分口径交叉检查、三次 RA、线性 LR、自动梯度累积及 2-rank DDP smoke 已通过；仍缺完整数据恢复与分布式故障注入。", mitigation: "formal_training_ready 继续为 false；执行真实 ImageNet DDP 中断、恢复与 rank 失败注入后再放行。", taskIds: ["C1", "H2"] },
+    { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 双重 1% 正式协议尚未验收", description: "恢复机制与最终 2-rank acceptance 1 epoch 的配置 provenance、completed manifest、单行训练记录和无 .tmp 已通过；模型 commit b799630… 与训练 commit 5e6683… 已分离记录。上述仍不是完整 ImageNet 的全数据≤1% epoch 或≤1%数据+完整 schedule。", mitigation: "formal_training_ready 继续为 false；分别执行并验收两种真实 ImageNet 1% 锁定协议后再放行。", taskIds: ["C1", "H2", "H3"] },
     { id: "R-MBV2-FIXTURE", severity: "高", status: "关闭", title: "OFA-Proxyless MBV2 positional/params fixture 已验收", description: "官方 commit f03b267 的 21 dynamic-block positional encoding、width1.0/1.3 参数量及 width1.0 参数 shape multiset 已完成对照。", mitigation: "保留固定 commit、registered space 边界和回归测试；MAC 与训练边界由独立风险继续跟踪。", taskIds: ["C2"] },
     { id: "R-MBV2-REMAINING", severity: "高", status: "开放", title: "OFA-Proxyless MBV2 MAC 与正式训练未验收", description: "params/shape fixture 已通过，但官方 MAC golden 尚缺，正式训练协议也未完成验收；不得由静态 reference 结论外推训练精度或成本。", mitigation: "补充同一官方 commit 的 MAC fixture；关闭训练 blocker 并完成正式 profile 验收前，仅报告 static scratch reference。", taskIds: ["C2", "H2"] },
     { id: "R-OFA", severity: "高", status: "开放", title: "OFA inherited accuracy 与完整协议未验收", description: "官方 checkpoint、catalog bootstrap、active-weight export、子网数值一致性、evaluate/search 和真实 ImageNet 确定性 BN smoke 已完成；当前项目 BN 协议不等同官方 data provider，accuracy、MAC golden 与 formal training 仍未完成。", mitigation: "对照官方 OFA data provider 的抽样、transform 与 BN 统计并执行 inherited accuracy；补齐 MAC golden。正式训练 blocker 关闭前不得外推 inherited 或 scratch 训练结论。", taskIds: ["C2", "C3", "C4", "H2"] },
     { id: "R-PROXY", severity: "高", status: "开放", title: "代理可运行不等于论文一致", description: "22/22 sweep 不能替代公式、聚合方向和输入协议的 golden 验证。", mitigation: "为核心代理增加论文级数值 fixture 和 provenance。", taskIds: ["E1", "H1"] },
-    { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "第一方 coverage 86%、CLI 80%、benchmark_report 96%、reports 100%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
+    { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 80%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
     { id: "R-PIT", severity: "中", status: "开放", title: "PiT MAC 对照尚未完成", description: "真实 GT 的 224 forward、官方参数量与参数 shape multiset 已对齐；MAC golden 尚缺。PiT 是固定 benchmark 候选，不要求重复完整训练。", mitigation: "补充同一官方 commit 的 MAC fixture 后关闭结构验收；vanilla/KD 指标继续分协议查询。", taskIds: ["C4"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-262", time: "2026-07-30 18:35", title: "最终完整质量 gate", result: "全量 262 项测试通过；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C1", "D2", "G1"] },
+    { id: "EV-FINAL-2RANK-ACCEPTANCE", time: "2026-07-30 18:35", title: "最终 2-rank acceptance 1 epoch", result: "候选协议已锁定完整增强与来源字段。最终 2-rank acceptance 1 epoch 的配置将模型来源固定为 Cream commit b799630a29995163f282b15e2f38701160272fd1，将训练来源固定为 AZ-NAS commit 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47；run status=completed，training.jsonl 仅 1 行，且无 .tmp 文件。", command: "2-rank acceptance 1-epoch run；审计 config provenance、manifest status、training.jsonl 行数与 .tmp", taskIds: ["A1", "C1", "D2", "G1", "H2"] },
+    { id: "EV-ACCEPTANCE-CLI", time: "2026-07-30 18:29", title: "Acceptance CLI 双模式锁定", result: "acceptance CLI 仅接受两种真实数据模式：全数据且训练不超过 1% epoch，或不超过 1% 数据且运行完整 schedule；相关 acceptance/resume 定向测试共 69 项通过。", command: "69 项 acceptance/resume 定向 pytest", taskIds: ["A1", "C1", "D2", "H2", "H3"] },
+    { id: "EV-IMAGENET-DDP-RESUME", time: "2026-07-30 18:29", title: "真实 ImageNet 双卡中断与可信恢复", result: "混合 4090D/4090 双卡使用真实 ImageNet 图片极小夹具，在 epoch 0 后 SIGTERM；源 run manifest=interrupted 且无 .tmp。新 run 从 trusted checkpoint 恢复，training.jsonl 连续记录 epoch 0–4，runtime.resume 包含 checkpoint SHA-256 与 source_run_id，且仅 rank 0 产生 artifacts。该结果只证明恢复机制，不代表完整双重 1% 协议。", command: "混合 4090D/4090 torchrun + epoch 0 后 SIGTERM；trusted checkpoint 新 run resume；manifest/training.jsonl/runtime.resume/rank artifacts 审计", taskIds: ["A1", "C1", "D2", "H2", "H3"] },
     { id: "EV-FULL-GATE-252", time: "2026-07-30 18:12", title: "AutoFormer complexity 分口径合入后完整 gate", result: "全量 252 项测试通过；第一方 source coverage 86%、CLI 80%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C1", "G1"] },
     { id: "EV-AUTOFORMER-COMPLEXITY", time: "2026-07-30 18:11", title: "六个官方 complexity_ops golden 与独立 THOP 对照", result: "Cream T/S/B 和 AZ-NAS Tiny/Small/Base 的官方 get_complexity 数值逐项复现，并以 official_complexity_ops 命名且 metadata 明确 generic_flops=false。AZ-NAS Tiny 的 THOP MAC=1,100,420,352，官方口径=1,380,128,376；THOP 参数量也少于真实参数量，证明 relative-position 等算子/参数未被同口径覆盖，报告不得混列。", command: "pytest -q tests/test_reference_models.py -k autoformer; independent THOP profile on AZ-NAS Tiny", taskIds: ["C1", "G1"] },
     { id: "EV-FULL-GATE-251", time: "2026-07-30 18:04", title: "DDP 与自动累积合入后完整质量 gate", result: "全量 251 项测试通过；第一方 source coverage 86%、CLI 80%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C1", "D2", "G1"] },

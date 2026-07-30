@@ -102,12 +102,16 @@ zcp-test data import-manifest \
   weight decay `0.05`、cosine、20 epoch warmup。当前已接入 repeated-augmentation sampler 和
   六个 Cream/AZ-NAS 官方子网参数量 golden。真实 2 卡混合 4090D/4090 DDP smoke 已验证共享 run、
   跨 rank 指标归约和仅 rank 0 写 artifact。六个官方 `get_complexity` golden 已按原命名保存，
-  并与 THOP MAC 并列证明二者口径不同；正式训练仅因完整数据恢复/故障注入尚未验收而保持关闭。
+  并与 THOP MAC 并列证明二者口径不同。真实 ImageNet 图片极小夹具上的 2-rank 中断/新 run 恢复
+  已验证 `interrupted` manifest、checkpoint lineage、epoch 去重和 `.tmp` 清理；这只证明恢复机制，
+  不等于全 ImageNet 验收。正式训练仍因两类 1% ImageNet 协议未完成而保持关闭。
 - OFA/Proxyless MobileNetV2：ImageNet-1k、150 epoch、SGD/Nesterov、`0.05`、weight decay `4e-5`、label smoothing `0.1`。
 - DARTS：提供 CIFAR-10 600 epoch profile。
 - DARTS：同时提供 CIFAR-100 600 epoch 适配和 ImageNet-1k 250 epoch 官方评估 profile。
 
-`--smoke` 只用于验证模型、优化器、AMP、JSONL 和 checkpoint 流程，不代表正式实验结果。
+`--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且不超过
+1% epoch”或“至多 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
+论文精度复现。详见 [操作手册](docs/OPERATIONS_CN.md)。
 
 ## 当前边界
 

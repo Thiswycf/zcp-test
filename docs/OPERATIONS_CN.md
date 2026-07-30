@@ -118,6 +118,32 @@ score/target schema；使用前必须检查转换后的 JSONL，且不要覆盖�
 AutoFormer 与 Proxyless-MBV2 配置会列出尚未验收的 blocker 并明确拒绝正式训练。`--smoke` 只验证
 合成数据上的构模和训练流水线，不解除协议 blocker。
 
+`--acceptance-smoke` 与 `--smoke` 互斥，使用真实数据且只接受两种代码锁定模式：
+
+- 全数据、最多正式 epoch 的 1%；AutoFormer 500 epoch profile 即最多 5 epoch；
+- 最多 1% 确定性分层数据、完整 500 epoch schedule。
+
+它允许在 `formal_training_ready: false` 时验证候选 recipe，但不会将候选协议升级为正式协议。
+batch size 和 input size 不能通过 CLI 改写，缺少 `--data-root` 时直接失败。例如：
+
+```bash
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export CUDA_VISIBLE_DEVICES=GPU-UUID-0,GPU-UUID-1
+torchrun --standalone --nproc-per-node=2 -m zcp_test.cli train \
+  --config configs/training/autoformer_imagenet.yaml \
+  --acceptance-smoke --epochs 5 --data-fraction 1.0 \
+  --architecture /path/to/autoformer-architecture.json \
+  --data-root /path/to/imagenet1k --output /path/to/runs/acceptance
+```
+
+另一模式必须保留 `--epochs 500 --data-fraction 0.01`。短程真实图片夹具可验证 DDP、中断和恢复
+机制，但不得记录为 `full_data_one_percent_epoch_protocol`。当前已通过的 2-rank 夹具验收生成一个
+`interrupted` run 和一个新目录 completed run；恢复后的 `training.jsonl` 连续包含 epoch 0–4，
+manifest 的 `runtime.resume` 保存 checkpoint SHA-256 与 source run ID，且无残留 `.tmp`。由于尚未
+在完整 ImageNet-1k 上执行上述两种协议，AutoFormer 正式门禁继续关闭。
+checkpoint 同时嵌入截至保存 epoch 的小型 `training_history`；原 run 日志路径不可用（例如复制到
+另一台机器）时，新 run 仍可恢复连续曲线，原 JSONL 存在时则优先读取原始记录。
+
 AutoFormer 配置固定 AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`。真实数据 loader
 使用三次 repeated augmentation；学习率按
 `base_lr × per_device_batch × world_size × accumulation / 512` 缩放，因此官方 8×256 启动的
@@ -138,8 +164,10 @@ torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
 每个进程内部使用 `cuda:LOCAL_RANK`。训练 loader 使用分布式 repeated-augmentation sampler，
 指标跨 rank 求和，只由 rank 0 写 `manifest.json`、`training.jsonl` 和 checkpoint。AutoFormer 的
 `gradient_accumulation_steps: auto` 将目标 global batch 固定为 2048：4 卡×每卡 256 时累积 2 次，
-8 卡时累积 1 次。当前真实 2 卡 DARTS/AutoFormer smoke 已通过；完整数据恢复和分布式故障注入
-尚未验收，因此 AutoFormer `formal_training_ready` 仍为 false。
+8 卡时累积 1 次。当前真实 2 卡 DARTS/AutoFormer smoke 与真实图片夹具的中断恢复已通过；完整
+ImageNet-1k 的双重 1% 协议尚未验收，因此 AutoFormer `formal_training_ready` 仍为 false。
+resolved config 分别保存 Cream 静态模型 commit `b799630a29995163f282b15e2f38701160272fd1`
+和 AZ-NAS 训练 recipe commit，禁止用一个模糊 `implementation_commit` 覆盖两者。
 上例是可直接执行的 DDP 流水线 smoke；移除 `--smoke` 的完整数据命令会按设计被协议门禁拒绝，
 不能把未来正式命令伪装成当前可运行示例。
 

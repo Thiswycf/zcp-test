@@ -56,8 +56,9 @@ AZ-NAS repeated-augmentation sampler、`base_lr × global_batch / 512` 缩放规
 真实 GPU smoke 已验证 DDP、跨 rank 指标归约、单一共享 run 和仅 rank 0 写 artifact；失败 run
 也会标为 failed。六个官方 `get_complexity` 数值已以 `official_complexity_ops` 独立字段复现；
 AZ-NAS Tiny 的 THOP MAC 为 `1,100,420,352`，官方口径为 `1,380,128,376`，且 THOP 未计全
-relative-position 参数，因此报告禁止将二者混称 FLOPs。正式 AutoFormer 仍缺完整数据 DDP
-恢复/故障注入。Proxyless-MBV2 仍缺已验证的 TensorFlow
+relative-position 参数，因此报告禁止将二者混称 FLOPs。真实 ImageNet 图片极小夹具上的 2-rank
+中断/新 run 恢复已验证 `interrupted` manifest、checkpoint SHA-256/source run lineage、epoch 0–4
+连续日志和 `.tmp` 清理；该证据只覆盖恢复机制，未覆盖完整 ImageNet 双重 1% 协议。Proxyless-MBV2 仍缺已验证的 TensorFlow
 风格颜色扰动、官方 MAC fixture 和分布式全局 batch。CLI 会拒绝非 smoke 训练。
 配置中的布尔值不能自行授权；正式训练还必须匹配代码内置的 DARTS 协议白名单及关键字段。
 
@@ -101,12 +102,13 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 以下工作明确为 **未验收**，不得写成已完成：
 
 1. DARTS CIFAR-10/CIFAR-100 600 epoch 与 ImageNet 250 epoch 正式训练。
-2. AutoFormer 500 epoch 与 Proxyless-MBV2 150 epoch 正式训练协议尚未放行；静态 reference 模型
-   不能替代未实现的训练 sampler、分布式语义和官方 fixture。
+2. AutoFormer 500 epoch 与 Proxyless-MBV2 150 epoch 正式训练协议尚未放行；AutoFormer 的 sampler、
+   LR、静态 fixture 和真实图片夹具恢复机制已验收，但“全 ImageNet × 至多 1% epoch”与“1% ImageNet
+   × 完整 schedule”尚未执行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在全部支持的 dataset、split、budget、seed 上运行 22-proxy 全量评估。
 5. NAS-Bench-101 全量评估或 NAS-Bench-301 理论 DARTS 空间穷举。
-6. 多 GPU 启动、去重合并、重启和故障注入验收。
+6. 多 GPU evaluate 的内置启动/去重合并；训练 DDP 启动与夹具级重启/故障注入已验收，但全数据级别未验收。
 7. 论文数值复现、独立 seed 置信区间及与官方代码的成本/精度比较。
 
 正式验收必须保留 manifest、resolved config、commit、环境、输入 hash、结果类型、失败行和准确命令。

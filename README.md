@@ -241,8 +241,10 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   `CUDA_VISIBLE_DEVICES` is mandatory, and AutoFormer can derive accumulation to retain global batch
   2048 (four GPUs × 256 uses two micro-steps). Six upstream `get_complexity` goldens are retained
   under the explicit `official_complexity_ops` name; a THOP cross-check proves that this is not a
-  generic MAC/FLOPs value. Formal readiness now remains blocked only by full-data distributed
-  resume and failure-injection acceptance.
+  generic MAC/FLOPs value. A two-rank interruption/new-run recovery test using a tiny fixture made
+  from real ImageNet images now validates interrupted manifests, checkpoint lineage, epoch
+  de-duplication and temporary-file cleanup. It validates recovery mechanics, not full ImageNet
+  training. Formal readiness remains blocked by the two ImageNet 1% acceptance protocols.
 
 ## Proxy capability policy
 

@@ -161,6 +161,31 @@ listed protocol blockers are closed. This flag is not self-authorizing: non-smok
 match a code-owned approved protocol and its critical fields, and cannot override accepted batch or
 input size. `--smoke` uses tiny synthetic loaders and validates plumbing, not accuracy.
 
+`--acceptance-smoke` is mutually exclusive with `--smoke`, uses real data, and accepts only two
+code-locked modes: full data with at most 1% of the formal epochs (at most five for the 500-epoch
+AutoFormer profile), or at most 1% deterministic stratified data with the complete 500-epoch
+schedule. It does not grant formal readiness. Batch and input size overrides are rejected, and a
+real `--data-root` is mandatory:
+
+```bash
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export CUDA_VISIBLE_DEVICES=GPU-UUID-0,GPU-UUID-1
+torchrun --standalone --nproc-per-node=2 -m zcp_test.cli train \
+  --config configs/training/autoformer_imagenet.yaml \
+  --acceptance-smoke --epochs 5 --data-fraction 1.0 \
+  --architecture /path/to/autoformer-architecture.json \
+  --data-root /path/to/imagenet1k --output /path/to/runs/acceptance
+```
+
+The second mode requires `--epochs 500 --data-fraction 0.01`. A tiny fixture made from real images
+may validate DDP interruption and recovery mechanics, but must not be labelled as the full-data 1%
+protocol. The retained two-rank fixture evidence has one interrupted run and one completed new run;
+the recovered log contains epochs 0–4, `runtime.resume` records the checkpoint SHA-256 and source
+run ID, and no `.tmp` checkpoint remains. Full ImageNet execution is still pending.
+The checkpoint also embeds the small epoch-level `training_history`; if the original absolute log
+path is unavailable after moving the checkpoint, a new run can still reconstruct a continuous log.
+When the source JSONL exists, it remains the preferred record source.
+
 The AutoFormer profile pins AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`.
 Repeated augmentation uses three repeats, and the effective LR follows
 `base_lr * per_device_batch * world_size * accumulation / 512`; the published 8×256 launch therefore
@@ -181,8 +206,11 @@ torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
 Each process uses `cuda:LOCAL_RANK`; metrics are reduced across ranks, and only rank zero owns the
 run manifest, JSONL and checkpoints. Auto accumulation preserves target global batch 2048, so four
 GPUs at batch 256 use two micro-steps. Real mixed-4090D/4090 two-rank DARTS and AutoFormer smokes
-passed. Full-data distributed resume and failure injection remain unaccepted, so AutoFormer formal
-training stays disabled.
+passed, as did interruption and new-run recovery on a real-image fixture. The two full ImageNet 1%
+protocols remain unaccepted, so AutoFormer formal training stays disabled.
+The resolved config stores the Cream static-model commit
+`b799630a29995163f282b15e2f38701160272fd1` separately from the AZ-NAS training-recipe commit;
+one ambiguous implementation field must not overwrite either provenance.
 This is an executable DDP plumbing smoke. Removing `--smoke` is intentionally rejected until the
 remaining formal gate closes; the manual does not present a future formal command as currently usable.
 
