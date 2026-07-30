@@ -7,7 +7,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-30 当前工作树：**303 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-30 当前工作树：**304 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI 80%、analysis/proxy studies 93%、benchmark report 96%、reports 100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid 与 NB101 分别完成 22 代理 seed 2026 和核心 11 代理三 seed | **四个 benchmark 的当前既定协议完成，H1 整体进行中** | 证明独立真值/manifest/分片/相关性及核心三 seed；NB101 限定为 4,237 个分层样本，NB301、TNB101、ViT-Bench 等仍待 |

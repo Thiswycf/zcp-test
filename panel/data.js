@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 23:03 CST",
+  updatedAt: "2026-07-30 23:31 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -195,9 +195,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "当前完整 gate 为 287 tests passed；第一方 source coverage 87%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过；NATS-SSS 协议和 shard grouping 回归均已纳入测试。",
+      detail: "最新低成本 gate 为 303 tests passed；第一方 source coverage 87%，Ruff、compileall、pip check 与 panel 检查均通过。NB101 1% scoped H1 的预算、完整 22-ZCP、核心三 seed、sample-size 和报告回归已纳入门禁。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 21:06"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 23:31"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 52,
-      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 当前既定协议完成，H1 整体仍进行中。NB101 正式旧 sweep 的四个固定 shard 均已在 GPU 上运行；auto GPU 启动延迟缺陷已修复，旧进程在约 120 秒后四卡均正常启动。旧 SynFlow v1/TE-NAS portable-v1 对部分深 NB101 架构发生 float32 溢出，失败继续保留；旧 sweep 继续收集其余 20 代理。SynFlow double-v2 与 TE-NAS portable-v2 已通过深模型单测及 index 1566 CPU 回归 2/2，待旧 sweep 结束后单独补跑，不把旧失败伪装为成功。核心 11 代理三 seed仍待；看板不固化瞬时行数。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 68,
+      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid 与 NB101 当前既定 scoped 协议完成，H1 整体仍进行中。NB101 使用 4,237 个分层架构：22 代理 seed 2026 为 93,214/93,214 成功，核心 11 代理三 seed 为 139,821/139,821 成功；已生成 4/12/36/108 budget 的 mean/min/max 报告，并将 sample-size 分析扩展到全部 4,237 架构。验收后的 preliminary 目录已删除，仅保留正式结果与典型证据。下一步依次执行 NB301、TransNAS-Bench-101 和 ViT-Bench-101；不得将 NB101 scoped 完成误写为完整 H1 完成。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW"], updatedAt: "2026-07-30 21:33"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW"], updatedAt: "2026-07-30 23:31"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -239,10 +239,10 @@ window.ZCP_PANEL_DATA = {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
-      estimate: "1–3 小时", startedAt: "—", finishedAt: "—", status: "待开始", progress: 0,
-      detail: "误保存的 Google 搜索结果 .html 已删除并复查；其余发布清理仍需等待全部验收任务完成或形成明确受阻结论。",
+      estimate: "1–3 小时", startedAt: "2026-07-30 23:31", finishedAt: "—", status: "进行中", progress: 45,
+      detail: "阶段性结果已提交为 28943b4 并推送远端；误保存的 Google 搜索结果 .html 已删除并复查。完整发布清理仍需等待 NB301、TNB101、ViT 和其余高成本验收完成或形成明确受阻结论。",
       acceptance: ["无凭据和本机路径", "无数据/大模型误提交", "状态与验收报告一致"],
-      evidence: ["EV-REPO-HYGIENE"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 14:50"
+      evidence: ["EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 23:31"
     }
   ],
   risks: [
@@ -258,9 +258,12 @@ window.ZCP_PANEL_DATA = {
     { id: "R-PIT", severity: "中", status: "开放", title: "PiT MAC 对照尚未完成", description: "真实 GT 的 224 forward、官方参数量与参数 shape multiset 已对齐；MAC golden 尚缺。PiT 是固定 benchmark 候选，不要求重复完整训练。", mitigation: "补充同一官方 commit 的 MAC fixture 后关闭结构验收；vanilla/KD 指标继续分协议查询。", taskIds: ["C4"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
-    { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "监控", title: "NB101 旧 SynFlow/TE-NAS float32 溢出", description: "正式旧 sweep 中 SynFlow v1 与 TE-NAS portable-v1 对部分深 NB101 DAG 返回非有限值；这些失败必须作为旧版本结果保留。", mitigation: "使用 SynFlow double-v2 与 TE-NAS portable-v2；深模型单测和 index 1566 CPU 回归 2/2 已通过。旧 sweep 先完成其余 20 代理，再单独补跑两个新版本并按版本合并，不覆盖旧失败。", taskIds: ["E1", "H1"] }
+    { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
+    { id: "EV-GIT-PUSH-28943B4", time: "2026-07-30 23:31", title: "NB101 scoped H1 阶段提交已推送", result: "提交 28943b4 已推送远端；该提交记录阶段性 NB101 1% 结果与门禁，不代表完整 H1 或最终发布完成。", command: "git show --stat --oneline 28943b4; git push", taskIds: ["H1", "I1"] },
+    { id: "EV-FULL-GATE-303", time: "2026-07-30 23:31", title: "NB101 scoped H1 后低成本 gate", result: "全量 303 tests passed，第一方 source coverage 87%；Ruff、compileall、pip check 与 panel 检查通过。该门禁验证代码与结果契约，不替代剩余 NB301、TNB101 和 ViT 的高成本运行。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js", taskIds: ["G1", "H1"] },
+    { id: "EV-NB101-1PCT-COMPLETE", time: "2026-07-30 23:31", title: "NB101 1% scoped H1 完成", result: "4,237 个分层架构的 22 代理 seed 2026 共 93,214/93,214 成功；核心 11 代理三 seed 共 139,821/139,821 成功。4/12/36/108 budget 均生成 mean/min/max 报告，sample-size 分析扩展至 4,237；验收后 preliminary 目录已删除。该结论仅关闭 NB101 scoped 范围，完整 H1 仍进行中。", command: "NB101 scoped 1% merge/report/sample-size acceptance; remove superseded preliminary directory", taskIds: ["E1", "E2", "E3", "F2", "H1"] },
     { id: "EV-PANEL-REFRESH-COMPLETE-AUDIT", time: "2026-07-30 23:03", title: "无需 F5 刷新完整复核", result: "立即刷新、自动刷新开关、15/30/60/300 秒间隔、隐藏页暂停及恢复即查、cache-busting、失败保留旧数据、并发 Promise 去重和 aria-live/aria-atomic/aria-busy 状态均通过源码契约检查。独立 HTTP 静态服务实际拉取 index.html、app.js 及手动/自动两个不同 refresh query 的 data.js 均返回 200，响应与当前文件逐字一致。", command: "python -m http.server 18769 --bind 127.0.0.1 --directory panel; curl index.html app.js 'data.js?refresh=audit-manual-20260730-1' 'data.js?refresh=audit-auto-20260730-2'; cmp responses with panel sources; node panel/check-data.js", taskIds: ["F4"] },
     { id: "EV-NB101-SYNFLOW-V2-REGRESSION", time: "2026-07-30 21:33", title: "NB101 深模型 SynFlow/TE-NAS v2 回归", result: "旧 SynFlow v1/TE-NAS portable-v1 的 float32 非有限失败保留。SynFlow double-v2 使用 float64 并恢复模型 dtype/state，TE-NAS portable-v2 采用该组件；深模型单测通过，已知失败 benchmark index 1566 的 CPU 真数据回归为 synflow/te_nas 2/2 成功。正式旧 sweep 结束后仅补跑这两个新版本。", command: "pytest -q tests/test_core.py -k synflow; zcp-test evaluate --benchmark nasbench101 --sample-manifest <INDEX_1566_MANIFEST> --proxies synflow,te_nas --device cpu", taskIds: ["E1", "H1"] },
     { id: "EV-GPU-LOCK-DELAY-FIX", time: "2026-07-30 21:33", title: "auto GPU 候选锁探测修复", result: "auto GPU 在非零 lock timeout 下现先零超时探测全部候选，再使用一个全局 timeout 轮询；tests/test_gpu.py 15 passed、Ruff 通过。修复前启动的四个 NB101 shard 在约 120 秒后均已正常运行，启动延迟未记为数据失败。", command: "pytest -q tests/test_gpu.py; ruff check src/zcp_test/cli.py src/zcp_test/gpu.py tests/test_gpu.py", taskIds: ["H1"] },

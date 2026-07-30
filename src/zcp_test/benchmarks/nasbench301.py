@@ -113,6 +113,7 @@ class NasBench301SurrogateAdapter(JsonlBenchmarkAdapter):
             if self.runtime_ensemble_path
             else None,
             "ground_truth_kind": "surrogate_prediction",
+            "protocol": "nasbench301-surrogate-v1.0",
             "architecture_source": "deterministic_darts_sampling"
             if self._generated
             else "registered_jsonl",

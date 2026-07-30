@@ -185,6 +185,18 @@ zcp-test analyze benchmark \
 
 ## 5. NAS-Bench-301 DARTS 联合研究
 
+NAS-Bench-301 的默认 adapter 从 DARTS 空间按整数 seed 生成候选，因此创建 sample manifest 时必须
+先固定有限候选 corpus。以下命令固定与公开 11,221-candidate 分析口径同样的候选数量，再从中按
+结构 strata 抽取 1,000 个候选；这只是可复现 corpus 口径，不表示 11,221 条都是真实训练结果：
+
+```bash
+zcp-test benchmark sample nasbench301_surrogate --trusted \
+  --population-count 11221 --count 1000 --seed 2026 --shards 4 \
+  --output /path/to/audit/sampling/nb301-1000-seed2026.json
+```
+
+若使用 `--fraction`，`--population-count` 为必填；否则无限生成式空间不存在可定义的分母。
+
 ```bash
 zcp-test analyze benchmark \
   --scores /path/to/nb301/scores.jsonl \
@@ -201,6 +213,9 @@ interaction。条件效应按 `cell × node × source_class × operation` 计算
 
 NB301 真值是 surrogate prediction；`with_noise=False` 与 noisy repeat 必须分协议。当前视图支持
 deterministic surrogate 结果；如果输入含不同 surrogate seed/noise 协议，必须先过滤或分别报告。
+每条新 schema 结果同时记录 `surrogate_noise`，并将 `benchmark_protocol` 标为
+`nasbench301-surrogate-v1.0:deterministic` 或 `nasbench301-surrogate-v1.0:noisy`；旧结果缺少这些
+字段时不得自动与新结果合并。
 NAS-Bench-Suite-Zero 和 MeCo 对 NB301 有直接 ZCP 研究依据；本项目的 operation×topology
 条件分解是依据 DARTS 编码特点的推广，不是上述论文原表复刻。
 

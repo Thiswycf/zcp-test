@@ -93,6 +93,26 @@ def test_sensitivity_parser_accepts_explicit_sample_sizes():
     assert args.title == "NB101 core proxies"
 
 
+def test_nb301_sample_parser_accepts_generated_population_count():
+    args = cli.build_parser().parse_args(
+        [
+            "benchmark",
+            "sample",
+            "nasbench301_surrogate",
+            "--trusted",
+            "--population-count",
+            "11221",
+            "--count",
+            "1000",
+            "--output",
+            "sample.json",
+        ]
+    )
+
+    assert args.population_count == 11221
+    assert args.count == 1000
+
+
 def test_benchmark_study_frame_retains_failed_primary_calls(tmp_path):
     scores = tmp_path / "scores.jsonl"
     rows = [

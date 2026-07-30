@@ -927,10 +927,22 @@ def command_benchmark_sample(args: argparse.Namespace) -> None:
         if runtime_path:
             kwargs["runtime_path"] = runtime_path
     adapter = BENCHMARKS.create(args.name, **kwargs)
+    architectures = adapter.iter_architectures()
+    if args.name == "nasbench301_surrogate" and args.architecture_path is None:
+        population_count = args.population_count
+        if population_count is None:
+            if args.fraction is not None:
+                raise ValueError(
+                    "Generated NAS-Bench-301 fraction sampling requires --population-count"
+                )
+            population_count = args.count
+        if population_count is None or population_count <= 0:
+            raise ValueError("Generated NAS-Bench-301 requires a positive population count")
+        architectures = adapter.iter_architectures(0, population_count)
     manifest = create_sample_manifest(
         adapter.benchmark_id,
         str(adapter.metadata().get("version")) if adapter.metadata().get("version") else None,
-        adapter.iter_architectures(),
+        architectures,
         count=args.count,
         fraction=args.fraction,
         seed=args.seed,
@@ -1111,6 +1123,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
     if adapter:
         metadata = adapter.metadata()
         benchmark_protocol = metadata.get("protocol") or metadata.get("format")
+        if adapter.benchmark_id == "nasbench301_surrogate":
+            noise_mode = "noisy" if args.surrogate_noise else "deterministic"
+            benchmark_protocol = f"{benchmark_protocol}:{noise_mode}"
         if args.benchmark == "vitbench101":
             benchmark_variant = args.slice_id
         elif args.benchmark == "transnasbench101":
@@ -1272,6 +1287,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "target_seed_reduction": target_seed_reduction,
                             "benchmark_variant": benchmark_variant,
                             "benchmark_protocol": benchmark_protocol,
+                            "surrogate_noise": args.surrogate_noise if adapter else None,
                             **model_provenance,
                             **weight_provenance,
                             **architecture_weight_provenance,
@@ -2092,6 +2108,11 @@ def build_parser() -> argparse.ArgumentParser:
             sample.add_argument("--slice-id", default="autoformer_main")
             sample.add_argument("--transnas-space", default="micro")
             sample.add_argument("--architecture-path")
+            sample.add_argument(
+                "--population-count",
+                type=int,
+                help="finite deterministic candidate corpus size for generated benchmarks",
+            )
             sample.add_argument("--runtime-path")
             sample.add_argument("--catalog", default=data_default)
             sample.add_argument("--data-root")
