@@ -223,9 +223,20 @@ def test_cli_registry_lists_and_inspects(capsys):
     proxy = _output(capsys)
     assert proxy["proxy_id"] == "er"
     assert proxy["primary_component"] == "mean"
+    cli.main(["proxy", "inspect", "params"])
+    params = _output(capsys)
+    assert params["version"] == "count-v2"
+    assert params["direction"] == "maximize"
+    assert params["resource_direction"] == "minimize"
     cli.main(["proxy", "matrix"])
     matrix = _output(capsys)
     assert any(row["proxy_id"] == "er" for row in matrix)
+    assert any(
+        row["proxy_id"] == "flops"
+        and row["direction"] == "maximize"
+        and row["resource_direction"] == "minimize"
+        for row in matrix
+    )
     cli.main(["proxy", "validate", "params"])
     validation = _output(capsys)
     assert validation["status"] == "ok"

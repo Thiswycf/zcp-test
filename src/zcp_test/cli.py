@@ -53,11 +53,13 @@ from zcp_test.reporting.analysis import (
     correlation_table,
     plot_search,
     plot_sensitivity,
+    plot_sensitivity_rank,
     plot_training,
     proxy_cost_pareto,
     rank_aggregation,
     read_scores,
     sample_size_convergence,
+    sensitivity_rank_table,
     top_k_comparison,
     transfer_correlation_table,
     validate_analysis_scores,
@@ -1275,6 +1277,11 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "proxy_source": result.source,
                             "proxy_alias_of": result.alias_of,
                             "direction": result.direction.value,
+                            "resource_direction": (
+                                result.resource_direction.value
+                                if result.resource_direction is not None
+                                else None
+                            ),
                             "primary_component": result.primary_component,
                             "score": result.score,
                             "components": result.components,
@@ -1833,9 +1840,17 @@ def command_analyze(args: argparse.Namespace) -> None:
             sample_size_convergence(frame, sizes=args.sample_sizes).to_csv(
                 output / "sample_size_convergence.csv", index=False
             )
+            rank_stability = sensitivity_rank_table(frame, parameter=args.parameter)
+            rank_stability.to_csv(output / "sensitivity_rank.csv", index=False)
             for suffix in ("png", "svg"):
                 figure = plot_sensitivity(
                     frame, output / f"sensitivity.{suffix}", parameter=args.parameter
+                )
+                plt.close(figure)
+                figure = plot_sensitivity_rank(
+                    rank_stability,
+                    output / f"sensitivity_rank.{suffix}",
+                    parameter=args.parameter,
                 )
                 plt.close(figure)
         result = build_report_bundle(
@@ -1845,6 +1860,7 @@ def command_analyze(args: argparse.Namespace) -> None:
             bootstrap_samples=args.bootstrap_samples,
             top_k=args.top_k,
             sensitivity_parameter=getattr(args, "parameter", "seed"),
+            sample_sizes=args.sample_sizes if args.action == "sensitivity" else None,
         )
     else:
         output.mkdir(parents=True, exist_ok=True)

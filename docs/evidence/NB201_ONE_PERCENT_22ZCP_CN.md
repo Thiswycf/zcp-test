@@ -57,7 +57,7 @@ architecture_id=nb201_topology:839da408774c5a50b88c / proxy_id=<上述代理>
 | `er_deg` | `score` | 157 | 0.230611 | 0.153771 | 0.402715 |
 | `er_dist` | `score` | 157 | 0.236500 | 0.156459 | 0.405631 |
 | `er_pr` | `score` | 157 | 0.330047 | 0.229789 | 0.480089 |
-| `flops` | `score` | 157 | -0.619446 | -0.431723 | -0.396008 |
+| `flops` | `score` | 157 | 0.619446 | 0.431723 | 0.396008 |
 | `gradnorm` | `score` | 157 | 0.348334 | 0.258370 | 0.133073 |
 | `jacob_cov` | `score` | 157 | 0.609405 | 0.425841 | 0.750554 |
 | `meco` | `score` | 157 | 0.143196 | 0.106808 | 0.497817 |
@@ -65,7 +65,7 @@ architecture_id=nb201_topology:839da408774c5a50b88c / proxy_id=<上述代理>
 | `naswot` | `score` | 156 | 0.606714 | 0.422333 | 0.658976 |
 | `near` | `score` | 157 | 未定义（常数） | 未定义（常数） | 未定义（常数） |
 | `ntkt` | `score` | 157 | 0.540347 | 0.385759 | 0.508663 |
-| `params` | `score` | 157 | -0.654632 | -0.479513 | -0.393627 |
+| `params` | `score` | 157 | 0.654632 | 0.479513 | 0.393627 |
 | `swap` | `score` | 157 | 未定义（常数） | 未定义（常数） | 未定义（常数） |
 | `synflow` | `score` | 157 | 0.341958 | 0.220154 | 0.023240 |
 | `te_nas` | `synflow` | 156 | 0.329766 | 0.210587 | 0.017026 |
@@ -73,6 +73,12 @@ architecture_id=nb201_topology:839da408774c5a50b88c / proxy_id=<上述代理>
 | `vkdnw` | `score` | 157 | 0.655772 | 0.467908 | 0.718931 |
 | `zen` | `score` | 157 | 0.616712 | 0.434918 | 0.790791 |
 | `zico` | `score` | 157 | 0.471291 | 0.353095 | 0.419862 |
+
+Params/FLOPs 已从原始验收 scores 重新计算，而非只翻转旧报告符号：accuracy 相关性使用原始资源值
+`identity`，二者的 accuracy direction 均为 `maximize`；资源优化语义另存为
+`resource_direction=minimize`。旧 artifact 的 `proxy_version=1` 与 `direction=minimize` 是历史 schema
+把资源偏好误写入 accuracy 方向所致；当前 reader 只读派生迁移为 Params `count-v2`、FLOPs
+`thop-v2`，不改写 raw JSONL。
 
 ## Topology 报告规模
 
@@ -88,8 +94,9 @@ matched pair；现已改为按 evaluation seed 分组并合并四个互斥 shard
    稳定性见 [`NB201_CORE_THREE_SEED_CN.md`](NB201_CORE_THREE_SEED_CN.md)。
 2. NB201 与 NATS-TSS 虽共享 topology codec，但 adapter、benchmark 身份和真值来源不同；本结果
    **不能外推或合并到 NATS-TSS**。
-3. `params`/`flops` 的负号已确认来自方向 metadata 中 `minimize → negated` 的报告转换；资源偏好与
-   “模型规模—精度”的原始关联是两个问题，正式科学报告必须分开给出，不能只凭当前符号下结论。
+3. 旧报告错误地把 `params`/`flops` 的资源优化方向 `minimize` 用作 accuracy 相关性方向并执行
+   `negated`。本文件已按原始资源值与 accuracy 做 `identity` 重算；资源偏好与“模型规模—精度”
+   关联仍是两个问题，必须分别报告。
 4. `az_nas` 与 `naswot`、`er` 与 `ter`、`meco` 与 `meco_opt` 等出现相同结果，不足以证明这些名称
    对应独立算法；需继续核验 provenance、公式、别名和实现版本。
 5. 这是单 benchmark、单 dataset、单 budget、单 seed 的 1% 证据，不是论文数值复现，也不能代表

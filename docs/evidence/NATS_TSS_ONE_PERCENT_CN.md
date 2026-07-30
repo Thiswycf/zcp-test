@@ -46,8 +46,9 @@ benchmark index 3943、architecture `nb201_topology:839da408774c5a50b88c`，代�
 
 ## 主组件相关性
 
-下表只使用代理声明的 `primary_component`。方向为 minimize 的 `params/flops` 在报告中按方向元数据
-取反，因此负号表示“偏好更小资源后的排序相关”，不能替代原始规模—精度关联分析。
+下表只使用代理声明的 `primary_component`。Params/FLOPs 已从原始验收 scores 按资源原值与
+accuracy 使用 `identity` 重新计算；accuracy direction 为 `maximize`，资源优化方向另记为
+`resource_direction=minimize`。
 
 | Proxy | 主组件 | n | Spearman | Kendall tau-b | Pearson |
 |---|---|---:|---:|---:|---:|
@@ -57,7 +58,7 @@ benchmark index 3943、architecture `nb201_topology:839da408774c5a50b88c`，代�
 | `er_deg` | `score` | 157 | 0.170601 | 0.112363 | 0.388740 |
 | `er_dist` | `score` | 157 | 0.148230 | 0.094725 | 0.394706 |
 | `er_pr` | `score` | 157 | 0.229892 | 0.153193 | 0.457067 |
-| `flops` | `score` | 157 | -0.619762 | -0.432384 | -0.394601 |
+| `flops` | `score` | 157 | 0.619762 | 0.432384 | 0.394601 |
 | `gradnorm` | `score` | 157 | 0.380733 | 0.276825 | 0.144184 |
 | `jacob_cov` | `score` | 157 | 0.583101 | 0.400065 | 0.751349 |
 | `meco` | `score` | 157 | 0.161344 | 0.119769 | 0.498241 |
@@ -65,7 +66,7 @@ benchmark index 3943、architecture `nb201_topology:839da408774c5a50b88c`，代�
 | `naswot` | `score` | 156 | 0.611133 | 0.429777 | 0.656976 |
 | `near` | `score` | 157 | 未定义（常数） | 未定义（常数） | 未定义（常数） |
 | `ntkt` | `score` | 157 | 0.553920 | 0.402580 | 0.502317 |
-| `params` | `score` | 157 | -0.654763 | -0.479855 | -0.392208 |
+| `params` | `score` | 157 | 0.654763 | 0.479855 | 0.392208 |
 | `swap` | `score` | 157 | 未定义（常数） | 未定义（常数） | 未定义（常数） |
 | `synflow` | `score` | 157 | 0.315181 | 0.197126 | 0.023232 |
 | `te_nas` | `synflow` | 156 | 0.302002 | 0.186931 | 0.017142 |
@@ -73,6 +74,10 @@ benchmark index 3943、architecture `nb201_topology:839da408774c5a50b88c`，代�
 | `vkdnw` | `score` | 157 | 0.668532 | 0.479177 | 0.715007 |
 | `zen` | `score` | 157 | 0.635895 | 0.460069 | 0.814596 |
 | `zico` | `score` | 157 | 0.463780 | 0.347705 | 0.423417 |
+
+旧 artifact 的 Params/FLOPs `proxy_version=1`、`direction=minimize` 来自历史资源方向错误。当前
+reader 只读派生为 Params `count-v2`、FLOPs `thop-v2`，并分离 accuracy 与资源方向；raw JSONL
+未改写。
 
 ## 核心代理三 seed
 
@@ -83,12 +88,12 @@ benchmark index 3943、architecture `nb201_topology:839da408774c5a50b88c`，代�
 | Proxy | Spearman 均值 ± 总体标准差 | 跨 seed score Spearman 均值 |
 |---|---:|---:|
 | `az_nas` | 0.635949 ± 0.034805 | 0.955145 |
-| `flops` | -0.619762 ± 0.000000 | 1.000000 |
+| `flops` | 0.619762 ± 0.000000 | 1.000000 |
 | `gradnorm` | 0.381165 ± 0.008713 | 0.959639 |
 | `jacob_cov` | 0.520780 ± 0.065977 | 0.459861 |
 | `meco` | 0.145095 ± 0.051162 | 0.486406 |
 | `naswot` | 0.635949 ± 0.034805 | 0.955145 |
-| `params` | -0.654763 ± 0.000000 | 1.000000 |
+| `params` | 0.654763 ± 0.000000 | 1.000000 |
 | `synflow` | 0.322403 ± 0.010651 | 0.900543 |
 | `te_nas` | 0.309202 ± 0.010859 | 0.898676 |
 | `zen` | 0.635519 ± 0.004976 | 0.953469 |

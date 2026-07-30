@@ -69,6 +69,9 @@ def test_evaluate_identity_can_come_from_yaml_config(tmp_path):
     rows = [json.loads(line) for line in (run / "scores.jsonl").read_text().splitlines()]
     assert len(rows) == 1
     assert rows[0]["proxy_id"] == "params"
+    assert rows[0]["proxy_version"] == "count-v2"
+    assert rows[0]["direction"] == "maximize"
+    assert rows[0]["resource_direction"] == "minimize"
 
 
 def test_analyze_correlation_cli_retains_failed_rows_in_coverage(tmp_path):

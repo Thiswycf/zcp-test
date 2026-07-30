@@ -4,6 +4,7 @@ import html
 import hashlib
 import json
 import math
+from itertools import combinations
 from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
@@ -93,6 +94,22 @@ def normalize_score_row(row: Mapping[str, Any]) -> dict[str, Any]:
         normalized["component"] = "default"
     if normalized.get("status") is None:
         normalized["status"] = "ok" if normalized.get("score") is not None else "error"
+    proxy_id = str(normalized.get("proxy_id", "")).casefold()
+    proxy_version = normalized.get("proxy_version")
+    if (
+        proxy_id in {"params", "flops"}
+        and proxy_version in {None, "", 1, "1"}
+        and str(normalized.get("direction", "")).casefold() == "minimize"
+    ):
+        normalized["reported_proxy_version"] = str(proxy_version or "1")
+        normalized["proxy_version"] = {
+            "params": "count-v2",
+            "flops": "thop-v2",
+        }[proxy_id]
+        normalized["reported_direction"] = normalized["direction"]
+        normalized["direction"] = "maximize"
+        normalized["resource_direction"] = "minimize"
+        normalized["direction_migration"] = "legacy-resource-direction-to-accuracy-v2"
     return normalized
 
 
@@ -243,6 +260,7 @@ PROTOCOL_FIELDS = (
 PROXY_METADATA_FIELDS = (
     "proxy_implementation_fidelity",
     "proxy_alias_of",
+    "resource_direction",
 )
 
 
@@ -464,6 +482,21 @@ def correlation_table(
         record["score_direction_transform"] = score_transform
         record["target_direction"] = target_direction
         record["target_direction_transform"] = target_transform
+        migrations = (
+            sorted(group["direction_migration"].dropna().astype(str).unique())
+            if "direction_migration" in group
+            else []
+        )
+        reported_versions = (
+            sorted(group["reported_proxy_version"].dropna().astype(str).unique())
+            if "reported_proxy_version" in group
+            else []
+        )
+        record["legacy_direction_migrated_count"] = int(
+            group["direction_migration"].notna().sum()
+        ) if "direction_migration" in group else 0
+        record["direction_migrations"] = ",".join(migrations) or None
+        record["legacy_reported_proxy_versions"] = ",".join(reported_versions) or None
         for method in methods:
             estimate = _correlation(target, score, method)
             record[method] = None if not math.isfinite(estimate) else estimate
@@ -668,7 +701,8 @@ def proxy_cost_pareto(source: ScoreSource) -> pd.DataFrame:
     def median_numeric(group: pd.DataFrame, field: str) -> float:
         if field not in group:
             return float("nan")
-        return float(pd.to_numeric(group[field], errors="coerce").median())
+        values = pd.to_numeric(group[field], errors="coerce").dropna()
+        return float(values.median()) if not values.empty else float("nan")
 
     group_fields = protocol_group_fields(frame, ("proxy_id", "component"))
     for key, group in frame.groupby(list(group_fields), dropna=False):
@@ -734,6 +768,82 @@ def sample_size_convergence(
     return pd.DataFrame.from_records(records)
 
 
+def sensitivity_rank_table(
+    source: ScoreSource,
+    *,
+    parameter: str = "seed",
+) -> pd.DataFrame:
+    """Measure cross-condition proxy rank stability after architecture-ID alignment."""
+    frame = _direction_adjusted(read_scores(source)).dropna(
+        subset=["architecture_id", "proxy_id", "component", "score"]
+    )
+    if parameter not in frame or frame[parameter].dropna().nunique() < 2:
+        raise ValueError(f"Sensitivity rank analysis requires at least two {parameter} values")
+    proxy_fields = ["proxy_id", "component"]
+    if "proxy_version" in frame and frame["proxy_version"].notna().any():
+        proxy_fields.append("proxy_version")
+    proxy_fields.extend(
+        field
+        for field in PROXY_METADATA_FIELDS
+        if field in frame and frame[field].notna().any()
+    )
+    excluded = {parameter}
+    if parameter == "seed":
+        excluded.add("input_fingerprint")
+    protocol_fields = tuple(
+        field
+        for field in protocol_group_fields(frame, ())
+        if field not in excluded
+    )
+    group_fields = tuple(dict.fromkeys((*proxy_fields, *protocol_fields)))
+    records: list[dict[str, Any]] = []
+    groups = frame.groupby(list(group_fields), dropna=False, sort=True)
+    for key, group in groups:
+        keys = key if isinstance(key, tuple) else (key,)
+        metadata = dict(zip(group_fields, keys, strict=True))
+        values = sorted(group[parameter].dropna().unique(), key=lambda value: str(value))
+        for left_value, right_value in combinations(values, 2):
+            left = group[group[parameter] == left_value][["architecture_id", "score"]]
+            right = group[group[parameter] == right_value][["architecture_id", "score"]]
+            for value, side in ((left_value, left), (right_value, right)):
+                duplicates = side["architecture_id"].duplicated(keep=False)
+                if duplicates.any():
+                    example = side.loc[duplicates, "architecture_id"].astype(str).iloc[0]
+                    raise ValueError(
+                        f"Duplicate architecture ID for {parameter}={value}: {example}"
+                    )
+            paired = left.merge(
+                right,
+                on="architecture_id",
+                how="inner",
+                validate="one_to_one",
+                suffixes=("_left", "_right"),
+            )
+            left_score, right_score = _paired_values(
+                paired["score_left"], paired["score_right"]
+            )
+            union_count = len(set(left["architecture_id"]) | set(right["architecture_id"]))
+            records.append(
+                {
+                    **metadata,
+                    "sensitivity_parameter": parameter,
+                    "value_left": left_value,
+                    "value_right": right_value,
+                    "left_count": int(len(left)),
+                    "right_count": int(len(right)),
+                    "common_count": int(len(paired)),
+                    "union_count": int(union_count),
+                    "common_coverage": len(paired) / union_count if union_count else 0.0,
+                    "spearman": _correlation(left_score, right_score, "spearman"),
+                    "kendall_tau_b": _correlation(
+                        left_score, right_score, "kendall_tau_b"
+                    ),
+                    "pearson": _correlation(left_score, right_score, "pearson"),
+                }
+            )
+    return pd.DataFrame.from_records(records)
+
+
 def transfer_correlation_table(source: ScoreSource) -> pd.DataFrame:
     frame = read_scores(source).dropna(subset=["target_value", "score"])
     return correlation_table(frame)
@@ -791,6 +901,43 @@ def plot_sensitivity(
     axis.set(xlabel=parameter, ylabel=value, title=f"Sensitivity to {parameter}")
     axis.grid(alpha=0.25)
     if aggregate.groupby(["proxy_id", "component"]).ngroups > 1:
+        axis.legend(fontsize="small")
+    figure.tight_layout()
+    return _save_figure(figure, destination)
+
+
+def plot_sensitivity_rank(
+    source: ScoreSource | pd.DataFrame,
+    destination: PathLike | None = None,
+    *,
+    parameter: str = "seed",
+) -> Any:
+    import matplotlib.pyplot as plt
+
+    table = (
+        source.copy()
+        if isinstance(source, pd.DataFrame)
+        and {"value_left", "value_right", "spearman"}.issubset(source.columns)
+        else sensitivity_rank_table(source, parameter=parameter)
+    )
+    if table.empty:
+        raise ValueError("Cannot plot empty sensitivity rank data")
+    table["proxy"] = table["proxy_id"].astype(str) + " / " + table["component"].astype(str)
+    pairs = list(table.groupby(["value_left", "value_right"], dropna=False, sort=True))
+    proxies = sorted(table["proxy"].unique())
+    x = np.arange(len(proxies), dtype=float)
+    width = min(0.8 / max(len(pairs), 1), 0.35)
+    figure, axis = plt.subplots(figsize=(max(7, 0.7 * len(proxies)), 5))
+    for pair_index, ((left, right), group) in enumerate(pairs):
+        values = group.set_index("proxy").reindex(proxies)["spearman"]
+        offset = (pair_index - (len(pairs) - 1) / 2) * width
+        axis.bar(x + offset, values, width, label=f"{left} ↔ {right}")
+    axis.set_xticks(x, proxies, rotation=35, ha="right")
+    axis.set_ylim(-1.05, 1.05)
+    axis.set_ylabel("Cross-condition score Spearman")
+    axis.set_title(f"Rank stability across {parameter}")
+    axis.grid(axis="y", alpha=0.25)
+    if len(pairs) > 1:
         axis.legend(fontsize="small")
     figure.tight_layout()
     return _save_figure(figure, destination)
@@ -945,6 +1092,7 @@ def build_report_bundle(
     bootstrap_samples: int = 1000,
     top_k: int | Sequence[int] = (1, 5, 10),
     sensitivity_parameter: str = "seed",
+    sample_sizes: Sequence[int] | None = None,
 ) -> dict[str, Any]:
     """Build a dependency-free CSV/PNG/SVG/HTML analysis directory."""
     import matplotlib.pyplot as plt
@@ -959,6 +1107,13 @@ def build_report_bundle(
     valid = frame[frame["status"].fillna("ok").isin(("ok", "success", "completed"))]
     paired = valid.dropna(subset=["score", "target_value"])
     if not paired.empty:
+        if sample_sizes is not None:
+            convergence_csv = output / "sample_size_convergence.csv"
+            _write_csv(
+                sample_size_convergence(paired, sizes=sample_sizes),
+                convergence_csv,
+            )
+            artifacts.append(convergence_csv)
         correlations = correlation_table(frame, bootstrap_samples=bootstrap_samples)
         correlation_csv = output / "correlations.csv"
         _write_csv(correlations, correlation_csv)
@@ -967,6 +1122,14 @@ def build_report_bundle(
         top_k_csv = output / "top_k.csv"
         _write_csv(top_k_table, top_k_csv)
         artifacts.append(top_k_csv)
+        for name, table in (
+            ("rank_aggregation", rank_aggregation(paired)),
+            ("proxy_cost_pareto", proxy_cost_pareto(paired)),
+            ("transfer", transfer_correlation_table(paired)),
+        ):
+            path = output / f"{name}.csv"
+            _write_csv(table, path)
+            artifacts.append(path)
         plots = {
             "scatter": lambda destination: plot_scatter(paired, destination),
             "rank": lambda destination: plot_rank(paired, destination),
@@ -977,6 +1140,18 @@ def build_report_bundle(
             plots["sensitivity"] = lambda destination: plot_sensitivity(
                 paired, destination, parameter=sensitivity_parameter
             )
+            if paired[sensitivity_parameter].dropna().nunique() > 1:
+                rank_stability = sensitivity_rank_table(
+                    paired, parameter=sensitivity_parameter
+                )
+                rank_stability_csv = output / "sensitivity_rank.csv"
+                _write_csv(rank_stability, rank_stability_csv)
+                artifacts.append(rank_stability_csv)
+                plots["sensitivity_rank"] = lambda destination: plot_sensitivity_rank(
+                    rank_stability,
+                    destination,
+                    parameter=sensitivity_parameter,
+                )
         for name, plotter in plots.items():
             for suffix in ("png", "svg"):
                 target = output / f"{name}.{suffix}"
@@ -1054,6 +1229,7 @@ __all__ = [
     "plot_search",
     "plot_search_progress",
     "plot_sensitivity",
+    "plot_sensitivity_rank",
     "plot_top_k_compare",
     "plot_topk_compare",
     "plot_topk_comparison",
@@ -1069,6 +1245,7 @@ __all__ = [
     "proxy_cost_pareto",
     "rank_aggregation",
     "sample_size_convergence",
+    "sensitivity_rank_table",
     "transfer_correlation_table",
     "training_plot",
 ]

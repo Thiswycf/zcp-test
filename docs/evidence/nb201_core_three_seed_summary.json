@@ -43,21 +43,31 @@
   },
   "primary_component_statistics": [
     {"proxy_id": "az_nas", "component": "expressivity", "seed_spearman": [0.606713976, 0.599468951, 0.708571067], "mean_spearman": 0.638251332, "std_spearman": 0.049811455, "mean_cross_seed_spearman": 0.947487264},
-    {"proxy_id": "flops", "component": "score", "seed_spearman": [-0.619445847, -0.619445847, -0.619445847], "mean_spearman": -0.619445847, "std_spearman": 0.0, "mean_cross_seed_spearman": 1.0},
+    {"proxy_id": "flops", "component": "score", "seed_spearman": [0.619445847, 0.619445847, 0.619445847], "mean_spearman": 0.619445847, "std_spearman": 0.0, "mean_cross_seed_spearman": 1.0},
     {"proxy_id": "gradnorm", "component": "score", "seed_spearman": [0.348333840, 0.323346089, 0.365820304], "mean_spearman": 0.345833411, "std_spearman": 0.017429933, "mean_cross_seed_spearman": 0.954752469},
     {"proxy_id": "jacob_cov", "component": "score", "seed_spearman": [0.609405174, 0.519033513, 0.562087470], "mean_spearman": 0.563508719, "std_spearman": 0.036907761, "mean_cross_seed_spearman": 0.509572831},
     {"proxy_id": "meco", "component": "score", "seed_spearman": [0.143195652, 0.031893473, 0.170926814], "mean_spearman": 0.115338646, "std_spearman": 0.060080929, "mean_cross_seed_spearman": 0.492219458},
     {"proxy_id": "naswot", "component": "score", "seed_spearman": [0.606713976, 0.599468951, 0.708571067], "mean_spearman": 0.638251332, "std_spearman": 0.049811455, "mean_cross_seed_spearman": 0.947487264},
-    {"proxy_id": "params", "component": "score", "seed_spearman": [-0.654631746, -0.654631746, -0.654631746], "mean_spearman": -0.654631746, "std_spearman": 0.0, "mean_cross_seed_spearman": 1.0},
+    {"proxy_id": "params", "component": "score", "seed_spearman": [0.654631746, 0.654631746, 0.654631746], "mean_spearman": 0.654631746, "std_spearman": 0.0, "mean_cross_seed_spearman": 1.0},
     {"proxy_id": "synflow", "component": "score", "seed_spearman": [0.341958211, 0.343976953, 0.341275994], "mean_spearman": 0.342403720, "std_spearman": 0.001146779, "mean_cross_seed_spearman": 0.912330970},
     {"proxy_id": "te_nas", "component": "synflow", "seed_spearman": [0.329765611, 0.331444106, 0.328937428], "mean_spearman": 0.330049048, "std_spearman": 0.001042788, "mean_cross_seed_spearman": 0.910519301},
     {"proxy_id": "zen", "component": "score", "seed_spearman": [0.616711838, 0.605312610, 0.623738674], "mean_spearman": 0.615254374, "std_spearman": 0.007592676, "mean_cross_seed_spearman": 0.937375573},
     {"proxy_id": "zico", "component": "score", "seed_spearman": [0.471291065, 0.471849242, 0.438842340], "mean_spearman": 0.460660882, "std_spearman": 0.015429722, "mean_cross_seed_spearman": 0.977346258}
   ],
+  "resource_direction_migration": {
+    "mode": "read_only_derived",
+    "raw_scores_rewritten": false,
+    "correlation_transform": "identity",
+    "proxies": [
+      {"proxy_id": "params", "raw_proxy_version": "1", "derived_proxy_version": "count-v2", "raw_reported_direction": "minimize", "accuracy_direction": "maximize", "resource_direction": "minimize"},
+      {"proxy_id": "flops", "raw_proxy_version": "1", "derived_proxy_version": "thop-v2", "raw_reported_direction": "minimize", "accuracy_direction": "maximize", "resource_direction": "minimize"}
+    ],
+    "verification": "Recomputed per seed from original acceptance scores; values are raw identity correlations, not blind sign edits."
+  },
   "limitations": [
     "This completes the three-seed requirement only for the 11 designated core proxies on NAS-Bench-201.",
     "Other benchmarks remain pending and NAS-Bench-201 results must not be extrapolated to NATS-TSS.",
     "AZ-NAS is a portable composite approximation whose primary expressivity component equals NASWOT in this implementation.",
-    "Params and FLOPs correlations are direction-adjusted by the declared minimize-to-negated transform."
+    "Legacy Params and FLOPs resource minimization metadata was incorrectly used as the accuracy direction; the read-only derived migration separates accuracy_direction=maximize from resource_direction=minimize."
   ]
 }

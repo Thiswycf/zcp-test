@@ -64,6 +64,7 @@ class ProxyCapability:
     implementation_fidelity: str = "unverified"
     source: str | None = None
     alias_of: str | None = None
+    resource_direction: ScoreDirection | None = None
 
 
 @dataclass(frozen=True)
@@ -88,6 +89,7 @@ class ScoreResult:
     implementation_fidelity: str = "unverified"
     source: str | None = None
     alias_of: str | None = None
+    resource_direction: ScoreDirection | None = None
 
     @property
     def values(self) -> dict[str, float]:

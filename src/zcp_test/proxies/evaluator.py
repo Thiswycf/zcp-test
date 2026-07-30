@@ -19,6 +19,7 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         "implementation_fidelity": proxy.capability.implementation_fidelity,
         "source": proxy.capability.source,
         "alias_of": proxy.capability.alias_of,
+        "resource_direction": proxy.capability.resource_direction,
     }
     if unsupported_reason is not None:
         return ScoreResult(

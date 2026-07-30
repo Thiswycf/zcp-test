@@ -42,9 +42,21 @@
     }
   },
   "seed_7_correlations": {
-    "params": {"sample_count": 20, "spearman": -0.41244800494906203},
+    "params": {"sample_count": 20, "spearman": 0.41244800494906203, "correlation_transform": "identity"},
     "naswot": {"sample_count": 19, "spearman": 0.31052631578947365},
     "synflow": {"sample_count": 20, "spearman": 0.5759398496240601}
+  },
+  "resource_direction_migration": {
+    "mode": "read_only_derived",
+    "raw_scores_rewritten": false,
+    "proxy_id": "params",
+    "raw_proxy_version": "1",
+    "derived_proxy_version": "count-v2",
+    "raw_reported_direction": "minimize",
+    "accuracy_direction": "maximize",
+    "resource_direction": "minimize",
+    "correlation_transform": "identity",
+    "verification": "Seed-7 correlation was recomputed from the original scores artifact."
   },
   "topology_tables": {
     "architectures": 20,

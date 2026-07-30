@@ -164,7 +164,7 @@
     {"proxy_id": "er_deg", "component": "score", "valid_samples": 157, "spearman": 0.23061125922648104, "kendall_tau_b": 0.15377077306518036, "pearson": 0.4027153592901287, "status": "defined"},
     {"proxy_id": "er_dist", "component": "score", "valid_samples": 157, "spearman": 0.2364998542536235, "kendall_tau_b": 0.15645925200065328, "pearson": 0.4056308098790276, "status": "defined"},
     {"proxy_id": "er_pr", "component": "score", "valid_samples": 157, "spearman": 0.33004732105756046, "kendall_tau_b": 0.22978931896129345, "pearson": 0.48008945081315396, "status": "defined"},
-    {"proxy_id": "flops", "component": "score", "valid_samples": 157, "spearman": -0.6194458466204452, "kendall_tau_b": -0.4317232343781943, "pearson": -0.3960081651630663, "status": "defined"},
+    {"proxy_id": "flops", "component": "score", "valid_samples": 157, "spearman": 0.6194458466204452, "kendall_tau_b": 0.4317232343781943, "pearson": 0.3960081651630663, "status": "defined"},
     {"proxy_id": "gradnorm", "component": "score", "valid_samples": 157, "spearman": 0.3483338398278332, "kendall_tau_b": 0.25837008002613093, "pearson": 0.13307251298103004, "status": "defined"},
     {"proxy_id": "jacob_cov", "component": "score", "valid_samples": 157, "spearman": 0.6094051741760496, "kendall_tau_b": 0.4258412340378283, "pearson": 0.750554360924833, "status": "defined"},
     {"proxy_id": "meco", "component": "score", "valid_samples": 157, "spearman": 0.14319565194641104, "kendall_tau_b": 0.10680839590608923, "pearson": 0.4978173116658499, "status": "defined"},
@@ -172,7 +172,7 @@
     {"proxy_id": "naswot", "component": "score", "valid_samples": 156, "spearman": 0.6067139763872864, "kendall_tau_b": 0.42233250620347396, "pearson": 0.6589757673730736, "status": "defined"},
     {"proxy_id": "near", "component": "score", "valid_samples": 157, "spearman": null, "kendall_tau_b": null, "pearson": null, "status": "constant_undefined"},
     {"proxy_id": "ntkt", "component": "score", "valid_samples": 157, "spearman": 0.5403469383957976, "kendall_tau_b": 0.3857586150579781, "pearson": 0.5086634758147763, "status": "defined"},
-    {"proxy_id": "params", "component": "score", "valid_samples": 157, "spearman": -0.6546317461085389, "kendall_tau_b": -0.479513321083111, "pearson": -0.3936273510347065, "status": "defined"},
+    {"proxy_id": "params", "component": "score", "valid_samples": 157, "spearman": 0.6546317461085389, "kendall_tau_b": 0.479513321083111, "pearson": 0.3936273510347065, "status": "defined"},
     {"proxy_id": "swap", "component": "score", "valid_samples": 157, "spearman": null, "kendall_tau_b": null, "pearson": null, "status": "constant_undefined"},
     {"proxy_id": "synflow", "component": "score", "valid_samples": 157, "spearman": 0.3419582111027729, "kendall_tau_b": 0.22015351951657683, "pearson": 0.023240340616384365, "status": "defined"},
     {"proxy_id": "te_nas", "component": "synflow", "valid_samples": 156, "spearman": 0.329765611417553, "kendall_tau_b": 0.21058726220016544, "pearson": 0.017026180948384012, "status": "defined"},
@@ -219,15 +219,16 @@
       {"proxy_id": "swap", "unique_values": 1, "observations": 157}
     ],
     "direction_transforms": [
-      {"proxy_id": "params", "declared_direction": "minimize", "correlation_transform": "negated"},
-      {"proxy_id": "flops", "declared_direction": "minimize", "correlation_transform": "negated"}
+      {"proxy_id": "params", "raw_proxy_version": "1", "derived_proxy_version": "count-v2", "raw_reported_direction": "minimize", "accuracy_direction": "maximize", "resource_direction": "minimize", "correlation_transform": "identity", "migration": "legacy-resource-direction-to-accuracy-v2"},
+      {"proxy_id": "flops", "raw_proxy_version": "1", "derived_proxy_version": "thop-v2", "raw_reported_direction": "minimize", "accuracy_direction": "maximize", "resource_direction": "minimize", "correlation_transform": "identity", "migration": "legacy-resource-direction-to-accuracy-v2"}
     ]
   },
   "limitations": [
     "Only evaluation/input seed 2026 has been completed.",
     "The two additional seeds for the 11 core proxies were completed later and are recorded in nb201_core_three_seed_summary.json.",
     "NAS-Bench-201 evidence must not be extrapolated to NATS-TSS even though they share a topology codec.",
-    "The negative params and flops correlations are produced by their declared minimize-to-negated transform; resource preference and raw size-accuracy association require separate scientific reporting.",
+    "Legacy params and flops rows incorrectly stored resource minimization as the accuracy direction; correlations were recomputed from raw resource values with an identity transform, while resource_direction remains minimize.",
+    "The reader migration is derived and read-only; raw acceptance JSONL files and their hashes were not changed.",
     "Identical observed values for differently named proxies do not establish algorithmic independence; provenance and formula audits remain required.",
     "Constant near and swap outputs make their correlations undefined, not zero."
   ]

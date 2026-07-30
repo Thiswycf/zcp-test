@@ -43,6 +43,34 @@
     "duplicate_key_count": 0,
     "merged_scores_sha256": "81622da200341d5d025086e5a8da849ae1e12b5b66d9cf78f8a0e12badf47d4d"
   },
+  "resource_direction_migration": {
+    "mode": "read_only_derived",
+    "raw_scores_rewritten": false,
+    "accuracy_direction": "maximize",
+    "resource_direction": "minimize",
+    "correlation_transform": "identity",
+    "proxies": [
+      {
+        "proxy_id": "params",
+        "raw_proxy_version": "1",
+        "derived_proxy_version": "count-v2",
+        "seed_2026": {"sample_count": 328, "spearman": 0.8761031438723914, "kendall_tau_b": 0.696502662202671, "pearson": 0.84803969350025},
+        "core_seed_spearman": [0.876103144, 0.876103144, 0.876103144],
+        "core_mean_spearman": 0.876103144,
+        "core_std_spearman": 0.0
+      },
+      {
+        "proxy_id": "flops",
+        "raw_proxy_version": "1",
+        "derived_proxy_version": "thop-v2",
+        "seed_2026": {"sample_count": 328, "spearman": 0.5798831106393822, "kendall_tau_b": 0.41100948241302965, "pearson": 0.5357055557381818},
+        "core_seed_spearman": [0.579883111, 0.579883111, 0.579883111],
+        "core_mean_spearman": 0.579883111,
+        "core_std_spearman": 0.0
+      }
+    ],
+    "verification": "Recomputed from original acceptance scores through the current reader; raw values use identity correlation and raw JSONL artifacts were not modified."
+  },
   "size_tables": {
     "architectures": 328,
     "stages": 1640,

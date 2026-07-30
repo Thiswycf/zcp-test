@@ -15,6 +15,11 @@ zcp-test proxy scaffold my_proxy
 
 实现公式后声明 `ProxyCapability`：模型族、版本、是否需要数据/标签、方向、组件和主组件。标量代理直接返回 `float`；多组件代理推荐返回 `ProxyOutput`：
 
+`direction` 表示“该 score 越大还是越小越可能对应更高目标性能”，用于 accuracy 相关性和代理搜索；
+它不是成本偏好。若代理同时输出 Params/FLOPs/latency 等资源量，使用
+`resource_direction=minimize` 单独声明约束方向。禁止因为资源越少越好而把规模—accuracy
+相关性取负；任何方向语义变化都必须升级代理版本并为旧结果写显式 migration。
+
 ```python
 return ProxyOutput(
     score=mean,

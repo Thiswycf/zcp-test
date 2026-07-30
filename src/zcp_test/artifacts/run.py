@@ -10,6 +10,7 @@ import sys
 import uuid
 from contextlib import AbstractContextManager
 from datetime import datetime, timezone
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,18 @@ from zcp_test.artifacts.jsonl import JsonlWriter
 from zcp_test.config import dump_config
 
 SCHEMA_VERSION = "1.0"
+RUNTIME_PACKAGES = (
+    "zcp-test",
+    "torch",
+    "torchvision",
+    "numpy",
+    "scipy",
+    "pandas",
+    "xgboost",
+    "nasbench301",
+    "nats-bench",
+    "timm",
+)
 
 
 def utc_now() -> str:
@@ -38,6 +51,16 @@ def _git_commit(root: Path) -> str | None:
         ).strip()
     except (OSError, subprocess.CalledProcessError):
         return None
+
+
+def _package_versions(packages: tuple[str, ...] = RUNTIME_PACKAGES) -> dict[str, str]:
+    versions: dict[str, str] = {}
+    for package in packages:
+        try:
+            versions[package] = metadata.version(package)
+        except metadata.PackageNotFoundError:
+            continue
+    return versions
 
 
 class RunContext(AbstractContextManager["RunContext"]):
@@ -71,6 +94,7 @@ class RunContext(AbstractContextManager["RunContext"]):
                 "CUDA_VISIBLE_DEVICES": os.environ.get("CUDA_VISIBLE_DEVICES"),
             },
             "runtime": runtime or {},
+            "package_versions": _package_versions(),
         }
         try:
             import torch

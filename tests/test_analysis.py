@@ -16,6 +16,7 @@ from zcp_test.reporting.analysis import (
     rank_aggregation,
     read_scores,
     sample_size_convergence,
+    sensitivity_rank_table,
     top_k_comparison,
     transfer_correlation_table,
     validate_analysis_scores,
@@ -134,6 +135,78 @@ def test_correlation_table_explains_constants_ties_invalid_values_and_direction(
     assert record["proxy_implementation_fidelity"] == "paper_formula_port_unverified"
 
 
+def test_legacy_params_resource_direction_is_migrated_for_accuracy_correlation() -> None:
+    rows = [
+        {
+            "architecture_id": f"a{index}",
+            "proxy_id": "params",
+            "proxy_version": "1",
+            "component": "score",
+            "score": float(index),
+            "target_value": float(index),
+            "direction": "minimize",
+            "target_direction": "maximize",
+            "status": "ok",
+        }
+        for index in range(1, 4)
+    ]
+
+    frame = read_scores(rows)
+    record = correlation_table(rows).iloc[0]
+
+    assert frame["direction"].eq("maximize").all()
+    assert frame["proxy_version"].eq("count-v2").all()
+    assert frame["reported_proxy_version"].eq("1").all()
+    assert frame["reported_direction"].eq("minimize").all()
+    assert frame["resource_direction"].eq("minimize").all()
+    assert frame["direction_migration"].eq(
+        "legacy-resource-direction-to-accuracy-v2"
+    ).all()
+    assert record["spearman"] == pytest.approx(1.0)
+    assert record["score_direction_transform"] == "identity"
+
+    without_version = [dict(row) for row in rows]
+    for row in without_version:
+        row.pop("proxy_version")
+    missing_version_frame = read_scores(without_version)
+    assert missing_version_frame["proxy_version"].eq("count-v2").all()
+    assert missing_version_frame["reported_proxy_version"].eq("1").all()
+
+
+def test_correlation_merges_legacy_and_native_v2_proxy_rows() -> None:
+    rows = []
+    for index in range(4):
+        row = {
+            "architecture_id": f"a{index}",
+            "proxy_id": "params",
+            "proxy_version": "count-v2",
+            "component": "score",
+            "score": float(index),
+            "target_value": float(index),
+            "direction": "maximize",
+            "resource_direction": "minimize",
+            "target_direction": "maximize",
+            "status": "ok",
+        }
+        if index < 2:
+            row.update(proxy_version="1", direction="minimize")
+            row.pop("resource_direction")
+        rows.append(row)
+
+    table = correlation_table(rows)
+    figure = plot_heatmap(table)
+
+    assert len(table) == 1
+    assert table.iloc[0]["sample_count"] == 4
+    assert table.iloc[0]["legacy_direction_migrated_count"] == 2
+    assert table.iloc[0]["legacy_reported_proxy_versions"] == "1"
+    assert table.iloc[0]["direction_migrations"] == (
+        "legacy-resource-direction-to-accuracy-v2"
+    )
+    assert table.iloc[0]["spearman"] == pytest.approx(1.0)
+    assert figure.axes[0].images[0].get_array().shape == (1, 1)
+
+
 def test_correlation_heatmap_treats_proxy_fidelity_as_proxy_metadata() -> None:
     rows = []
     for index in range(3):
@@ -250,6 +323,9 @@ def test_bundle_writes_static_csv_png_svg_and_html(tmp_path: Path) -> None:
         "scores.csv",
         "correlations.csv",
         "top_k.csv",
+        "rank_aggregation.csv",
+        "proxy_cost_pareto.csv",
+        "transfer.csv",
         "scatter.png",
         "scatter.svg",
         "rank.png",
@@ -260,6 +336,9 @@ def test_bundle_writes_static_csv_png_svg_and_html(tmp_path: Path) -> None:
         "top_k.svg",
         "sensitivity.png",
         "sensitivity.svg",
+        "sensitivity_rank.csv",
+        "sensitivity_rank.png",
+        "sensitivity_rank.svg",
         "index.html",
     }
     assert expected.issubset({path.name for path in output.iterdir()})
@@ -292,6 +371,60 @@ def test_bundle_correlation_csv_retains_failed_invocations_in_coverage(tmp_path:
     assert record["failed_count"] == 1
     assert record["sample_count"] == 3
     assert record["coverage"] == pytest.approx(0.75)
+
+
+def test_bundle_merges_mixed_legacy_shards_without_duplicate_heatmap_rows(
+    tmp_path: Path,
+) -> None:
+    rows = []
+    for seed in (7, 8):
+        for index in range(3):
+            for proxy_id in ("params", "flops"):
+                row = {
+                    "architecture_id": f"a{index}",
+                    "proxy_id": proxy_id,
+                    "proxy_version": "count-v2" if proxy_id == "params" else "thop-v2",
+                    "component": "score",
+                    "score": float(index + (proxy_id == "flops")),
+                    "target_value": float(index),
+                    "direction": "maximize",
+                    "resource_direction": "minimize",
+                    "target_direction": "maximize",
+                    "benchmark_id": "bench",
+                    "dataset": "valid",
+                    "target_metric": "accuracy",
+                    "target_split": "valid",
+                    "input_source": "dataset",
+                    "input_fingerprint": f"batch-{seed}",
+                    "seed": seed,
+                    "status": "ok",
+                }
+                if index < 2:
+                    row.update(proxy_version="1", direction="minimize")
+                    row.pop("resource_direction")
+                rows.append(row)
+
+    output = tmp_path / "mixed-shards"
+    build_report_bundle(
+        rows,
+        output,
+        bootstrap_samples=5,
+        top_k=(1,),
+        sample_sizes=(1, 3),
+    )
+    correlations = pd.read_csv(output / "correlations.csv")
+    rank_stability = pd.read_csv(output / "sensitivity_rank.csv")
+
+    assert len(correlations) == 4
+    assert correlations["sample_count"].eq(3).all()
+    assert correlations["legacy_direction_migrated_count"].eq(2).all()
+    assert len(rank_stability) == 2
+    assert rank_stability["common_count"].eq(3).all()
+    assert rank_stability["spearman"].eq(1.0).all()
+    assert len(sensitivity_rank_table(rows)) == 2
+    assert (output / "heatmap.svg").exists()
+    assert (output / "proxy_target_protocol_heatmap.svg").exists()
+    assert "sample_size_convergence.csv" in (output / "index.html").read_text()
 
 
 def test_monitor_retries_an_incomplete_trailing_record(tmp_path: Path) -> None:

@@ -137,12 +137,24 @@ class NasBench301SurrogateAdapter(JsonlBenchmarkAdapter):
         if start < 0 or end is None or end < start:
             raise ValueError("Generated NAS-Bench-301 iteration requires a finite valid range")
         for seed in range(start, end):
-            yield self._space.sample(seed)
+            architecture = self._space.sample(seed)
+            yield Architecture(
+                architecture.search_space_id,
+                architecture.architecture_id,
+                architecture.spec,
+                benchmark_index=seed,
+            )
 
     def sample_architecture(self, seed: int | None = None):
         if not self._generated:
             return super().sample_architecture(seed)
-        return self._space.sample(seed)
+        architecture = self._space.sample(seed)
+        return Architecture(
+            architecture.search_space_id,
+            architecture.architecture_id,
+            architecture.spec,
+            benchmark_index=seed,
+        )
 
     def architecture_id(self, specification: Any) -> str:
         return self._space.canonicalize(self.canonicalize(specification)).architecture_id

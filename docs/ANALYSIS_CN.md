@@ -44,6 +44,13 @@ zcp-test analyze search --source RUN/search.jsonl --output RUN/reports/search
 zcp-test analyze training --source RUN/training.jsonl --output RUN/reports/training
 ```
 
+`sensitivity` 同时输出两类不同证据：`sample_size_convergence.csv` 研究样本数变化；
+`sensitivity_rank.csv` 按 canonical architecture ID 对齐两个 seed/condition，报告 score 的
+Spearman、Kendall tau-b、Pearson、共同样本数和覆盖率，并生成 `sensitivity_rank.png/svg`。
+`sensitivity.png/svg` 仅展示每个条件下的原始 score 均值/标准差；不同代理量纲不同，不能把该图
+当成跨代理排名稳定性证据。分片的 `run_id/source_run` 只作 provenance，不拆分科学协议；同一条件
+内重复 architecture×proxy 键仍明确报错。
+
 `correlation`、`compare` 和 `sensitivity` 现在 fail closed：必须至少存在一条成功记录，且
 `architecture_id/proxy_id/component/score/target_value` 不能全空；非有限 score/真值不能组成
 报告。`sensitivity --parameter seed` 还要求至少两个非空 seed 值。验证失败时不会先创建空报告目录。
@@ -102,9 +109,15 @@ zcp-test analyze compare \
 默认主分量报告中，一次失败只计入该代理声明的主分量。显式研究辅助组件时，同一失败会进入该
 组件的覆盖率分母。
 
-`params` 与 `flops` 当前登记为资源量且方向为 `minimize`，因此报告中的相关性是方向调整后的
-排序相关性；若研究问题是“模型规模与精度的原始关联”，必须同时保留原始 score 并明确报告未反向
-版本，不能只凭符号下结论。代理注册名不同也不代表算法独立：CSV 中的
+`params` 与 `flops` 同时具有两种不同语义：作为 accuracy 预测基线时
+`direction=maximize`，按文献直接研究原始规模—精度关联；作为资源约束时
+`resource_direction=minimize`。旧 `version=1` 记录曾错误地把资源方向用于相关性，reader 会显式
+写入 `direction_migration=legacy-resource-direction-to-accuracy-v2`，保留
+`reported_proxy_version=1`，并派生为 Params `count-v2` 或 FLOPs `thop-v2` 后恢复原始方向；raw 文件
+不改写。迁移 provenance 不会把同一科学协议拆成多个相关性分组；汇总表通过
+`legacy_direction_migrated_count`、`direction_migrations` 和
+`legacy_reported_proxy_versions` 记录混合新旧 shard 的只读迁移情况。
+代理注册名不同也不代表算法独立：CSV 中的
 `proxy_alias_of` 与 `proxy_implementation_fidelity` 用于识别显式 alias 和未核验移植。
 
 不得把 `proxy_proxy` 低相关直接称为互补：两个随机代理也可能低相关。只有当 union recall 或严格

@@ -240,5 +240,7 @@ def test_nb301_is_deterministic_unless_noise_requested(tmp_path):
     )
     generated_architecture = next(generated.iter_architectures(2, 3))
     assert generated_architecture.architecture_id == DartsSpace().sample(2).architecture_id
+    assert generated_architecture.benchmark_index == 2
+    assert generated.sample_architecture(7).benchmark_index == 7
     assert generated.metadata()["architecture_source"] == "deterministic_darts_sampling"
     assert generated.metadata()["protocol"] == "nasbench301-surrogate-v1.0"

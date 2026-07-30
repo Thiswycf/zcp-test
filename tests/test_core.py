@@ -4,6 +4,7 @@ import math
 from pathlib import Path
 
 from zcp_test.artifacts import JsonlWriter, merge_jsonl, read_jsonl
+from zcp_test.artifacts.run import _package_versions
 from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.reporting import correlation_summary
@@ -23,6 +24,19 @@ def test_jsonl_merge_and_partial_recovery(tmp_path):
     assert [row["value"] for row in read_jsonl(tmp_path / "merged.jsonl")] == [2, 3]
 
 
+def test_runtime_package_versions_skip_uninstalled_packages(monkeypatch):
+    from importlib import metadata
+
+    def version(package):
+        if package == "present":
+            return "1.2.3"
+        raise metadata.PackageNotFoundError(package)
+
+    monkeypatch.setattr("zcp_test.artifacts.run.metadata.version", version)
+
+    assert _package_versions(("present", "missing")) == {"present": "1.2.3"}
+
+
 def test_spaces_and_cache_keys():
     load_builtin_spaces()
     expected = {"nb201_topology", "nats_size", "nb101_dag", "nb101_toy_legacy", "darts", "darts_toy_legacy", "transnas_micro", "transnas_macro", "autoformer", "pit", "zennas_plainnet_mbv2", "ofa_proxyless_mbv2", "ofa_mbv3"}
@@ -37,6 +51,15 @@ def test_proxy_state_isolation():
     result = evaluate_proxy("gradnorm", model, torch.randn(2, 3, 8, 8), torch.tensor([0, 1]), torch.nn.CrossEntropyLoss())
     assert result.status.value == "ok"
     assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
+
+
+def test_params_and_flops_separate_accuracy_and_resource_directions():
+    load_builtin_proxies()
+    for proxy_id, version in (("params", "count-v2"), ("flops", "thop-v2")):
+        capability = PROXIES.create(proxy_id).capability
+        assert capability.version == version
+        assert capability.direction.value == "maximize"
+        assert capability.resource_direction.value == "minimize"
 
 
 def test_proxy_state_isolation_removes_injected_buffers():

@@ -366,8 +366,8 @@ def _unsupported(name: str) -> Callable[..., float]:
 
 
 _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
-    "params": (_params, ProxyCapability("params", model_families=("cnn", "transformer"), requires_data=False, direction=ScoreDirection.MINIMIZE)),
-    "flops": (_flops, ProxyCapability("flops", model_families=("cnn", "transformer"), direction=ScoreDirection.MINIMIZE, dependencies=("thop",))),
+    "params": (_params, ProxyCapability("params", version="count-v2", model_families=("cnn", "transformer"), requires_data=False, resource_direction=ScoreDirection.MINIMIZE)),
+    "flops": (_flops, ProxyCapability("flops", version="thop-v2", model_families=("cnn", "transformer"), dependencies=("thop",), resource_direction=ScoreDirection.MINIMIZE)),
     "gradnorm": (_gradnorm, ProxyCapability("gradnorm", requires_labels=True)),
     "synflow": (_synflow, ProxyCapability("synflow", version="double-v2", model_families=("cnn", "transformer"), requires_data=False)),
     "naswot": (_naswot, ProxyCapability("naswot", model_families=("cnn", "transformer"))),
