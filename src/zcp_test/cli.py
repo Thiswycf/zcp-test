@@ -46,6 +46,7 @@ from zcp_test.inputs import make_dataset_batch_stream, make_input_batch
 from zcp_test.legacy import import_pickle
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.evaluator import evaluate_proxy
+from zcp_test.research import create_sample_manifest, load_sample_indices
 from zcp_test.reporting import correlation_summary, curve_plot, jsonl_to_csv, static_html
 from zcp_test.reporting.analysis import (
     build_report_bundle,
@@ -850,6 +851,64 @@ def command_registry(args: argparse.Namespace, registry: str) -> None:
         _json({"search_space_id": instance.search_space_id, "model_family": instance.model_family, "model_fidelity": getattr(instance, "model_fidelity", "unspecified"), "sample": instance.sample(args.seed).to_dict()})
 
 
+def command_benchmark_sample(args: argparse.Namespace) -> None:
+    load_builtin_spaces()
+    load_builtin_benchmarks()
+    if args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
+        raise PermissionError(
+            f"{args.name} uses a native serialized format; pass --trusted only for a verified source"
+        )
+    resolver_args = argparse.Namespace(
+        benchmark=args.name,
+        benchmark_path=args.path,
+        catalog=args.catalog,
+        data_root=args.data_root,
+        transnas_space=args.transnas_space,
+        slice_id=args.slice_id,
+    )
+    kwargs: dict[str, Any] = {"path": _resolve_benchmark_path(resolver_args)}
+    version = args.version or {
+        "nasbench101": "full",
+        "nasbench201": "1.1",
+        "nats_tss": "1.0",
+        "nats_sss": "1.0",
+        "nasbench301_surrogate": "1.0",
+        "transnasbench101": "v10141024",
+    }.get(args.name)
+    if version:
+        kwargs["version"] = version
+    if args.name == "vitbench101":
+        kwargs["slice_id"] = args.slice_id
+    elif args.name == "transnasbench101":
+        kwargs["space"] = args.transnas_space
+    elif args.name == "nasbench301_surrogate":
+        kwargs["architecture_path"] = args.architecture_path
+        runtime_args = argparse.Namespace(
+            runtime_benchmark_path=args.runtime_path,
+            catalog=args.catalog,
+        )
+        runtime_path = _resolve_nb301_runtime_path(runtime_args)
+        if runtime_path:
+            kwargs["runtime_path"] = runtime_path
+    adapter = BENCHMARKS.create(args.name, **kwargs)
+    manifest = create_sample_manifest(
+        adapter.benchmark_id,
+        str(adapter.metadata().get("version")) if adapter.metadata().get("version") else None,
+        adapter.iter_architectures(),
+        count=args.count,
+        fraction=args.fraction,
+        seed=args.seed,
+        shards=args.shards,
+    )
+    output = Path(args.output)
+    output.parent.mkdir(parents=True, exist_ok=True)
+    temporary = output.with_suffix(output.suffix + ".tmp")
+    temporary.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    temporary.replace(output)
+    summary = {key: value for key, value in manifest.items() if key != "selected"}
+    _json({**summary, "output": str(output)})
+
+
 def command_data(args: argparse.Namespace) -> None:
     if args.action == "checklist":
         records = data_checklist(args.root, args.catalog)
@@ -946,6 +1005,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     load_builtin_benchmarks()
     adapter = None
+    sample_manifest = None
     resolved_benchmark_version = args.benchmark_version or {
         "nasbench101": "full",
         "nasbench201": "1.1",
@@ -977,7 +1037,31 @@ def command_evaluate(args: argparse.Namespace) -> None:
                 kwargs["runtime_path"] = runtime_path
         adapter = BENCHMARKS.create(args.benchmark, **kwargs)
         space = SPACES.create(adapter.search_space_id)
-        architectures = list(adapter.iter_architectures(args.start, args.start + args.count))
+        if args.sample_manifest:
+            if args.start != 0:
+                raise ValueError("--start cannot be combined with --sample-manifest")
+            sample_indices, sample_manifest = load_sample_indices(
+                args.sample_manifest,
+                benchmark_id=adapter.benchmark_id,
+                benchmark_version=resolved_benchmark_version,
+                shard_index=args.sample_shard,
+            )
+            expected_ids = {
+                int(record["benchmark_index"]): record["architecture_id"]
+                for record in sample_manifest["selected"]
+            }
+            architectures = []
+            for benchmark_index in sample_indices:
+                architecture = next(
+                    adapter.iter_architectures(benchmark_index, benchmark_index + 1)
+                )
+                if architecture.architecture_id != expected_ids[benchmark_index]:
+                    raise ValueError(
+                        "Sample manifest architecture_id does not match the benchmark adapter"
+                    )
+                architectures.append(architecture)
+        else:
+            architectures = list(adapter.iter_architectures(args.start, args.start + args.count))
     else:
         space = SPACES.create(args.space)
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
@@ -1039,6 +1123,18 @@ def command_evaluate(args: argparse.Namespace) -> None:
         run_config = {
             **_args_config(args),
             "input_protocol": batch.protocol,
+            "sample_protocol": (
+                {
+                    "strategy": sample_manifest["strategy"],
+                    "seed": sample_manifest["seed"],
+                    "population_size": sample_manifest["population_size"],
+                    "sample_count": len(architectures),
+                    "manifest_sha256": file_sha256(args.sample_manifest),
+                    "shard_index": args.sample_shard,
+                }
+                if sample_manifest is not None
+                else None
+            ),
             **model_provenance,
             **weight_provenance,
             "bn_recalibration_protocol": (
@@ -1942,6 +2038,25 @@ def build_parser() -> argparse.ArgumentParser:
             )
             inspect.add_argument("--surrogate-noise", action="store_true")
         inspect.set_defaults(function=lambda args, name=registry: command_registry(args, name))
+        if registry == "benchmark":
+            sample = actions.add_parser("sample")
+            sample.add_argument("name")
+            sample.add_argument("--path")
+            sample.add_argument("--trusted", action="store_true")
+            sample.add_argument("--version")
+            sample.add_argument("--slice-id", default="autoformer_main")
+            sample.add_argument("--transnas-space", default="micro")
+            sample.add_argument("--architecture-path")
+            sample.add_argument("--runtime-path")
+            sample.add_argument("--catalog", default=data_default)
+            sample.add_argument("--data-root")
+            size = sample.add_mutually_exclusive_group(required=True)
+            size.add_argument("--count", type=int)
+            size.add_argument("--fraction", type=float)
+            sample.add_argument("--seed", type=int, default=0)
+            sample.add_argument("--shards", type=int, default=1)
+            sample.add_argument("--output", required=True)
+            sample.set_defaults(function=command_benchmark_sample)
     proxy = subparsers.add_parser("proxy")
     proxy_actions = proxy.add_subparsers(dest="action", required=True)
     for action in ("list", "matrix"):
@@ -1964,6 +2079,8 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--slice-id", default="autoformer_main")
     evaluate.add_argument("--transnas-space", default="micro")
     evaluate.add_argument("--start", type=int, default=0)
+    evaluate.add_argument("--sample-manifest")
+    evaluate.add_argument("--sample-shard", type=int)
     evaluate.add_argument("--dataset", default="cifar10")
     evaluate.add_argument("--target-metric")
     evaluate.add_argument("--target-split", default="valid")

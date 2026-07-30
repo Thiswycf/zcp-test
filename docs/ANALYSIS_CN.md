@@ -1,5 +1,9 @@
 # 分析、可视化与监控
 
+需要执行跨 benchmark 的 1% 正式相关性验收时，先阅读
+[`ONE_PERCENT_ACCEPTANCE_CN.md`](ONE_PERCENT_ACCEPTANCE_CN.md)，使用持久化 feature-stratified
+manifest，而不是连续 `--start/--count` 代替随机/分层样本。
+
 ## 一键报告
 
 ```bash

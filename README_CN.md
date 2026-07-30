@@ -34,6 +34,7 @@ zcp-test doctor --catalog configs/data.example.json
 - [新增代理](docs/ADD_PROXY_CN.md)
 - [分析与监控](docs/ANALYSIS_CN.md)
 - [DARTS 搜索与训练](docs/DARTS_TRAINING_CN.md)
+- [1% Benchmark 相关性验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)
 
 ```bash
 zcp-test data list --catalog configs/data.example.json

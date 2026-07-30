@@ -1,0 +1,92 @@
+# 1% Benchmark 相关性验收
+
+本协议只用于有可查询标准答案或明确 surrogate 的 benchmark。DARTS、MobileNetV2 和开放
+AutoFormer 搜索空间没有完整 tabular 真值，不运行这种相关性验收；它们使用 validation-only 搜索和
+候选完整训练。NAS-Bench-301 的结论必须写成 surrogate association。
+
+## 1. 生成确定性分层清单
+
+`benchmark sample` 遍历 benchmark 的 canonical architecture，按 benchmark 特征建立 strata，按
+总体占比使用 largest-remainder 分配样本，再在每层内使用固定 seed 无放回抽样。manifest 保存
+benchmark/version、总体规模、sample fraction、architecture ID、benchmark index、stratum 和 shard。
+
+```bash
+zcp-test benchmark sample nasbench201 --trusted \
+  --catalog ~/.config/zcp-test/data.json \
+  --fraction 0.01 --seed 2026 --shards 4 \
+  --output /path/to/audit/samples/nasbench201-seed2026.json
+```
+
+当前特征层定义：
+
+| benchmark | 分层特征 | 说明 |
+|---|---|---|
+| NAS-Bench-101 | vertex、edge 与三类中间 operation 数量 | 不按 module hash 或文件位置分层 |
+| NAS-Bench-201 / NATS-TSS | 六条边上的 operation 计数 | 两者可用相同 codec，但必须分别生成 manifest |
+| NATS-SSS | 总通道 bin、不同宽度数、是否非递减 | 用于避免只抽到相邻 size 编码 |
+| NAS-Bench-301 | normal/reduction 的 skip、pool、sep、dil 与重复 parent 数 | 结果仍是 surrogate association |
+| TransNAS-Bench-101 | base width 与编码 digit 计数 | micro/macro 分别生成 |
+| ViT-Bench-101 | depth 与 hidden/base dimension | AutoFormer main/ext/PiT 分切片生成 |
+
+这是**比例分层**，不是每层等量抽样；极稀有层在小样本时可能分配为 0。manifest 是抽样真源，后续
+不得重新按 seed 临时抽样。
+
+## 2. 最低规模
+
+| 协议 | manifest 参数 | 最低样本 |
+|---|---|---:|
+| NB101 full | `--fraction 0.01` | 4,237 |
+| NB201 v1.1 | `--fraction 0.01` | 157 |
+| NATS-TSS | `--fraction 0.01` | 157 |
+| NATS-SSS | `--fraction 0.01` | 328 |
+| NB301 deterministic | `--count 1000` | 1,000 |
+| TNB101 micro | `--fraction 0.01` | 41 |
+| TNB101 macro | `--fraction 0.01` | 33 |
+| ViT 每个正式切片 | `--count 5` | 5 |
+
+NB101 的 4/12/36/108 budget、TNB101 的各任务、ViT 的 vanilla/KD/inherited 以及不同 dataset/split
+必须分别报告；禁止对协议直接平均。AutoFormer extension 不能并入 main。
+
+## 3. 四卡分片执行
+
+每个 worker 使用 manifest 中一个 shard。`CUDA_VISIBLE_DEVICES` 必须是 GPU UUID；程序内部使用
+`cuda:0`。以下命令以 NB201 为例：
+
+```bash
+SAMPLE=/path/to/audit/samples/nasbench201-seed2026.json
+GPU_UUIDS=(GPU-UUID-0 GPU-UUID-1 GPU-UUID-2 GPU-UUID-3)
+for SHARD in 0 1 2 3; do
+  CUDA_DEVICE_ORDER=PCI_BUS_ID CUDA_VISIBLE_DEVICES="${GPU_UUIDS[$SHARD]}" \
+  zcp-test evaluate --benchmark nasbench201 --trusted \
+    --catalog ~/.config/zcp-test/data.json \
+    --sample-manifest "$SAMPLE" --sample-shard "$SHARD" \
+    --dataset cifar10-valid --target-metric valid-accuracy --target-split valid \
+    --epoch-budget 200 --metric-seed-reduction mean \
+    --proxies az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico \
+    --input-source dataset --data-root /path/to/cifar10 \
+    --batch-size 2 --input-size 32 --classes 10 --device cuda:0 \
+    --output /path/to/audit/nb201/shard-$SHARD &
+done
+wait
+```
+
+`evaluate` 会校验 manifest benchmark/version、索引唯一性及每个索引对应的 architecture ID。run 的
+`config.yaml` 记录 strategy、seed、population、当前 shard 样本数、manifest SHA-256 和 shard index。
+`--start` 不能与 `--sample-manifest` 同用。
+
+## 4. Seed 协议
+
+- 全部 22 ZCP：一个固定初始化/input seed；
+- 核心代理 `params,flops,gradnorm,jacob_cov,naswot,synflow,zen,zico,meco,te_nas,az_nas`：至多三个 seed；
+- 所有 seed 必须复用同一 sample manifest；只改变模型初始化/输入 batch seed；
+- 同一 benchmark 的不同 seed run 可交给 `analyze sensitivity --parameter seed`，但不能把 seed 行当作额外架构扩大样本数。
+
+## 5. 完成判定
+
+每个协议必须保留：sample manifest 及 SHA-256、每 shard manifest/config/scores、成功/failed/NaN 数、
+输入指纹、每代理有效样本数、相关性与 bootstrap CI、top-k、耗时/显存，以及稳定任务键去重后的总行数。
+任何 OOM、NaN 或 unsupported 都保留原状态；不得回退随机输入、近似模型或伪造分数。
+
+本机低成本 smoke 已对 NB201 生成 16/15,625 的 0.1% manifest：210 个 strata、4 个互斥 shard，
+每 shard 4 个索引。shard 0 的 params evaluate 完成 4/4 行，run 记录 manifest SHA-256。该 smoke 只
+证明抽样和分片协议，不计入 1% 科学验收。
