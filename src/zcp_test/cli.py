@@ -1750,7 +1750,7 @@ def command_analyze(args: argparse.Namespace) -> None:
 
     output = Path(args.output)
     if args.action in {"correlation", "compare", "sensitivity"}:
-        frame = read_scores(args.scores)
+        frame = read_scores(args.scores, include_failed=True)
         if args.component:
             frame = frame[frame["component"] == args.component]
         validate_analysis_scores(

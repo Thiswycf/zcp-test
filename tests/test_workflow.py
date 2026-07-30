@@ -71,6 +71,58 @@ def test_evaluate_identity_can_come_from_yaml_config(tmp_path):
     assert rows[0]["proxy_id"] == "params"
 
 
+def test_analyze_correlation_cli_retains_failed_rows_in_coverage(tmp_path):
+    scores = tmp_path / "scores.jsonl"
+    rows = [
+        {
+            "architecture_id": f"a{index}",
+            "proxy_id": "synflow",
+            "primary_component": "score",
+            "components": {"score": float(index)},
+            "score": float(index),
+            "target_value": float(index),
+            "seed": 1,
+            "status": "ok",
+        }
+        for index in (1, 2, 3)
+    ]
+    rows.append(
+        {
+            "architecture_id": "a4",
+            "proxy_id": "synflow",
+            "primary_component": "score",
+            "components": {},
+            "score": None,
+            "target_value": 4.0,
+            "seed": 1,
+            "status": "failed",
+        }
+    )
+    scores.write_text("".join(json.dumps(row) + "\n" for row in rows), encoding="utf-8")
+    output = tmp_path / "analysis"
+
+    main(
+        [
+            "analyze",
+            "correlation",
+            "--scores",
+            str(scores),
+            "--bootstrap-samples",
+            "0",
+            "--output",
+            str(output),
+        ]
+    )
+
+    import pandas as pd
+
+    record = pd.read_csv(output / "correlations.csv").iloc[0]
+    assert record["total_count"] == 4
+    assert record["failed_count"] == 1
+    assert record["sample_count"] == 3
+    assert record["coverage"] == pytest.approx(0.75)
+
+
 def test_legacy_score_rows_fold_without_modifying_source():
     rows = [
         {"run_id": "r", "architecture_id": "a", "proxy_id": "er", "component": "mean", "score": 2.0},

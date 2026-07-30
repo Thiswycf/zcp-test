@@ -219,7 +219,7 @@
   },
   "limitations": [
     "Only evaluation/input seed 2026 has been completed.",
-    "The two additional seeds for the 11 core proxies have not been completed.",
+    "The two additional seeds for the 11 core proxies were completed later and are recorded in nb201_core_three_seed_summary.json.",
     "NAS-Bench-201 evidence must not be extrapolated to NATS-TSS even though they share a topology codec.",
     "The negative params and flops correlations are produced by their declared minimize-to-negated transform; resource preference and raw size-accuracy association require separate scientific reporting.",
     "Identical observed values for differently named proxies do not establish algorithmic independence; provenance and formula audits remain required.",

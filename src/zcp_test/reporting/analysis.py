@@ -923,10 +923,7 @@ def build_report_bundle(
     valid = frame[frame["status"].fillna("ok").isin(("ok", "success", "completed"))]
     paired = valid.dropna(subset=["score", "target_value"])
     if not paired.empty:
-        correlations = correlation_table(
-            paired,
-            bootstrap_samples=bootstrap_samples,
-        )
+        correlations = correlation_table(frame, bootstrap_samples=bootstrap_samples)
         correlation_csv = output / "correlations.csv"
         _write_csv(correlations, correlation_csv)
         artifacts.append(correlation_csv)

@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 19:38 CST",
+  updatedAt: "2026-07-30 20:17 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "最新完整 gate 为 262 passed、第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "最新完整 gate 为 282 tests passed、第一方 source coverage 87%、CLI coverage 80%；CLI 与 bundle 的 failed invocation coverage 分母修复已纳入回归，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 18:35"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 20:17"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -140,10 +140,10 @@ window.ZCP_PANEL_DATA = {
       id: "E2", phase: "研究", priority: "P1", title: "通用 ZCP 分析",
       content: "验收互相关、top-k、稳定性、Pareto、transfer 与样本收敛分析。",
       purpose: "形成可复用且不会静默错配的研究报告。",
-      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 72,
-      detail: "真实 NB201 dataset-input run 已生成 correlation、compare 与 seed sensitivity 报告；相关性诊断现显式记录 coverage、ties、constant、direction，并对重复 join key fail closed。当前证据覆盖真实通用分析工作流，但 search 与 training 分析尚未执行，top-k、Pareto、transfer 和样本收敛仍需真实多 run 验收，因此不能标记完成。",
+      estimate: "6–12 小时", startedAt: "2026-07-30 12:50", finishedAt: "—", status: "进行中", progress: 75,
+      detail: "真实 NB201 dataset-input run 已生成 correlation、compare 与 seed sensitivity 报告；相关性诊断显式记录 coverage、ties、constant、direction，并对重复 join key fail closed。三 seed 实验进一步修复 CLI 在 bundle 前过滤 failed 行导致 coverage=1.0 的错误：CLI 与 bundle 现保留完整调用分母，只用有限成功对计算系数。search 与 training 分析尚未执行，top-k、Pareto、transfer 和样本收敛仍需真实多 run 验收，因此不能标记完成。",
       acceptance: ["缺列与重复键明确报错", "coverage/ties/constant/direction 显式报告", "多 run 来源保留", "真实结果可生成全部表格", "search/training 分析真实验收"],
-      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 19:38"
+      evidence: ["EV-NB201-REAL-ANALYSIS", "EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-FULL-GATE-282"], risks: [], updatedAt: "2026-07-30 20:17"
     },
     {
       id: "E3", phase: "研究", priority: "P2", title: "Benchmark 定制研究",
@@ -167,10 +167,10 @@ window.ZCP_PANEL_DATA = {
       id: "F2", phase: "报告", priority: "P1", title: "验收报告与复现实例",
       content: "整理完整、部分、受阻结论及对应命令、文件和运行产物。",
       purpose: "让所有验收判断都能被第三方复核。",
-      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 52,
-      detail: "初稿和结构已具备；已链接 NB201 单 seed 1% × 22 ZCP 的机器可读摘要与中文证据文档，其余 benchmark、核心代理附加 seed 和高成本训练结果仍待回填。",
+      estimate: "3–6 小时", startedAt: "2026-07-30 13:20", finishedAt: "—", status: "进行中", progress: 58,
+      detail: "初稿和结构已具备；已链接 NB201 单 seed 1% × 22 ZCP 及核心 11 代理三 seed 的机器可读摘要与中文证据文档。其余 benchmark 和高成本训练结果仍待回填。",
       acceptance: ["每个结论链接证据", "受阻原因明确", "不把 smoke 写成完整训练"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: [], updatedAt: "2026-07-30 19:38"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT"], risks: [], updatedAt: "2026-07-30 20:17"
     },
     {
       id: "F3", phase: "报告", priority: "P1", title: "report/monitor/run 发现",
@@ -186,18 +186,18 @@ window.ZCP_PANEL_DATA = {
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
-      detail: "看板以带缓存破坏参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch，设计上兼容直接 file:// 打开和 HTTP 静态服务器。提供立即刷新、自动刷新开关、15/30/60/300 秒间隔、上次成功刷新时间和下次刷新倒计时；隐藏页暂停，恢复可见时立即检查。刷新后保留筛选状态并重绘当前视图，不重复注册静态监听器；失败时保留旧数据并通过 aria-live 显示非阻塞错误。当前新增能力仅完成静态源码与 Node 契约验收，尚未声明 file:// 或 HTTP 浏览器交互实测。",
-      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "立即刷新按钮", "自动刷新开关与 15/30/60/300 秒间隔", "上次成功刷新与下次刷新倒计时", "visibility 恢复立即检查", "cache-busting data.js 且不依赖 fetch", "保留筛选状态并避免重复静态监听器", "失败保留旧数据", "aria-live 可访问状态", "Node 语法、数据契约与 diff 检查通过", "浏览器交互实测不在当前证据范围"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE"], risks: [], updatedAt: "2026-07-30 19:25"
+      detail: "看板以带缓存破坏参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch。提供立即刷新、自动刷新开关、15/30/60/300 秒间隔、上次成功刷新时间和倒计时；隐藏页暂停，恢复可见时立即检查。刷新后保留筛选状态并重绘，失败时恢复旧 data 对象并显示非阻塞错误。HTTP 静态服务审计已验证 index.html、app.js 与两个不同 cache-busting query 的 data.js 均返回 200；源码契约检查覆盖手动/自动触发、定时重排、visibility 暂停和失败回退。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "立即刷新按钮", "自动刷新开关与 15/30/60/300 秒间隔", "上次成功刷新与下次刷新倒计时", "visibility 隐藏暂停且恢复立即检查", "cache-busting data.js 且不依赖 fetch 或整页 reload", "保留筛选状态并避免重复静态监听器", "失败保留旧数据", "aria-live 可访问状态", "HTTP 静态资源与不同 query 实测 200", "Node 语法、数据契约与 diff 检查通过"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT"], risks: [], updatedAt: "2026-07-30 20:17"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "当前完整 gate 为 262 项测试通过；第一方 source coverage 87%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "当前完整 gate 为 282 tests passed；第一方 source coverage 87%、CLI 80%，Ruff、compileall、pip check 与 git diff check 通过；failed invocation coverage 的 CLI/bundle 回归已纳入测试。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 18:35"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 20:17"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 18,
-      detail: "NB201 单 seed 1% × 22 ZCP 已完成，整体进行中：157 个架构产生 3,454 行，3,451 成功、3 失败且重复键为 0；sample manifest SHA-256 为 9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc。核心 11 代理另外 2 个 seed，以及 NB101、NATS-TSS/SSS、NB301、TransNAS-Bench-101、ViT-Bench-101 均仍待执行。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 24,
+      detail: "NB201 既定 seed 协议完成，H1 整体进行中：核心 11 代理已在同一 157 架构 1% 分层样本上完成 seed 2026/2027/2028，共 5,181 行、5,172 成功、9 失败、0 重复键；22 代理 seed 2026 的旧口径证据继续保留。CLI/bundle 已修复 failed invocation 被提前过滤导致 coverage=1.0 的问题。NB101、NATS-TSS/SSS、NB301、TransNAS-Bench-101 和 ViT-Bench-101 仍待执行，NB201 结果不得外推。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT"], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 19:38"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-FULL-GATE-282"], risks: ["R-BUDGET", "R-PROXY"], updatedAt: "2026-07-30 20:17"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -259,6 +259,10 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-282", time: "2026-07-30 20:17", title: "NB201 三 seed与 coverage 修复后完整 gate", result: "全量 282 tests passed；第一方 source coverage 87%、CLI coverage 80%，Ruff、compileall、pip check 与 git diff check 通过。新增回归覆盖 CLI 与 report bundle 对 failed invocation 的 total/failed/invalid/coverage 分母保留。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "E2", "G1", "H1"] },
+    { id: "EV-NB201-CORE-3SEED-REPORT", time: "2026-07-30 20:09", title: "NB201 核心 11 代理三 seed 中文证据", result: "seed 2026/2027/2028 在同一 157 架构 manifest 上共 5,181 行、5,172 成功、9 失败、0 重复键；报告保留失败覆盖率、三 seed Spearman、跨 seed 排名稳定性、八个新增 run 与边界说明。H1 仍等待其他 benchmark。", command: "docs/evidence/NB201_CORE_THREE_SEED_CN.md", taskIds: ["E2", "F2", "H1"] },
+    { id: "EV-NB201-CORE-3SEED-SUMMARY", time: "2026-07-30 20:09", title: "NB201 核心 11 代理三 seed 机器摘要", result: "JSON 摘要锁定 157 架构、11 核心代理、三个 seed、5,181 行、5,172 成功、9 失败、0 重复键，sample manifest SHA-256 与合并 scores SHA-256 均可复核。", command: "docs/evidence/nb201_core_three_seed_summary.json", taskIds: ["E2", "F2", "H1"] },
+    { id: "EV-PANEL-HTTP-REFRESH-AUDIT", time: "2026-07-30 20:17", title: "HTTP 无 F5 刷新机制复核", result: "刷新源码契约覆盖 cache-busting 动态 data.js、立即刷新、自动开关、可选间隔、隐藏页暂停/恢复检查和失败旧数据回退；HTTP 静态服务下 index.html、app.js 及两个不同 refresh query 的 data.js 均返回 200 且 payload 一致。", command: "python -m http.server 18768 --bind 127.0.0.1 --directory panel; curl index.html app.js 'data.js?refresh=audit-manual-1' 'data.js?refresh=audit-auto-2'; node panel/check-data.js", taskIds: ["F4"] },
     { id: "EV-NB201-1PCT-REPORT", time: "2026-07-30 19:38", title: "NB201 1% × 22 ZCP 中文证据", result: "中文证据逐项记录 157 个分层样本、3,454 行、3,451 成功、3 失败、四个 shard/run/checksum、22 个主组件相关性、正式 topology 表规模与结论边界；明确 H1 仅为 NB201 单 seed 完成，核心 11 代理另两个 seed 和其他 benchmark 仍待执行。", command: "docs/evidence/NB201_ONE_PERCENT_22ZCP_CN.md", taskIds: ["E1", "E2", "E3", "F2", "H1"] },
     { id: "EV-NB201-1PCT-SUMMARY", time: "2026-07-30 19:38", title: "NB201 1% × 22 ZCP 机器可读摘要", result: "JSON 摘要锁定 sample manifest SHA-256 9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc；157 架构 × 22 代理共 3,454 行，3,451 成功、3 失败、0 重复键，并保留 alias、portable approximation、常数输出与方向转换审计字段。", command: "docs/evidence/nb201_one_percent_22zcp_summary.json", taskIds: ["E1", "E2", "E3", "F2", "H1"] },
     { id: "EV-NB201-REAL-ANALYSIS", time: "2026-07-30 18:55", title: "真实 NB201 通用分析工作流", result: "两个真实 CIFAR-10 dataset-input seed、20 个 NB201 架构和 params/naswot/synflow 已生成 correlation、compare、seed sensitivity 及 topology 的 CSV、PNG、SVG、HTML；非有限 NASWOT 明确保留为 failed。该证据只验收真实工作流，不代表 1% 科学结论。", command: "docs/evidence/E2_E3_NB201_REAL_CN.md; docs/evidence/nb201_real_analysis_summary.json", taskIds: ["E2", "E3"] },

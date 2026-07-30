@@ -1,0 +1,63 @@
+{
+  "schema_version": 1,
+  "evidence_id": "nb201_core_11_proxy_three_seed",
+  "status": "nb201_core_three_seed_complete_other_benchmarks_pending",
+  "benchmark_id": "nasbench201",
+  "benchmark_version": "1.1",
+  "search_space_id": "nb201_topology",
+  "dataset": "cifar10-valid",
+  "target_protocol": "valid-accuracy / valid / 200 epoch / repeat mean",
+  "sample_manifest_sha256": "9b9e7b0e8b7e59b76cee386cf6221bdac3f9b463a9a4729f68faffcd671391bc",
+  "scores_sha256": "66ef0f353810f26472684ad70452f698a64b1ae2ee64209c2aad7302bebb38d3",
+  "seeds": [2026, 2027, 2028],
+  "architectures": 157,
+  "proxies": ["params", "flops", "gradnorm", "jacob_cov", "naswot", "synflow", "zen", "zico", "meco", "te_nas", "az_nas"],
+  "totals": {
+    "raw_rows": 5181,
+    "successful_rows": 5172,
+    "failed_rows": 9,
+    "duplicate_seed_architecture_proxy_keys": 0
+  },
+  "additional_seed_runs": [
+    {"seed": 2027, "shard": 0, "run_id": "e1ad3294b7c9", "rows": 440, "scores_sha256": "83fe212e5876a354a2279dc554e707f2b2877e4bd8e6c38814d020590d4afed6", "gpu_model": "NVIDIA GeForce RTX 4090", "gpu_bus_id": "00000000:A8:00.0"},
+    {"seed": 2027, "shard": 1, "run_id": "c05f58f3d872", "rows": 429, "scores_sha256": "2c15e3069172092ef8d903789cd375428f8405c3dff8cd313617d2b6bd2a61f3", "gpu_model": "NVIDIA GeForce RTX 4090 D", "gpu_bus_id": "00000000:B8:00.0"},
+    {"seed": 2027, "shard": 2, "run_id": "0b70640ef4d3", "rows": 429, "scores_sha256": "deb536d7138d71b6c04c12c73e2f3f7d85cd9329c07f7a800396403497854815", "gpu_model": "NVIDIA GeForce RTX 4090", "gpu_bus_id": "00000000:98:00.0"},
+    {"seed": 2027, "shard": 3, "run_id": "fe92d3962889", "rows": 429, "scores_sha256": "3ebed89f101cce1df435d4c2c9a9928ea34ba20b17926ff83b0ed4253477b7c7", "gpu_model": "NVIDIA GeForce RTX 4090 D", "gpu_bus_id": "00000000:5A:00.0"},
+    {"seed": 2028, "shard": 0, "run_id": "d8258541d9ae", "rows": 440, "scores_sha256": "43c5952439c90f21b6071c8cd0bd5ce289487a05e33d02fd42d16fbde48841a6", "gpu_model": "NVIDIA GeForce RTX 4090", "gpu_bus_id": "00000000:A8:00.0"},
+    {"seed": 2028, "shard": 1, "run_id": "c42f100d7f55", "rows": 429, "scores_sha256": "47af691f19346ba1284494ae2e175ad94f4d3f62dea8e7e9143bd82e71dd3517", "gpu_model": "NVIDIA GeForce RTX 4090 D", "gpu_bus_id": "00000000:5A:00.0"},
+    {"seed": 2028, "shard": 2, "run_id": "4fabe4857972", "rows": 429, "scores_sha256": "8a96dd2fea75242d6219db1e4e640fae4ef8c6677a876906532a03e265d1d991", "gpu_model": "NVIDIA GeForce RTX 4090", "gpu_bus_id": "00000000:98:00.0"},
+    {"seed": 2028, "shard": 3, "run_id": "e5593b7f8ce2", "rows": 429, "scores_sha256": "623f819c01a6ff2cafc985bf0060e5ad7f4fb942a372041cbacccecbb95eae63", "gpu_model": "NVIDIA GeForce RTX 4090 D", "gpu_bus_id": "00000000:B8:00.0"}
+  ],
+  "gpu_protocol": {
+    "selection_strategy": "auto",
+    "torch_logical_index": 0,
+    "cuda_device_order": "PCI_BUS_ID",
+    "distinct_gpus_per_seed": 4
+  },
+  "failure_pattern": {
+    "per_seed": 3,
+    "benchmark_index": 3943,
+    "architecture_id": "nb201_topology:839da408774c5a50b88c",
+    "proxy_ids": ["az_nas", "naswot", "te_nas"],
+    "error": "non-finite proxy output"
+  },
+  "primary_component_statistics": [
+    {"proxy_id": "az_nas", "component": "expressivity", "seed_spearman": [0.606713976, 0.599468951, 0.708571067], "mean_spearman": 0.638251332, "std_spearman": 0.049811455, "mean_cross_seed_spearman": 0.947487264},
+    {"proxy_id": "flops", "component": "score", "seed_spearman": [-0.619445847, -0.619445847, -0.619445847], "mean_spearman": -0.619445847, "std_spearman": 0.0, "mean_cross_seed_spearman": 1.0},
+    {"proxy_id": "gradnorm", "component": "score", "seed_spearman": [0.348333840, 0.323346089, 0.365820304], "mean_spearman": 0.345833411, "std_spearman": 0.017429933, "mean_cross_seed_spearman": 0.954752469},
+    {"proxy_id": "jacob_cov", "component": "score", "seed_spearman": [0.609405174, 0.519033513, 0.562087470], "mean_spearman": 0.563508719, "std_spearman": 0.036907761, "mean_cross_seed_spearman": 0.509572831},
+    {"proxy_id": "meco", "component": "score", "seed_spearman": [0.143195652, 0.031893473, 0.170926814], "mean_spearman": 0.115338646, "std_spearman": 0.060080929, "mean_cross_seed_spearman": 0.492219458},
+    {"proxy_id": "naswot", "component": "score", "seed_spearman": [0.606713976, 0.599468951, 0.708571067], "mean_spearman": 0.638251332, "std_spearman": 0.049811455, "mean_cross_seed_spearman": 0.947487264},
+    {"proxy_id": "params", "component": "score", "seed_spearman": [-0.654631746, -0.654631746, -0.654631746], "mean_spearman": -0.654631746, "std_spearman": 0.0, "mean_cross_seed_spearman": 1.0},
+    {"proxy_id": "synflow", "component": "score", "seed_spearman": [0.341958211, 0.343976953, 0.341275994], "mean_spearman": 0.342403720, "std_spearman": 0.001146779, "mean_cross_seed_spearman": 0.912330970},
+    {"proxy_id": "te_nas", "component": "synflow", "seed_spearman": [0.329765611, 0.331444106, 0.328937428], "mean_spearman": 0.330049048, "std_spearman": 0.001042788, "mean_cross_seed_spearman": 0.910519301},
+    {"proxy_id": "zen", "component": "score", "seed_spearman": [0.616711838, 0.605312610, 0.623738674], "mean_spearman": 0.615254374, "std_spearman": 0.007592676, "mean_cross_seed_spearman": 0.937375573},
+    {"proxy_id": "zico", "component": "score", "seed_spearman": [0.471291065, 0.471849242, 0.438842340], "mean_spearman": 0.460660882, "std_spearman": 0.015429722, "mean_cross_seed_spearman": 0.977346258}
+  ],
+  "limitations": [
+    "This completes the three-seed requirement only for the 11 designated core proxies on NAS-Bench-201.",
+    "Other benchmarks remain pending and NAS-Bench-201 results must not be extrapolated to NATS-TSS.",
+    "AZ-NAS is a portable composite approximation whose primary expressivity component equals NASWOT in this implementation.",
+    "Params and FLOPs correlations are direction-adjusted by the declared minimize-to-negated transform."
+  ]
+}

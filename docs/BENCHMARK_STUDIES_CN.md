@@ -318,9 +318,11 @@ benchmark 仍需分别生成真实 score → 专属表/图证据，不能由 NB2
 architecture、942 条 edge、5 类 operation、26,880 条 correlation、3,360 条 operation effect、
 168 条 matched pair 和 168 条 matched-pair summary。完整摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。H1 仍只能标为
-**“NB201 单 seed 完成，整体进行中”**：核心 11 代理另两个 seed 未完成；`params`/`flops` 的负号
-来自 `minimize → negated` 方向转换，资源方向与原始规模—精度关联仍须分开解释；疑似相同算法结果
-不能用于独立性结论，且该结果绝不能外推为 NATS-TSS 证据。
+核心 11 代理的另外两个 seed 现已补齐，三 seed 稳定性见
+[`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。当前状态更新为
+**“NB201 既定 seed 协议完成，H1 整体进行中”**；`params`/`flops` 的负号来自
+`minimize → negated` 方向转换，资源方向与原始规模—精度关联仍须分开解释；疑似相同算法结果不能
+用于独立性结论，且该结果绝不能外推为 NATS-TSS 证据。
 
 ## 11. 常见错误
 

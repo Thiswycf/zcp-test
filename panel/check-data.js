@@ -59,10 +59,21 @@ assert(indexSource.includes('aria-live="polite"'), "刷新状态缺少 aria-live
 assert(indexSource.includes('aria-pressed="true"'), "自动刷新按钮缺少 aria-pressed");
 assert(appSource.includes('new URL("data.js", window.location.href)'), "刷新未使用兼容 file/HTTP 的 data.js URL");
 assert(appSource.includes('url.searchParams.set("refresh"'), "刷新未对 data.js 使用缓存破坏参数");
+assert(appSource.includes('document.head.append(script)'), "刷新未动态挂载最新 data.js 脚本");
+assert(appSource.includes('script.onload = () =>'), "刷新未处理 data.js 成功加载");
+assert(appSource.includes('script.onerror = () =>'), "刷新未处理 data.js 加载失败");
+assert(appSource.includes('$("#refresh-data").addEventListener("click"'), "立即刷新按钮未绑定点击处理");
+assert(appSource.includes('refreshData(true).finally(scheduleAutoRefresh)'), "立即刷新未重新安排自动刷新");
+assert(appSource.includes('setAutoRefresh(!autoRefreshEnabled, true)'), "自动刷新开关未切换状态");
+assert(appSource.includes('setRefreshInterval(event.target.value, true)'), "刷新间隔选择未生效或未持久化");
+assert(appSource.includes('refreshData(false).finally(scheduleAutoRefresh)'), "自动刷新定时器未重新载入 data.js");
 assert(appSource.includes('document.addEventListener("visibilitychange"'), "刷新未处理页面可见性变化");
+assert(appSource.includes('document.visibilityState !== "visible"'), "隐藏页面未暂停自动刷新调度");
+assert(appSource.includes('cancelScheduledRefresh()'), "缺少自动刷新定时器取消逻辑");
 assert(appSource.includes("window.ZCP_PANEL_DATA = previousData"), "刷新失败时未保留旧数据");
 assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");
 assert(!/\bfetch\s*\(/.test(appSource), "看板刷新不应依赖 fetch（file:// 不兼容）");
+assert(!/window\.location\.reload\s*\(/.test(appSource), "看板刷新不应依赖整页 reload/F5");
 
 if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isArray(data.evidence)) {
   const now = Date.now();

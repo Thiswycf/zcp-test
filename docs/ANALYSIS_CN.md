@@ -106,6 +106,11 @@ zcp-test analyze compare \
 [`evidence/E2_E3_NB201_REAL_CN.md`](evidence/E2_E3_NB201_REAL_CN.md)。该 20 架构连续样本只验证
 通用分析接线，不是 1% 科学样本或论文相关性结果。
 
+NB201 核心 11 代理在同一 1% 分层样本上的三 seed 稳定性证据见
+[`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。该真实运行发现 CLI
+曾在 bundle 前过滤 failed 行；现已修复为“有限成功对用于系数、全部调用用于覆盖率分母”。因此
+验收时应同时检查 `sample_count` 与 `total_count/failed_count/coverage`，不能只看系数列。
+
 ## 论文依据与推广边界
 
 - NASWOT、Zero-Cost Proxies for Lightweight NAS：全局 rank、top-region、局部邻域、初始化和

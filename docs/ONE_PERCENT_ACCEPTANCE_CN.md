@@ -106,7 +106,9 @@ H1 当前状态为：**NB201 单 seed 完成，整体进行中**。seed 2026 的
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md) 与
 [`evidence/nb201_one_percent_22zcp_summary.json`](evidence/nb201_one_percent_22zcp_summary.json)。
 
-本证据仅覆盖 `cifar10-valid / valid-accuracy / valid / 200 epoch / repeat mean / seed 2026`。核心
-11 代理的另外两个 seed 尚未完成；`params`/`flops` 的负号已确认来自 `minimize → negated` 方向
-转换，但资源方向与“规模—精度原始关联”应分开报告；名称不同但结果相同的代理不得据此认定算法
-独立。NB201 和 NATS-TSS 必须分别运行和报告，即使 topology codec 相同。
+上述 22 代理证据覆盖 seed 2026。核心 11 代理现已补齐 seed 2027/2028；三 seed 共 5,181 行、
+5,172 成功、9 失败，跨 seed 排名稳定性与八个新增 run 的 SHA 见
+[`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。
+`params`/`flops` 的负号来自 `minimize → negated` 方向转换，资源方向与“规模—精度原始关联”应分开
+报告；名称不同但结果相同的代理不得据此认定算法独立。NB201 和 NATS-TSS 必须分别运行和报告，
+即使 topology codec 相同。H1 仍未完成其他 benchmark。

@@ -230,6 +230,33 @@ def test_bundle_writes_static_csv_png_svg_and_html(tmp_path: Path) -> None:
     assert "scatter.svg" in (output / "index.html").read_text(encoding="utf-8")
 
 
+def test_bundle_correlation_csv_retains_failed_invocations_in_coverage(tmp_path: Path) -> None:
+    rows = _score_rows()[:3]
+    for row in rows:
+        row["seed"] = 0
+    rows.append(
+        {
+            "architecture_id": "a4",
+            "proxy_id": "synflow",
+            "primary_component": "sum",
+            "score": None,
+            "target_value": 8.0,
+            "target_metric": "valid_accuracy",
+            "seed": 0,
+            "status": "failed",
+        }
+    )
+
+    output = tmp_path / "failed-coverage"
+    build_report_bundle(rows, output, bootstrap_samples=10)
+    record = pd.read_csv(output / "correlations.csv").iloc[0]
+
+    assert record["total_count"] == 4
+    assert record["failed_count"] == 1
+    assert record["sample_count"] == 3
+    assert record["coverage"] == pytest.approx(0.75)
+
+
 def test_monitor_retries_an_incomplete_trailing_record(tmp_path: Path) -> None:
     source = tmp_path / "scores.jsonl"
     source.write_bytes(b'{"score": 1}\n{"score":')

@@ -82,7 +82,8 @@ summary。多组件分析会展开代理组件，因此报告行数不能误解�
 
 ## 限制与后续审计
 
-1. 目前只有 seed 2026；核心 11 代理的另外两个 seed 尚未完成，不能给出跨 seed 稳健性结论。
+1. 本文件的 22 代理口径只有 seed 2026；核心 11 代理的 seed 2027/2028 后续已经完成，跨 seed
+   稳定性见 [`NB201_CORE_THREE_SEED_CN.md`](NB201_CORE_THREE_SEED_CN.md)。
 2. NB201 与 NATS-TSS 虽共享 topology codec，但 adapter、benchmark 身份和真值来源不同；本结果
    **不能外推或合并到 NATS-TSS**。
 3. `params`/`flops` 的负号已确认来自方向 metadata 中 `minimize → negated` 的报告转换；资源偏好与
