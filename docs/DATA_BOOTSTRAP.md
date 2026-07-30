@@ -29,9 +29,13 @@ evaluate configurations that resolve through `~/.config/zcp-test/data.json`; the
 developer-machine path. For example:
 
 ```bash
-zcp-test evaluate --config configs/benchmarks/nasbench201.yaml \
+zcp-test evaluate --config configs/benchmarks/nasbench201.yaml --trusted \
   --proxies params --count 1 --input-source random --device cpu
 ```
+
+The config identifies a native serialized benchmark, but it cannot acknowledge trust on the
+operator's behalf. Native benchmark, checkpoint and pickle loading always requires `--trusted` on
+the command line after independent provenance and checksum verification.
 
 Possible states are:
 
@@ -194,6 +198,21 @@ zcp-test data register \
   --protocol official-tfrecord-converted \
   --catalog /path/to/data/offline/catalog.json
 ```
+
+### Fetching one registered asset
+
+`data fetch` is a lower-level single-asset operation, not a replacement for bootstrap:
+
+```bash
+zcp-test data fetch ASSET_ID \
+  --catalog /path/to/data/catalog.json \
+  --destination /path/to/data/file
+```
+
+The asset must declare `source_url`. The command writes a `.part` file, verifies the catalog
+SHA-256 when present, and atomically publishes the destination. It does not expand benchmark
+groups, extract archives, convert native data, register a path, or provide bootstrap's resumable
+download workflow. Without a declared checksum, successful transfer does not prove authenticity.
 
 ## What `ready` does and does not guarantee
 

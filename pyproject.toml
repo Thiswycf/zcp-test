@@ -42,6 +42,17 @@ where = ["src"]
 testpaths = ["tests"]
 addopts = "-q"
 
+[tool.coverage.run]
+source = ["zcp_test"]
+omit = [
+  "src/zcp_test/vendor/*",
+  "src/zcp_test/data/vendor/model_metrics_pb2.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

@@ -26,6 +26,9 @@ zcp-test evaluate ... --gpu 00000000:98:00.0
 # 要求至少 20 GiB 空闲显存
 zcp-test train ... --min-free-memory 20480
 
+# 锁冲突时最多等待 30 秒；0 表示立即失败
+zcp-test train ... --gpu-lock-timeout 30
+
 # CPU 或保留旧逻辑设备语义
 zcp-test evaluate ... --device cpu
 zcp-test evaluate ... --device cuda:0
@@ -34,6 +37,10 @@ zcp-test evaluate ... --device cuda:0
 自动选择后，程序将物理 UUID 写入 `CUDA_VISIBLE_DEVICES`，因此进程内设备始终是 `cuda:0`。GPU 锁位于 `~/.cache/zcp-test/gpu-locks/`；`--gpu auto` 遇到锁冲突时会按相同排序规则尝试下一张满足型号和显存条件的卡，全部候选均被占用才会失败，且绝不会悄悄切到 CPU。显式指定 INDEX、UUID 或 PCI Bus ID 时不会改选其他卡。
 
 该锁只协调同一用户下遵循 `zcp-test` 锁协议的进程，不是系统级独占锁，无法阻止其他用户或普通 CUDA 程序使用同一张卡。`CUDA_VISIBLE_DEVICES` 绑定按 CLI 短进程设计，嵌入式调用不应在同一 Python 进程中连续改绑多张 GPU。
+
+`--gpu-lock-timeout` 必须是非负秒数。正数是本次选择过程获取合格锁的总等待时间，不是每张卡
+各自重新计时；`--gpu auto` 会在剩余时间内尝试下一候选，显式 index/UUID/Bus ID 不会换卡。
+`--device` 是兼容性覆盖，会绕过物理 GPU 选择和锁。
 
 现有环境可用下列命令检查常驻变量：
 

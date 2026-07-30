@@ -69,7 +69,7 @@ from zcp_test.reporting.monitor import refresh_once
 from zcp_test.search import EvolutionSearch
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
-from zcp_test.types import MetricSpec
+from zcp_test.types import MetricSpec, ModelFidelity
 
 
 def _json(value: Any) -> None:
@@ -82,6 +82,31 @@ def _args_config(args: argparse.Namespace) -> dict[str, Any]:
         for key, value in vars(args).items()
         if key != "function" and not key.startswith("_")
     }
+
+
+def _space_provenance(space: Any) -> dict[str, Any]:
+    return {
+        "model_fidelity": getattr(
+            space, "model_fidelity", ModelFidelity.PROXY_APPROXIMATION.value
+        ),
+        "implementation_source": getattr(space, "implementation_source", None),
+        "implementation_commit": getattr(space, "implementation_commit", None),
+    }
+
+
+def _require_research_model(space: Any, allow_approximation: bool) -> dict[str, Any]:
+    provenance = _space_provenance(space)
+    if (
+        provenance["model_fidelity"]
+        in {ModelFidelity.PROXY_APPROXIMATION.value, ModelFidelity.METRIC_ONLY.value}
+        and not allow_approximation
+    ):
+        raise RuntimeError(
+            f"Search space {space.search_space_id!r} has model fidelity "
+            f"{provenance['model_fidelity']!r}; pass --allow-approximation only for an "
+            "explicitly labelled methodological ablation"
+        )
+    return provenance
 
 
 def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
@@ -107,6 +132,7 @@ def _resolve_benchmark_path(args: argparse.Namespace) -> str:
         path = Path(args.benchmark_path).expanduser()
         if path.exists():
             return str(path)
+        raise FileNotFoundError(f"Explicit benchmark path does not exist: {path}")
     catalog_ids = {
         "nasbench101": "nasbench101",
         "nasbench201": "nasbench201",
@@ -257,6 +283,8 @@ def _real_loaders(
     input_size: int,
     workers: int,
     config: dict[str, Any],
+    fraction: float = 1.0,
+    seed: int = 42,
 ) -> tuple[Any, Any]:
     import torch
     from torchvision import datasets, transforms
@@ -283,17 +311,31 @@ def _real_loaders(
         train_set = dataset_type(root, train=True, transform=train_transform, download=False)
         valid_set = dataset_type(root, train=False, transform=valid_transform, download=False)
     else:
-        train_transform = transforms.Compose(
-            [
-                transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0)),
-                transforms.RandomHorizontalFlip(),
-                transforms.ColorJitter(0.4, 0.4, 0.4, 0.2),
-                transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-                ),
-            ]
-        )
+        if config.get("auto_augment") or config.get("random_erase_probability"):
+            from timm.data import create_transform
+
+            train_transform = create_transform(
+                input_size=input_size,
+                is_training=True,
+                color_jitter=float(config.get("color_jitter", 0.4)),
+                auto_augment=config.get("auto_augment"),
+                interpolation=str(config.get("train_interpolation", "bicubic")),
+                re_prob=float(config.get("random_erase_probability", 0.0)),
+                re_mode=str(config.get("random_erase_mode", "pixel")),
+                re_count=int(config.get("random_erase_count", 1)),
+            )
+        else:
+            train_transform = transforms.Compose(
+                [
+                    transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0)),
+                    transforms.RandomHorizontalFlip(),
+                    transforms.ColorJitter(0.4, 0.4, 0.4, 0.2),
+                    transforms.ToTensor(),
+                    transforms.Normalize(
+                        (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
+                    ),
+                ]
+            )
         valid_transform = transforms.Compose(
             [
                 transforms.Resize(round(input_size / 0.875)),
@@ -308,8 +350,38 @@ def _real_loaders(
         train_set = datasets.ImageFolder(root_path / "train", train_transform)
         validation_directory = root_path / "val" if (root_path / "val").exists() else root_path / "test"
         valid_set = datasets.ImageFolder(validation_directory, valid_transform)
+    train_set = _stratified_subset(train_set, fraction, seed)
+    valid_set = _stratified_subset(valid_set, fraction, seed + 1)
+    generator = torch.Generator().manual_seed(seed)
     common = {"batch_size": batch_size, "num_workers": workers, "pin_memory": True, "persistent_workers": workers > 0}
-    return torch.utils.data.DataLoader(train_set, shuffle=True, **common), torch.utils.data.DataLoader(valid_set, shuffle=False, **common)
+    return (
+        torch.utils.data.DataLoader(train_set, shuffle=True, generator=generator, **common),
+        torch.utils.data.DataLoader(valid_set, shuffle=False, **common),
+    )
+
+
+def _stratified_subset(dataset: Any, fraction: float, seed: int) -> Any:
+    import random
+    import torch
+
+    if not 0 < fraction <= 1:
+        raise ValueError("data fraction must be in (0, 1]")
+    if fraction == 1:
+        return dataset
+    targets = getattr(dataset, "targets", None)
+    if targets is None and hasattr(dataset, "samples"):
+        targets = [sample[1] for sample in dataset.samples]
+    if targets is None:
+        raise ValueError("stratified subset requires dataset class targets")
+    groups: dict[int, list[int]] = {}
+    for index, target in enumerate(targets):
+        groups.setdefault(int(target), []).append(index)
+    rng = random.Random(seed)
+    selected: list[int] = []
+    for indices in groups.values():
+        rng.shuffle(indices)
+        selected.extend(indices[: max(1, round(len(indices) * fraction))])
+    return torch.utils.data.Subset(dataset, sorted(selected))
 
 
 class Cutout:
@@ -555,7 +627,7 @@ def command_data(args: argparse.Namespace) -> None:
         selected = (
             [record["benchmark_id"] for record in benchmarks]
             if benchmarks is not None
-            else [value.strip() for value in args.benchmarks.split(",") if value.strip()]
+            else [value.strip() for value in (args.benchmarks or "").split(",") if value.strip()]
         )
         if not selected:
             raise ValueError("Specify --benchmarks or --all")
@@ -613,6 +685,15 @@ def command_evaluate(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     load_builtin_benchmarks()
     adapter = None
+    resolved_benchmark_version = args.benchmark_version or {
+        "nasbench101": "full",
+        "nasbench201": "1.1",
+        "nats_tss": "1.0",
+        "nats_sss": "1.0",
+        "nasbench301_surrogate": "1.0",
+        "transnasbench101": "v10141024",
+        "vitbench101": "auto-prox-90ed458",
+    }.get(args.benchmark)
     if args.benchmark:
         if args.benchmark in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
             raise PermissionError(
@@ -620,14 +701,14 @@ def command_evaluate(args: argparse.Namespace) -> None:
             )
         kwargs: dict[str, Any] = {"path": _resolve_benchmark_path(args)}
         if args.benchmark in {"nasbench201", "nats_tss", "nats_sss"}:
-            kwargs["version"] = args.benchmark_version
+            kwargs["version"] = resolved_benchmark_version
         elif args.benchmark == "vitbench101":
             kwargs["slice_id"] = args.slice_id
         elif args.benchmark == "transnasbench101":
             kwargs["space"] = args.transnas_space
-            kwargs["version"] = args.benchmark_version
+            kwargs["version"] = resolved_benchmark_version
         elif args.benchmark == "nasbench101":
-            kwargs["version"] = args.benchmark_version
+            kwargs["version"] = resolved_benchmark_version
         elif args.benchmark == "nasbench301_surrogate":
             kwargs["architecture_path"] = args.architecture_path
             runtime_path = _resolve_nb301_runtime_path(args)
@@ -639,6 +720,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
     else:
         space = SPACES.create(args.space)
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
+    model_provenance = _require_research_model(space, args.allow_approximation)
     target_epoch_budget = args.epoch_budget
     target_seed_reduction = args.metric_seed_reduction
     target_direction = args.target_direction
@@ -683,7 +765,11 @@ def command_evaluate(args: argparse.Namespace) -> None:
             device,
             _resolve_data_root(args, args.dataset),
         )
-        run_config = {**_args_config(args), "input_protocol": batch.protocol}
+        run_config = {
+            **_args_config(args),
+            "input_protocol": batch.protocol,
+            **model_provenance,
+        }
         runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
         with RunContext(args.output, sys.argv, run_config, runtime=runtime) as run:
             writer = JsonlWriter(run.directory / "scores.jsonl", fsync_every=1)
@@ -707,7 +793,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             target_epoch_budget,
                             args.metric_seed,
                             target_seed_reduction,
-                            benchmark_version=args.benchmark_version,
+                            benchmark_version=resolved_benchmark_version,
                             surrogate_noise=args.surrogate_noise,
                         ),
                     ).get(args.target_metric)
@@ -730,7 +816,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "schema_version": "2.1",
                             "run_id": run.run_id,
                             "benchmark_id": adapter.benchmark_id if adapter else None,
-                            "benchmark_version": args.benchmark_version if adapter else None,
+                            "benchmark_version": resolved_benchmark_version if adapter else None,
                             "search_space_id": space.search_space_id,
                             "architecture_id": architecture.architecture_id,
                             "architecture": architecture.spec,
@@ -738,6 +824,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "dataset": args.dataset,
                             "proxy_id": proxy_id,
                             "proxy_version": result.proxy_version,
+                            "proxy_implementation_fidelity": result.implementation_fidelity,
+                            "proxy_source": result.source,
+                            "proxy_alias_of": result.alias_of,
                             "direction": result.direction.value,
                             "primary_component": result.primary_component,
                             "score": result.score,
@@ -751,6 +840,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "target_seed_reduction": target_seed_reduction,
                             "benchmark_variant": benchmark_variant,
                             "benchmark_protocol": benchmark_protocol,
+                            **model_provenance,
                             "status": result.status.value,
                             "error_type": result.error_type,
                             "error_message": result.error_message,
@@ -777,16 +867,26 @@ def command_evaluate(args: argparse.Namespace) -> None:
 
 
 def command_correlate(args: argparse.Namespace) -> None:
-    scores = {
-        (row[args.id_field], row.get("proxy_id")): score_component(row, args.component)
-        for row in read_score_records(args.scores)
-        if row.get("status", "ok") == "ok"
-    }
-    targets = {
-        row[args.id_field]: row[args.target_field]
-        for row in read_jsonl(args.targets)
-        if row.get(args.target_field) is not None
-    }
+    scores: dict[tuple[Any, Any], Any] = {}
+    for row in read_score_records(args.scores):
+        if row.get("status", "ok") != "ok":
+            continue
+        key = (row[args.id_field], row.get("proxy_id"))
+        if key in scores:
+            raise ValueError(f"Duplicate score key in correlate input: {key}")
+        scores[key] = (
+            score_component(row, args.component)
+            if args.component
+            else row.get(args.score_field)
+        )
+    targets: dict[Any, Any] = {}
+    for row in read_jsonl(args.targets):
+        if row.get(args.target_field) is None:
+            continue
+        key = row[args.id_field]
+        if key in targets:
+            raise ValueError(f"Duplicate target architecture ID in correlate input: {key}")
+        targets[key] = row[args.target_field]
     groups: dict[str, tuple[list[float], list[float]]] = {}
     for (architecture_id, proxy_id), score in scores.items():
         if architecture_id in targets and score is not None:
@@ -811,6 +911,7 @@ def command_search(args: argparse.Namespace) -> None:
     _prepare_gpu(args)
     load_builtin_spaces()
     space = SPACES.create(args.space)
+    model_provenance = _require_research_model(space, args.allow_approximation)
     with _selected_device(args) as (device, selection):
         import torch
 
@@ -826,7 +927,11 @@ def command_search(args: argparse.Namespace) -> None:
         )
         loss_fn = torch.nn.CrossEntropyLoss()
         runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
-        config = {**_args_config(args), "input_protocol": batch.protocol}
+        config = {
+            **_args_config(args),
+            "input_protocol": batch.protocol,
+            **model_provenance,
+        }
         with RunContext(args.output, sys.argv, config, runtime=runtime) as run:
             def evaluator(architecture: Any) -> float:
                 model = space.build_model(architecture, args.classes).to(device)
@@ -864,14 +969,40 @@ def command_search(args: argparse.Namespace) -> None:
 
 
 def command_train(args: argparse.Namespace) -> None:
+    from zcp_test.training.protocols import validate_formal_training_protocol
+
     config = load_config(args.config)
     _prepare_gpu(args)
     load_builtin_spaces()
     space = SPACES.create(config["space"])
+    model_provenance = _space_provenance(space)
+    model_fidelity = model_provenance["model_fidelity"]
+    if not args.smoke and model_fidelity != ModelFidelity.REFERENCE_MODEL.value:
+        raise NotImplementedError(
+            f"Formal training for {space.search_space_id} is unavailable because its current "
+            f"model fidelity is {model_fidelity!r}; formal training requires reference_model"
+        )
+    formal_training_ready = bool(
+        config.get("formal_training_ready", space.search_space_id == "darts")
+    )
+    if not args.smoke and not formal_training_ready:
+        blockers = config.get("formal_training_blockers", [])
+        suffix = f" Blockers: {', '.join(map(str, blockers))}." if blockers else ""
+        raise NotImplementedError(
+            f"Formal training protocol for {space.search_space_id!r} is not accepted yet; "
+            "use --smoke only until the declared recipe is implemented and validated."
+            f"{suffix}"
+        )
+    if not args.smoke:
+        validate_formal_training_protocol(config)
+        if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
+            raise ValueError("Formal training cannot override the accepted batch_size")
+        if args.input_size is not None and args.input_size != int(config["input_size"]):
+            raise ValueError("Formal training cannot override the accepted input_size")
     architecture = (
         space.sample(args.seed)
         if args.architecture is None
-        else space.canonicalize(json.loads(Path(args.architecture).read_text())["spec"])
+        else space.canonicalize(_load_architecture_spec(args.architecture))
     )
     epochs = args.epochs if args.epochs is not None else int(config["epochs"])
     dataset = str(config["dataset"])
@@ -884,6 +1015,8 @@ def command_train(args: argparse.Namespace) -> None:
         learning_rate=float(config["learning_rate"]),
         weight_decay=float(config["weight_decay"]),
         scheduler=str(config.get("scheduler", "cosine")),
+        scheduler_step_size=int(config.get("scheduler_step_size", 1)),
+        scheduler_gamma=float(config.get("scheduler_gamma", 0.97)),
         warmup_epochs=int(config.get("warmup_epochs", 0)),
         label_smoothing=float(config.get("label_smoothing", 0)),
         amp=bool(config.get("amp", True)),
@@ -893,7 +1026,17 @@ def command_train(args: argparse.Namespace) -> None:
         drop_path_prob=float(config.get("drop_path_prob", 0.0)),
         grad_clip=None if config.get("grad_clip") is None else float(config["grad_clip"]),
         amp_initial_scale=float(config.get("amp_initial_scale", 65536.0)),
+        mixup=float(config.get("mixup", 0.0)),
+        cutmix=float(config.get("cutmix", 0.0)),
+        mixup_probability=float(config.get("mixup_probability", 1.0)),
+        mixup_switch_probability=float(config.get("mixup_switch_probability", 0.5)),
+        mixup_mode=str(config.get("mixup_mode", "batch")),
     )
+    data_root = None if args.smoke else _resolve_data_root(args, dataset)
+    if not args.smoke and not data_root:
+        raise ValueError(
+            "Formal training requires --data-root; synthetic data is restricted to --smoke"
+        )
     with _selected_device(args) as (device, selection):
         model = _build_training_model(space, architecture, classes, config)
         resolved = {
@@ -903,6 +1046,9 @@ def command_train(args: argparse.Namespace) -> None:
             "classes": classes,
             "batch_size": batch_size,
             "input_size": input_size,
+            "model_fidelity": model_fidelity,
+            "implementation_source": model_provenance["implementation_source"],
+            "implementation_commit": model_provenance["implementation_commit"],
         }
         with RunContext(args.output, sys.argv, resolved, runtime={"gpu_selection": selection}) as run:
             batch = min(batch_size, 2 if dataset == "imagenet1k" else 4) if args.smoke else batch_size
@@ -911,13 +1057,15 @@ def command_train(args: argparse.Namespace) -> None:
                 train_loader = _synthetic_loader(batch, size, classes, 2)
                 valid_loader = _synthetic_loader(batch, size, classes, 1)
             else:
-                data_root = _resolve_data_root(args, dataset)
-                if not data_root:
-                    raise ValueError(
-                        "Formal training requires --data-root; synthetic data is restricted to --smoke"
-                    )
                 train_loader, valid_loader = _real_loaders(
-                    dataset, data_root, batch, size, args.workers, config
+                    dataset,
+                    data_root,
+                    batch,
+                    size,
+                    args.workers,
+                    config,
+                    args.data_fraction,
+                    args.seed,
                 )
             result = train_model(
                 model,
@@ -928,8 +1076,36 @@ def command_train(args: argparse.Namespace) -> None:
                 device,
                 args.resume,
                 resume_trusted=args.trusted,
+                run_identity={
+                    "search_space_id": space.search_space_id,
+                    "architecture_id": architecture.architecture_id,
+                    "dataset": dataset,
+                    "protocol": config.get("protocol"),
+                    "classes": classes,
+                    "input_size": input_size,
+                    "model_fidelity": model_fidelity,
+                },
             )
             _json({"run": str(run.directory), **result})
+
+
+def _load_architecture_spec(value: str) -> dict[str, Any]:
+    candidate = Path(value).expanduser()
+    if candidate.is_file():
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    else:
+        try:
+            payload = json.loads(value)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                "--architecture must be an existing JSON file or an inline JSON object"
+            ) from error
+    if not isinstance(payload, dict):
+        raise ValueError("Architecture JSON must be an object")
+    specification = payload.get("spec", payload)
+    if not isinstance(specification, dict):
+        raise ValueError("Architecture 'spec' must be an object")
+    return specification
 
 
 def _build_training_model(space: Any, architecture: Any, classes: int, config: dict[str, Any]) -> Any:
@@ -959,9 +1135,27 @@ def _report_bundle(
 ) -> dict[str, Any]:
     import pandas as pd
 
+    expanded_runs: list[str] = []
+    for run in runs:
+        path = Path(run)
+        if path.is_dir() and not any(
+            (path / name).exists()
+            for name in ("scores.jsonl", "search.jsonl", "training.jsonl")
+        ):
+            expanded_runs.extend(
+                str(candidate)
+                for candidate in sorted(path.iterdir())
+                if candidate.is_dir()
+                and any(
+                    (candidate / name).exists()
+                    for name in ("scores.jsonl", "search.jsonl", "training.jsonl")
+                )
+            )
+        else:
+            expanded_runs.append(run)
     score_runs = [
         run
-        for run in runs
+        for run in expanded_runs
         if (Path(run) / "scores.jsonl").exists()
         or (Path(run).is_file() and Path(run).name == "scores.jsonl")
     ]
@@ -973,13 +1167,13 @@ def _report_bundle(
     )
     search_files = [
         Path(run) if Path(run).is_file() else Path(run) / "search.jsonl"
-        for run in runs
+        for run in expanded_runs
         if (Path(run).is_file() and Path(run).name == "search.jsonl")
         or (Path(run) / "search.jsonl").exists()
     ]
     training_files = [
         Path(run) if Path(run).is_file() else Path(run) / "training.jsonl"
-        for run in runs
+        for run in expanded_runs
         if (Path(run).is_file() and Path(run).name == "training.jsonl")
         or (Path(run) / "training.jsonl").exists()
     ]
@@ -1296,7 +1490,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate_identity.add_argument("--benchmark")
     evaluate.add_argument("--benchmark-path")
     evaluate.add_argument("--trusted", action="store_true")
-    evaluate.add_argument("--benchmark-version", default="1.0")
+    evaluate.add_argument("--benchmark-version")
     evaluate.add_argument("--architecture-path")
     evaluate.add_argument("--runtime-benchmark-path")
     evaluate.add_argument("--slice-id", default="autoformer_main")
@@ -1314,6 +1508,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--target-direction", choices=("auto", "maximize", "minimize"), default="auto"
     )
     evaluate.add_argument("--surrogate-noise", action="store_true")
+    evaluate.add_argument("--allow-approximation", action="store_true")
     evaluate.add_argument("--proxies", default="er,naswot,synflow,gradnorm,params,flops")
     evaluate.add_argument("--count", type=int, default=1)
     evaluate.add_argument("--seed", type=int, default=42)
@@ -1345,6 +1540,7 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--generations", type=int, default=3)
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--seed", type=int, default=42)
+    search.add_argument("--allow-approximation", action="store_true")
     _add_gpu_arguments(search)
     search.add_argument("--batch-size", type=int, default=4)
     search.add_argument("--input-size", type=int, default=32)
@@ -1373,6 +1569,7 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--data-root")
     train.add_argument("--catalog", default=data_default)
     train.add_argument("--workers", type=int, default=4)
+    train.add_argument("--data-fraction", type=float, default=1.0)
     train.add_argument("--output", default="runs/training")
     train.add_argument("--smoke", action="store_true")
     train.set_defaults(function=command_train)
@@ -1479,6 +1676,8 @@ def main(argv: list[str] | None = None) -> None:
             raise ValueError(f"Config section {args.command!r} must be a mapping")
         explicitly_set = {argument[2:].replace("-", "_") for argument in raw_arguments if argument.startswith("--")}
         for key, value in values.items():
+            if key == "trusted" and value and key not in explicitly_set:
+                raise PermissionError("trusted execution must be acknowledged explicitly on the CLI")
             if key not in explicitly_set and hasattr(args, key):
                 setattr(args, key, value)
     args.function(args)

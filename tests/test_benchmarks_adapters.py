@@ -87,10 +87,13 @@ def test_vit_slice_protocol_is_not_silently_merged(tmp_path):
 
 def test_transnas_micro_and_macro_are_explicit(tmp_path):
     path = tmp_path / "transnas.jsonl"
-    write_jsonl(path, [{"record_kind": "benchmark_architecture", "benchmark_id": "transnasbench101", "search_space_id": "transnas_micro", "benchmark_version": "v10141024", "benchmark_index": 0, "specification": {"architecture": "64-41414-1_23_456"}, "metrics": [{"dataset": "class_object", "split": "test", "metric_name": "test_top1", "epoch_budget": 24, "value": 45.0}]}])
+    write_jsonl(path, [{"record_kind": "benchmark_architecture", "benchmark_id": "transnasbench101", "search_space_id": "transnas_micro", "benchmark_version": "v10141024", "benchmark_index": 0, "specification": {"architecture": "64-41414-1_23_301"}, "metrics": [{"dataset": "class_object", "split": "test", "metric_name": "test_top1", "epoch_budget": 24, "value": 45.0}]}])
     adapter = TransNasBench101Adapter(str(path), space="micro")
     architecture = adapter.sample_architecture(0)
     assert adapter.query_metrics(architecture, MetricSpec("class_object", "test", "test_top1", 24)) == {"test_top1": 45.0}
+    assert adapter.build_model(architecture, "class_object")(
+        __import__("torch").randn(2, 3, 32, 32)
+    ).shape == (2, 10)
     with pytest.raises(ValueError, match="search_space_id"):
         TransNasBench101Adapter(str(path), space="macro")
 

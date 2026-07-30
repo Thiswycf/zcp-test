@@ -17,6 +17,15 @@ class RecordStatus(str, Enum):
     SKIPPED = "skipped"
 
 
+class ModelFidelity(str, Enum):
+    REFERENCE_MODEL = "reference_model"
+    REFERENCE_TOPOLOGY_PYTORCH_PORT = "reference_topology_pytorch_port"
+    SURROGATE_PREDICTION = "surrogate_prediction"
+    INHERITED_SUPERNET = "inherited_supernet"
+    PROXY_APPROXIMATION = "proxy_approximation"
+    METRIC_ONLY = "metric_only"
+
+
 @dataclass(frozen=True)
 class Architecture:
     search_space_id: str
@@ -52,6 +61,9 @@ class ProxyCapability:
     components: tuple[str, ...] = ("score",)
     primary_component: str = "score"
     dependencies: tuple[str, ...] = ()
+    implementation_fidelity: str = "unverified"
+    source: str | None = None
+    alias_of: str | None = None
 
 
 @dataclass(frozen=True)
@@ -73,6 +85,9 @@ class ScoreResult:
     peak_memory_mb: float | None = None
     proxy_version: str | None = None
     direction: ScoreDirection = ScoreDirection.MAXIMIZE
+    implementation_fidelity: str = "unverified"
+    source: str | None = None
+    alias_of: str | None = None
 
     @property
     def values(self) -> dict[str, float]:

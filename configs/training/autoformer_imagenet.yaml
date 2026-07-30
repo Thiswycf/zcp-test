@@ -1,13 +1,38 @@
 space: autoformer
 dataset: imagenet1k
 input_size: 224
-epochs: 300
+epochs: 500
 optimizer: adamw
 learning_rate: 0.0005
 weight_decay: 0.05
 scheduler: cosine
 warmup_epochs: 20
-batch_size: 512
+batch_size: 256
 label_smoothing: 0.1
 amp: true
-
+drop_path_prob: 0.1
+color_jitter: 0.4
+auto_augment: rand-m9-mstd0.5-inc1
+train_interpolation: bicubic
+random_erase_probability: 0.25
+random_erase_mode: pixel
+random_erase_count: 1
+mixup: 0.8
+cutmix: 1.0
+mixup_probability: 1.0
+mixup_switch_probability: 0.5
+mixup_mode: batch
+repeated_augmentation: true
+reference_world_size: 8
+reference_global_batch_size: 2048
+relative_position: true
+max_relative_position: 14
+change_qkv: true
+global_pool: true
+protocol: aznas-autoformer-scratch
+implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/main/ImageNet_AutoFormer
+formal_training_ready: false
+formal_training_blockers:
+  - repeated-augmentation sampler is not implemented
+  - distributed global batch and learning-rate scaling are not implemented
+  - official parameter and FLOPs fixtures are not accepted

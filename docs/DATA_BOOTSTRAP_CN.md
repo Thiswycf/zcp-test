@@ -26,9 +26,12 @@ URL、规划大小、断点字节数、文件系统探测到的剩余空间和�
 默认通过 `~/.config/zcp-test/data.json` 解析路径，不包含开发机绝对路径；例如：
 
 ```bash
-zcp-test evaluate --config configs/benchmarks/nasbench201.yaml \
+zcp-test evaluate --config configs/benchmarks/nasbench201.yaml --trusted \
   --proxies params --count 1 --input-source random --device cpu
 ```
+
+配置可以标识原生序列化 benchmark，但不能替操作者确认信任。原生 benchmark、checkpoint 和
+pickle 加载都必须在独立核验来源与 checksum 后，于命令行显式传入 `--trusted`。
 
 状态含义如下：
 
@@ -186,6 +189,20 @@ zcp-test data register \
   --protocol official-tfrecord-converted \
   --catalog /path/to/data/offline/catalog.json
 ```
+
+### 下载单个已注册 asset
+
+`data fetch` 是底层单 asset 下载，不替代 bootstrap：
+
+```bash
+zcp-test data fetch ASSET_ID \
+  --catalog /path/to/data/catalog.json \
+  --destination /path/to/data/file
+```
+
+asset 必须声明 `source_url`。命令先写 `.part`，存在 catalog SHA-256 时核验，再原子发布目标。
+它不会展开 benchmark 组、解压、转换原生数据、注册路径，也不提供 bootstrap 的断点续传流程；
+没有 checksum 时，下载完成不能证明来源真实性。
 
 ## `ready` 保证什么、不保证什么
 

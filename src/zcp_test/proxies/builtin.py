@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 from typing import Any, Callable
 
 from zcp_test.proxies import PROXIES
@@ -366,6 +367,38 @@ _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
 }
 
 _SPECIALIZED: dict[str, tuple[str, ...]] = {}
+
+_SOURCES = {
+    "gradnorm": "https://arxiv.org/abs/2101.08134",
+    "synflow": "https://arxiv.org/abs/2006.05467",
+    "naswot": "https://proceedings.mlr.press/v139/mellor21a.html",
+    "meco": "https://papers.nips.cc/paper_files/paper/2023/hash/bfa815ac6f08f4ada34fe22be054f2b9-Abstract-Conference.html",
+    "jacob_cov": "https://arxiv.org/abs/2101.08134",
+    "zen": "https://arxiv.org/abs/2102.01063",
+    "zico": "https://openreview.net/forum?id=rwo-ls5GqGn",
+    "te_nas": "https://arxiv.org/abs/2102.11535",
+    "az_nas": "https://arxiv.org/abs/2403.19232",
+}
+for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.items()):
+    if _proxy_name in {"params", "flops"}:
+        _fidelity = "structural_measure"
+    elif _proxy_name in {"ter", "meco_opt"}:
+        _fidelity = "alias"
+    elif _proxy_name in {"te_nas", "az_nas"}:
+        _fidelity = "portable_composite_approximation"
+    elif _proxy_name == "er" or _proxy_name.startswith("er_"):
+        _fidelity = "project_extension"
+    else:
+        _fidelity = "paper_formula_port_unverified"
+    _IMPLEMENTATIONS[_proxy_name] = (
+        _proxy_function,
+        replace(
+            _proxy_capability,
+            implementation_fidelity=_fidelity,
+            source=_SOURCES.get(_proxy_name),
+            alias_of={"ter": "er", "meco_opt": "meco"}.get(_proxy_name),
+        ),
+    )
 
 for _name, (_function, _capability) in _IMPLEMENTATIONS.items():
     PROXIES.register(_name, lambda function=_function, capability=_capability: FunctionProxy(capability, function))

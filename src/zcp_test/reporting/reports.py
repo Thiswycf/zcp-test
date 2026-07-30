@@ -33,7 +33,9 @@ def static_html(source: str | Path, destination: str | Path, title: str = "zcp-t
         body.append("</tr>")
     body.append("</tbody></table>")
     document = "<!doctype html><meta charset='utf-8'><style>table{border-collapse:collapse}td,th{border:1px solid #bbb;padding:4px}pre{white-space:pre-wrap}</style>" + "".join(body)
-    Path(destination).write_text(document, encoding="utf-8")
+    target = Path(destination)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(document, encoding="utf-8")
     return len(rows)
 
 

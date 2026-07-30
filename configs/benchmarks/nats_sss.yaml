@@ -1,7 +1,6 @@
 evaluate:
   benchmark: nats_sss
   benchmark_version: "1.0"
-  trusted: true
   catalog: ~/.config/zcp-test/data.json
 provenance:
   benchmark_id: nats_sss

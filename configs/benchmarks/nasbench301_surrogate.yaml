@@ -1,7 +1,6 @@
 evaluate:
   benchmark: nasbench301_surrogate
   benchmark_version: "1.0"
-  trusted: true
   catalog: ~/.config/zcp-test/data.json
   surrogate_noise: false
 provenance:

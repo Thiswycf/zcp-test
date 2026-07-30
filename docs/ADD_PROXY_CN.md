@@ -1,6 +1,8 @@
 # 新增 ZCP
 
 自定义代理位于受信任的 `src/zcp_test/proxies/custom/` 包，不支持从任意外部 Python 路径动态执行。
+`scaffold` 只适用于可写源码 checkout 或 editable install；普通只读 wheel/site-packages 不是支持
+目标，因为命令会同时写源码包和仓库测试目录。
 
 ```bash
 zcp-test proxy scaffold my_proxy
@@ -32,3 +34,5 @@ pytest -q tests/test_proxy_my_proxy.py
 
 `validate` 检查有限数值、声明的主组件、模型权重不变性和 hook 清理。异常应正常抛出，由 evaluator 记录为 `failed`；不要返回伪造分数。
 
+该验证只使用小型合成模型，证明接口和隔离约束，不证明公式复现论文数值，也不替代 22-proxy
+sweep、真实 benchmark 相关性或跨模型族兼容性验收。

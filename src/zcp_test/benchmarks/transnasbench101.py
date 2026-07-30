@@ -37,4 +37,10 @@ class TransNasBench101Adapter(JsonlBenchmarkAdapter):
         return {"architecture": specification["architecture"].strip()}
 
     def metadata(self) -> Mapping[str, Any]:
-        return {**super().metadata(), "space": self.space}
+        return {
+            **super().metadata(),
+            "space": self.space,
+            "model_fidelity": "reference_topology_pytorch_port",
+            "model_protocol": "official-encoder-topology-with-proxy-classification-head",
+            "implementation_source": "https://github.com/yawen-d/TransNASBench",
+        }

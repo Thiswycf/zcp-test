@@ -11,7 +11,7 @@ epochs: 600
 optimizer: sgd
 learning_rate: 0.025
 momentum: 0.9
-nesterov: true
+nesterov: false
 weight_decay: 0.0003
 scheduler: cosine
 warmup_epochs: 0
@@ -21,4 +21,6 @@ cutout_length: 16
 label_smoothing: 0.0
 amp: true
 amp_initial_scale: 128.0
-protocol: darts-official-cifar-evaluation
+protocol: darts-original-cifar10
+implementation_source: https://github.com/quark0/darts/blob/master/cnn/train.py
+formal_training_ready: true

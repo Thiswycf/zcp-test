@@ -1,0 +1,94 @@
+"use strict";
+
+const fs = require("node:fs");
+const path = require("node:path");
+const vm = require("node:vm");
+
+const dataPath = path.join(__dirname, "data.js");
+const context = { window: {} };
+vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), context, { filename: dataPath });
+const data = context.window.ZCP_PANEL_DATA;
+const errors = [];
+
+function assert(condition, message) {
+  if (!condition) errors.push(message);
+}
+
+function assertUnique(items, kind) {
+  const ids = new Set();
+  for (const item of items) {
+    assert(item && typeof item.id === "string" && item.id.length > 0, `${kind} 存在空 ID`);
+    assert(!ids.has(item.id), `${kind} ID 重复：${item.id}`);
+    ids.add(item.id);
+  }
+  return ids;
+}
+
+function parsePanelTime(value) {
+  if (value === "—" || value == null || value === "") return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+  if (!match) return Number.NaN;
+  return Date.parse(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:00+08:00`);
+}
+
+function checkTime(value, label, now) {
+  const parsed = parsePanelTime(value);
+  assert(parsed === null || Number.isFinite(parsed), `${label} 时间格式无效：${value}`);
+  if (Number.isFinite(parsed)) assert(parsed <= now, `${label} 晚于当前时间：${value}`);
+  return parsed;
+}
+
+assert(data && typeof data === "object", "缺少 ZCP_PANEL_DATA");
+assert(data?.project?.name, "缺少 project.name");
+assert(Array.isArray(data?.tasks), "tasks 必须是数组");
+assert(Array.isArray(data?.risks), "risks 必须是数组");
+assert(Array.isArray(data?.evidence), "evidence 必须是数组");
+
+if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isArray(data.evidence)) {
+  const now = Date.now();
+  const taskIds = assertUnique(data.tasks, "任务");
+  const riskIds = assertUnique(data.risks, "风险");
+  const evidenceIds = assertUnique(data.evidence, "证据");
+  const requiredTaskFields = [
+    "id", "phase", "priority", "title", "content", "purpose", "estimate", "startedAt",
+    "finishedAt", "status", "progress", "detail", "acceptance", "evidence", "risks", "updatedAt"
+  ];
+
+  checkTime(data.updatedAt, "面板 updatedAt", now);
+  for (const task of data.tasks) {
+    for (const field of requiredTaskFields) assert(task[field] !== undefined, `任务 ${task.id || "?"} 缺少 ${field}`);
+    assert(Boolean(data.statuses?.[task.status]), `任务 ${task.id} 状态无效：${task.status}`);
+    assert(Boolean(data.priorities?.[task.priority]), `任务 ${task.id} 优先级无效：${task.priority}`);
+    assert(Number.isFinite(task.progress) && task.progress >= 0 && task.progress <= 100, `任务 ${task.id} progress 越界`);
+    assert(Array.isArray(task.acceptance) && Array.isArray(task.evidence) && Array.isArray(task.risks), `任务 ${task.id} 的列表字段无效`);
+    const startedAt = checkTime(task.startedAt, `任务 ${task.id} startedAt`, now);
+    const finishedAt = checkTime(task.finishedAt, `任务 ${task.id} finishedAt`, now);
+    const updatedAt = checkTime(task.updatedAt, `任务 ${task.id} updatedAt`, now);
+    assert(task.status === "已完成" ? Number.isFinite(finishedAt) : finishedAt === null, `任务 ${task.id} 状态与 finishedAt 不一致`);
+    if (Number.isFinite(startedAt) && Number.isFinite(updatedAt)) assert(startedAt <= updatedAt, `任务 ${task.id} updatedAt 早于 startedAt`);
+    if (Number.isFinite(finishedAt) && Number.isFinite(updatedAt)) assert(finishedAt <= updatedAt, `任务 ${task.id} updatedAt 早于 finishedAt`);
+    for (const id of task.evidence) assert(evidenceIds.has(id), `任务 ${task.id} 引用未知证据 ${id}`);
+    for (const id of task.risks) assert(riskIds.has(id), `任务 ${task.id} 引用未知风险 ${id}`);
+  }
+
+  for (const risk of data.risks) {
+    assert(["高", "中", "低"].includes(risk.severity), `风险 ${risk.id} severity 无效：${risk.severity}`);
+    assert(Array.isArray(risk.taskIds), `风险 ${risk.id} taskIds 必须是数组`);
+    for (const id of risk.taskIds || []) assert(taskIds.has(id), `风险 ${risk.id} 引用未知任务 ${id}`);
+  }
+
+  for (const entry of data.evidence) {
+    checkTime(entry.time, `证据 ${entry.id} time`, now);
+    assert(entry.title && entry.result && entry.command, `证据 ${entry.id} 缺少标题、结果或命令`);
+    assert(Array.isArray(entry.taskIds), `证据 ${entry.id} taskIds 必须是数组`);
+    for (const id of entry.taskIds || []) assert(taskIds.has(id), `证据 ${entry.id} 引用未知任务 ${id}`);
+  }
+}
+
+if (errors.length) {
+  console.error(`数据完整性检查失败（${errors.length} 项）：`);
+  for (const error of errors) console.error(`- ${error}`);
+  process.exitCode = 1;
+} else {
+  console.log(`数据完整性检查通过：${data.tasks.length} tasks / ${data.risks.length} risks / ${data.evidence.length} evidence`);
+}

@@ -13,4 +13,10 @@ label_smoothing: 0.1
 resize_scale: 0.08
 color_distortion: tf
 amp: true
-
+protocol: ofa-proxyless-mbv2-scratch-partial
+implementation_source: https://github.com/mit-han-lab/once-for-all
+formal_training_ready: false
+formal_training_blockers:
+  - TensorFlow-style color distortion is not validated
+  - official static-subnet parameter and MAC fixtures are not accepted
+  - distributed global-batch behavior is not implemented

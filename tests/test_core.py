@@ -1,8 +1,10 @@
 import pytest
 import torch
+import math
 
 from zcp_test.artifacts import JsonlWriter, merge_jsonl, read_jsonl
 from zcp_test.proxies.evaluator import evaluate_proxy
+from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.reporting import correlation_summary
 from zcp_test.search import EvolutionSearch, cache_key
 from zcp_test.spaces import SPACES, load_builtin_spaces
@@ -21,7 +23,7 @@ def test_jsonl_merge_and_partial_recovery(tmp_path):
 
 def test_spaces_and_cache_keys():
     load_builtin_spaces()
-    expected = {"nb201_topology", "nats_size", "nb101_dag", "nb101_toy_legacy", "darts", "darts_toy_legacy", "transnas_micro", "transnas_macro", "autoformer", "pit", "ofa_proxyless_mbv2", "ofa_mbv3"}
+    expected = {"nb201_topology", "nats_size", "nb101_dag", "nb101_toy_legacy", "darts", "darts_toy_legacy", "transnas_micro", "transnas_macro", "autoformer", "pit", "zennas_plainnet_mbv2", "ofa_proxyless_mbv2", "ofa_mbv3"}
     assert expected == set(SPACES.names())
     architecture = SPACES.create("darts").sample(1)
     assert cache_key(architecture, "er", "cifar10", 1, "x") != cache_key(architecture, "er", "cifar100", 1, "x")
@@ -48,6 +50,61 @@ def test_proxy_state_isolation_removes_injected_buffers():
     assert evaluate_proxy("naswot", model, inputs).status.value == "ok"
     assert evaluate_proxy("flops", model, inputs).status.value == "ok"
     assert set(model.state_dict()) == before
+
+
+def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
+    load_builtin_spaces()
+    load_builtin_proxies()
+    architecture = SPACES.create("nb201_topology").sample(11)
+    model = SPACES.create("nb201_topology").build_model(architecture, 3)
+    inputs = torch.randn(4, 3, 8, 8)
+    labels = torch.tensor([0, 1, 2, 0])
+    for proxy_id in PROXIES.names():
+        result = evaluate_proxy(
+            proxy_id,
+            model,
+            inputs,
+            labels,
+            torch.nn.CrossEntropyLoss(),
+        )
+        assert result.status.value == "ok", (proxy_id, result.error_message)
+        assert result.score is not None and math.isfinite(result.score)
+        assert result.implementation_fidelity != "unverified"
+
+
+def test_declared_transformer_proxies_execute_on_transformer_model():
+    from zcp_test.models.autoformer import StaticAutoFormer
+
+    load_builtin_proxies()
+    model = StaticAutoFormer(
+        image_size=32,
+        patch_size=16,
+        num_classes=3,
+        embed_dim=24,
+        depth=2,
+        num_heads=[2, 2],
+        mlp_ratio=[2.0, 2.0],
+        qkv_head_dim=8,
+        relative_position=False,
+    )
+    inputs = torch.randn(4, 3, 32, 32)
+    labels = torch.tensor([0, 1, 2, 0])
+    supported = [
+        proxy_id
+        for proxy_id in PROXIES.names()
+        if "transformer" in PROXIES.create(proxy_id).capability.model_families
+    ]
+    for proxy_id in supported:
+        result = evaluate_proxy(
+            proxy_id,
+            model,
+            inputs,
+            labels,
+            torch.nn.CrossEntropyLoss(),
+            model_family="transformer",
+        )
+        assert result.status.value == "ok", (proxy_id, result.error_message)
+        assert result.score is not None and math.isfinite(result.score)
 
 
 def test_checkpoint_loading_requires_trust(tmp_path):
@@ -77,3 +134,42 @@ def test_training_artifacts(tmp_path):
     loader = torch.utils.data.DataLoader(data, batch_size=4)
     train_model(model, loader, loader, TrainingConfig(1, "sgd", 0.01, 0), tmp_path, torch.device("cpu"))
     assert (tmp_path / "checkpoints" / "last.pt").exists()
+
+
+def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    data = torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,)))
+    loader = torch.utils.data.DataLoader(data, batch_size=2)
+    config = TrainingConfig(
+        1,
+        "sgd",
+        0.01,
+        0,
+        scheduler="step",
+        scheduler_gamma=0.5,
+        nesterov=False,
+    )
+    identity = {"architecture_id": "a", "protocol": "test"}
+    train_model(
+        model,
+        loader,
+        loader,
+        config,
+        tmp_path,
+        torch.device("cpu"),
+        run_identity=identity,
+    )
+    record = next(read_jsonl(tmp_path / "training.jsonl"))
+    assert record["next_learning_rate"] == pytest.approx(0.005)
+    with pytest.raises(ValueError, match="identity"):
+        train_model(
+            torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)),
+            loader,
+            loader,
+            config,
+            tmp_path / "resume",
+            torch.device("cpu"),
+            tmp_path / "checkpoints" / "last.pt",
+            resume_trusted=True,
+            run_identity={"architecture_id": "different", "protocol": "test"},
+        )

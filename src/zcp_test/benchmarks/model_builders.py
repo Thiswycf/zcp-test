@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from zcp_test.types import Architecture
@@ -11,61 +10,20 @@ def num_classes(dataset: str) -> int:
 
 
 def nb201_model(architecture: Architecture, dataset: str) -> Any:
-    import torch.nn as nn
+    from zcp_test.models.nb201 import build_nb201
 
-    specification = str(architecture.spec["architecture"])
-    nodes = []
-    for node_text in specification.split("+"):
-        edges = [(operation, int(source)) for operation, source in re.findall(r"([a-zA-Z0-9_]+)~(\d+)", node_text)]
-        if edges:
-            nodes.append(edges)
-    if len(nodes) != 3:
-        raise ValueError(f"Invalid NB201 architecture string: {specification}")
+    return build_nb201(str(architecture.spec["architecture"]), num_classes(dataset))
 
-    class Operation(nn.Module):
-        def __init__(self, name: str, channels: int) -> None:
-            super().__init__()
-            if name == "none":
-                self.operation = None
-            elif name == "skip_connect":
-                self.operation = nn.Identity()
-            elif name == "avg_pool_3x3":
-                self.operation = nn.AvgPool2d(3, 1, 1)
-            else:
-                kernel = 1 if name == "nor_conv_1x1" else 3
-                self.operation = nn.Sequential(nn.ReLU(inplace=False), nn.Conv2d(channels, channels, kernel, padding=kernel // 2, bias=False), nn.BatchNorm2d(channels))
 
-        def forward(self, inputs: Any) -> Any:
-            return inputs.mul(0) if self.operation is None else self.operation(inputs)
+def nats_size_model(architecture: Architecture, dataset: str) -> Any:
+    from zcp_test.models.nb201 import build_nats_sss
 
-    class Cell(nn.Module):
-        def __init__(self, channels: int) -> None:
-            super().__init__()
-            self.edges = nn.ModuleList([nn.ModuleList([Operation(name, channels) for name, _ in edges]) for edges in nodes])
-
-        def forward(self, inputs: Any) -> Any:
-            states = [inputs]
-            for edge_specs, edge_modules in zip(nodes, self.edges, strict=True):
-                states.append(
-                    sum(
-                        module(states[source])
-                        for (_, source), module in zip(edge_specs, edge_modules, strict=True)
-                    )
-                )
-            return states[-1]
-
-    class Network(nn.Module):
-        def __init__(self) -> None:
-            super().__init__()
-            channels = 16
-            self.stem = nn.Sequential(nn.Conv2d(3, channels, 3, padding=1, bias=False), nn.BatchNorm2d(channels))
-            self.cells = nn.Sequential(*[Cell(channels) for _ in range(5)])
-            self.head = nn.Sequential(nn.ReLU(), nn.AdaptiveAvgPool2d(1), nn.Flatten(), nn.Linear(channels, num_classes(dataset)))
-
-        def forward(self, inputs: Any) -> Any:
-            return self.head(self.cells(self.stem(inputs)))
-
-    return Network()
+    value = architecture.spec.get("architecture")
+    if isinstance(value, str):
+        channels = [int(channel) for channel in value.split(":")]
+    else:
+        channels = [int(architecture.spec[f"stage_{index}"]) for index in range(5)]
+    return build_nats_sss(channels, num_classes(dataset))
 
 
 def nb101_model(architecture: Architecture, dataset: str) -> Any:
@@ -96,4 +54,6 @@ def model_builder(architecture: Architecture, dataset: str) -> Any:
         return nb201_model(architecture, dataset)
     if architecture.search_space_id == "nb101_dag":
         return nb101_model(architecture, dataset)
+    if architecture.search_space_id == "nats_size":
+        return nats_size_model(architecture, dataset)
     return registered_space_model(architecture, dataset)

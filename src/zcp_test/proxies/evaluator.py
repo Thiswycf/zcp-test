@@ -15,6 +15,9 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
     result_metadata = {
         "proxy_version": proxy.capability.version,
         "direction": proxy.capability.direction,
+        "implementation_fidelity": proxy.capability.implementation_fidelity,
+        "source": proxy.capability.source,
+        "alias_of": proxy.capability.alias_of,
     }
     if model_family not in proxy.capability.model_families:
         return ScoreResult(

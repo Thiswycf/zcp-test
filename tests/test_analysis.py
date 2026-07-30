@@ -19,7 +19,7 @@ from zcp_test.reporting.analysis import (
     transfer_correlation_table,
 )
 from zcp_test.reporting.monitor import read_jsonl_tolerant, refresh_once
-from zcp_test.reporting.reports import curve_plot
+from zcp_test.reporting.reports import curve_plot, static_html
 
 
 matplotlib.use("Agg")
@@ -137,6 +137,26 @@ def test_monitor_retries_an_incomplete_trailing_record(tmp_path: Path) -> None:
     assert result["ignored_partial_line"] is False
     monitor_html = (tmp_path / "view" / "monitor.html").read_text(encoding="utf-8")
     assert "Rows: 2" in monitor_html
+
+
+def test_monitor_discovers_single_timestamped_run_and_rejects_ambiguous_root(tmp_path):
+    first = tmp_path / "20260101T000000Z_first"
+    first.mkdir()
+    (first / "scores.jsonl").write_text('{"score": 1}\n')
+    assert refresh_once(tmp_path)["source"] == str(first / "scores.jsonl")
+    second = tmp_path / "20260101T000001Z_second"
+    second.mkdir()
+    (second / "training.jsonl").write_text('{"epoch": 0}\n')
+    with pytest.raises(ValueError, match="select one"):
+        refresh_once(tmp_path)
+
+
+def test_legacy_html_creates_parent_directory(tmp_path):
+    source = tmp_path / "scores.jsonl"
+    source.write_text('{"score": 1}\n')
+    destination = tmp_path / "nested" / "report.html"
+    assert static_html(source, destination) == 1
+    assert destination.exists()
 
 
 def test_research_helper_tables_cover_aggregation_cost_convergence_and_transfer() -> None:

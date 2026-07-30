@@ -1,5 +1,87 @@
 # zcp-test
 
+## 中文主指引
+
+`zcp-test` 是独立的零成本代理（ZCP）评估、相关性研究、进化搜索和搜索后训练工具。项目严格区分
+`benchmark_id`、`search_space_id`、模型 fidelity 和指标协议；原始 benchmark、训练数据、run、
+checkpoint 与转换后大文件均保存在仓库外部，不修改原有 `TER-Score` 项目。
+
+### 研究边界
+
+| 类型 | 对象 | 主要实验 | 禁止混用 |
+|---|---|---|---|
+| 有标准答案 benchmark | NB101、NB201、NATS-TSS/SSS、NB301 surrogate、TNB101、ViT-Bench-101 | ZCP—真值相关性、top-k 检索、结构偏置、预算/任务迁移 | 不对 benchmark 全候选重复完整训练；NB301 只能称 surrogate association |
+| 无完整 tabular 真值的开放空间 | DARTS、AutoFormer、PlainNet-MBV2、Proxyless-MBV2 | validation-only ZCP 搜索、随机/资源匹配基线、选中架构从头训练 | 不进行伪造的“全空间相关性”；不得用 test 指标选架构 |
+| inherited supernet | OFA 或 ViT inherited protocol | active subnet、静态导出、BN recalibration、inherited accuracy | inherited、scratch 与 predictor 指标不得合并 |
+
+PiT 已按 Auto-Prox `90ed458` 发布编码实现三阶段静态参考拓扑；OFA-MBV3 也已按官方
+Once-for-All 五阶段/20-block 编码实现独立静态子网和 BatchNorm recalibration。它们与
+AutoFormer、两类 MBV2 虽已有静态参考模型，但正式训练或 inherited-supernet 协议仍有 blocker。
+是否允许完整训练以配置中的 `formal_training_ready` 为准，而不是只看 `reference_model` 标签。
+
+### 首次使用 checklist
+
+```bash
+conda env create -f environment.yml
+conda activate zcp-test
+
+zcp-test doctor --catalog ~/.config/zcp-test/data.json
+zcp-test data checklist --root /path/to/data
+zcp-test data bootstrap --root /path/to/data \
+  --benchmarks nasbench101,nasbench201 --yes
+zcp-test data checklist --root /path/to/data --json
+```
+
+普通 `evaluate` 不会自动下载大型标准答案。`ready` 可能表示数据位于所选 root，也可能表示本机 catalog
+指向经过检查的外部路径；必须查看 checklist 的 `location`，并执行对应 benchmark 的 index-0 smoke。
+完整数据自举、Google Drive 配额、checksum、转换恢复和离线迁移见
+[`docs/DATA_BOOTSTRAP_CN.md`](docs/DATA_BOOTSTRAP_CN.md)。
+
+### 常用研究流程
+
+```bash
+# 1. 确认 GPU 的物理 UUID、PCI Bus ID 与逻辑 cuda:0 映射
+zcp-test gpu list
+
+# 2. 真实 benchmark 小样本 ZCP；原生序列化资产必须显式 --trusted
+zcp-test evaluate --config configs/benchmarks/nasbench201.yaml --trusted \
+  --proxies params,naswot,synflow --count 10 \
+  --input-source dataset --data-root /path/to/cifar10 \
+  --output /path/to/runs/evaluate
+
+# 3. 使用命令返回的准确 timestamp run，而不是 --output 父目录
+RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSSZ_runid
+zcp-test analyze correlation --scores "$RUN/scores.jsonl" --output "$RUN/reports/correlation"
+zcp-test analyze compare --scores "$RUN/scores.jsonl" --output "$RUN/reports/compare"
+zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
+
+# 4. 开放空间只用 validation 协议搜索
+zcp-test search --space darts --proxy er --population 20 --generations 5 \
+  --input-source dataset --data-root /path/to/cifar10 \
+  --output /path/to/runs/search
+
+# 5. 对搜索架构执行已放行的训练 profile
+zcp-test train --config configs/training/darts_cifar10.yaml \
+  --architecture /path/to/best_architecture.json \
+  --data-root /path/to/cifar10 --output /path/to/runs/training
+```
+
+GPU、评估、分析、benchmark 定制研究、训练、代理扩展和验收状态分别见：
+
+- [`docs/GPU_CN.md`](docs/GPU_CN.md)
+- [`docs/EVALUATE_CN.md`](docs/EVALUATE_CN.md)
+- [`docs/ANALYSIS_CN.md`](docs/ANALYSIS_CN.md)
+- [`docs/BENCHMARK_STUDIES_CN.md`](docs/BENCHMARK_STUDIES_CN.md)
+- [`docs/TRAINING_CN.md`](docs/TRAINING_CN.md)
+- [`docs/ADD_PROXY_CN.md`](docs/ADD_PROXY_CN.md)
+- [`docs/ACCEPTANCE_CN.md`](docs/ACCEPTANCE_CN.md)
+
+实时任务与验收看板位于 [`panel/index.html`](panel/index.html)。推荐运行
+`python -m http.server 8000 --directory panel` 后访问 `http://127.0.0.1:8000/`；页面会每 30 秒拉取
+最新数据，也可手动刷新，不需要按 F5。
+
+## English Quick Reference
+
 `zcp-test` is an independent, reproducible zero-cost proxy evaluation and neural architecture search toolkit. It separates benchmark identity from search-space identity, stores append-only JSONL artifacts, and never modifies the source projects used for reference.
 
 See the [benchmark data bootstrap guide](docs/DATA_BOOTSTRAP.md) before the first benchmark
@@ -69,40 +151,60 @@ corruption and disk recovery, offline transfer, and the dedicated NAS-Bench-101 
 
 Research manuals:
 
+- [Interactive task and acceptance panel](panel/index.html) — open directly in a browser, or run
+  `python -m http.server 8000 --directory panel` and visit `http://127.0.0.1:8000/`.
+- [CLI operations and safety boundaries](docs/OPERATIONS.md) / [中文](docs/OPERATIONS_CN.md)
+- [搜索后完整训练操作手册（中文）](docs/TRAINING_CN.md)
 - [Generic multi-proxy analysis](docs/ANALYSIS_CN.md)
 - [Benchmark-specific studies](docs/BENCHMARK_STUDIES.md)
 - [Paper evidence and extension boundaries](docs/RESEARCH_EVIDENCE.md)
 - [Retained reproducible examples](examples/studies/README_CN.md)
+- [Acceptance status](docs/ACCEPTANCE.md) / [中文验收状态](docs/ACCEPTANCE_CN.md)
 
 ```bash
 zcp-test data list --catalog configs/data.example.json
-zcp-test data verify vitbench101_autoformer_main --catalog configs/data.example.json
+zcp-test data verify vitbench101_0 --catalog configs/data.example.json
 zcp-test benchmark list
 zcp-test space list
 zcp-test proxy list
 zcp-test gpu list
 
-zcp-test evaluate --space darts --proxies er,naswot,synflow,gradnorm --count 5 --data-root /path/to/data/cifar10
-zcp-test search --space ofa_proxyless_mbv2 --proxy er --population 20 --generations 10
-zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
-zcp-test report --source /path/to/data/runs/scores.jsonl --output /path/to/data/runs/reports/scores.csv
-zcp-test report bundle /path/to/data/runs --output /path/to/data/runs/reports/bundle
-zcp-test monitor /path/to/data/runs --interval 5
+zcp-test evaluate --space darts --proxies er,naswot,synflow,gradnorm \
+  --count 5 --data-root /path/to/data/cifar10 --output /path/to/data/runs/evaluate
+zcp-test search --space darts --proxy er --population 20 --generations 10 \
+  --data-root /path/to/data/cifar10 --output /path/to/data/runs/search
+zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke \
+  --output /path/to/data/runs/training
+
+# Copy the exact "run" value printed by evaluate; --output is only the parent directory.
+RUN=/path/to/data/runs/evaluate/YYYYMMDDTHHMMSSZ_runid
+zcp-test report --source "$RUN/scores.jsonl" --output "$RUN/reports/scores.csv"
+zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
+zcp-test monitor "$RUN" --interval 5
 ```
+
+`search` and `evaluate` default to `--input-source dataset`; they fail rather than silently using
+synthetic input when `--data-root` or the corresponding `dataset_<name>` catalog asset is absent.
+Native serialized benchmarks and checkpoint or legacy-pickle loading must be acknowledged with
+`--trusted` on the command line. A YAML file is not allowed to enable trusted execution by itself.
 
 ## Benchmark identities
 
-| Benchmark | Search space | Ground-truth source |
-|---|---|---|
-| `nasbench201` | `nb201_topology` | NAS-Bench-201 API |
-| `nats_tss` | `nb201_topology` | NATS-Bench TSS API |
-| `nats_sss` | `nats_size` | NATS-Bench SSS API |
-| `nasbench101` | `nb101_dag` | Converted safe JSONL |
-| `nasbench301_surrogate` | `darts` | Deterministic surrogate by default |
-| `transnasbench101` | `transnas_micro` / `transnas_macro` | Converted safe JSONL |
-| `vitbench101` | `autoformer` / `pit` | Auto-Prox release slices |
+| Benchmark | Search space | Result type | Ground-truth source |
+|---|---|---|---|
+| `nasbench201` | `nb201_topology` | standard answer | NAS-Bench-201 API records |
+| `nats_tss` | `nb201_topology` | standard answer | NATS-Bench TSS API records |
+| `nats_sss` | `nats_size` | standard answer | NATS-Bench SSS API records |
+| `nasbench101` | `nb101_dag` | standard answer | Safely converted official records |
+| `nasbench301_surrogate` | `darts` | surrogate | Performance surrogate; deterministic unless noise is requested |
+| `transnasbench101` | `transnas_micro` / `transnas_macro` | standard answer | Safely converted task-specific records |
+| `vitbench101` | `autoformer` / `pit` | mixed | Auto-Prox release: scratch, distillation, or inherited-supernet metrics |
 
-NAS-Bench-201 and NATS-TSS share an architecture codec only. Their adapter, version, budget, split, and metrics are never substituted.
+NAS-Bench-201 and NATS-TSS share an architecture codec only. Their adapter, version, budget,
+split, and metrics are never substituted. A **standard answer** is a published benchmark record for
+an explicit dataset/split/budget/seed protocol. A **surrogate** is a model prediction, not a fully
+trained observation. An **inherited** metric evaluates a subnet using supernet weights. A **scratch**
+metric comes from independently training that architecture. These result types must not be pooled.
 
 ## Safe data conversion
 
@@ -123,12 +225,20 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
 
 ## Current boundaries
 
-- `evaluate` supports range partitioning with `--start/--count`. Multi-GPU execution currently uses one process and disjoint range per GPU followed by JSONL merge; there is no built-in process launcher yet.
+- `evaluate` supports range partitioning with `--start/--count`. There is no built-in multi-process
+  launcher or merge CLI. Launch disjoint ranges explicitly, retain each run manifest, and prefer
+  multi-file analysis/report inputs. Merge only same-protocol partitions with a declared unique key;
+  never concatenate heterogeneous JSONL and call it one run.
 - Real index-0 queries completed for NAS-Bench-101, NAS-Bench-201, NATS-TSS/SSS, TransNAS micro/
   macro, NAS-Bench-301 performance surrogate, and ViT-Bench AutoFormer/PiT using the machine-local
   catalog. Other machines must bootstrap or register their own paths; repository configuration
   never stores host paths.
-- MobileNetV3 remains an optional adapter. Formal 150/300/600-epoch profiles are provided, while this build validation runs only short GPU smoke and checkpoint resume.
+- MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
+  OFA checkpoints and a formal training profile remain unaccepted. AutoFormer has a 500-epoch recipe and
+  Proxyless-MBV2 a 150-epoch recipe; their static models are references, but both configurations
+  intentionally set `formal_training_ready: false` until the documented sampler, distributed-batch,
+  augmentation and official-fixture blockers are closed. Only DARTS currently has formally enabled
+  training profiles, and only short smoke evidence is retained.
 
 ## Proxy capability policy
 
@@ -136,4 +246,6 @@ Every proxy is registered with model-family, label, device, component, direction
 
 ## Validation scope
 
-Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. Full 150/300/600-epoch profiles are supplied but are not automatically launched.
+Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. Full DARTS
+250/600-epoch training and all high-cost benchmark/proxy sweeps remain unaccepted; see the
+[acceptance report](docs/ACCEPTANCE.md).

@@ -19,6 +19,21 @@ def _source_path(source: PathLike) -> Path:
         candidate = path / name
         if candidate.exists():
             return candidate
+    candidates = [
+        child
+        for child in sorted(path.iterdir())
+        if child.is_dir()
+        and any(
+            (child / name).exists()
+            for name in ("scores.jsonl", "search.jsonl", "training.jsonl", "events.jsonl")
+        )
+    ]
+    if len(candidates) == 1:
+        return _source_path(candidates[0])
+    if candidates:
+        raise ValueError(
+            f"Monitor root contains {len(candidates)} runs; select one timestamped run directory"
+        )
     raise FileNotFoundError(f"No monitorable JSONL file in {path}")
 
 

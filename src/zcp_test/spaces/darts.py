@@ -151,7 +151,8 @@ def _sample_cell(rng: random.Random) -> list[list[Any]]:
 class DartsSpace(SearchSpace):
     search_space_id = "darts"
     model_family = "cnn"
-    model_fidelity = "reference"
+    model_fidelity = "reference_model"
+    implementation_source = "https://github.com/quark0/darts"
 
     def __init__(self, profile: str = "auto") -> None:
         if profile != "auto":
