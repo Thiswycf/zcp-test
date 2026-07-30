@@ -275,7 +275,7 @@ class AutoFormerSpace(SearchSpace):
 class PitSpace(SearchSpace):
     search_space_id = "pit"
     model_family = "transformer"
-    model_fidelity = "reference_model"
+    model_fidelity = "reference_topology_pytorch_port"
     implementation_source = "https://github.com/lliai/Auto-Prox-AAAI24"
     implementation_commit = "90ed458"
 

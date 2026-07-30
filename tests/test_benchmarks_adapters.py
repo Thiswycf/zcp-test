@@ -190,12 +190,49 @@ def test_nb101_jsonl_validates_and_joins_by_architecture_id(tmp_path):
 
 
 def test_vit_slice_protocol_is_not_silently_merged(tmp_path):
+    from zcp_test.benchmarks.vitbench101 import VIT_SOURCE_SHA256
+
     path = tmp_path / "vit.jsonl"
-    record = {"record_kind": "benchmark_architecture", "benchmark_id": "vitbench101", "search_space_id": "autoformer", "benchmark_version": "auto-prox-90ed458", "benchmark_index": 0, "protocol": "auto-prox-90ed458-autoformer-main", "specification": {"depth": 12, "hidden_dim": 384, "num_heads": [6] * 12, "mlp_ratio": [4.0] * 12}, "metrics": []}
+    record = {"record_kind": "benchmark_architecture", "benchmark_id": "vitbench101", "search_space_id": "autoformer", "benchmark_version": "auto-prox-90ed458", "benchmark_index": 0, "protocol": "auto-prox-90ed458-autoformer-main", "source_sha256": VIT_SOURCE_SHA256["autoformer_main"], "specification": {"depth": 12, "hidden_dim": 192, "num_heads": [3] * 12, "mlp_ratio": [4.0] * 12}, "metrics": []}
     write_jsonl(path, [record])
     assert VitBench101Adapter(str(path), slice_id="autoformer_main").metadata()["slice_id"] == "autoformer_main"
     with pytest.raises(ValueError, match="protocol"):
         VitBench101Adapter(str(path), slice_id="autoformer_ext")
+
+
+def test_jsonl_adapter_rejects_duplicate_canonical_architecture_ids(tmp_path):
+    from zcp_test.benchmarks.vitbench101 import VIT_SOURCE_SHA256
+
+    path = tmp_path / "duplicates.jsonl"
+    base = {
+        "record_kind": "benchmark_architecture",
+        "benchmark_id": "vitbench101",
+        "search_space_id": "autoformer",
+        "benchmark_version": "auto-prox-90ed458",
+        "protocol": "auto-prox-90ed458-autoformer-main",
+        "source_sha256": VIT_SOURCE_SHA256["autoformer_main"],
+        "metrics": [],
+    }
+    specification = {
+        "depth": 12,
+        "hidden_dim": 192,
+        "num_heads": [3] * 12,
+        "mlp_ratio": [4.0] * 12,
+    }
+    write_jsonl(
+        path,
+        [
+            {**base, "benchmark_index": 0, "specification": specification},
+            {
+                **base,
+                "benchmark_index": 1,
+                "specification": {**specification, "hidden_dim": 192.0},
+            },
+        ],
+    )
+
+    with pytest.raises(ValueError, match="Duplicate canonical architecture_id"):
+        VitBench101Adapter(str(path), slice_id="autoformer_main")
 
 
 def test_transnas_micro_and_macro_are_explicit(tmp_path):

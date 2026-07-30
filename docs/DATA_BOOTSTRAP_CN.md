@@ -38,10 +38,15 @@ pickle 加载都必须在独立核验来源与 checksum 后，于命令行显式
 | 状态 | 精确定义 | 后续动作 |
 |---|---|---|
 | `missing` | 至少一个预期原始资产不存在，且未发现对应 `.part`。 | 自举该 benchmark，或把官方文件放到列出的原始路径。 |
-| `partial` | 至少一个原始资产不存在，并发现一个或多个下载 `.part`。 | 原样重跑同一 bootstrap 命令以续传。 |
+| `partial` | 存在下载 `.part`，或转换型 benchmark 的安全 runtime 已可用但 raw 尚不完整。 | 检查 `operational_ready`；原样重跑同一 bootstrap 命令以续传或补齐 raw。 |
 | `corrupt` | 带内置 SHA-256 的原始文件存在，但摘要不匹配。 | 隔离或删除损坏文件，再重新自举。 |
 | `conversion_required` | 原始资产通过当前可用检查，但至少一个运行期路径不存在。 | 重跑 bootstrap，让它完成转换。 |
-| `ready` | 数据根目录通过原始/运行格式检查，或全部必要 catalog 条目通过路径及其声明的 SHA-256 检查。 | 先检查 `location`，正式评估前再做 benchmark smoke。 |
+| `ready` | raw 与 runtime 均就绪；外部 native catalog 资产可同时充当 raw/runtime。 | 检查 `runtime_integrity` 与 `location`，正式评估前再做 benchmark smoke。 |
+
+四个细分字段不能省略：`raw_state` 描述原始资产，`runtime_state` 描述 adapter 实际读取的格式，
+`runtime_integrity=verified|unpinned|corrupt|missing` 描述 catalog 是否固定摘要，
+`operational_ready` 只回答“当前能否初始化 adapter”。`operational_ready=true` 不会把总体
+`partial` 自动升级成 `ready`。
 
 ### 2. 只自举实际需要的 benchmark
 
@@ -101,9 +106,10 @@ zcp-test data list --catalog /path/to/data/catalog.json
 zcp-test data verify nasbench101 --catalog /path/to/data/catalog.json
 ```
 
-catalog 验证不能替代 checklist 和查询 smoke。bootstrap 自动注册的运行期条目目前不带
-SHA-256，因此 registry 层的验证只证明路径存在。`benchmark inspect` 会从 `--catalog` 解析
-路径；原生序列化格式仍必须显式传入 `--trusted`。index-0 最小查询 smoke 为：
+catalog 验证不能替代 checklist 和查询 smoke。bootstrap 会为文件型 runtime（包括三个
+ViT-Bench JSONL）登记 SHA-256；目录型 native runtime 仍可能显示 `runtime_integrity=unpinned`。
+`benchmark inspect` 还会校验 JSONL 行内 benchmark/version/protocol/source SHA；原生序列化格式
+仍必须显式传入 `--trusted`。index-0 最小查询 smoke 为：
 
 ```bash
 CATALOG=/path/to/data/catalog.json
@@ -206,16 +212,17 @@ asset 必须声明 `source_url`。命令先写 `.part`，存在 catalog SHA-256 
 
 ## `ready` 保证什么、不保证什么
 
-benchmark 组可通过两条路径之一成为 `ready`：
+benchmark 组成为 `ready` 需要同时满足：
 
 1. 每个内置原始资产的安装路径存在。如果该资产是文件且内置了 SHA-256，摘要必须匹配。
    没有固定摘要的原始资产只按“存在”通过；解压目录同样只按“存在”通过。
-2. 该 benchmark 声明的每个运行期路径都存在。catalog 注册状态通过 `catalog_state` 单独报告，
-   不会被隐藏到安装状态中。
+2. 该 benchmark 声明的每个运行期路径都存在且 catalog 校验通过。文件型 runtime 有登记摘要时
+   必须匹配；目录型 runtime 可能只能标为 `unpinned`。
 
-或者，机器本地 catalog 中全部预期 ID 都指向存在的运行资产，并通过各条目声明的 SHA-256
-核验。此时显示 `catalog_state=external_ready` 与 `location=catalog_external`，不表示原始文件位于
-`--root` 下；未声明 SHA-256 的 catalog 条目只能完成存在性检查。
+对于 NB201、NATS、NB301 等 native benchmark，机器本地 catalog 指向的外部 native 资产本身可
+同时作为 raw/runtime；此时显示 `catalog_state=external_ready` 与 `location=catalog_external`，
+不表示文件位于 `--root`。对于 NB101、TNB101、ViT-Bench 等转换型 benchmark，只有安全 runtime、
+没有 raw 时总体是 `partial`，但 `operational_ready=true`，可继续只读查询。
 
 checklist 不会为了声称 ready 而反序列化原生 `.pth`/pickle；那会破坏只读安全边界，也可能很
 昂贵。因此 `ready` 后仍必须执行文档中的 adapter smoke。NB101 转换 manifest 与离线迁移
@@ -359,6 +366,11 @@ benchmark 评估先解析已经存在的显式 `--benchmark-path`，再查找匹
 
 这样可以避免评估任务意外消耗网络配额、写满共享磁盘、替用户接受上游条款、加载刚下载的
 可信格式，或在一次运行中改变数据版本。数据准备与验证必须是单独、可审计的步骤。
+
+运行时通过 catalog 解析 benchmark 时，不只检查路径存在：文件型资产还会重新计算 SHA-256，并核对
+该 benchmark/slice 的预期 `version` 与 `protocol`。任一不一致都会停止，而不是继续读取已篡改或错配的
+JSONL。`data checklist` 的 `runtime_integrity=verified` 表示这三项当前一致；目录型上游 native 资产若
+没有锁定目录摘要则仍显示 `unpinned`，不能解释成上游 checksum 已被证明。
 
 ## OFA-Proxyless supernet 模型资产
 

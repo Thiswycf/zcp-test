@@ -34,6 +34,7 @@ from zcp_test.data import (
     verify_data_manifest,
     vitbench101_release_parser,
 )
+from zcp_test.data.setup import runtime_catalog_contract
 from zcp_test.gpu import (
     GPULockError,
     NoGPUError,
@@ -82,6 +83,20 @@ from zcp_test.types import MetricSpec, ModelFidelity
 
 def _json(value: Any) -> None:
     print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+
+
+def _evaluation_status_summary(statuses: list[str]) -> dict[str, int]:
+    counts = {
+        status: statuses.count(status)
+        for status in ("ok", "failed", "unsupported", "skipped")
+    }
+    return {
+        "succeeded": counts["ok"],
+        "failed": counts["failed"],
+        "unsupported": counts["unsupported"],
+        "skipped": counts["skipped"],
+        "non_ok": len(statuses) - counts["ok"],
+    }
 
 
 def _args_config(args: argparse.Namespace) -> dict[str, Any]:
@@ -249,12 +264,25 @@ def _resolve_benchmark_path(args: argparse.Namespace) -> str:
             "pit": "vitbench101_2",
         }.get(args.slice_id, "vitbench101_0"),
     }
+    asset_id = catalog_ids[args.benchmark]
+    suffix = asset_id.rpartition("_")[2]
+    asset_index = int(suffix) if suffix.isdigit() else 0
     try:
-        asset = DataRegistry(args.catalog).get(catalog_ids[args.benchmark])
-        if Path(asset.path).expanduser().exists():
-            return asset.path
-    except (KeyError, FileNotFoundError, ValueError):
+        expected_version, expected_protocol = runtime_catalog_contract(
+            args.benchmark, asset_index
+        )
+        asset = DataRegistry(args.catalog).get_verified(
+            asset_id,
+            expected_version=expected_version,
+            expected_protocol=expected_protocol,
+        )
+        return asset.path
+    except KeyError:
         pass
+    except (OSError, TypeError, ValueError) as error:
+        raise ValueError(
+            f"Registered benchmark asset {asset_id!r} failed catalog verification: {error}"
+        ) from error
     root = args.data_root or os.environ.get("ZCP_DATA_ROOT", "/path/to/data")
     raise FileNotFoundError(
         f"{args.benchmark} standard-answer data is unavailable. Run: "
@@ -1231,7 +1259,8 @@ def command_evaluate(args: argparse.Namespace) -> None:
         with RunContext(args.output, sys.argv, run_config, runtime=runtime) as run:
             writer = JsonlWriter(run.directory / "scores.jsonl", fsync_every=1)
             loss_fn = torch.nn.CrossEntropyLoss()
-            calls = succeeded = failed = 0
+            calls = 0
+            statuses: list[str] = []
             primary_components: dict[str, str] = {}
             for architecture in architectures:
                 model = (
@@ -1287,8 +1316,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                         ),
                     )
                     calls += 1
-                    succeeded += result.status.value == "ok"
-                    failed += result.status.value != "ok"
+                    statuses.append(result.status.value)
                     primary_components[proxy_id] = result.primary_component
                     writer.append(
                         {
@@ -1346,8 +1374,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     "architectures": len(architectures),
                     "proxy_calls": calls,
                     "score_rows": calls,
-                    "succeeded": succeeded,
-                    "failed": failed,
+                    **_evaluation_status_summary(statuses),
                     "primary_components": primary_components,
                 }
             )

@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-31 tree: **342 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
+| Unit/integration baseline | Current 2026-07-31 tree: **365 tests passed** | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction and workflow contracts; not high-cost scientific validation |
 | Coverage | First-party source **87%**; CLI 80% and analysis 93% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
 | H1 one-percent correlations | NB101, NB201, NATS-TSS, NATS-SSS/CIFAR-10-valid and the NB301 deterministic surrogate completed their scoped protocols | In progress overall | Independent manifests, truth adapters, shard merging and three-seed core proxies; NATS-SSS transfer, TNB101 and ViT-Bench remain |
@@ -16,7 +16,7 @@ reproduction or formal benchmark accuracy.
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
 | Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
 
-The 342-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
+The 365-test run, Ruff, compileall, pip check, diff check and 87% coverage are the current
 low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
 NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
 external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
@@ -181,3 +181,18 @@ NATS-TSS share the index-0 topology ID but retain distinct benchmark IDs, API so
 A matching ten-slice index-0 `build_model → params proxy` sweep completed with one successful row and
 no failure per slice. It used explicit random input and the data-independent `params` proxy, so it
 proves adapter-to-model-to-evaluator wiring only, not dataset-input or correlation validity.
+
+## ViT-Bench release-slice preacceptance
+
+The three pinned public files were bootstrapped, converted to safe JSONL, checksum-locked, queried,
+and exercised with deterministic real CIFAR-100 inputs. Each slice has 100 records. A fixed
+minimum-five manifest produces 110 rows for 22 proxies: 80 supported results, 30 explicit
+Transformer `unsupported` results, and zero failures. Correlation/report/architecture-study bundles
+were generated, but `n=5` is execution evidence only.
+
+This does not close formal ViT-Bench H1. The paper describes 500 candidates per AutoFormer/PiT space
+and a disjoint 60/40 development/test split; neither the complete candidates nor split identities are
+published in the pinned repository. AutoFormer main, extension, and PiT remain separate, as do
+vanilla, KD, and inherited-supernet metrics. PiT is now conservatively classified as
+`reference_topology_pytorch_port`: structural, parameter, and MAC fixtures pass, but checkpoint and
+layerwise numerical parity are unavailable.

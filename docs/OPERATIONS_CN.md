@@ -321,3 +321,95 @@ zcp-test analyze benchmark --scores /path/to/effective/transnas-micro.jsonl \
 
 七个 head 的官方参数量与参数 shape multiset 已对照一致，但这不等于真实任务数值复现。显式
 `--input-source random` 只能作为消融，不能与真实 Taskonomy 输入合并。
+
+## ViT-Bench-101 发布切片研究
+
+ViT-Bench 与开放 AutoFormer 搜索必须分开：前者查询发布 GT，不重新训练候选；后者没有完整 tabular
+真值，使用 validation-only 搜索并对选中候选做 scratch training。公开 ViT-Bench 的 AutoFormer
+main、来源说明不足的 extension 与 PiT 永不合并，vanilla、KD、ImageNet inherited 也永不合并。
+
+首次机器初始化：
+
+```bash
+CATALOG=~/.config/zcp-test/data.json
+DATA=/path/to/data
+zcp-test data bootstrap --root "$DATA" --benchmarks vitbench101 \
+  --catalog "$CATALOG" --yes
+zcp-test data checklist --root "$DATA" --catalog "$CATALOG" --json
+```
+
+完整状态应为 `state=ready/raw_state=ready/runtime_state=ready/runtime_integrity=verified`。若只有安全
+JSONL，则是 `state=partial` 但 `operational_ready=true`；查询可继续，离线重转换不可继续。
+
+三个 index-0 smoke：
+
+```bash
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" \
+  --slice-id autoformer_main --start 0 \
+  --dataset cifar100 --split test --metric-name accuracy_vanilla
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" \
+  --slice-id autoformer_ext --start 0 \
+  --dataset cifar100 --split test --metric-name accuracy_kd
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" \
+  --slice-id pit --start 0 \
+  --dataset cifar100 --split test --metric-name accuracy_vanilla
+```
+
+公开 commit 的三个文件各只有 100 条，而论文声明每数据集 500 GT 并使用无重叠 60%/40%
+proxy-development/test。公开文件未给出该划分身份，因此下面只叫 minimum-5 发布切片预验收：
+
+```bash
+AUDIT=/path/to/audit
+for SLICE in autoformer_main autoformer_ext pit; do
+  zcp-test benchmark sample vitbench101 --catalog "$CATALOG" \
+    --slice-id "$SLICE" --count 5 --seed 2026 \
+    --output "$AUDIT/sampling/vitbench-${SLICE}-minimum5-seed2026.json"
+done
+```
+
+真实 CIFAR-100 路径只写机器 catalog：
+
+```bash
+zcp-test data register dataset_cifar100 /path/to/cifar100 \
+  --version torchvision-cifar100 \
+  --protocol train-split-published-labels --trusted --replace
+```
+
+main 单 seed 示例：
+
+```bash
+PROXIES=az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico
+zcp-test evaluate --benchmark vitbench101 --slice-id autoformer_main \
+  --catalog "$CATALOG" \
+  --sample-manifest "$AUDIT/sampling/vitbench-autoformer_main-minimum5-seed2026.json" \
+  --sample-shard 0 --dataset cifar100 \
+  --target-metric accuracy_vanilla --target-split test \
+  --proxies "$PROXIES" --seed 2026 \
+  --input-source dataset --data-root /path/to/cifar100 \
+  --batch-size 2 --input-size 224 --classes 100 --gpu auto \
+  --output "$AUDIT/runs/vitbench-autoformer-main-preacceptance"
+```
+
+预期 5×22=`110` 行：当前支持矩阵为 80 `ok`、30 `unsupported`、0 `failed`。CLI 分别打印
+`succeeded/failed/unsupported/skipped/non_ok`。切换 extension 时目标使用 `accuracy_kd`；PiT 可用
+`accuracy_vanilla` 或 `accuracy_kd`，不能查询 ImageNet inherited。
+
+```bash
+RUN=/path/to/timestamped/run
+zcp-test analyze correlation --scores "$RUN/scores.jsonl" \
+  --output "$AUDIT/reports/vit/correlation" --bootstrap-samples 200 --top-k 1 3 5
+zcp-test analyze benchmark --scores "$RUN/scores.jsonl" \
+  --benchmark vitbench101 --view architecture \
+  --dataset cifar100 --target-split test --benchmark-variant autoformer_main \
+  --output "$AUDIT/reports/vit/architecture"
+zcp-test report bundle "$RUN" --output "$AUDIT/reports/vit/bundle"
+```
+
+5 个候选的相关性置信区间很宽，只证明执行链路。正式升级条件、资产 SHA 与本机典型结果见
+`docs/evidence/VITBENCH_PREFLIGHT_CN.md`。
+
+PiT 构模当前标记为 `reference_topology_pytorch_port`，不是 `reference_model`。它适用于 ZCP 构模和
+结构敏感性研究，但不构成官方训练数值复现；固定候选的 ground truth 仍来自切片 JSONL，而不是当前
+PyTorch 模型的训练结果。`benchmark inspect`/`evaluate` 从 catalog 解析运行资产时会校验文件 SHA、
+version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高级信任边界，不会借 catalog 替调用者
+证明来源，正式运行应优先使用已校验 catalog。

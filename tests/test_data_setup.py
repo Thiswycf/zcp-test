@@ -41,6 +41,9 @@ def test_data_checklist_transitions_missing_conversion_required_ready(
     missing = data_setup.data_checklist(tmp_path)[0]
     assert missing["benchmark_id"] == "tiny"
     assert missing["state"] == "missing"
+    assert missing["raw_state"] == "missing"
+    assert missing["runtime_state"] == "missing"
+    assert missing["runtime_integrity"] == "missing"
     assert missing["remediation"] is not None
 
     raw = asset.installed_path(tmp_path)
@@ -48,6 +51,9 @@ def test_data_checklist_transitions_missing_conversion_required_ready(
     raw.write_bytes(payload)
     conversion_required = data_setup.data_checklist(tmp_path)[0]
     assert conversion_required["state"] == "conversion_required"
+    assert conversion_required["raw_state"] == "ready"
+    assert conversion_required["runtime_state"] == "conversion_required"
+    assert conversion_required["runtime_integrity"] == "missing"
     assert conversion_required["raw_paths"] == [str(raw)]
     assert conversion_required["runtime_paths"] == [str(runtime)]
 
@@ -55,6 +61,9 @@ def test_data_checklist_transitions_missing_conversion_required_ready(
     runtime.write_text('{"record_kind":"fixture"}\n', encoding="utf-8")
     ready = data_setup.data_checklist(tmp_path)[0]
     assert ready["state"] == "ready"
+    assert ready["raw_state"] == "ready"
+    assert ready["runtime_state"] == "ready"
+    assert ready["runtime_integrity"] == "unpinned"
     assert ready["remediation"] is None
 
 
@@ -64,14 +73,61 @@ def test_data_checklist_accepts_valid_external_catalog_runtime(tmp_path, tiny_be
     external.parent.mkdir(parents=True)
     external.write_text('{}\n', encoding="utf-8")
     catalog = tmp_path / "catalog.json"
-    DataRegistry(catalog).register(DataAsset("tiny", str(external), "test-1", trusted=True))
+    DataRegistry(catalog).register(
+        DataAsset(
+            "tiny",
+            str(external),
+            "test-1",
+            sha256=hashlib.sha256(external.read_bytes()).hexdigest(),
+            trusted=True,
+        )
+    )
 
     record = data_setup.data_checklist(tmp_path / "empty-root", catalog)[0]
 
     assert record["state"] == "ready"
     assert record["catalog_state"] == "external_ready"
+    assert record["raw_state"] == "ready"
+    assert record["runtime_state"] == "ready"
+    assert record["runtime_integrity"] == "verified"
     assert record["location"] == "catalog_external"
     assert record["runtime_paths"] == [str(external)]
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [("version", "wrong-version"), ("protocol", "wrong-protocol")],
+)
+def test_known_catalog_contract_rejects_wrong_metadata(
+    monkeypatch, tmp_path, field, value
+):
+    payload = b"runtime"
+    runtime = tmp_path / "runtime.jsonl"
+    runtime.write_bytes(payload)
+    raw_asset = BootstrapAsset(asset_id="raw", version="expected-version", path="raw.bin")
+    monkeypatch.setattr(data_setup, "BUILTIN_ASSETS", {"raw": raw_asset})
+    monkeypatch.setattr(data_setup, "BENCHMARK_ASSETS", {"known": ("raw",)})
+    monkeypatch.setattr(data_setup, "BENCHMARK_SIZES", {"known": 1})
+    monkeypatch.setattr(data_setup, "RUNTIME_PROTOCOLS", {"known": ("expected-protocol",)})
+    monkeypatch.setattr(data_setup, "_runtime_paths", lambda root, benchmark: (runtime,))
+    catalog = tmp_path / "catalog.json"
+    metadata = {"version": "expected-version", "protocol": "expected-protocol"}
+    metadata[field] = value
+    DataRegistry(catalog).register(
+        DataAsset(
+            "known",
+            str(runtime),
+            metadata["version"],
+            sha256=hashlib.sha256(payload).hexdigest(),
+            protocol=metadata["protocol"],
+        )
+    )
+
+    record = data_setup.data_checklist(tmp_path / "root", catalog)[0]
+
+    assert record["state"] == "corrupt"
+    assert record["catalog_state"] == "corrupt"
+    assert record["runtime_integrity"] == "corrupt"
 
 
 def test_external_catalog_honors_declared_checksum_and_bootstrap_skips_ready_asset(
@@ -85,7 +141,10 @@ def test_external_catalog_honors_declared_checksum_and_bootstrap_skips_ready_ass
     DataRegistry(catalog).register(
         DataAsset("tiny", str(external), "test-1", sha256="0" * 64, trusted=True)
     )
-    assert data_setup.data_checklist(tmp_path / "empty-root", catalog)[0]["state"] == "missing"
+    corrupt = data_setup.data_checklist(tmp_path / "empty-root", catalog)[0]
+    assert corrupt["state"] == "corrupt"
+    assert corrupt["runtime_state"] == "corrupt"
+    assert corrupt["runtime_integrity"] == "corrupt"
 
     DataRegistry(catalog).register(
         DataAsset(
@@ -147,6 +206,78 @@ def test_bootstrap_registers_already_ready_root_asset(tmp_path, monkeypatch):
 
     assert result["ok"] is True
     assert DataRegistry(catalog).get("ready").path == str(runtime)
+
+
+def test_register_catalog_pins_vit_runtime_slices(tmp_path, monkeypatch):
+    runtime_paths = (
+        tmp_path / "gt_autoformer.jsonl",
+        tmp_path / "gt_autoformer_2.jsonl",
+        tmp_path / "gt_pit.jsonl",
+    )
+    for index, runtime in enumerate(runtime_paths):
+        runtime.write_text(f'{{"slice":{index}}}\n', encoding="utf-8")
+    catalog = tmp_path / "catalog.json"
+    monkeypatch.setattr(
+        data_setup,
+        "BUILTIN_ASSETS",
+        {"vit_raw": BootstrapAsset("vit_raw", "auto-prox-90ed458", "raw.pth")},
+    )
+    monkeypatch.setattr(data_setup, "BENCHMARK_ASSETS", {"vitbench101": ("vit_raw",)})
+    monkeypatch.setattr(data_setup, "_runtime_paths", lambda root, benchmark: runtime_paths)
+
+    data_setup._register_catalog(tmp_path, catalog, ("vitbench101",))
+
+    assets = DataRegistry(catalog).list()
+    assert [asset.asset_id for asset in assets] == [
+        "vitbench101_0",
+        "vitbench101_1",
+        "vitbench101_2",
+    ]
+    assert [asset.version for asset in assets] == ["auto-prox-90ed458"] * 3
+    assert [asset.protocol for asset in assets] == [
+        "auto-prox-90ed458-autoformer-main",
+        "auto-prox-90ed458-autoformer-ext",
+        "auto-prox-90ed458-pit",
+    ]
+    assert [asset.sha256 for asset in assets] == [
+        hashlib.sha256(runtime.read_bytes()).hexdigest() for runtime in runtime_paths
+    ]
+
+
+def test_converted_benchmark_with_verified_runtime_but_missing_raw_is_partial(
+    tmp_path, monkeypatch
+):
+    runtime = tmp_path / "external/runtime.jsonl"
+    runtime.parent.mkdir(parents=True)
+    runtime.write_text('{"record_kind":"fixture"}\n', encoding="utf-8")
+    catalog = tmp_path / "catalog.json"
+    DataRegistry(catalog).register(
+        DataAsset(
+            "vitbench101",
+            str(runtime),
+            "test-1",
+            sha256=hashlib.sha256(runtime.read_bytes()).hexdigest(),
+            protocol="test-protocol",
+        )
+    )
+    monkeypatch.setattr(
+        data_setup,
+        "BUILTIN_ASSETS",
+        {"vit_raw": BootstrapAsset("vit_raw", "test-1", "missing.pth")},
+    )
+    monkeypatch.setattr(data_setup, "BENCHMARK_ASSETS", {"vitbench101": ("vit_raw",)})
+    monkeypatch.setattr(data_setup, "BENCHMARK_SIZES", {"vitbench101": 1})
+    monkeypatch.setattr(data_setup, "RUNTIME_PROTOCOLS", {"vitbench101": ("test-protocol",)})
+    monkeypatch.setattr(data_setup, "_runtime_paths", lambda root, benchmark: (runtime,))
+
+    record = data_setup.data_checklist(tmp_path / "empty-root", catalog)[0]
+
+    assert record["state"] == "partial"
+    assert record["raw_state"] == "missing"
+    assert record["runtime_state"] == "ready"
+    assert record["runtime_integrity"] == "verified"
+    assert record["operational_ready"] is True
+    assert record["remediation"] is not None
 
 
 def test_export_and_verify_manifest_detects_digest_changes(tmp_path, tiny_benchmark):

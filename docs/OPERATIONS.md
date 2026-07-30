@@ -324,3 +324,48 @@ means 41 and 33 architectures. Analyze every task and space separately. Label-de
 enabled for the three classification tasks; regression and dense tasks remain explicitly
 `unsupported` until a source-backed ZCP loss contract is implemented. The transfer report includes
 `score_coverage.csv` with ok/failed/unsupported/skipped counts and paired coverage.
+
+## ViT-Bench-101 release-slice research
+
+ViT-Bench fixed candidates and open AutoFormer search are different protocols. The fixed benchmark
+queries released ground truth and does not retrain candidates. The public pinned Auto-Prox commit
+contains three 100-record files: AutoFormer main, an insufficiently documented AutoFormer extension,
+and PiT. They must remain separate, as must vanilla, KD, and inherited-supernet metrics. The paper
+instead describes 500 AutoFormer and 500 PiT candidates with a disjoint 60/40 proxy-development/test
+split; the public files do not identify that split. Therefore the current run is a
+`partial_release_slice_preacceptance`, not formal paper-level H1 acceptance.
+
+```bash
+CATALOG=~/.config/zcp-test/data.json
+DATA=/path/to/data
+zcp-test data bootstrap --root "$DATA" --benchmarks vitbench101 --catalog "$CATALOG" --yes
+zcp-test data checklist --root "$DATA" --catalog "$CATALOG" --json
+zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" \
+  --slice-id autoformer_main --start 0 \
+  --dataset cifar100 --split test --metric-name accuracy_vanilla
+```
+
+Generate a deterministic minimum-five manifest per public slice, then evaluate with a real registered
+dataset. Five architectures × 22 proxies must produce 110 rows; the current Transformer capability
+matrix yields 80 `ok`, 30 `unsupported`, and zero `failed` rows. A five-candidate correlation only
+validates the execution path and must not be reported as a stable scientific result.
+
+```bash
+zcp-test benchmark sample vitbench101 --catalog "$CATALOG" \
+  --slice-id autoformer_main --count 5 --seed 2026 \
+  --output /path/to/audit/vit-main-minimum5.json
+zcp-test evaluate --benchmark vitbench101 --slice-id autoformer_main \
+  --catalog "$CATALOG" --sample-manifest /path/to/audit/vit-main-minimum5.json \
+  --sample-shard 0 --dataset cifar100 --target-metric accuracy_vanilla \
+  --target-split test --proxies params,flops,naswot,synflow,zen,zico \
+  --seed 2026 --input-source dataset --data-root /path/to/cifar100 \
+  --batch-size 2 --input-size 224 --classes 100 --gpu auto \
+  --output /path/to/runs/evaluate
+```
+
+The PiT builder is `reference_topology_pytorch_port`, not `reference_model`. Patch embedding, QKV,
+pooling, `LayerNorm(eps=1e-6)`, and the upstream drop-path schedule are covered by structural,
+parameter-count, and MAC fixtures, but no official checkpoint or layerwise numerical parity test is
+available. Use it for ZCP structure studies; do not describe it as official numerical reproduction.
+Catalog-backed benchmark opening re-checks SHA-256, version, and protocol. Explicit
+`--benchmark-path` is a caller-managed trust boundary.

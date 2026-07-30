@@ -40,6 +40,23 @@ def test_torch_conversion_requires_explicit_trust(tmp_path):
         )
 
 
+def test_torch_conversion_refuses_unsafe_pickle_fallback(monkeypatch, tmp_path):
+    import torch
+
+    source = tmp_path / "trusted.pth"
+    source.write_bytes(b"fixture")
+    monkeypatch.setattr(
+        torch,
+        "load",
+        lambda *args, **kwargs: (_ for _ in ()).throw(TypeError("weights_only unsupported")),
+    )
+
+    with pytest.raises(RuntimeError, match="unsafe pickle fallback"):
+        convert_trusted_torch_records(
+            source, tmp_path / "out.jsonl", lambda _: [], trusted=True
+        )
+
+
 def test_vit_release_parser_keeps_training_protocols_distinct():
     records = list(vitbench101_release_parser([{"arch": {"depth": 12}, "c100_base_acc": 70, "c100_kd_acc": 77, "imagenet_super_acc": 74}]))
     names = {metric["metric_name"] for metric in records[0][1]}

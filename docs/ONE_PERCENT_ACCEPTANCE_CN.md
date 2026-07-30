@@ -42,10 +42,15 @@ zcp-test benchmark sample nasbench201 --trusted \
 | NB301 deterministic | `--count 1000` | 1,000 |
 | TNB101 micro | `--fraction 0.01` | 41 |
 | TNB101 macro | `--fraction 0.01` | 33 |
-| ViT 每个正式切片 | `--count 5` | 5 |
+| ViT 每个公开发布切片 | `--count 5` | 5（公开 100 条中的最低 5 条，不等于论文 500 条全集的 1%） |
 
 NB101 的 4/12/36/108 budget、TNB101 的各任务、ViT 的 vanilla/KD/inherited 以及不同 dataset/split
 必须分别报告；禁止对协议直接平均。AutoFormer extension 不能并入 main。
+
+Auto-Prox 论文声明每数据集 500 个 GT，并以无重叠 60%/40% 划分 proxy-search validation 与最终
+evaluation test；固定公开 commit 仅提供三个各 100 条文件，未提供 500 条全集或划分 ID。因此当前
+`--count 5` 只能称为 `release-slice minimum-5 preacceptance`，不能升级为正式 ViT H1。完整证据与
+命令见 [`evidence/VITBENCH_PREFLIGHT_CN.md`](evidence/VITBENCH_PREFLIGHT_CN.md)。
 
 ## 3. 四卡分片执行
 
@@ -175,5 +180,6 @@ target 完全一致；sample-size convergence 覆盖 10 到完整 1,000 样本�
 [`evidence/nb301_one_thousand_summary.json`](evidence/nb301_one_thousand_summary.json)。
 
 当前判定更新为 **“NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic
-surrogate 的既定协议完成，H1 整体进行中”**。TNB101 与 ViT-Bench 仍待独立执行；NATS-SSS 的
+surrogate 的既定协议完成，H1 整体进行中”**。TNB101 正式输入与 ViT-Bench 论文全集/60-40 划分
+仍待；ViT 三个公开切片已完成 minimum-5 预验收，但不计入正式 H1。NATS-SSS 的
 跨数据集迁移也未由 CIFAR-10-valid 结果替代。

@@ -7,15 +7,16 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-31 当前工作树：**342 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-07-31 当前工作树：**365 tests passed** | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模和工作流契约；不替代真实数据或高成本科学验收 |
 | 静态质量门禁 | Ruff、compileall、pip check、`git diff --check` 通过 | 通过 | 语法、依赖和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI 80%、analysis/proxy studies 93%、benchmark report 96%、reports 100%、converter 98%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
-| H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic surrogate 分别完成 22 代理 seed 2026 和核心 11 代理三 seed | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | 证明独立真值/manifest/分片/相关性及核心三 seed；NB101 限定为 4,237 个分层样本，NB301 限定为 1,000 个 surrogate 候选，TNB101 与 ViT-Bench 仍待 |
+| H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic surrogate 分别完成 22 代理 seed 2026 和核心 11 代理三 seed；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | ViT 公开文件各 100 条，与论文 500 GT/数据集和无重叠 60/40 划分不闭合，因此不计入正式 H1；TNB101 仍受作者 split/config 与许可输入阻塞 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
 | Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
+| ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-342 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
+365 tests、Ruff、compileall、pip check、diff check 与 87% coverage 是当前可复核的低成本软件基线。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
 `scores.jsonl` SHA、失败键和相关性摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
@@ -150,7 +151,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
    NATS-SSS/CIFAR-10-valid、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，
-   NATS-SSS 跨数据集、TNB101 与 ViT-Bench 仍待，因此完整项目 H1 尚未完成。
+   NATS-SSS 跨数据集、TNB101 正式输入以及 ViT-Bench 500 条全集/60-40 身份仍待，因此完整项目
+   H1 尚未完成。ViT 三个公开 100 条切片的 5×22 预验收不能替代该缺口。
 5. NAS-Bench-101 全量评估或 NAS-Bench-301 理论 DARTS 空间穷举。
 6. 多 GPU evaluate 的内置启动/去重合并；训练 DDP 启动与夹具级重启/故障注入已验收，但全数据级别未验收。
 7. 论文数值复现、独立 seed 置信区间及与官方代码的成本/精度比较。
@@ -181,6 +183,12 @@ NB201 与 NATS-TSS 的 index-0 architecture ID 相同，证明 topology codec �
 `benchmark_id`、版本、加载 API 和指标来源仍保持独立，禁止合并成一个 benchmark。NB301 数值是
 surrogate prediction，不是候选真实训练精度。AutoFormer extension 不含 vanilla 指标；对它查询
 `accuracy_vanilla` 会失败，必须显式使用 `accuracy_kd` 或 `accuracy_inherited`。
+
+本机已真实执行 ViT bootstrap：三份 raw 固定 SHA、三份 runtime JSONL SHA、严格 canonical
+architecture ID、load→query→build→224 forward 均通过。三个切片各抽 5 个候选并执行 22 ZCP，
+每切片严格得到 110 行、80 `ok`、30 `unsupported`、0 `failed`，同时生成 correlation、architecture
+study 和 bundle。由于论文声明 500 GT/数据集及无重叠 60/40，而公开 commit 未给出全集与划分身份，
+该证据状态保持 partial；详见 `docs/evidence/VITBENCH_PREFLIGHT_CN.md`。
 
 可移植复验模板：
 

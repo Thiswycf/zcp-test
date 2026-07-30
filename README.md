@@ -279,3 +279,16 @@ documented protocols; the scoped NB301 deterministic-surrogate protocol is also 
 H1 remains incomplete: TransNAS-Bench-101, ViT-Bench-101, and other remaining protocols are pending.
 Full DARTS 250/600-epoch training also
 remains unaccepted; see the [acceptance report](docs/ACCEPTANCE.md).
+
+### ViT-Bench public-release boundary
+
+The pinned Auto-Prox repository exposes three 100-record slices, not the paper's complete 500
+AutoFormer plus 500 PiT candidate protocol or its disjoint 60/40 split identities. The project keeps
+AutoFormer main, AutoFormer extension, and PiT separate and labels current evidence
+`partial_release_slice_preacceptance`. PiT model construction is a
+`reference_topology_pytorch_port`, not an official numerical reproduction. See
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md) and
+[`docs/evidence/VITBENCH_PREFLIGHT_CN.md`](docs/evidence/VITBENCH_PREFLIGHT_CN.md).
+
+Catalog-backed benchmark opening revalidates file SHA-256, version, and protocol. An explicit
+`--benchmark-path` remains a caller-managed trust boundary.

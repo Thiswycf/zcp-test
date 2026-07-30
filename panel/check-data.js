@@ -8,12 +8,14 @@ const dataPath = path.join(__dirname, "data.js");
 const appPath = path.join(__dirname, "app.js");
 const indexPath = path.join(__dirname, "index.html");
 const stylesPath = path.join(__dirname, "styles.css");
+const readmePath = path.join(__dirname, "README.md");
 const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), context, { filename: dataPath });
 const data = context.window.ZCP_PANEL_DATA;
 const appSource = fs.readFileSync(appPath, "utf8");
 const indexSource = fs.readFileSync(indexPath, "utf8");
 const stylesSource = fs.readFileSync(stylesPath, "utf8");
+const readmeSource = fs.readFileSync(readmePath, "utf8");
 const errors = [];
 
 function assert(condition, message) {
@@ -52,7 +54,7 @@ assert(Array.isArray(data?.evidence), "evidence 必须是数组");
 
 const refreshDomIds = [
   "refresh-data", "auto-refresh-toggle", "refresh-interval", "refresh-status",
-  "refresh-success", "refresh-countdown"
+  "refresh-success", "refresh-checked", "refresh-countdown", "refresh-file-hint"
 ];
 for (const id of refreshDomIds) {
   assert(indexSource.includes(`id="${id}"`), `刷新控件缺少 #${id}`);
@@ -62,13 +64,14 @@ assert(indexSource.includes('aria-atomic="true"'), "刷新状态缺少 aria-atom
 assert(indexSource.includes('aria-pressed="true"'), "自动刷新按钮缺少 aria-pressed");
 assert(indexSource.includes('http-equiv="Cache-Control"'), "页面缺少静态托管 no-store 提示");
 assert(indexSource.includes('no-cache, no-store, must-revalidate'), "页面 Cache-Control 未声明 no-store");
-assert(indexSource.includes("上次检查时间"), "刷新栏未显示上次检查时间");
+assert(indexSource.includes("最后成功刷新"), "刷新栏未显示最后成功刷新时间");
+assert(indexSource.includes("上次检查"), "刷新栏未显示上次检查时间");
 assert(indexSource.includes('<script src="data.js"></script>'), "file:// 回退缺少直接 data.js 脚本");
 assert(indexSource.indexOf('<script src="data.js"></script>') < indexSource.indexOf('<script src="app.js"></script>'), "data.js 必须先于 app.js 加载");
 assert(stylesSource.includes(".refresh-primary"), "立即刷新按钮缺少可见样式");
 assert(!/\.refresh-primary\s*\{[^}]*display\s*:\s*none/is.test(stylesSource), "立即刷新按钮被样式隐藏");
 assert(stylesSource.includes('#refresh-status[data-state="error"]'), "刷新失败缺少非阻断错误样式");
-for (const seconds of [15, 30, 60, 300]) {
+for (const seconds of [5, 15, 30, 60]) {
   assert(indexSource.includes(`<option value="${seconds}"`), `刷新间隔缺少 ${seconds} 秒选项`);
 }
 assert(appSource.includes('new URL("data.js", window.location.href)'), "刷新未使用兼容 file/HTTP 的 data.js URL");
@@ -89,8 +92,14 @@ assert(appSource.includes('return refreshPromise'), "并发刷新未复用当前
 assert(appSource.includes('if (refreshInitialized) return'), "刷新初始化缺少重复事件保护");
 assert(appSource.includes('if (refreshCountdownTimer === null)'), "刷新倒计时缺少重复计时器保护");
 assert(appSource.includes("window.ZCP_PANEL_DATA = previousData"), "刷新失败时未保留旧数据");
-assert(appSource.includes('`上次检查时间：${formatClock()}`'), "刷新完成后未更新时间戳");
+assert(appSource.includes('`最后成功刷新：${formatClock()}`'), "刷新成功后未更新时间戳");
+assert(appSource.includes('`上次检查：${formatClock()}`'), "刷新完成后未更新检查时间");
 assert(appSource.includes('`数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`'), "未明确显示数据更新时间");
+assert(appSource.includes("window.scrollTo(viewport.left, viewport.top)"), "刷新后未恢复滚动位置");
+assert(appSource.includes('window.location.protocol === "file:"'), "缺少 file:// 兼容提示逻辑");
+assert(appSource.includes("可点击“立即刷新”重试"), "刷新失败未提示重试");
+assert(readmeSource.includes("python -m http.server 8768 --directory panel"), "README 缺少静态服务器命令");
+assert(readmeSource.includes("file://"), "README 缺少 file:// 限制说明");
 assert(appSource.includes('status.setAttribute("aria-busy", "true")'), "刷新开始时未设置 aria-busy");
 assert(appSource.includes('status.removeAttribute("aria-busy")'), "刷新结束时未清除 aria-busy");
 assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");

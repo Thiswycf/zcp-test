@@ -15,6 +15,18 @@ def _output(capsys):
     return json.loads(capsys.readouterr().out)
 
 
+def test_evaluation_summary_does_not_count_unsupported_as_failed():
+    assert cli._evaluation_status_summary(
+        ["ok", "ok", "failed", "unsupported", "unsupported", "skipped"]
+    ) == {
+        "succeeded": 2,
+        "failed": 1,
+        "unsupported": 2,
+        "skipped": 1,
+        "non_ok": 4,
+    }
+
+
 class _TinyReferenceSpace:
     search_space_id = "tiny_reference"
     model_family = "cnn"
@@ -341,6 +353,34 @@ def test_cli_path_resolution_failures(tmp_path):
         data_root=str(tmp_path / "data"),
     )
     with pytest.raises(FileNotFoundError, match="data bootstrap"):
+        cli._resolve_benchmark_path(args)
+
+
+def test_cli_benchmark_catalog_path_requires_integrity_and_protocol(tmp_path):
+    runtime = tmp_path / "vit.jsonl"
+    runtime.write_text("original\n", encoding="utf-8")
+    catalog = tmp_path / "catalog.json"
+    cli.DataRegistry(catalog).register(
+        cli.DataAsset(
+            "vitbench101_0",
+            str(runtime),
+            "auto-prox-90ed458",
+            sha256=hashlib.sha256(runtime.read_bytes()).hexdigest(),
+            protocol="auto-prox-90ed458-autoformer-main",
+        )
+    )
+    args = argparse.Namespace(
+        benchmark_path=None,
+        benchmark="vitbench101",
+        transnas_space="micro",
+        slice_id="autoformer_main",
+        catalog=str(catalog),
+        data_root=str(tmp_path),
+    )
+    assert cli._resolve_benchmark_path(args) == str(runtime)
+
+    runtime.write_text("tampered\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="failed catalog verification"):
         cli._resolve_benchmark_path(args)
 
 

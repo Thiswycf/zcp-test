@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Iterable, Mapping
 from typing import Any
 
@@ -37,6 +38,16 @@ class JsonlBenchmarkAdapter(BenchmarkAdapter):
         self._validate_records(version)
         self.version = version or str(self._records[0]["benchmark_version"])
         self._architectures = [self._to_architecture(record) for record in self._records]
+        architecture_id_counts = Counter(
+            architecture.architecture_id for architecture in self._architectures
+        )
+        duplicates = sorted(
+            architecture_id
+            for architecture_id, count in architecture_id_counts.items()
+            if count > 1
+        )
+        if duplicates:
+            raise ValueError(f"Duplicate canonical architecture_id values: {duplicates}")
         self._by_id = {architecture.architecture_id: record for architecture, record in zip(
             self._architectures, self._records, strict=True
         )}

@@ -511,7 +511,7 @@
   }
 
   function setRefreshInterval(seconds, persist = false) {
-    const normalized = [15, 30, 60, 300].includes(Number(seconds)) ? Number(seconds) : 30;
+    const normalized = [5, 15, 30, 60].includes(Number(seconds)) ? Number(seconds) : 30;
     refreshIntervalMs = normalized * 1000;
     $("#refresh-interval").value = String(normalized);
     if (persist) {
@@ -531,6 +531,7 @@
     const button = $("#refresh-data");
     const status = $("#refresh-status");
     const previousData = data;
+    const viewport = { left: window.scrollX, top: window.scrollY };
     nextRefreshAt = null;
     updateRefreshCountdown();
 
@@ -545,19 +546,25 @@
         data = candidate;
         window.ZCP_PANEL_DATA = candidate;
         renderCurrentData();
+        window.scrollTo(viewport.left, viewport.top);
         const changed = data.updatedAt !== previousData.updatedAt;
         status.dataset.state = "success";
         status.textContent = changed ? "已载入更新" : "已是最新";
+        $("#refresh-success").textContent = `最后成功刷新：${formatClock()}`;
         if (manual || changed) announce(status.textContent);
       } catch (error) {
         data = previousData;
         window.ZCP_PANEL_DATA = previousData;
         renderCurrentData();
+        window.scrollTo(viewport.left, viewport.top);
         status.dataset.state = "error";
-        status.textContent = `刷新失败，继续显示上次数据：${error.message}`;
+        const retryHint = window.location.protocol === "file:"
+          ? "；file:// 可能阻止动态重载，请按页面提示启动静态服务器后重试"
+          : "；可点击“立即刷新”重试";
+        status.textContent = `刷新失败，继续显示上次数据：${error.message}${retryHint}`;
         announce(status.textContent);
       } finally {
-        $("#refresh-success").textContent = `上次检查时间：${formatClock()}`;
+        $("#refresh-checked").textContent = `上次检查：${formatClock()}`;
         status.removeAttribute("aria-busy");
         button.classList.remove("is-refreshing");
         button.disabled = false;
@@ -594,7 +601,10 @@
     if (refreshCountdownTimer === null) {
       refreshCountdownTimer = window.setInterval(updateRefreshCountdown, 1000);
     }
-    $("#refresh-success").textContent = `上次检查时间：页面载入 ${formatClock()}`;
+    const loadedAt = formatClock();
+    $("#refresh-success").textContent = `最后成功刷新：页面载入 ${loadedAt}`;
+    $("#refresh-checked").textContent = `上次检查：页面载入 ${loadedAt}`;
+    $("#refresh-file-hint").hidden = window.location.protocol !== "file:";
     setAutoRefresh(true);
   }
 

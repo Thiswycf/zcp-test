@@ -56,10 +56,12 @@ ViT-Bench-101 的 AutoFormer 主切片、扩展切片与 PiT 分开转换和报�
 ## 首次使用：显式准备 benchmark 数据
 
 `evaluate` 不会隐式下载 benchmark 或训练数据。数据准备应作为独立、可审计的流程执行。
-`ready` 的精确定义是：所选数据根目录通过当前可用的原始文件/运行格式检查，或者机器本地
-catalog 已指向全部有效运行资产。后一种情况会显示 `catalog_state=external_ready` 与
-`location=catalog_external`，不表示文件已复制到 `--root`。只读 checklist 不会反序列化原生
-pickle/PyTorch 文件，因此正式研究前仍需执行文档中的 adapter smoke。
+checklist 现在分别报告 `raw_state`、`runtime_state`、`runtime_integrity` 与
+`operational_ready`。`state=ready` 要求所需原始资产和运行格式均就绪；若转换后的安全运行格式可用、
+但原始文件缺失，则是 `state=partial, operational_ready=true`，表示可以查询但不能离线重建。
+native benchmark 的外部 catalog 路径本身就是 raw/runtime 时会显示 `location=catalog_external`，
+不表示文件已复制到 `--root`。只读 checklist 不会反序列化原生 pickle/PyTorch 文件，正式研究前
+仍需执行 adapter smoke。
 
 ```bash
 # 1. 查看来源、大小、目标路径、断点文件和磁盘余量。
@@ -113,6 +115,9 @@ zcp-test data import-manifest \
 `--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且不超过
 1% epoch”或“至多 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
 论文精度复现。详见 [操作手册](docs/OPERATIONS_CN.md)。
+
+catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、version 和 protocol；错配会明确失败。
+显式 `--benchmark-path` 不经过 catalog 完整性证明，只应在调用者已经独立核验来源时使用。
 
 ## 当前边界
 

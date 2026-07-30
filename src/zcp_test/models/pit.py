@@ -7,6 +7,7 @@ from typing import Any
 
 import torch
 from torch import Tensor, nn
+from torch.nn import functional as F
 
 from zcp_test.models.autoformer import DropPath
 
@@ -23,6 +24,37 @@ class PitMlp(nn.Sequential):
         )
 
 
+class PitAttention(nn.Module):
+    def __init__(
+        self,
+        dimension: int,
+        num_heads: int,
+        attention_dropout: float,
+        projection_dropout: float,
+    ) -> None:
+        super().__init__()
+        if dimension % num_heads:
+            raise ValueError("PiT attention dimension must be divisible by num_heads")
+        self.num_heads = num_heads
+        self.head_dimension = dimension // num_heads
+        self.scale = self.head_dimension**-0.5
+        self.qkv = nn.Linear(dimension, dimension * 3, bias=True)
+        self.projection = nn.Linear(dimension, dimension)
+        self.attention_dropout = nn.Dropout(attention_dropout)
+        self.projection_dropout = nn.Dropout(projection_dropout)
+
+    def forward(self, inputs: Tensor) -> Tensor:
+        batch, tokens, dimension = inputs.shape
+        qkv = self.qkv(inputs).reshape(
+            batch, tokens, 3, self.num_heads, self.head_dimension
+        )
+        query, key, value = qkv.permute(2, 0, 3, 1, 4).unbind(0)
+        attention = F.softmax((query @ key.transpose(-1, -2)) * self.scale, dim=-1)
+        attention = self.attention_dropout(attention)
+        outputs = (attention @ value).transpose(1, 2).reshape(batch, tokens, dimension)
+        return self.projection_dropout(self.projection(outputs))
+
+
 class PitBlock(nn.Module):
     def __init__(
         self,
@@ -37,24 +69,18 @@ class PitBlock(nn.Module):
         self.dimension = dimension
         self.num_heads = num_heads
         self.mlp_ratio = mlp_ratio
-        self.norm1 = nn.LayerNorm(dimension)
-        self.attention = nn.MultiheadAttention(
-            dimension,
-            num_heads,
-            dropout=attention_dropout,
-            bias=True,
-            batch_first=True,
+        self.norm1 = nn.LayerNorm(dimension, eps=1e-6)
+        self.attention = PitAttention(
+            dimension, num_heads, attention_dropout, dropout
         )
-        self.drop_path1 = DropPath(drop_path)
-        self.norm2 = nn.LayerNorm(dimension)
+        self.drop_path = DropPath(drop_path)
+        self.norm2 = nn.LayerNorm(dimension, eps=1e-6)
         self.mlp = PitMlp(dimension, mlp_ratio, dropout)
-        self.drop_path2 = DropPath(drop_path)
 
     def forward(self, inputs: Tensor) -> Tensor:
         normalized = self.norm1(inputs)
-        attended = self.attention(normalized, normalized, normalized, need_weights=False)[0]
-        inputs = inputs + self.drop_path1(attended)
-        return inputs + self.drop_path2(self.mlp(self.norm2(inputs)))
+        inputs = inputs + self.drop_path(self.attention(normalized))
+        return inputs + self.drop_path(self.mlp(self.norm2(inputs)))
 
 
 class PitPooling(nn.Module):
@@ -126,7 +152,7 @@ class StaticPiT(nn.Module):
         self.position_dropout = nn.Dropout(dropout)
 
         total_blocks = sum(depths)
-        probabilities = torch.linspace(0.0, drop_path_rate, total_blocks).tolist()
+        probabilities = [drop_path_rate * index / total_blocks for index in range(total_blocks)]
         block_index = 0
         stages: list[nn.ModuleList] = []
         for dimension, stage_depth, stage_heads in zip(
@@ -150,7 +176,7 @@ class StaticPiT(nn.Module):
             PitPooling(self.stage_dimensions[index], self.stage_dimensions[index + 1])
             for index in range(2)
         )
-        self.norm = nn.LayerNorm(self.stage_dimensions[-1])
+        self.norm = nn.LayerNorm(self.stage_dimensions[-1], eps=1e-6)
         self.head = nn.Linear(self.stage_dimensions[-1], num_classes)
         self._initialize()
 
@@ -158,11 +184,7 @@ class StaticPiT(nn.Module):
         nn.init.trunc_normal_(self.position, std=0.02)
         nn.init.trunc_normal_(self.class_token, std=0.02)
         for module in self.modules():
-            if isinstance(module, nn.Linear):
-                nn.init.trunc_normal_(module.weight, std=0.02)
-                if module.bias is not None:
-                    nn.init.zeros_(module.bias)
-            elif isinstance(module, nn.LayerNorm):
+            if isinstance(module, nn.LayerNorm):
                 nn.init.ones_(module.weight)
                 nn.init.zeros_(module.bias)
 
@@ -198,7 +220,7 @@ class StaticPiT(nn.Module):
     def reference_metadata(self) -> dict[str, Any]:
         return {
             "family": "pit_static_subnet",
-            "model_fidelity": "reference_model",
+            "model_fidelity": "reference_topology_pytorch_port",
             "implementation_source": "lliai/Auto-Prox-AAAI24",
             "implementation_commit": "90ed458",
             "weight_mode": "independent_scratch",
@@ -212,4 +234,4 @@ class StaticPiT(nn.Module):
         }
 
 
-__all__ = ["StaticPiT"]
+__all__ = ["PitAttention", "StaticPiT"]

@@ -75,6 +75,29 @@ class DataRegistry:
             result["valid"] = True
         return result
 
+    def get_verified(
+        self,
+        asset_id: str,
+        *,
+        expected_version: str | None = None,
+        expected_protocol: str | None = None,
+    ) -> DataAsset:
+        asset = self.get(asset_id)
+        if expected_version is not None and asset.version != expected_version:
+            raise ValueError(
+                f"Data asset {asset_id!r} has version {asset.version!r}; "
+                f"expected {expected_version!r}"
+            )
+        if expected_protocol is not None and asset.protocol != expected_protocol:
+            raise ValueError(
+                f"Data asset {asset_id!r} has protocol {asset.protocol!r}; "
+                f"expected {expected_protocol!r}"
+            )
+        verification = self.verify(asset_id)
+        if not verification["valid"]:
+            raise ValueError(f"Data asset {asset_id!r} failed integrity verification")
+        return asset
+
     def fetch(self, asset_id: str, destination: str | Path | None = None) -> Path:
         asset = self.get(asset_id)
         if not asset.source_url:

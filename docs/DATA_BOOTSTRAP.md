@@ -410,6 +410,11 @@ This separation prevents an evaluation job from unexpectedly consuming network q
 shared filesystem, accepting upstream terms, loading a newly downloaded trusted format, or
 changing the data version during a run. Prepare and verify data as a separate auditable step.
 
+Catalog resolution is an integrity boundary, not only a path lookup. Before a benchmark is opened,
+file-backed assets are re-hashed and their expected benchmark/slice `version` and `protocol` are
+checked. A mismatch fails closed. `runtime_integrity=verified` means those checks currently agree;
+`unpinned` for a native directory asset does not claim an upstream checksum has been established.
+
 ## OFA-Proxyless supernet model asset
 
 `ofa_proxyless_supernet` is an official model asset for an open search space, **not benchmark ground

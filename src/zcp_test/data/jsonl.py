@@ -61,6 +61,9 @@ def convert_trusted_torch_records(
 
     try:
         payload = torch.load(Path(source).expanduser(), map_location="cpu", weights_only=True)
-    except TypeError:
-        payload = torch.load(Path(source).expanduser(), map_location="cpu")
+    except TypeError as error:
+        raise RuntimeError(
+            "Trusted torch conversion requires torch.load(weights_only=...) support; "
+            "refusing unsafe pickle fallback"
+        ) from error
     return write_jsonl_atomic(converter(payload), destination)

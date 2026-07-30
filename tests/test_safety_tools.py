@@ -118,6 +118,24 @@ def test_convert_trusted_benchmark_validates_parser_contract(monkeypatch, tmp_pa
         )
 
 
+def test_convert_trusted_benchmark_rejects_unsafe_torch_fallback(monkeypatch, tmp_path):
+    source = tmp_path / "source.pth"
+    source.write_bytes(b"trusted fixture")
+    monkeypatch.setattr(converters, "_supports_weights_only_load", lambda: False)
+
+    with pytest.raises(RuntimeError, match="weights_only"):
+        converters.convert_trusted_benchmark(
+            source,
+            tmp_path / "runtime.jsonl",
+            benchmark_id="benchmark",
+            search_space_id="space",
+            benchmark_version="1",
+            protocol="protocol",
+            parser=lambda payload: [],
+            trusted=True,
+        )
+
+
 def test_convert_vitbench_slice_and_transnas_parser(monkeypatch, tmp_path):
     captured = {}
 

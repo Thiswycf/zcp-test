@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 from typing import Any, Iterable
 
-from zcp_test.data.assets import DataAsset, DataRegistry
+from zcp_test.data.assets import DataAsset, DataRegistry, sha256_file
 from zcp_test.data.bootstrap import (
     BENCHMARK_ASSETS,
     BUILTIN_ASSETS,
@@ -35,6 +35,36 @@ BENCHMARK_SIZES = {
     "vitbench101": 62_925,
     "ofa_proxyless_supernet": 32_202_338,
 }
+
+CONVERTED_BENCHMARKS = {"nasbench101", "transnasbench101", "vitbench101"}
+
+RUNTIME_PROTOCOLS: dict[str, tuple[str, ...]] = {
+    "nasbench101": ("zcp-test-bootstrap",),
+    "nasbench201": ("official-v1.1",),
+    "nats_tss": ("tss-200",),
+    "nats_sss": ("sss-90",),
+    "transnasbench101": (
+        "transnasbench101-micro-final",
+        "transnasbench101-macro-final",
+    ),
+    "nasbench301_surrogate": (
+        "deterministic-performance-surrogate",
+        "deterministic-runtime-surrogate",
+    ),
+    "vitbench101": (
+        "auto-prox-90ed458-autoformer-main",
+        "auto-prox-90ed458-autoformer-ext",
+        "auto-prox-90ed458-pit",
+    ),
+    "ofa_proxyless_supernet": ("official-inherited-supernet",),
+}
+
+
+def runtime_catalog_contract(benchmark: str, index: int) -> tuple[str, str | None]:
+    version = str(BUILTIN_ASSETS[BENCHMARK_ASSETS[benchmark][0]].version)
+    protocols = RUNTIME_PROTOCOLS.get(benchmark, ())
+    protocol = protocols[index] if index < len(protocols) else None
+    return version, protocol
 
 
 def _runtime_paths(root: Path, benchmark: str) -> tuple[Path, ...]:
@@ -74,9 +104,9 @@ def _transfer_paths(root: Path, benchmark: str) -> tuple[Path, ...]:
 
 def _catalog_paths(
     catalog: Path, benchmark: str, runtime_paths: tuple[Path, ...]
-) -> tuple[str, tuple[Path, ...]]:
+) -> tuple[str, tuple[Path, ...], str]:
     if not catalog.is_file():
-        return "missing", ()
+        return "missing", (), "missing"
     expected_ids = (
         (benchmark,)
         if len(runtime_paths) == 1
@@ -86,21 +116,45 @@ def _catalog_paths(
     try:
         registered = {asset.asset_id: asset for asset in registry.list()}
     except (OSError, TypeError, ValueError):
-        return "corrupt", ()
+        return "corrupt", (), "corrupt"
     if not all(asset_id in registered for asset_id in expected_ids):
-        return "missing", ()
+        return "missing", (), "missing"
     expected_paths = [path.resolve() for path in runtime_paths]
     actual_paths = [Path(registered[asset_id].path).expanduser().resolve() for asset_id in expected_ids]
     try:
-        verified = [registry.verify(asset_id) for asset_id in expected_ids]
+        verified = []
+        for index, asset_id in enumerate(expected_ids):
+            expected_version, expected_protocol = runtime_catalog_contract(benchmark, index)
+            registry.get_verified(
+                asset_id,
+                expected_version=expected_version,
+                expected_protocol=expected_protocol,
+            )
+            verified.append({"valid": True})
     except (OSError, TypeError, ValueError):
-        return "corrupt", tuple(actual_paths)
+        return "corrupt", tuple(actual_paths), "corrupt"
     if not all(item["valid"] for item in verified):
-        return "corrupt", tuple(actual_paths)
+        return "corrupt", tuple(actual_paths), "corrupt"
+    integrity = (
+        "verified"
+        if all(registered[asset_id].sha256 for asset_id in expected_ids)
+        else "unpinned"
+    )
     return (
         ("ready" if actual_paths == expected_paths else "external_ready"),
         tuple(actual_paths),
+        integrity,
     )
+
+
+def _aggregate_raw_state(asset_states: list[AssetState]) -> str:
+    if any(state is AssetState.CORRUPT for state in asset_states):
+        return "corrupt"
+    if all(state is AssetState.READY for state in asset_states):
+        return "ready"
+    if any(state in {AssetState.READY, AssetState.PARTIAL} for state in asset_states):
+        return "partial"
+    return "missing"
 
 
 def data_checklist(
@@ -126,8 +180,6 @@ def data_checklist(
                 sources.append(asset.source_page)
             if installed.exists():
                 if asset.sha256 and installed.is_file():
-                    from zcp_test.data.assets import sha256_file
-
                     asset_states.append(
                         AssetState.READY
                         if sha256_file(installed) == asset.sha256
@@ -138,19 +190,59 @@ def data_checklist(
             else:
                 asset_states.append(AssetState.PARTIAL if partial.is_file() else AssetState.MISSING)
         runtime_paths = _runtime_paths(root, benchmark)
-        catalog_state, catalog_paths = _catalog_paths(catalog_path, benchmark, runtime_paths)
-        if any(state is AssetState.CORRUPT for state in asset_states):
+        catalog_state, catalog_paths, catalog_integrity = _catalog_paths(
+            catalog_path, benchmark, runtime_paths
+        )
+        raw_state = _aggregate_raw_state(asset_states)
+        local_runtime_ready = all(path.exists() for path in runtime_paths)
+        if catalog_state == "corrupt":
+            runtime_state = "corrupt"
+            runtime_integrity = "corrupt"
+        elif catalog_state in {"ready", "external_ready"}:
+            runtime_state = "ready"
+            runtime_integrity = catalog_integrity
+            runtime_paths = catalog_paths
+        elif local_runtime_ready:
+            runtime_state = "ready"
+            runtime_integrity = "unpinned"
+        elif raw_state == "ready":
+            runtime_state = "conversion_required"
+            runtime_integrity = "missing"
+        else:
+            runtime_state = "missing"
+            runtime_integrity = "missing"
+        if (
+            benchmark not in CONVERTED_BENCHMARKS
+            and raw_state == "missing"
+            and runtime_state == "ready"
+            and catalog_state in {"ready", "external_ready"}
+        ):
+            raw_state = "ready"
+        operational_ready = runtime_state == "ready"
+        if raw_state == "corrupt" or runtime_state == "corrupt":
             state = AssetState.CORRUPT
-        elif not all(state is AssetState.READY for state in asset_states):
-            state = AssetState.PARTIAL if partial_bytes else AssetState.MISSING
-        elif not all(path.exists() for path in runtime_paths):
+        elif (
+            benchmark in CONVERTED_BENCHMARKS
+            and raw_state in {"missing", "partial"}
+            and operational_ready
+        ):
+            state = AssetState.PARTIAL
+        elif raw_state == "partial":
+            state = AssetState.PARTIAL
+        elif raw_state == "missing":
+            state = AssetState.MISSING
+        elif runtime_state != "ready":
             state = AssetState.CONVERSION_REQUIRED
         else:
             state = AssetState.READY
-        if state in {AssetState.MISSING, AssetState.CONVERSION_REQUIRED} and catalog_state in {
+        if (
+            benchmark not in CONVERTED_BENCHMARKS
+            and state in {AssetState.MISSING, AssetState.CONVERSION_REQUIRED}
+            and catalog_state in {
             "ready",
             "external_ready",
-        }:
+            }
+        ):
             state = AssetState.READY
             runtime_paths = catalog_paths
         records.append(
@@ -158,6 +250,10 @@ def data_checklist(
                 "benchmark_id": benchmark,
                 "version": BUILTIN_ASSETS[asset_ids[0]].version,
                 "state": state.value,
+                "raw_state": raw_state,
+                "runtime_state": runtime_state,
+                "runtime_integrity": runtime_integrity,
+                "operational_ready": operational_ready,
                 "raw_paths": [str(BUILTIN_ASSETS[item].installed_path(root)) for item in asset_ids],
                 "runtime_paths": [str(path) for path in runtime_paths],
                 "catalog_path": str(catalog_path),
@@ -248,15 +344,16 @@ def _register_catalog(root: Path, catalog: Path, benchmarks: Iterable[str]) -> N
         runtime_paths = _runtime_paths(root, benchmark)
         if not all(path.exists() for path in runtime_paths):
             continue
-        version = BUILTIN_ASSETS[BENCHMARK_ASSETS[benchmark][0]].version
         for index, runtime_path in enumerate(runtime_paths):
+            version, protocol = runtime_catalog_contract(benchmark, index)
             suffix = "" if len(runtime_paths) == 1 else f"_{index}"
             registry.register(
                 DataAsset(
                     f"{benchmark}{suffix}",
                     str(runtime_path),
                     str(version),
-                    protocol="zcp-test-bootstrap",
+                    sha256=sha256_file(runtime_path) if runtime_path.is_file() else None,
+                    protocol=protocol,
                     trusted=benchmark
                     in {
                         "nasbench201",

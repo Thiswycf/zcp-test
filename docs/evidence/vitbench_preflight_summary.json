@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "status": "partial_release_slice_preacceptance",
+  "benchmark_id": "vitbench101",
+  "upstream": {
+    "repository": "https://github.com/lliai/Auto-Prox-AAAI24",
+    "pinned_commit": "90ed458eff6948a6f0d23e440a8d21bbec50d091",
+    "release_asset_commit": "69ccf82bfa8897ce3c955a700a5b0f046d8e5f87",
+    "paper_claimed_ground_truths_per_dataset": 500,
+    "paper_proxy_search_fraction": 0.6,
+    "paper_proxy_test_fraction": 0.4,
+    "published_split_identity_available": false
+  },
+  "assets": {
+    "autoformer_main": {
+      "records": 100,
+      "raw_sha256": "712ad277546d9f7f565ce07885be7e0b98dcd8d0724fdd1120f595b517436eca",
+      "runtime_sha256": "f862cb7f4b4757d1318ea7b9617c4f44e5306a3987cbf12be1ae9d76134640b5",
+      "metrics": ["accuracy_vanilla", "accuracy_kd", "accuracy_inherited"]
+    },
+    "autoformer_ext": {
+      "records": 100,
+      "raw_sha256": "05f5df6a41f338fb5f47eafebfc8758c75e451606856b278ccda1c60b26e7bca",
+      "runtime_sha256": "439f6a251efe191d2dc337c27ddeceea341f6e658a75fa8d3d429adde02b8322",
+      "metrics": ["accuracy_kd", "accuracy_inherited"]
+    },
+    "pit": {
+      "records": 100,
+      "raw_sha256": "bdda89841d4105f99ab759e3243e7a2402929ba7a8430dac12a50256aa533bb2",
+      "runtime_sha256": "cd32dd4e403032bf47a7c539d6eccf536c0a4e13cb75029aaf6551e80546ce25",
+      "metrics": ["accuracy_vanilla", "accuracy_kd"]
+    }
+  },
+  "preacceptance": {
+    "seed": 2026,
+    "architectures_per_slice": 5,
+    "proxy_count": 22,
+    "rows_per_slice": 110,
+    "ok_per_slice": 80,
+    "unsupported_per_slice": 30,
+    "failed_per_slice": 0,
+    "defined_correlation_rows_per_slice": 14,
+    "total_correlation_rows_per_slice": 16,
+    "input": "real_cifar100_project_deterministic_batch2_224",
+    "formal_paper_protocol_match": false,
+    "pit_model_fidelity": "reference_topology_pytorch_port",
+    "pit_fixture": {
+      "parameters": 893828,
+      "thop_macs": 159665472,
+      "numerical_parity_verified": false
+    },
+    "sample_manifest_sha256": {
+      "autoformer_main": "e0976c9507e29edc7c90423be0e008cf191186c61a532c157c0f1aed8825cee7",
+      "autoformer_ext": "1b201bd7ac6971d511475e79545552c2311ed9f30c7b42dac1812b3128712fa5",
+      "pit": "e71df8445c162ce74323c121393aef554495417aac7141488f9866feb34f85d5"
+    },
+    "scores_sha256": {
+      "autoformer_main": "8a800306b7e9cf511c3931fd0444dc83bcfe9c6404ae63378b8ccc51bad43a1a",
+      "autoformer_ext": "1ca585b05fcd4c3034de928735aaf753d452aa340cfa1e249445b1652fd64126",
+      "pit": "c17fea2f2b6349c2db858d9c9b28094a7568fe0c68c6f2cf25032b87709e92c4"
+    }
+  },
+  "software_gate": {
+    "tests_collected": 365,
+    "tests_passed": 365,
+    "source_coverage_percent": 87,
+    "cli_coverage_percent": 81,
+    "ruff": "passed",
+    "compileall": "passed",
+    "pip_check": "passed",
+    "panel_check": "passed",
+    "repository_hygiene": "passed",
+    "external_audit_sha256": "ce0e8b25cb1a7d2e7255964a83e128bdbfed16f7f0b24ee223ddf74c4db774fd"
+  },
+  "post_fidelity_index0_smoke": {
+    "slices": ["autoformer_main", "autoformer_ext", "pit"],
+    "architectures_per_slice": 1,
+    "proxies": ["params", "naswot"],
+    "rows_per_slice": 2,
+    "ok_per_slice": 2,
+    "failed_per_slice": 0,
+    "input": "real_cifar100_deterministic_batch2_224",
+    "audit_sha256": "55313b359380288d51967d7e6deaff57f3070d7eae1b50703efafa35ad03750b"
+  },
+  "blockers": [
+    "The public release contains 100 records per file rather than the paper's 500 ground truths per dataset.",
+    "The public release does not identify the paper's disjoint 60/40 proxy-development split.",
+    "The AutoFormer extension provenance is not documented sufficiently to merge it with the main slice.",
+    "Flowers and Chaoyang real-input sweeps have not been executed on this machine."
+  ]
+}

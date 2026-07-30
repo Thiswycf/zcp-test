@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import inspect
 from collections.abc import Callable, Iterable, Mapping
 from pathlib import Path
 from typing import Any
@@ -9,6 +10,18 @@ from zcp_test.data.assets import sha256_file
 from zcp_test.data.jsonl import convert_trusted_torch_records
 
 RecordParser = Callable[[Any], Iterable[tuple[Mapping[str, Any], list[Mapping[str, Any]]]]]
+
+
+def _supports_weights_only_load() -> bool:
+    try:
+        import torch
+    except ImportError:
+        return False
+
+    try:
+        return "weights_only" in inspect.signature(torch.load).parameters
+    except (TypeError, ValueError):
+        return False
 
 
 def convert_trusted_benchmark(
@@ -23,6 +36,12 @@ def convert_trusted_benchmark(
     trusted: bool,
 ) -> Path:
     """Normalize a release-specific trusted torch file into runtime-safe JSONL."""
+    if not trusted:
+        raise PermissionError("Torch/pickle conversion requires explicit trusted=True")
+    if not _supports_weights_only_load():
+        raise RuntimeError(
+            "Trusted benchmark conversion requires torch.load(weights_only=...) support"
+        )
     source_path = Path(source).expanduser().resolve()
     source_hash = sha256_file(source_path)
 

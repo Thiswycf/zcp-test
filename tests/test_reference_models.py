@@ -12,7 +12,7 @@ from zcp_test.models.mobile import (
     load_ofa_proxyless_inherited_weights,
     recalibrate_batch_norm,
 )
-from zcp_test.models.pit import StaticPiT
+from zcp_test.models.pit import PitAttention, StaticPiT
 from zcp_test.spaces import SPACES, load_builtin_spaces
 
 
@@ -272,7 +272,7 @@ def test_pit_reference_model_matches_released_architecture_fields():
     assert model.stage_dimensions == (32, 64, 64)
     assert [len(stage) for stage in model.stages] == [1, 1, 1]
     metadata = model.reference_metadata()
-    assert metadata["model_fidelity"] == "reference_model"
+    assert metadata["model_fidelity"] == "reference_topology_pytorch_port"
     assert metadata["implementation_commit"] == "90ed458"
     assert metadata["architecture"]["num_heads"] == [2, 4, 4]
 
@@ -284,13 +284,40 @@ def test_pit_space_uses_released_three_stage_encoding():
         {"base_dim": 16, "depth": [2, 8, 4], "num_heads": [2, 4, 4], "mlp_ratio": 6}
     )
 
-    assert space.model_fidelity == "reference_model"
+    assert space.model_fidelity == "reference_topology_pytorch_port"
     assert space.sample(5).search_space_id == "pit"
     assert space.mutate(architecture, 7) != architecture
     assert space.crossover(architecture, space.sample(8), 9).search_space_id == "pit"
     model = space.build_model(architecture, 100)
     assert model.image_size == 224
     assert parameter_count(model) == 893_828
+
+
+def test_pit_port_matches_upstream_structural_and_complexity_fixture():
+    from thop import profile
+
+    model = StaticPiT(
+        image_size=224,
+        patch_size=16,
+        patch_stride=8,
+        num_classes=100,
+        base_dim=16,
+        depth=[2, 8, 4],
+        num_heads=[2, 4, 4],
+        mlp_ratio=6,
+        drop_path_rate=0.1,
+    ).eval()
+
+    blocks = [block for stage in model.stages for block in stage]
+    assert all(isinstance(block.attention, PitAttention) for block in blocks)
+    assert [block.drop_path.probability for block in blocks] == pytest.approx(
+        [0.1 * index / 14 for index in range(14)]
+    )
+    assert {module.eps for module in model.modules() if isinstance(module, torch.nn.LayerNorm)} == {
+        1e-6
+    }
+    macs, _ = profile(model, inputs=(torch.zeros(1, 3, 224, 224),), verbose=False)
+    assert int(macs) == 159_665_472
 
 
 @pytest.mark.parametrize(

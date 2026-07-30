@@ -34,20 +34,26 @@
           <label class="refresh-interval" for="refresh-interval">
             <span>间隔</span>
             <select id="refresh-interval" aria-describedby="refresh-status refresh-countdown">
+              <option value="5">5 秒</option>
               <option value="15">15 秒</option>
               <option value="30" selected>30 秒</option>
               <option value="60">1 分钟</option>
-              <option value="300">5 分钟</option>
             </select>
           </label>
         </div>
         <div class="refresh-meta">
           <span id="refresh-status" class="muted" role="status" aria-live="polite" aria-atomic="true">自动刷新已开启</span>
           <span aria-hidden="true">·</span>
-          <span id="refresh-success" class="muted">上次检查时间：页面载入</span>
+          <span id="refresh-success" class="muted">最后成功刷新：页面载入</span>
+          <span aria-hidden="true">·</span>
+          <span id="refresh-checked" class="muted">上次检查：页面载入</span>
           <span aria-hidden="true">·</span>
           <span id="refresh-countdown" class="muted">30 秒后检查</span>
         </div>
+        <p id="refresh-file-hint" class="refresh-file-hint" role="note" hidden>
+          当前通过 <code>file://</code> 打开；若浏览器阻止动态重载，请在项目根目录运行
+          <code>python -m http.server 8768 --directory panel</code>，再访问 <code>http://127.0.0.1:8768/</code>。
+        </p>
       </div>
       <button id="theme-toggle" class="button secondary" type="button" aria-pressed="false">
         <span aria-hidden="true">◐</span>

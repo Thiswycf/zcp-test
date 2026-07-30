@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 01:50 CST",
+  updatedAt: "2026-07-31 02:55 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "最终全仓 gate 已复跑为 342 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。339 仅保留为 TransNAS preflight 后的历史中间口径。",
+      detail: "当前全仓 gate 已复跑为 365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 均保留为历史门禁口径。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:50"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 02:55"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -69,9 +69,9 @@ window.ZCP_PANEL_DATA = {
       content: "核查标准答案、surrogate noise、ViT slice 与 epoch/seed 指标协议。",
       purpose: "保证离线标签和 surrogate 输出不会被误标为同一标准答案。",
       estimate: "3–6 小时", startedAt: "2026-07-30 13:00", finishedAt: "2026-07-30 16:28", status: "已完成", progress: 100,
-      detail: "NB101、NB301 surrogate、ViT main/extension/PiT 的真实 query 与构模 proxy 均通过；extension 仅含 KD/inherited，vanilla 查询按设计失败。NB301 的 1,000-candidate locked deterministic protocol 已完成；fidelity 仍严格标为 deterministic_on_locked_runtime，不外推到其他 xgboost 或 ensemble 版本。",
+      detail: "NB101 与 NB301 指标协议已复核；NB301 的 1,000-candidate locked deterministic protocol 已完成，fidelity 仍严格标为 deterministic_on_locked_runtime。ViT 三个公开切片的 bootstrap/runtime SHA 已验证；catalog 在打开 benchmark 前强制校验 SHA、version 与 protocol，ViT source SHA 固定，JSONL 重复 canonical ID fail-closed。公开切片仅属于 partial_release_slice_preacceptance，不能替代未公开的完整 500 AutoFormer + 500 PiT 身份与无重叠 60/40 划分。",
       acceptance: ["slice 身份可追溯", "surrogate noise 明确记录", "metric seed/epoch 不静默降级"],
-      evidence: ["EV-REAL-BENCHMARKS", "EV-NB101-H1-PREPARATION", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-LOCKED-COMPLETE"], risks: ["R-NB301-RUNTIME-COMPAT"], updatedAt: "2026-07-31 01:02"
+      evidence: ["EV-REAL-BENCHMARKS", "EV-NB101-H1-PREPARATION", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-LOCKED-COMPLETE", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY"], risks: ["R-NB301-RUNTIME-COMPAT", "R-VIT-H1-IDENTITIES"], updatedAt: "2026-07-31 02:55"
     },
     {
       id: "C1", phase: "Reference", priority: "P0", title: "AutoFormer 静态 scratch reference",
@@ -104,10 +104,10 @@ window.ZCP_PANEL_DATA = {
       id: "C4", phase: "Reference", priority: "P3", title: "PiT 与可选 OFA-MBV3",
       content: "实现 ViT-Bench PiT reference，并评估含 SE/h-swish 的 OFA-MBV3 静态网络。",
       purpose: "补足条件性空间，同时控制非必要实现范围。",
-      estimate: "8–16 小时", startedAt: "2026-07-30 15:42", finishedAt: "—", status: "进行中", progress: 85,
-      detail: "PiT 已完成真实 GT load→build→224 forward，并与 Auto-Prox 90ed458 参数量 893,828 和参数 shape multiset 对齐。OFA-MBV3 已按官方五阶段/20-block 编码实现 SE、h-swish、静态子网和 BN recalibration，官方对照参数量 3,410,792 且 shape multiset 一致。PiT 固定 benchmark 候选无需重复完整训练；两者仍缺 MAC golden。OFA-Proxyless checkpoint 与 active-weight export 已在 C3 完成，OFA-MBV3 inherited 路径仍未单独验收。",
+      estimate: "8–16 小时", startedAt: "2026-07-30 15:42", finishedAt: "—", status: "进行中", progress: 90,
+      detail: "PiT 已对齐 QKV、LayerNorm epsilon 与 drop-path，并增加参数量/MAC fixture；真实 GT load→build→224 forward 通过。由于没有官方 checkpoint 或逐层数值对照，fidelity 明确降为 reference_topology_pytorch_port，不标为完整 reference。OFA-MBV3 已按官方五阶段/20-block 编码实现 SE、h-swish、静态子网和 BN recalibration，官方参数量与 shape multiset 对齐；其 inherited 路径仍未单独验收。",
       acceptance: ["三阶段字段进入 PiT 模型", "真实 gt_pit load→build→224 forward", "PiT 官方参数 fixture", "OFA-MBV3 官方静态结构与 BN recalibration", "MAC fixture 与 inherited 边界"],
-      evidence: ["EV-PIT-REFERENCE", "EV-MBV3-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-PIT", "R-OFA"], updatedAt: "2026-07-30 16:54"
+      evidence: ["EV-PIT-REFERENCE", "EV-PIT-TOPOLOGY-PORT", "EV-MBV3-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-PIT", "R-OFA"], updatedAt: "2026-07-31 02:55"
     },
     {
       id: "D1", phase: "训练", priority: "P0", title: "拆分 DARTS original 与 TE-NAS",
@@ -186,18 +186,18 @@ window.ZCP_PANEL_DATA = {
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
-      detail: "看板以带唯一 cache-busting 参数的动态 data.js 脚本重载实现无需 F5 的更新，不依赖 fetch；HTML 同时声明 no-cache/no-store 供静态 HTTP 托管使用，file:// 仍由初始 data.js 提供可读回退。提供可见立即刷新、默认自动刷新开关、15/30/60/300 秒间隔、数据更新时间、每次成功或失败后的上次检查时间及下次刷新倒计时；隐藏页暂停，恢复可见时立即检查。初始化 guard、单倒计时器和共享 in-flight Promise 防止重复事件、计时器与请求；失败时恢复旧 data 并显示非阻断错误。",
-      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "默认自动刷新与 15/30/60/300 秒间隔", "数据更新时间、上次检查时间与下次刷新倒计时", "visibility 隐藏暂停且恢复立即检查", "cache-busting data.js 与 HTML no-store 提示", "file:// 初始 data.js 可读回退", "初始化、计时器和并发请求去重", "失败保留旧数据并显示非阻断错误", "aria-live/aria-atomic/aria-busy 可访问状态", "纯静态 HTTP 托管兼容", "Node 语法、数据契约与 diff 检查通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT"], risks: [], updatedAt: "2026-07-31 01:12"
+      detail: "看板无需 F5：每次刷新均通过带唯一 cache-busting 参数重新加载 data.js，而不是只重绘旧内存。顶部提供可见立即刷新、默认开启的自动刷新开关和 5/15/30/60 秒间隔；显示数据更新时间、最后成功刷新、上次检查、刷新中状态与下次倒计时。页面隐藏时暂停，恢复可见立即刷新；初始化 guard、单计时器和共享 Promise 防止重复事件与并发重入。刷新保留筛选和滚动位置；失败保留当前内容，显示非阻断错误并提示立即重试。file:// 保留初始可读回退，并明确提示使用 panel README 中的静态服务器命令。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "默认自动刷新与 5/15/30/60 秒间隔", "每次重新加载 cache-busted data.js", "数据更新时间、最后成功刷新、检查时间与倒计时", "刷新中 aria-busy 状态", "visibility 隐藏暂停且恢复立即检查", "保留筛选与滚动位置", "初始化、计时器和并发请求去重", "失败保留旧数据并提示重试", "file:// 限制与静态服务器命令有文档", "纯静态 HTTP 托管兼容", "Node 语法、数据契约与 diff 检查通过"],
+      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT", "EV-PANEL-LIVE-REFRESH-V2"], risks: [], updatedAt: "2026-07-31 02:55"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "最终全仓门禁已复跑为 342 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。339 仅为历史中间 gate。",
+      detail: "当前全仓门禁已复跑为 365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 均作为历史 gate 保留。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 01:50"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 02:55"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -212,10 +212,10 @@ window.ZCP_PANEL_DATA = {
       id: "H1", phase: "高成本", priority: "P1", title: "至少 1% Benchmark 相关性",
       content: "在真实标准答案上执行 22 ZCP 分层相关性实验。",
       purpose: "验证代理排序而不仅是执行成功。",
-      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 88,
-      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid、NB101 与 NB301 当前既定 scoped 协议完成，H1 整体仍进行中。TransNAS 标准答案、转换、有限 validation target、1% manifest 与安全 contract provider 已完成 preflight；但论文 24-building/120K split 及最终 config/transform 未公开，Taskonomy 受独立 EULA 且本机没有数据，因此正式 TransNAS H1 仍 blocked。任意其他 Taskonomy split 也只能标 contract partial，random/CIFAR 输入不可替代。ViT 仍待。",
+      estimate: "12–24 小时", startedAt: "2026-07-30 18:55", finishedAt: "—", status: "进行中", progress: 90,
+      detail: "NB201、NATS-TSS、NATS-SSS/CIFAR10-valid、NB101 与 NB301 当前既定 scoped 协议完成，H1 整体仍进行中。ViT 三个公开切片已完成 bootstrap/runtime SHA 验证与 minimum-5×22 preacceptance：每片 110 行，其中 80 ok、30 unsupported、0 failed；该结果仅标 partial_release_slice_preacceptance。论文完整 500 AutoFormer + 500 PiT 架构身份及无重叠 60/40 development/test identity 未公开，因此正式 ViT H1 未完成。TransNAS 仍受未公开论文 split/config/transform 与 Taskonomy EULA/本机无数据阻断。",
       acceptance: ["真实标签不少于 1%", "全部代理至少单 seed", "核心代理 3 seed", "预算记录完整"],
-      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-CORE-3SEED-PARTIAL", "EV-NB301-SEED2027-SHARD2-RERUN", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-LOCKED-COMPLETE", "EV-NB301-STANDARD-ANALYZE", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-CONTRACT-PROVIDER", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-FULL-GATE-309", "EV-FULL-GATE-342"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW", "R-NB301-RUNTIME-COMPAT", "R-DIRECTION-MIGRATION", "R-TRANSNAS"], updatedAt: "2026-07-31 01:50"
+      evidence: ["EV-NB201-1PCT-SUMMARY", "EV-NB201-1PCT-REPORT", "EV-NB201-CORE-3SEED-SUMMARY", "EV-NB201-CORE-3SEED-REPORT", "EV-NATS-TSS-1PCT-SUMMARY", "EV-NATS-TSS-1PCT-REPORT", "EV-NATS-SSS-1PCT-SUMMARY", "EV-NATS-SSS-1PCT-REPORT", "EV-SHARD-GROUPING-FIX", "EV-NB101-H1-PREPARATION", "EV-NB101-FORMAL-SWEEP-START", "EV-GPU-LOCK-DELAY-FIX", "EV-NB101-SYNFLOW-V2-REGRESSION", "EV-NB101-1PCT-COMPLETE", "EV-NB301-SAMPLE-SINGLE-SEED", "EV-NB301-CORE-3SEED-PARTIAL", "EV-NB301-SEED2027-SHARD2-RERUN", "EV-NB301-LOCKED-RUNTIME", "EV-NB301-LOCKED-COMPLETE", "EV-NB301-STANDARD-ANALYZE", "EV-TRANSNAS-PREFLIGHT", "EV-TRANSNAS-CONTRACT-PROVIDER", "EV-TRANSNAS-SCIENTIFIC-BLOCKER", "EV-VIT-SLICE-PREACCEPTANCE", "EV-VIT-CATALOG-INTEGRITY", "EV-PIT-TOPOLOGY-PORT", "EV-DIRECTION-HISTORY-REBUILT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365"], risks: ["R-BUDGET", "R-PROXY", "R-GPU-LOCK-DELAY", "R-NB101-SYNFLOW-OVERFLOW", "R-NB301-RUNTIME-COMPAT", "R-DIRECTION-MIGRATION", "R-TRANSNAS", "R-VIT-H1-IDENTITIES"], updatedAt: "2026-07-31 02:55"
     },
     {
       id: "H2", phase: "高成本", priority: "P1", title: "全数据 × 1% epoch",
@@ -257,13 +257,19 @@ window.ZCP_PANEL_DATA = {
     { id: "R-DIRECTION-MIGRATION", severity: "高", status: "关闭", title: "方向修复已缓解并闭环于当前范围", description: "Params/FLOPs 历史证据已从原始 scores 重算，v2 reader 只读迁移 legacy version/direction，raw 不改写；混合 shard bundle 回归和 309-test 最终 gate 均通过。", mitigation: "保留该历史风险与旧 evidence；未来 schema 或聚合逻辑变更时继续执行只读迁移、混合 shard 和方向回归。", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
     { id: "R-NB301-RUNTIME-COMPAT", severity: "中", status: "监控", title: "NB301 surrogate 仅在锁定运行时声明确定性", description: "xgboost 2.1.4 / nasbench301 0.3 的重复预测一致，但旧二进制 ensemble 发出跨版本兼容警告。", mitigation: "结果 fidelity 仅标 deterministic_on_locked_runtime，并记录依赖版本；不得宣称跨 xgboost 或 ensemble 版本确定性。", taskIds: ["B3", "H1"] },
     { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 81%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
-    { id: "R-PIT", severity: "中", status: "开放", title: "PiT MAC 对照尚未完成", description: "真实 GT 的 224 forward、官方参数量与参数 shape multiset 已对齐；MAC golden 尚缺。PiT 是固定 benchmark 候选，不要求重复完整训练。", mitigation: "补充同一官方 commit 的 MAC fixture 后关闭结构验收；vanilla/KD 指标继续分协议查询。", taskIds: ["C4"] },
+    { id: "R-PIT", severity: "中", status: "监控", title: "PiT 仅达到 topology PyTorch port 保真度", description: "QKV、LayerNorm epsilon、drop-path 及参数/MAC fixture 已对齐，但缺少官方 checkpoint 和逐层数值对照，不能标为完整 reference_model。", mitigation: "固定 fidelity=reference_topology_pytorch_port；若后续获得可信 checkpoint 或逐层数值基准，再执行数值一致性验收并评估升级。", taskIds: ["C4", "H1"] },
+    { id: "R-VIT-H1-IDENTITIES", severity: "高", status: "受阻", title: "ViT 正式 H1 缺少完整候选身份与 60/40 划分", description: "公开三切片可做 minimum-5×22 preacceptance，但论文完整 500 AutoFormer + 500 PiT 架构身份及无重叠 60/40 development/test identity 未公开。", mitigation: "公开切片只标 partial_release_slice_preacceptance；在可信完整 identity 与 split 发布前，不将其写成正式 1% H1 或无泄漏论文协议复现。", taskIds: ["B3", "H1"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
   ],
   evidence: [
-    { id: "EV-FULL-GATE-342", time: "2026-07-31 01:50", title: "TransNAS preflight 最终全仓门禁", result: "342 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。该证据取代 339 作为当前门禁口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B2", "E2", "G1", "H1"] },
+    { id: "EV-FULL-GATE-365", time: "2026-07-31 02:55", title: "ViT 阶段当前全仓门禁", result: "365 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。342 与 339 保留为历史门禁，不再代表当前口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B3", "C4", "G1", "H1"] },
+    { id: "EV-VIT-SLICE-PREACCEPTANCE", time: "2026-07-31 02:55", title: "ViT 三公开切片 minimum-5×22 preacceptance", result: "三个公开切片均完成 bootstrap/runtime SHA 验证；每片 5 架构×22 ZCP=110 行，结果均为 80 ok、30 unsupported、0 failed。该结果严格标为 partial_release_slice_preacceptance，不等同完整 ViT H1。", command: "bootstrap and runtime SHA verification; minimum-5 x 22 ZCP sweep for each public ViT slice", taskIds: ["B3", "H1"] },
+    { id: "EV-VIT-CATALOG-INTEGRITY", time: "2026-07-31 02:55", title: "ViT catalog 与 canonical ID 完整性门禁", result: "catalog 在打开 benchmark 前校验 SHA、version 与 protocol；ViT source SHA 固定；JSONL 中重复 canonical architecture ID 明确拒绝，不静默覆盖。", command: "catalog pre-open validation and duplicate canonical-ID fail-closed tests", taskIds: ["B3", "H1"] },
+    { id: "EV-PIT-TOPOLOGY-PORT", time: "2026-07-31 02:55", title: "PiT topology PyTorch port 边界锁定", result: "QKV、LayerNorm epsilon 与 drop-path 已对齐，参数量和 MAC fixture 已增加；由于缺少 checkpoint 与逐层数值对照，模型 fidelity 固定为 reference_topology_pytorch_port，而非完整 reference_model。", command: "PiT topology alignment; parameter/MAC fixture tests; fidelity metadata audit", taskIds: ["C4", "H1"] },
+    { id: "EV-PANEL-LIVE-REFRESH-V2", time: "2026-07-31 02:29", title: "看板无 F5 实时刷新 v2 验收", result: "顶部立即刷新可见；默认 30 秒自动刷新并支持 5/15/30/60 秒、暂停和可见性恢复即查。每次动态加载唯一 cache-busted data.js；成功时间、检查时间、刷新中状态和倒计时独立显示。失败保留当前数据并提示重试；筛选与滚动状态保留；初始化、计时器和请求均去重。file:// 限制及静态服务器命令已写入 panel README。", command: "node --check panel/data.js; node --check panel/app.js; node --check panel/check-data.js; node panel/check-data.js; HTTP cache-busting smoke; git diff --check -- panel", taskIds: ["F4"] },
+    { id: "EV-FULL-GATE-342", time: "2026-07-31 01:50", title: "历史门禁 342", result: "342 tests passed、第一方 source coverage 87%、CLI coverage 81%；Ruff、compileall、pip check、panel 与 diff 均通过。该 TransNAS preflight 门禁已由 365-test ViT 阶段门禁取代，仅保留审计时间线。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B2", "E2", "G1", "H1"] },
     { id: "EV-FULL-GATE-339", time: "2026-07-31 01:43", title: "历史中间 gate 339", result: "339 tests passed、第一方 source coverage 87%、CLI coverage 81%；该 TransNAS preflight 中间口径随后由最终 342-test gate 取代，仅保留审计时间线。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "B2", "E2", "G1", "H1"] },
     { id: "EV-TRANSNAS-SCIENTIFIC-BLOCKER", time: "2026-07-31 01:43", title: "TransNAS 正式 H1 科学边界", result: "论文 24-building/120K split 与最终 config/transform 未公开，Taskonomy 数据受独立 EULA 且本机没有。任意其他 Taskonomy split 只能标 contract partial，random/CIFAR 不可替代，因此正式 H1 保持 blocked。", command: "docs/evidence/TRANSNAS_PREFLIGHT_CN.md; docs/evidence/transnas_preflight_summary.json", taskIds: ["B2", "E2", "E3", "F2", "H1"] },
     { id: "EV-TRANSNAS-CONTRACT-PROVIDER", time: "2026-07-31 01:43", title: "Taskonomy 安全 contract provider 完成", result: "Taskonomy 安全 contract provider、manifest、final5k masks 与 Jigsaw 已实现，正式 input size 为 256/64；CLI neg_loss direction、micro/macro manifest 校验和 score coverage 表已修复。该证据只证明契约，不证明论文数据协议复现。", command: "docs/evidence/TRANSNAS_PREFLIGHT_CN.md; docs/evidence/transnas_preflight_summary.json", taskIds: ["B2", "E2", "H1"] },
