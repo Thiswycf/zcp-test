@@ -46,7 +46,7 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 | Fidelity | 空间 | 验收后果 |
 |---|---|---|
 | `reference_topology_pytorch_port` | `nb101_dag`、`nb201_topology`、`nats_size` | 拓扑由 port 表示，ZCP 不自动等同 benchmark 原训练实现 |
-| `reference_topology_pytorch_port` | `transnas_micro`、`transnas_macro` | 官方 encoder topology port；七个 Taskonomy task head 尚未完整实现 |
+| `reference_topology_pytorch_port` | `transnas_micro`、`transnas_macro` | 官方 encoder 与七个 task head 的 PyTorch port；Taskonomy input/label provider 尚未接入 |
 | `reference_model` | `darts`、`autoformer`、`pit`、`zennas_plainnet_mbv2`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
 | `proxy_approximation` | legacy toy | 只适合显式 opt-in 的方法学 smoke，不得参与正式训练或 reference 结论 |
 
@@ -68,6 +68,10 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 - bootstrap 和 index-0 smoke 不证明全记录、全部 budget/split 或跨机器覆盖。
 - `--start/--count` 没有已验收 launcher/merge CLI；多文件分析可用，端到端多 GPU 尚未验收。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
+- TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
+  与完整 parameter-shape multiset 在七个任务均一致。真实 micro index-0 的七个 task
+  `build→params` 全部成功；缺 Taskonomy label/provider 的标签依赖代理明确为 `unsupported`。这仍不
+  证明训练数值、真实 task-input ZCP 或官方 latency/FLOPs 复现。
 - PiT 已对发布切片的三阶段规格完成 `load → build → forward`；同一规格与 Auto-Prox
   `90ed458` 上游均为 893,828 参数且参数 shape multiset 一致。MAC golden、正式训练和 KD 复现
   仍未完成；vanilla/KD 标准答案只作为独立指标查询。

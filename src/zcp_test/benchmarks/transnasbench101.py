@@ -41,6 +41,7 @@ class TransNasBench101Adapter(JsonlBenchmarkAdapter):
             **super().metadata(),
             "space": self.space,
             "model_fidelity": "reference_topology_pytorch_port",
-            "model_protocol": "official-encoder-topology-with-proxy-classification-head",
+            "model_protocol": "official-encoder-and-task-head-pytorch-port",
             "implementation_source": "https://github.com/yawen-d/TransNASBench",
+            "implementation_commit": "6d4231b1eb04e95750a5b2b6cf391db770bc25d6",
         }

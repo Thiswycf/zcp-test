@@ -93,7 +93,10 @@ def test_transnas_micro_and_macro_are_explicit(tmp_path):
     assert adapter.query_metrics(architecture, MetricSpec("class_object", "test", "test_top1", 24)) == {"test_top1": 45.0}
     assert adapter.build_model(architecture, "class_object")(
         __import__("torch").randn(2, 3, 32, 32)
-    ).shape == (2, 10)
+    ).shape == (2, 75)
+    metadata = adapter.metadata()
+    assert metadata["model_protocol"] == "official-encoder-and-task-head-pytorch-port"
+    assert metadata["implementation_commit"] == "6d4231b1eb04e95750a5b2b6cf391db770bc25d6"
     with pytest.raises(ValueError, match="search_space_id"):
         TransNasBench101Adapter(str(path), space="macro")
 

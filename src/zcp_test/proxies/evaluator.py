@@ -9,7 +9,7 @@ from zcp_test.proxies.isolation import isolated_model
 from zcp_test.types import ProxyOutput, RecordStatus, ScoreResult
 
 
-def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = None, loss_fn: Any = None, model_family: str = "cnn") -> ScoreResult:
+def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = None, loss_fn: Any = None, model_family: str = "cnn", unsupported_reason: str | None = None) -> ScoreResult:
     load_builtin_proxies()
     proxy = PROXIES.create(proxy_id)
     result_metadata = {
@@ -19,6 +19,12 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         "source": proxy.capability.source,
         "alias_of": proxy.capability.alias_of,
     }
+    if unsupported_reason is not None:
+        return ScoreResult(
+            status=RecordStatus.UNSUPPORTED,
+            error_message=unsupported_reason,
+            **result_metadata,
+        )
     if model_family not in proxy.capability.model_families:
         return ScoreResult(
             status=RecordStatus.UNSUPPORTED,

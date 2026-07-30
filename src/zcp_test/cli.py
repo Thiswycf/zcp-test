@@ -168,6 +168,26 @@ def _prepare_bn_recalibration(args: argparse.Namespace, device: Any, weight_load
     )
 
 
+def _transnas_unsupported_reason(
+    benchmark_id: str | None, task: str, proxy_id: str
+) -> str | None:
+    if benchmark_id != "transnasbench101":
+        return None
+    load_builtin_proxies()
+    capability = PROXIES.create(proxy_id).capability
+    if capability.requires_labels and task not in {"class_scene", "class_object"}:
+        return (
+            f"{proxy_id} requires labels/loss, but the {task} Taskonomy label protocol "
+            "is not implemented"
+        )
+    if task == "jigsaw" and capability.requires_data:
+        return (
+            f"{proxy_id} requires the TransNAS jigsaw [batch,9,3,64,64] input protocol, "
+            "which is not implemented"
+        )
+    return None
+
+
 def _resolve_data_root(args: argparse.Namespace, dataset: str) -> str | None:
     if getattr(args, "data_root", None):
         return str(args.data_root)
@@ -899,6 +919,11 @@ def command_evaluate(args: argparse.Namespace) -> None:
                         batch.labels,
                         loss_fn,
                         space.model_family,
+                        unsupported_reason=_transnas_unsupported_reason(
+                            adapter.benchmark_id if adapter else None,
+                            args.dataset,
+                            proxy_id,
+                        ),
                     )
                     calls += 1
                     succeeded += result.status.value == "ok"

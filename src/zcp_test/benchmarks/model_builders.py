@@ -49,6 +49,12 @@ def registered_space_model(architecture: Architecture, dataset: str) -> Any:
     raise NotImplementedError(f"No model factory for {architecture.search_space_id}")
 
 
+def transnas_task_model(architecture: Architecture, dataset: str) -> Any:
+    from zcp_test.models.transnas import TransNasTaskModel
+
+    return TransNasTaskModel(str(architecture.spec["architecture"]), dataset)
+
+
 def model_builder(architecture: Architecture, dataset: str) -> Any:
     if architecture.search_space_id == "nb201_topology":
         return nb201_model(architecture, dataset)
@@ -56,4 +62,6 @@ def model_builder(architecture: Architecture, dataset: str) -> Any:
         return nb101_model(architecture, dataset)
     if architecture.search_space_id == "nats_size":
         return nats_size_model(architecture, dataset)
+    if architecture.search_space_id in {"transnas_micro", "transnas_macro"}:
+        return transnas_task_model(architecture, dataset)
     return registered_space_model(architecture, dataset)

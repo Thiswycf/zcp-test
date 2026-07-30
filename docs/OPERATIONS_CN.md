@@ -164,3 +164,34 @@ artifact，也可直接给出 spec；spec 必须与配置中的 space 匹配：
 追溯。
 正式训练必须提供真实 `--data-root` 或 dataset catalog asset；恢复 checkpoint 时必须使用兼容的
 architecture/config，并在 CLI 显式传入 `--trusted`。
+
+## TransNAS-Bench-101 七任务模型与输入契约
+
+TransNAS 的 `dataset` 参数实际选择 Taskonomy 任务，不能再统一解释为分类数据集。当前官方
+PyTorch port 对应 commit `6d4231b`：
+
+| task | model output | 主真值方向 | 当前 ZCP 输入边界 |
+|---|---|---|---|
+| `class_scene` | `[B,47]` | top-1/top-5 最大化 | 4D 图像；真实 Taskonomy 数据需另行注册 |
+| `class_object` | `[B,75]` | top-1/top-5 最大化 | 同上 |
+| `room_layout` | `[B,9]` | loss 最小化 / neg-loss 最大化 | 回归标签 provider 尚未接入 |
+| `jigsaw` | `[B,1000]` | top-1/top-5 最大化 | 必须是 `[B,9,3,64,64]`；provider 尚未接入 |
+| `segmentsemantic` | `[B,17,256,256]` | mIoU/acc 最大化 | dense label provider 尚未接入 |
+| `normal` | `[B,3,256,256]` | SSIM 最大化 / L1 最小化 | dense label provider 尚未接入 |
+| `autoencoder` | `[B,3,256,256]` | SSIM 最大化 / L1 最小化 | dense target provider 尚未接入 |
+
+真实标准答案仍通过 adapter 按 task/split/metric/budget 查询。只验证构模和参数代理可运行：
+
+```bash
+zcp-test evaluate --benchmark transnasbench101 \
+  --benchmark-path /path/to/data/transnasbench101/converted/transnas_micro.jsonl \
+  --transnas-space micro --dataset segmentsemantic --proxies params --count 1 \
+  --input-source random --input-size 256 --batch-size 1 --device cpu \
+  --output /path/to/runs/evaluate
+```
+
+七个 head 的官方参数量与参数 shape multiset 已对照一致，但这不等于任务训练数值复现。对
+`room_layout/jigsaw/segmentsemantic/normal/autoencoder` 使用 `gradnorm/zico/te_nas/az_nas` 等标签依赖
+代理时，当前 evaluator 返回 `unsupported` 和缺失的 task input/label 协议，不伪造分类标签，也不
+静默改用随机目标。label-free proxy 若显式使用 random 输入，报告必须保留 input source/size；它不能
+与未来真实 Taskonomy 输入的结果直接合并。

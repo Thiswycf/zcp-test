@@ -225,3 +225,17 @@ count and SHA-256 fingerprint; missing data fails rather than falling back to ra
 current `zcp-test-deterministic-v1` resize/center-crop protocol explicitly records
 `official_protocol_match=false`. It supports reproducible ZCP comparisons but is not a claim of
 published inherited accuracy until numerically compared with the official OFA data provider.
+
+## TransNAS-Bench-101 task model contracts
+
+For TransNAS, `dataset` selects a Taskonomy task rather than a generic classification dataset. The
+current PyTorch port follows upstream commit `6d4231b`: scene/object classification produce 47/75
+logits, room layout produces 9 regression values, jigsaw consumes `[B,9,3,64,64]` and produces 1000
+logits, semantic segmentation produces `[B,17,256,256]`, and normal/autoencoder produce
+`[B,3,256,256]`. Official parameter counts and complete parameter-shape multisets match for all seven
+heads.
+
+Ground truth remains task/split/metric/budget-specific. Until Taskonomy input and label providers are
+registered, `params` can validate model construction, while label-dependent proxies on regression,
+jigsaw and dense tasks return `unsupported` with an explicit protocol reason. Random-input,
+label-free ZCP runs remain labelled ablations and must not be pooled with future real-task input.

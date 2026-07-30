@@ -52,6 +52,19 @@ def test_proxy_state_isolation_removes_injected_buffers():
     assert set(model.state_dict()) == before
 
 
+def test_proxy_can_be_explicitly_marked_unsupported_by_input_contract():
+    model = torch.nn.Linear(2, 2)
+
+    result = evaluate_proxy(
+        "params",
+        model,
+        unsupported_reason="task-specific labels are unavailable",
+    )
+
+    assert result.status.value == "unsupported"
+    assert result.error_message == "task-specific labels are unavailable"
+
+
 def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
     load_builtin_spaces()
     load_builtin_proxies()

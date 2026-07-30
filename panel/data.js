@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-30 17:05 CST",
+  updatedAt: "2026-07-30 17:19 CST",
   project: {
     name: "zcp-test",
     purpose: "跟踪 reference 模型、Benchmark、ZCP、训练、文档与高成本验收，确保每项结论都能追溯到风险和可复现证据。"
@@ -24,9 +24,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "真实 ImageNet BN smoke 合入后的最新完整 gate 为 223 passed、第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "TransNAS 七任务 head 合入后的最新完整 gate 为 231 passed、第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-OFA-INHERITED", "EV-OFA-BN-REAL"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 17:05"
+      evidence: ["EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 17:19"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -59,10 +59,10 @@ window.ZCP_PANEL_DATA = {
       id: "B2", phase: "Benchmark", priority: "P1", title: "TransNAS 端到端构模契约",
       content: "打通真实 JSONL 的 load、query、build 和 proxy evaluate，并明确 task-head 边界。",
       purpose: "修复转换规格存在但无法构模的验收缺口。",
-      estimate: "4–8 小时", startedAt: "2026-07-30 12:20", finishedAt: "—", status: "进行中", progress: 65,
-      detail: "单架构 CPU smoke 已通过；七个 Taskonomy 官方 task heads 未实现。",
-      acceptance: ["真实 JSONL 端到端通过", "unsupported task head 明确标记", "不误称完整官方网络"],
-      evidence: ["EV-TRANSNAS"], risks: ["R-TRANSNAS"], updatedAt: "2026-07-30 13:34"
+      estimate: "4–8 小时", startedAt: "2026-07-30 12:20", finishedAt: "2026-07-30 17:19", status: "已完成", progress: 100,
+      detail: "七个 Taskonomy task head 已按官方 commit 6d4231b 分离；官方参数量与完整 parameter-shape multiset 对照一致，真实 micro index-0 七任务 build→params 全部成功。缺失 task input/label provider 的标签依赖代理明确为 unsupported。",
+      acceptance: ["真实 JSONL 端到端通过", "七任务输出 shape 独立", "官方 params/shape fixture 对照", "缺输入协议时 unsupported", "不误称训练数值复现"],
+      evidence: ["EV-TRANSNAS", "EV-TRANSNAS-HEADS", "EV-FULL-GATE-231"], risks: ["R-TRANSNAS"], updatedAt: "2026-07-30 17:19"
     },
     {
       id: "B3", phase: "Benchmark", priority: "P1", title: "NB101、NB301 与 ViT 指标语义复核",
@@ -195,9 +195,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-30 15:42", status: "已完成", progress: 100,
-      detail: "当前完整 gate 为 223 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
+      detail: "当前完整 gate 为 231 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 通过。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 17:05"
+      evidence: ["EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231"], risks: ["R-CONCURRENCY"], updatedAt: "2026-07-30 17:19"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -248,7 +248,7 @@ window.ZCP_PANEL_DATA = {
   risks: [
     { id: "R-CONCURRENCY", severity: "高", status: "开放", title: "并发工作区冲突", description: "多个工作者正在修改仓库，状态和测试基线可能快速变化。", mitigation: "只修改授权路径；最终 gate 前重新读取 git status，不回退他人改动。", taskIds: ["A1", "F1", "G1", "I1"] },
     { id: "R-NATIVE", severity: "高", status: "关闭", title: "真实 Benchmark index-0 smoke 已完成", description: "十个 benchmark/切片的真实 query、构模与 params proxy 均通过；external catalog 资产仍不等于 data root 自包含。", mitigation: "跨机器继续执行 bootstrap/checklist；后续 1% 相关性必须使用真实 dataset input。", taskIds: ["B1", "B3", "G2"] },
-    { id: "R-TRANSNAS", severity: "中", status: "开放", title: "TransNAS task heads 不完整", description: "当前能力不能代表七个 Taskonomy 任务的完整官方网络。", mitigation: "明确 encoder/static 边界；未实现的 task head 标为 unsupported。", taskIds: ["B2"] },
+    { id: "R-TRANSNAS", severity: "中", status: "开放", title: "TransNAS Taskonomy input/label provider 未接入", description: "七任务 encoder/head 结构已对照官方，但真实 task input、dense/regression label、训练数值、latency/FLOPs 尚未复现。", mitigation: "后续接入受许可的 Taskonomy 数据与 task-specific loss；在此之前标签依赖代理返回 unsupported，random-input 结果只作消融。", taskIds: ["B2", "H1"] },
     { id: "R-AUTOFORMER", severity: "高", status: "开放", title: "AutoFormer 尚无官方 fixture 验收", description: "静态字段敏感性已通过，但还未与发布配置参数量、FLOPs 和精度对照。", mitigation: "加入官方 Tiny/Small/Base fixture；inherited 路径保持 false。", taskIds: ["C1", "H2"] },
     { id: "R-MBV2-FIXTURE", severity: "高", status: "关闭", title: "OFA-Proxyless MBV2 positional/params fixture 已验收", description: "官方 commit f03b267 的 21 dynamic-block positional encoding、width1.0/1.3 参数量及 width1.0 参数 shape multiset 已完成对照。", mitigation: "保留固定 commit、registered space 边界和回归测试；MAC 与训练边界由独立风险继续跟踪。", taskIds: ["C2"] },
     { id: "R-MBV2-REMAINING", severity: "高", status: "开放", title: "OFA-Proxyless MBV2 MAC 与正式训练未验收", description: "params/shape fixture 已通过，但官方 MAC golden 尚缺，正式训练协议也未完成验收；不得由静态 reference 结论外推训练精度或成本。", mitigation: "补充同一官方 commit 的 MAC fixture；关闭训练 blocker 并完成正式 profile 验收前，仅报告 static scratch reference。", taskIds: ["C2", "H2"] },
@@ -259,6 +259,8 @@ window.ZCP_PANEL_DATA = {
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算", description: "1% benchmark 与双重 1% 训练可能超出 GPU 或 48 小时上限。", mitigation: "最多 4 GPU；24 小时复核；48 小时硬停止并保留部分结论。", taskIds: ["H1", "H2", "H3"] }
   ],
   evidence: [
+    { id: "EV-TRANSNAS-HEADS", time: "2026-07-30 17:18", title: "TransNAS 七任务 head 官方结构对照", result: "class_scene/object、room_layout、jigsaw、segmentsemantic、normal、autoencoder 的独立输出契约已实现；同一 micro fixture 与官方 commit 6d4231b 的参数量和完整 parameter-shape multiset 七任务全部一致。真实 micro index-0 七任务 build→params 均为 ok；normal+gradnorm 在缺 label provider 时返回 unsupported。", command: "pytest tests/test_reference_topologies.py tests/test_benchmarks_adapters.py; official fixture comparison; seven-task real adapter params sweep", taskIds: ["B2", "G2"] },
+    { id: "EV-FULL-GATE-231", time: "2026-07-30 17:19", title: "TransNAS 七任务合入后完整质量 gate", result: "全量 231 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "B2", "G1"] },
     { id: "EV-OFA-BN-REAL", time: "2026-07-30 17:03", title: "真实 ImageNet-1k 确定性 BN smoke", result: "OFA inherited 子网在本机真实 ImageNet-1k 上完成 1 batch×2 samples 的独立 BN recalibration；score row 记录 required=false、batches=1、sample IDs、resize/center-crop transform 与 SHA-256 fingerprint，run 未生成空 checkpoints/parts/reports。协议明确 official_protocol_match=false，不作为 inherited accuracy。", command: "zcp-test evaluate --space ofa_proxyless_mbv2 --weight-mode ofa_inherited --trusted --input-source dataset --dataset imagenet1k --bn-recalibration-batches 1 --bn-recalibration-batch-size 2 --proxies params --count 1 --device cpu", taskIds: ["C3"] },
     { id: "EV-FULL-GATE-223", time: "2026-07-30 17:05", title: "真实 BN 流水线合入后完整质量 gate", result: "全量 223 项测试通过；第一方 source coverage 86%，Ruff、compileall、pip check 与 git diff check 均通过。", command: "conda run -n zcp-test python -m coverage run -m pytest -q && conda run -n zcp-test python -m coverage report -m && conda run -n zcp-test ruff check . && conda run -n zcp-test python -m compileall -q src tests && conda run -n zcp-test python -m pip check && git diff --check", taskIds: ["A1", "C3", "G1"] },
     { id: "EV-OFA-INHERITED", time: "2026-07-30 16:54", title: "OFA-Proxyless inherited checkpoint 与 active subnet 阶段通过", result: "官方 checkpoint 32,202,338 bytes 已下载到外部 data root，SHA256=10ce40...6b907；新增 ofa_proxyless_supernet bootstrap 组并修复 ready 文件不注册 catalog。active channel 与 7→5→3 learned kernel transform 导出完成；混合 k/e/d 子网参数与官方 get_active_subnet 一致，同输入 max abs≈1.9e-6。真实 CPU evaluate 1架构×params 与 population2/generation1 短 search 均成功并记录 inherited provenance；随后完整 222-test gate 通过。", command: "专项 pytest（core/reference/data 组合）; OFA inherited CPU evaluate 1×params; short search population=2 generations=1", taskIds: ["A1", "C3"] },

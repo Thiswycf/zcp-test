@@ -50,7 +50,7 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 |---|---|---|
 | `reference_model` | `darts`, `autoformer`, `pit`, `zennas_plainnet_mbv2`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
 | `reference_topology_pytorch_port` | `nb101_dag`, `nb201_topology`, `nats_size` | Topology is represented by a port; ZCP values are not automatically identical to the original training implementation |
-| `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder topology port; seven Taskonomy task heads are not yet fully implemented |
+| `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; Taskonomy input/label providers remain unavailable |
 | `proxy_approximation` | legacy toy spaces | Explicit opt-in method smoke only; formal training and reference conclusions are prohibited |
 
 Static model fidelity does not grant formal-training readiness. Only DARTS profiles currently set
@@ -79,6 +79,11 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
   supported, but end-to-end multi-GPU orchestration is not accepted.
 - `portable-v1` proxies and topology ports need numerical comparison with official implementations
   before paper-reproduction claims.
+- TransNAS now separates all seven task heads against upstream commit `6d4231b`; one micro fixture
+  matches official parameter counts and complete parameter-shape multisets for every task. Real
+  micro index-0 `build→params` succeeds for all tasks, and label-dependent proxies without a
+  Taskonomy provider return `unsupported`. This does not validate training numbers, real-task-input
+  ZCP values, or official latency/FLOP measurements.
 - The released PiT example completes `load → build → forward`; its 893,828 parameters and parameter
   shape multiset match Auto-Prox `90ed458`. MAC validation, formal training and KD reproduction are
   still outstanding, and vanilla/KD standard answers remain separate query protocols.
