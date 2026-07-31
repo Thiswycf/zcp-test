@@ -70,12 +70,33 @@ def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
     script = root / "tools" / "acceptance" / "resume-darts-imagenet-parallel-from-task2.sh"
     subprocess.run(["bash", "-n", str(script)], check=True)
     source = script.read_text(encoding="utf-8")
-    assert "four_single_gpu_lanes_global_batch_128" in source
+    assert "longest_first_per_lane_locks_global_batch_128" in source
     assert "CUDA_VISIBLE_DEVICES=$uuid" in source
     assert "--device cuda:0" in source
     assert "torchrun" not in source
+    assert "with_gpu_lock" in source
+    assert "longest tasks 4-6 start first" in source
+    assert source.index('with_gpu_lock "${gpu_array[0]}" run_single 4') < source.index(
+        'with_gpu_lock "${gpu_array[3]}" short_lane'
+    )
     for task_index in range(2, 7):
         assert f"run_single {task_index} " in source
+
+
+def test_autoformer_aznas_acceptance_launcher_is_resumable_and_packed():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "tools" / "acceptance" / "run-autoformer-aznas-random-8000.sh"
+    subprocess.run(["bash", "-n", str(script)], check=True)
+    source = script.read_text(encoding="utf-8")
+    assert "ZCP_AZNAS_POPULATION:-8000" in source
+    assert "packed_2_plus_1_on_two_gpus" in source
+    assert "--proxy az_nas_autoformer --aggregator az_nas_log_rank" in source
+    assert '--generations 0' in source
+    assert '--resume "$state"' in source
+    assert 'flock -w "$LOCK_TIMEOUT"' in source
+    assert 'CUDA_VISIBLE_DEVICES="$uuid"' in source
+    assert "architecture-hash-v1" in source
+    assert 'ZoneInfo("Asia/Shanghai")' in source
 
 
 def test_acceptance_freeze_candidates_cli_is_exposed():

@@ -30,12 +30,8 @@ val_files=$(find "$DATA_ROOT/val" -type f | wc -l)
 IFS=',' read -r -a gpu_array <<< "$GPU_UUIDS"
 [[ ${#gpu_array[@]} == 4 ]] || { echo "Exactly four GPU UUIDs are required" >&2; exit 2; }
 mkdir -p "$LOCK_DIR" "$OUTPUT_ROOT/candidates"
-for index in "${!gpu_array[@]}"; do
-  uuid=${gpu_array[$index]}
+for uuid in "${gpu_array[@]}"; do
   [[ "$uuid" =~ ^GPU-[A-Fa-f0-9-]+$ ]] || { echo "Invalid GPU UUID: $uuid" >&2; exit 2; }
-  descriptor=$((201 + index))
-  eval "exec ${descriptor}>\"$LOCK_DIR/$uuid.lock\""
-  flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
 done
 for name in zcp_selected.json fixed_random.json params_matched_random_pool.json; do
   source_path=$(realpath "$CANDIDATE_ROOT/$name")
@@ -73,7 +69,7 @@ payload = {
     "project_commit": sys.argv[4],
     "data_root": sys.argv[5],
     "gpu_uuids": sys.argv[6].split(","),
-    "execution_strategy": "four_single_gpu_lanes_global_batch_128",
+    "execution_strategy": "longest_first_per_lane_locks_global_batch_128",
     "pid": os.getppid(),
     "started_at": existing.get("started_at", now),
     "updated_at": now,
@@ -89,6 +85,7 @@ PY
 child_pids=()
 stop_children() {
   for pid in "${child_pids[@]:-}"; do
+    pkill -TERM -P "$pid" 2>/dev/null || true
     kill -TERM "$pid" 2>/dev/null || true
   done
 }
@@ -148,18 +145,28 @@ print(f"validated {path.parent.name}: completed")
 PY
 }
 
-lane_zero() {
-  run_single 2 "${gpu_array[0]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" full-data-3epoch 3 1.0
-  run_single 6 "${gpu_array[0]}" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" one-percent-data-250epoch 250 0.01
+with_gpu_lock() {
+  local uuid=$1
+  shift
+  local descriptor
+  exec {descriptor}>"$LOCK_DIR/$uuid.lock"
+  flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
+  "$@"
 }
 
-write_status running "tasks 2-6 assigned to four independent one-GPU lanes; global batch remains 128"
-lane_zero & child_pids+=("$!")
-run_single 3 "${gpu_array[1]}" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" full-data-3epoch 3 1.0 & child_pids+=("$!")
-run_single 4 "${gpu_array[2]}" zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
-run_single 5 "${gpu_array[3]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+short_lane() {
+  local uuid=$1
+  run_single 2 "$uuid" fixed-random "$CANDIDATE_ROOT/fixed_random.json" full-data-3epoch 3 1.0
+  run_single 3 "$uuid" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" full-data-3epoch 3 1.0
+}
+
+write_status running "longest tasks 4-6 start first; task 2-3 share the fourth lane; each lane releases its own lock when complete"
+with_gpu_lock "${gpu_array[0]}" run_single 4 "${gpu_array[0]}" zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+with_gpu_lock "${gpu_array[1]}" run_single 5 "${gpu_array[1]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+with_gpu_lock "${gpu_array[2]}" run_single 6 "${gpu_array[2]}" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+with_gpu_lock "${gpu_array[3]}" short_lane "${gpu_array[3]}" & child_pids+=("$!")
 
 for _ in "${child_pids[@]}"; do
   wait -n
 done
-write_status completed "tasks 2-6 completed across four one-GPU lanes; task 1 remains the prior completed run"
+write_status completed "tasks 2-6 completed with longest-first lane scheduling; task 1 remains the prior completed run"

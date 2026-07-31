@@ -519,7 +519,8 @@ def _epoch(
     model.train(training)
     forward = getattr(model, "module", model).forward
     supports_auxiliary = "return_auxiliary" in inspect.signature(forward).parameters
-    total_loss = top1_correct = top5_correct = count = optimizer_steps = 0
+    metric_totals = torch.zeros(4, dtype=torch.float64, device=device)
+    count = optimizer_steps = 0
     if config.gradient_accumulation_steps <= 0:
         raise ValueError("gradient_accumulation_steps must be positive")
     if progress_interval_seconds <= 0:
@@ -598,12 +599,14 @@ def _epoch(
                 if step_succeeded and step_scheduler is not None:
                     step_scheduler.step()
                 accumulated_batches = 0
-        total_loss += float(loss.detach()) * labels.size(0)
+        batch_size = accuracy_labels.size(0)
+        metric_totals[0].add_(loss.detach().to(torch.float64) * batch_size)
         predictions = output.topk(min(5, output.shape[1]), dim=1).indices
         matches = predictions.eq(accuracy_labels.view(-1, 1))
-        top1_correct += int(matches[:, :1].any(dim=1).sum())
-        top5_correct += int(matches.any(dim=1).sum())
-        count += accuracy_labels.size(0)
+        metric_totals[1].add_(matches[:, :1].any(dim=1).sum())
+        metric_totals[2].add_(matches.any(dim=1).sum())
+        metric_totals[3].add_(batch_size)
+        count += batch_size
         now = time.perf_counter()
         if progress_callback is not None and (
             now >= next_progress_at or batch_index + 1 == loader_batches
@@ -627,14 +630,9 @@ def _epoch(
             )
             next_progress_at = now + progress_interval_seconds
     if torch.distributed.is_available() and torch.distributed.is_initialized():
-        totals = torch.tensor(
-            [total_loss, top1_correct, top5_correct, count],
-            dtype=torch.float64,
-            device=device,
-        )
-        torch.distributed.all_reduce(totals, op=torch.distributed.ReduceOp.SUM)
+        torch.distributed.all_reduce(metric_totals, op=torch.distributed.ReduceOp.SUM)
         step_count = torch.tensor(optimizer_steps, dtype=torch.int64, device=device)
         torch.distributed.all_reduce(step_count, op=torch.distributed.ReduceOp.MAX)
-        total_loss, top1_correct, top5_correct, count = totals.tolist()
         optimizer_steps = int(step_count.item())
-    return total_loss, int(top1_correct), int(top5_correct), int(count), optimizer_steps
+    total_loss, top1_correct, top5_correct, total_count = metric_totals.tolist()
+    return total_loss, int(top1_correct), int(top5_correct), int(total_count), optimizer_steps
