@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-07-31T17:18:17+08:00",
+  "timezone": "Asia/Shanghai",
+  "project_commit": "0dbb4ce",
+  "run_id": "19399e653cea",
+  "protocol": "two-candidate-gpu-formula-artifact-smoke",
+  "search_space_id": "zennas_plainnet_mbv2",
+  "proxy_id": "az_nas_plainnet",
+  "proxy_version": "aznas-5e6683-plainnet-stabilized-v1",
+  "aggregator": "az_nas_log_rank",
+  "components": [
+    "expressivity",
+    "progressivity",
+    "trainability",
+    "complexity"
+  ],
+  "candidate_count": 2,
+  "status": "completed",
+  "candidates": [
+    {
+      "architecture_id": "1964d23722f5ac1aac1f",
+      "score": -1.3862943611198906,
+      "components": {
+        "complexity": 348813160.0,
+        "expressivity": 133.32636618614197,
+        "progressivity": -2.3575117588043213,
+        "trainability": -324327.20120732207
+      }
+    },
+    {
+      "architecture_id": "1bff1ed7d4306f58f0d7",
+      "score": -1.3862943611198906,
+      "components": {
+        "complexity": 132675042.0,
+        "expressivity": 88.6808180809021,
+        "progressivity": -2.339501142501831,
+        "trainability": -320003.59699801443
+      }
+    }
+  ],
+  "interpretation": "The two aggregate scores tie because component ranks trade off in a cohort of only two. This validates the formula port, four-component aggregation, GPU execution, and artifacts; it is not a search-quality conclusion."
+}

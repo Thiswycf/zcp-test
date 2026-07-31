@@ -501,6 +501,27 @@ available. Use it for ZCP structure studies; do not describe it as official nume
 Catalog-backed benchmark opening re-checks SHA-256, version, and protocol. Explicit
 `--benchmark-path` is a caller-managed trust boundary.
 
+## AZ-NAS PlainNet-MBV2 search
+
+`az_nas_plainnet` is defined only for `zennas_plainnet_mbv2`; it is not an OFA/Proxyless proxy.
+It ports the pinned MBV2 formula's expressivity, progressivity, trainability, and upstream
+`MasterNet.get_FLOPs()` complexity. Formal ranking requires all four components:
+
+```bash
+zcp-test search --space zennas_plainnet_mbv2 \
+  --proxy az_nas_plainnet --aggregator az_nas_log_rank \
+  --population 32 --generations 20 --elite-ratio 0.25 \
+  --dataset imagenet1k --input-source random --batch-size 2 --input-size 224 \
+  --classes 1000 --seed 20260731 --gpu auto \
+  --output /path/to/runs/search/plainnet-aznas
+```
+
+The CLI rejects primary-component-only ranking and any mismatched search space. The stabilized port
+clamps covariance eigenvalue noise and keeps degenerate singular-value calculations finite, so it
+is versioned `aznas-5e6683-plainnet-stabilized-v1`, not claimed bitwise parity. The two-candidate GPU
+evidence in `docs/evidence/aznas_plainnet_rank_smoke.json` validates components and artifacts only;
+its tied aggregate scores are not a search-quality result.
+
 ## AutoFormer and MobileNetV2 dual-one-percent acceptance
 
 AutoFormer scratch, ZenNAS PlainNet-MBV2, and Proxyless-MBV2 scratch use separate candidate and

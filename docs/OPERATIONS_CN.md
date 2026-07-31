@@ -600,6 +600,26 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 `search` 的 generation summary 与 candidate 是不同 `record_type`，不能把总行数误当候选数。
 报告只在输入满足统计或曲线要求时生成 PNG/SVG，不创建没有数据依据的空图。
 
+## AZ-NAS PlainNet-MBV2 搜索
+
+`az_nas_plainnet` 只定义于 `zennas_plainnet_mbv2`，不能用于 OFA/Proxyless。它移植固定上游 MBV2
+公式的 expressivity、progressivity、trainability 和 `MasterNet.get_FLOPs()` complexity；正式排名
+必须使用全部四组件：
+
+```bash
+zcp-test search --space zennas_plainnet_mbv2 \
+  --proxy az_nas_plainnet --aggregator az_nas_log_rank \
+  --population 32 --generations 20 --elite-ratio 0.25 \
+  --dataset imagenet1k --input-source random --batch-size 2 --input-size 224 \
+  --classes 1000 --seed 20260731 --gpu auto \
+  --output /path/to/runs/search/plainnet-aznas
+```
+
+CLI 会在创建 run 前拒绝只用主组件排名或搜索空间不匹配。稳定化端口会裁剪协方差负特征值浮点噪声，
+并令退化奇异值计算保持有限，因此版本为 `aznas-5e6683-plainnet-stabilized-v1`，不声明逐位一致。
+`docs/evidence/aznas_plainnet_rank_smoke.json` 的两候选 GPU 证据只验证四组件、聚合与 artifact；其中
+聚合分数并列，不能解释为搜索质量结论。
+
 ## AutoFormer 与两类 MobileNetV2 双重 1% 验收
 
 三个空间使用独立配置、候选目录和结果目录，不能互换 architecture ID 或训练 recipe：
