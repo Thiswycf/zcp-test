@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 08:37 CST",
+  updatedAt: "2026-07-31 08:46 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -25,9 +25,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "当前全仓 gate 为 398 tests passed（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。396 及更早门禁保留为历史口径。",
+      detail: "当前全仓 gate 为 438 tests passed（30 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。398 及更早门禁保留为历史口径。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 05:47"
+      evidence: ["EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 08:46"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -196,9 +196,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "当前全仓门禁为 398 tests passed（28 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。396 及更早门禁均作为历史 gate 保留。",
+      detail: "当前全仓门禁为 438 tests passed（30 个测试文件）、第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。398 及更早门禁均作为历史 gate 保留。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-FULL-GATE-219", "EV-FULL-GATE-222", "EV-FULL-GATE-223", "EV-FULL-GATE-231", "EV-FULL-GATE-240", "EV-FULL-GATE-251", "EV-FULL-GATE-252", "EV-FULL-GATE-262", "EV-FULL-GATE-282", "EV-FULL-GATE-286", "EV-FULL-GATE-287", "EV-FULL-GATE-303", "EV-FULL-GATE-309", "EV-FULL-GATE-342", "EV-FULL-GATE-365", "EV-FULL-GATE-379", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 05:47"
+      evidence: ["EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 08:46"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -294,7 +294,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-PROXY", severity: "高", status: "开放", title: "代理可运行不等于论文一致", description: "22/22 sweep 不能替代公式、聚合方向和输入协议的 golden 验证。", mitigation: "为核心代理增加论文级数值 fixture 和 provenance。", taskIds: ["E1", "H1"] },
     { id: "R-DIRECTION-MIGRATION", severity: "高", status: "关闭", title: "方向修复已缓解并闭环于当前范围", description: "Params/FLOPs 历史证据已从原始 scores 重算，v2 reader 只读迁移 legacy version/direction，raw 不改写；混合 shard bundle 回归和 309-test 最终 gate 均通过。", mitigation: "保留该历史风险与旧 evidence；未来 schema 或聚合逻辑变更时继续执行只读迁移、混合 shard 和方向回归。", taskIds: ["A1", "E1", "E2", "G1", "H1"] },
     { id: "R-NB301-RUNTIME-COMPAT", severity: "中", status: "监控", title: "NB301 surrogate 仅在锁定运行时声明确定性", description: "xgboost 2.1.4 / nasbench301 0.3 的重复预测一致，但旧二进制 ensemble 发出跨版本兼容警告。", mitigation: "结果 fidelity 仅标 deterministic_on_locked_runtime，并记录依赖版本；不得宣称跨 xgboost 或 ensemble 版本确定性。", taskIds: ["B3", "H1"] },
-    { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 81%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
+    { id: "R-COVERAGE", severity: "中", status: "关闭", title: "报告模块覆盖率已达标", description: "当前第一方 coverage 87%、CLI 82%，总计与关键模块门槛均已达到。", mitigation: "维持现有覆盖率 gate，后续改动继续执行全量回归。", taskIds: ["A1", "F3", "G1"] },
     { id: "R-PIT", severity: "中", status: "监控", title: "PiT 仅达到 topology PyTorch port 保真度", description: "QKV、LayerNorm epsilon、drop-path 及参数/MAC fixture 已对齐，但缺少官方 checkpoint 和逐层数值对照，不能标为完整 reference_model。", mitigation: "固定 fidelity=reference_topology_pytorch_port；若后续获得可信 checkpoint 或逐层数值基准，再执行数值一致性验收并评估升级。", taskIds: ["C4", "H1"] },
     { id: "R-VIT-H1-IDENTITIES", severity: "高", status: "受阻", title: "ViT 正式 H1 缺少完整候选身份与 60/40 划分", description: "公开三切片可做 minimum-5×22 preacceptance，但论文完整 500 AutoFormer + 500 PiT 架构身份及无重叠 60/40 development/test identity 未公开。", mitigation: "公开切片只标 partial_release_slice_preacceptance；在可信完整 identity 与 split 发布前，不将其写成正式 1% H1 或无泄漏论文协议复现。", taskIds: ["B3", "H1"] },
     { id: "R-NATS-SSS-CROSS-SEED", severity: "中", status: "监控", title: "NATS-SSS 跨数据集当前只完成单 seed", description: "CIFAR100 与 ImageNet16-120 的 328×22 运行均全成功，三数据集四类分析表已生成；当前完成判定仅覆盖 1% 单 seed 子项，不代表跨数据集核心代理三 seed。", mitigation: "报告持续标注 single-seed scope；若后续执行核心代理多 seed，单独记录 manifest、有效行数与跨 seed 稳定性，不回写现有证据。", taskIds: ["B1", "E3", "F2", "H1", "I1"] },
@@ -311,6 +311,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-LIVE-DARTS-IMAGENET-PREFLIGHT", severity: "高", status: "开放", title: "DARTS ImageNet preflight 仍在运行", description: "manifest 当前为 running，尚无最终退出状态、完整日志或产物审计；运行中状态不能外推为完成或通过。", mitigation: "持续读取指定 manifest；仅在进程结束并核验 manifest、training.jsonl、checkpoint 与 launcher 退出状态后更新。", taskIds: ["J4", "D1", "H2"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-438", time: "2026-07-31 08:46", title: "最新全仓质量门禁 438", result: "search resume、严格 1% 抽样、OFA candidate resolution 与训练配置 schema 合入后，30 个测试文件共 438 tests passed；第一方 source coverage 87%、CLI 82%。Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过。", command: "python -m coverage run -m pytest -q; python -m coverage report; python -m ruff check .; python -m compileall -q src tests; python -m pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "G1", "J1", "J2", "J3"] },
     { id: "EV-LIVE-SEARCH-RESUME", time: "2026-07-31 08:37", title: "Search resume 集成完成", result: "integration commits fb168fa/9d8af34 实现原子状态、RNG/cache/history/population 恢复、协议身份拒绝和 OFA 候选输入身份联合恢复；定向测试通过。", command: "pytest tests/test_core.py tests/test_cli_commands.py tests/test_ofa_resolution_protocol.py -k 'search or resume'", taskIds: ["J1"] },
     { id: "EV-LIVE-STRICT-ONE-PERCENT", time: "2026-07-31 08:37", title: "严格 one_percent_data 集成完成", result: "commit 9c58080 对 CIFAR/ImageNet train/valid 使用严格全局 1% 目标，拒绝空目标与近似 fraction，并把 data_fraction 纳入 checkpoint identity；17 项专项测试通过。", command: "pytest tests/test_workflow.py tests/test_core.py -k 'one_percent or stratified_subset'", taskIds: ["J2"] },
     { id: "EV-LIVE-OFA-RESOLUTION", time: "2026-07-31 08:37", title: "OFA candidate resolution fidelity 集成完成", result: "commit 9d8af34 让 candidate resolution 控制 tensor、model validation、fingerprint、cache key、score/search row 与 BN stream；122 项组合测试和新增 resume 联合测试通过。", command: "pytest tests/test_ofa_resolution_protocol.py tests/test_core.py tests/test_cli_commands.py tests/test_workflow.py", taskIds: ["J3"] },
