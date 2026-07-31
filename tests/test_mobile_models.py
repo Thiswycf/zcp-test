@@ -6,6 +6,14 @@ from torch import nn
 
 from zcp_test.models import mobile
 from zcp_test.models.mobile import OFAProxylessMobileNetV2, recalibrate_batch_norm
+from zcp_test.models.plainnet import (
+    AZNAS_COMMIT,
+    AZPlainNetMobileNetV2,
+    INITIAL_STRUCTURE,
+    canonical_plainnet_structure,
+    parse_plainnet_structure,
+)
+from zcp_test.spaces import SPACES, load_builtin_spaces
 
 
 OFFICIAL_OFA_COMMIT = "f03b2673db313b9167e2a1c2b7a5cad540cc1313"
@@ -14,6 +22,8 @@ OFFICIAL_PROXYLESS_EXACT_MACS = 265_526_256
 OFFICIAL_OFA_FLOAT32_REPORTED_OPS = 265_526_240
 OFFICIAL_PROXYLESS_CONV_MACS = 263_862_256
 OFFICIAL_PROXYLESS_LINEAR_MACS = 1_664_000
+OFFICIAL_AZNAS_PLAINNET_PARAMETERS = {False: 2_824_264, True: 3_579_232}
+OFFICIAL_AZNAS_PLAINNET_MACS = {False: 159_334_080, True: 160_081_728}
 OFFICIAL_PROXYLESS_1_3_DEPTH_TWO_BLOCKS = (
     (40, None, 24, 3, 1, False),
     (24, 72, 32, 3, 2, False),
@@ -128,6 +138,54 @@ def test_ofa_proxyless_224_official_mac_golden():
     assert conv_macs + linear_macs == OFFICIAL_PROXYLESS_EXACT_MACS
     assert ofa_reported_ops == OFFICIAL_OFA_FLOAT32_REPORTED_OPS
     assert 2 * OFFICIAL_PROXYLESS_EXACT_MACS == 531_052_512
+
+
+@pytest.mark.parametrize("use_se", [False, True])
+def test_aznas_plainnet_initial_structure_golden(use_se):
+    model = AZPlainNetMobileNetV2(INITIAL_STRUCTURE, use_se=use_se).eval()
+
+    conv_macs, linear_macs, _ = _official_conv_linear_macs(model)
+
+    assert sum(parameter.numel() for parameter in model.parameters()) == (
+        OFFICIAL_AZNAS_PLAINNET_PARAMETERS[use_se]
+    )
+    assert conv_macs + linear_macs == OFFICIAL_AZNAS_PLAINNET_MACS[use_se]
+    assert model(torch.zeros(1, 3, 224, 224)).shape == (1, 1000)
+    assert model.reference_metadata()["implementation_commit"] == AZNAS_COMMIT
+
+
+def test_plainnet_structure_parser_is_canonical_and_rejects_code():
+    blocks = parse_plainnet_structure("\n" + INITIAL_STRUCTURE + "\n")
+
+    assert canonical_plainnet_structure(blocks) == INITIAL_STRUCTURE
+    with pytest.raises(ValueError, match="Unsupported PlainNet block type"):
+        parse_plainnet_structure("eval(1,2,1,1)")
+    with pytest.raises(ValueError, match="adjacent block channels"):
+        parse_plainnet_structure(
+            "SuperConvK3BNRELU(3,8,2,1)SuperResIDWE6K3(16,32,2,8,1)"
+        )
+
+
+def test_plainnet_space_sample_mutate_crossover_and_training_model():
+    load_builtin_spaces()
+    space = SPACES.create("zennas_plainnet_mbv2")
+    left = space.sample(10)
+    right = space.mutate(left, 11)
+    child = space.crossover(left, right, 12)
+
+    for architecture in (left, right, child):
+        assert space.canonicalize(architecture.spec) == architecture
+        assert parse_plainnet_structure(architecture.spec["structure"])[-1].out_channels == 2048
+    assert left.architecture_id != right.architecture_id
+    search_model = space.build_model(child, 7)
+    training_model = space.build_training_model(
+        child,
+        7,
+        {"model_init": "custom_kaiming", "use_se": True, "bn_momentum": 0.01},
+    )
+    assert search_model.reference_metadata()["use_se"] is False
+    assert training_model.reference_metadata()["use_se"] is True
+    assert training_model.reference_metadata()["bn_momentum"] == pytest.approx(0.01)
 
 
 def test_ofa_proxyless_constructor_applies_official_he_fout(monkeypatch):

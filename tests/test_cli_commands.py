@@ -59,6 +59,32 @@ def test_imagenet_tf_color_distortion_matches_proxyless_protocol():
     assert resize.size == 256
 
 
+def test_imagenet_aznas_augmentation_includes_bicubic_jitter_and_lighting():
+    from torchvision import transforms
+
+    train_transform, _ = cli._imagenet_transforms(
+        224,
+        {"resize_scale": 0.08, "color_distortion": "aznas_imagenet"},
+    )
+    crop = next(
+        transform
+        for transform in train_transform.transforms
+        if isinstance(transform, transforms.RandomResizedCrop)
+    )
+    jitter = next(
+        transform
+        for transform in train_transform.transforms
+        if isinstance(transform, transforms.ColorJitter)
+    )
+
+    assert crop.interpolation == transforms.InterpolationMode.BICUBIC
+    assert jitter.brightness == pytest.approx((0.6, 1.4))
+    assert jitter.contrast == pytest.approx((0.6, 1.4))
+    assert jitter.saturation == pytest.approx((0.6, 1.4))
+    assert jitter.hue is None
+    assert type(train_transform.transforms[-2]).__name__ == "AlexNetLighting"
+
+
 def test_json_output_does_not_fail_completed_work_on_broken_pipe(monkeypatch):
     class BrokenStream:
         def write(self, value):

@@ -523,6 +523,163 @@ class MobileSpace(SearchSpace):
         return PlainNetMobileNetV2(**arguments)
 
 
+class ZenNasPlainNetSpace(SearchSpace):
+    search_space_id = "zennas_plainnet_mbv2"
+    model_family = "cnn"
+    model_fidelity = "reference_model"
+    implementation_source = "https://github.com/cvlab-yonsei/AZ-NAS"
+    implementation_commit = "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
+
+    @staticmethod
+    def _channel_choices(channels: int) -> list[int]:
+        scales = (2.5, 2.0, 1.5, 1.25, 1.0, 0.8, 2 / 3, 0.5, 0.4)
+        return sorted(
+            {max(8, int(channels * scale + 4) // 8 * 8) for scale in scales},
+            reverse=True,
+        )
+
+    def canonicalize(self, specification: Mapping[str, Any]) -> Architecture:
+        from zcp_test.models.plainnet import (
+            canonical_plainnet_structure,
+            parse_plainnet_structure,
+        )
+
+        unknown = set(specification) - {"structure", "resolution"}
+        if unknown:
+            raise ValueError(f"Unknown PlainNet architecture fields: {sorted(unknown)}")
+        resolution = int(specification.get("resolution", 224))
+        if resolution != 224:
+            raise ValueError("AZ-NAS PlainNet-MBV2 reference search uses resolution 224")
+        blocks = parse_plainnet_structure(str(specification["structure"]))
+        if len(blocks) < 3:
+            raise ValueError("PlainNet requires a stem, at least one residual block, and a head")
+        if blocks[0].kind != "conv" or blocks[0].kernel_size != 3 or blocks[0].stride != 2:
+            raise ValueError("PlainNet must start with SuperConvK3BNRELU stride 2")
+        if blocks[-1].kind != "conv" or blocks[-1].kernel_size != 1:
+            raise ValueError("PlainNet must end with SuperConvK1BNRELU")
+        if blocks[-1].out_channels != 2048 or blocks[-1].stride != 1:
+            raise ValueError("AZ-NAS PlainNet fixes the final head at 2048 channels and stride 1")
+        if any(block.kind != "residual" for block in blocks[1:-1]):
+            raise ValueError("PlainNet interior blocks must be SuperResIDWE blocks")
+        canonical = {
+            "structure": canonical_plainnet_structure(blocks),
+            "resolution": resolution,
+        }
+        return Architecture(self.search_space_id, _stable_id(self.search_space_id, canonical), canonical)
+
+    def sample(self, seed: int | None = None) -> Architecture:
+        from zcp_test.models.plainnet import INITIAL_STRUCTURE
+
+        rng = random.Random(seed)
+        architecture = self.canonicalize({"structure": INITIAL_STRUCTURE, "resolution": 224})
+        for _ in range(rng.randint(1, 4)):
+            architecture = self.mutate(architecture, rng.randrange(2**32))
+        return architecture
+
+    def mutate(self, architecture: Architecture, seed: int | None = None) -> Architecture:
+        from dataclasses import replace
+
+        from zcp_test.models.plainnet import (
+            canonical_plainnet_structure,
+            parse_plainnet_structure,
+            reconnect_plainnet_blocks,
+        )
+
+        rng = random.Random(seed)
+        blocks = list(parse_plainnet_structure(str(architecture.spec["structure"])))
+        index = rng.randrange(len(blocks) - 1)
+        block = blocks[index]
+        if block.kind == "conv":
+            choices = [value for value in self._channel_choices(block.out_channels) if value != block.out_channels]
+            blocks[index] = replace(block, out_channels=rng.choice(choices))
+        else:
+            field = rng.choice(("type", "out_channels", "bottleneck_channels", "sub_layers"))
+            if field == "type":
+                alternatives = [
+                    (expansion, kernel)
+                    for expansion in (1, 2, 4, 6)
+                    for kernel in (3, 5, 7)
+                    if (expansion, kernel) != (block.expansion, block.kernel_size)
+                ]
+                expansion, kernel = rng.choice(alternatives)
+                blocks[index] = replace(block, expansion=expansion, kernel_size=kernel)
+            elif field == "sub_layers":
+                alternatives = sorted(
+                    {max(1, block.sub_layers + delta) for delta in (-2, -1, 1, 2)}
+                    - {block.sub_layers}
+                )
+                blocks[index] = replace(block, sub_layers=rng.choice(alternatives))
+            else:
+                current = int(getattr(block, field))
+                alternatives = [value for value in self._channel_choices(current) if value != current]
+                blocks[index] = replace(block, **{field: rng.choice(alternatives)})
+        connected = reconnect_plainnet_blocks(blocks)
+        return self.canonicalize(
+            {
+                "structure": canonical_plainnet_structure(connected),
+                "resolution": int(architecture.spec["resolution"]),
+            }
+        )
+
+    def crossover(
+        self,
+        left: Architecture,
+        right: Architecture,
+        seed: int | None = None,
+    ) -> Architecture:
+        from zcp_test.models.plainnet import (
+            canonical_plainnet_structure,
+            parse_plainnet_structure,
+            reconnect_plainnet_blocks,
+        )
+
+        rng = random.Random(seed)
+        left_blocks = parse_plainnet_structure(str(left.spec["structure"]))
+        right_blocks = parse_plainnet_structure(str(right.spec["structure"]))
+        if len(left_blocks) != len(right_blocks):
+            return self.mutate(rng.choice((left, right)), rng.randrange(2**32))
+        blocks = reconnect_plainnet_blocks(
+            rng.choice((left_block, right_block))
+            for left_block, right_block in zip(left_blocks, right_blocks, strict=True)
+        )
+        return self.canonicalize(
+            {
+                "structure": canonical_plainnet_structure(blocks),
+                "resolution": 224,
+            }
+        )
+
+    def build_model(self, architecture: Architecture, num_classes: int) -> Any:
+        from zcp_test.models.plainnet import AZPlainNetMobileNetV2
+
+        return AZPlainNetMobileNetV2(
+            str(architecture.spec["structure"]),
+            num_classes=num_classes,
+            use_se=False,
+            bn_momentum=0.1,
+            initialization="kaiming",
+        )
+
+    def build_training_model(
+        self,
+        architecture: Architecture,
+        num_classes: int,
+        config: Mapping[str, Any],
+    ) -> Any:
+        from zcp_test.models.plainnet import AZPlainNetMobileNetV2
+
+        initialization = str(config.get("model_init", "custom_kaiming"))
+        if initialization != "custom_kaiming":
+            raise ValueError("AZ-NAS PlainNet training requires custom_kaiming initialization")
+        return AZPlainNetMobileNetV2(
+            str(architecture.spec["structure"]),
+            num_classes=num_classes,
+            use_se=bool(config.get("use_se", True)),
+            bn_momentum=float(config.get("bn_momentum", 0.01)),
+            initialization="kaiming",
+        )
+
+
 class OfaMobileNetV3Space(SearchSpace):
     search_space_id = "ofa_mbv3"
     model_family = "cnn"
@@ -618,5 +775,5 @@ SPACES.register("transnas_macro", lambda: TransNasSpace("macro"))
 SPACES.register("autoformer", AutoFormerSpace)
 SPACES.register("pit", PitSpace)
 SPACES.register("ofa_proxyless_mbv2", lambda: MobileSpace("ofa_proxyless_mbv2"))
-SPACES.register("zennas_plainnet_mbv2", lambda: MobileSpace("zennas_plainnet_mbv2"))
+SPACES.register("zennas_plainnet_mbv2", ZenNasPlainNetSpace)
 SPACES.register("ofa_mbv3", OfaMobileNetV3Space)

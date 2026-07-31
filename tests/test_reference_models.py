@@ -461,7 +461,7 @@ def test_registered_autoformer_and_mobile_spaces_expose_distinct_fidelity():
     proxyless_architecture = proxyless_space.sample(4)
     plain = plain_space.build_model(plain_architecture, 5)
     proxyless = proxyless_space.build_model(proxyless_architecture, 5)
-    assert plain_space.model_fidelity == "proxy_approximation"
+    assert plain_space.model_fidelity == "reference_model"
     assert proxyless_space.model_fidelity == "reference_model"
     assert plain.reference_metadata()["family"] != proxyless.reference_metadata()["family"]
 

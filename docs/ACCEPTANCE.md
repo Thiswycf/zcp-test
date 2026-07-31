@@ -99,8 +99,7 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 | `reference_topology_pytorch_port` | `nb101_dag`, `nb201_topology`, `nats_size` | Topology is represented by a port; ZCP values are not automatically identical to the original training implementation |
 | `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; a safe Taskonomy contract provider exists, but the formal 24-building split/config is unpublished and licensed data is unavailable here |
 | `reference_topology_pytorch_port` | `pit` | Published topology port; it is not an official numerical reference or an accepted formal-training implementation |
-| `reference_model` | `darts`, `autoformer`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
-| `proxy_approximation` | `zennas_plainnet_mbv2` | The current fixed-stage MBConv encoding is not the ZenNAS/AZ-NAS structure-string space and is blocked from formal evaluation, search, and training |
+| `reference_model` | `darts`, `autoformer`, `zennas_plainnet_mbv2`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
 | `proxy_approximation` | legacy toy spaces | Explicit opt-in method smoke only; formal training and reference conclusions are prohibited |
 
 The upstream comparison and reference-upgrade requirements are recorded in
@@ -108,7 +107,7 @@ The upstream comparison and reference-upgrade requirements are recorded in
 
 Static model fidelity does not grant formal-training readiness. Only DARTS profiles currently set
 `formal_training_ready: true`; AutoFormer and Proxyless-MBV2 are explicitly blocked, while PiT and
-PlainNet-MBV2 do not yet have accepted formal profiles.
+PlainNet-MBV2 has a locked 150-epoch candidate profile but remains blocked pending dual one-percent GPU acceptance.
 The boolean is not self-authorizing: a non-smoke run must match a code-owned approved protocol and
 its critical fields, including the accepted batch and input size.
 

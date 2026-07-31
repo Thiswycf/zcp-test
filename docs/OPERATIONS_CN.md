@@ -203,11 +203,10 @@ zcp-test analyze benchmark --scores "${SCORES[@]}" \
 ## 训练架构文件与 fidelity
 
 模型结构 fidelity 与正式训练协议是两个独立条件。`darts`、`autoformer`、
-`ofa_proxyless_mbv2` 当前拥有 `reference_model` 静态结构；`zennas_plainnet_mbv2` 经上游源码复核后
-已降级为 `proxy_approximation`，因为现有固定 stage MBConv 编码不等同于 ZenNAS/AZ-NAS 的
-structure-string 搜索空间。只有配置中
+`ofa_proxyless_mbv2` 与 `zennas_plainnet_mbv2` 均拥有 `reference_model` 静态结构；后者使用
+ZenNAS/AZ-NAS structure string、白名单 parser 和独立的 sample/mutate/crossover。只有配置中
 `formal_training_ready: true` 的协议才能启动非 smoke 训练。当前正式放行的是 DARTS profiles；
-AutoFormer 与 Proxyless-MBV2 配置会列出尚未验收的 blocker 并明确拒绝正式训练。`--smoke` 只验证
+AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 配置会列出尚未验收的 blocker并明确拒绝正式训练。`--smoke` 只验证
 合成数据上的构模和训练流水线，不解除协议 blocker。
 
 `--acceptance-smoke` 与 `--smoke` 互斥，使用真实数据且只接受两种代码锁定模式：

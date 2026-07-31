@@ -93,6 +93,33 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
 }
 
 CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
+    "aznas-plainnet-mbv2-scratch-5e6683a2": {
+        "space": "zennas_plainnet_mbv2",
+        "dataset": "imagenet1k",
+        "input_size": 224,
+        "epochs": 150,
+        "optimizer": "sgd",
+        "learning_rate": 0.4,
+        "learning_rate_scaling": "linear_global_batch",
+        "learning_rate_reference_batch_size": 256,
+        "momentum": 0.9,
+        "nesterov": True,
+        "weight_decay": 0.00004,
+        "exclude_bias_norm_from_weight_decay": True,
+        "scheduler": "cosine_warmup_step",
+        "warmup_epochs": 5,
+        "batch_size": 512,
+        "batch_size_semantics": "global",
+        "label_smoothing": 0.1,
+        "resize_scale": 0.08,
+        "color_distortion": "aznas_imagenet",
+        "model_init": "custom_kaiming",
+        "bn_momentum": 0.01,
+        "use_se": True,
+        "amp": True,
+        "deterministic": True,
+        "implementation_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
+    },
     "proxylessnas-mbv2-scratch-b23018c9": {
         "space": "ofa_proxyless_mbv2",
         "dataset": "imagenet1k",

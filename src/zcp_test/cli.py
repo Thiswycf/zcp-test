@@ -640,6 +640,28 @@ def _synthetic_loader(batch_size: int, input_size: int, classes: int, batches: i
 def _imagenet_transforms(input_size: int, config: dict[str, Any]) -> tuple[Any, Any]:
     from torchvision import transforms
 
+    class AlexNetLighting:
+        def __init__(self) -> None:
+            import torch
+
+            self.eigenvalues = torch.tensor([0.2175, 0.0188, 0.0045])
+            self.eigenvectors = torch.tensor(
+                [
+                    [-0.5675, 0.7192, 0.4009],
+                    [-0.5808, -0.0045, -0.8140],
+                    [-0.5836, -0.6948, 0.4203],
+                ]
+            )
+
+        def __call__(self, image: Any) -> Any:
+            alpha = image.new_empty(3).normal_(0, 0.1)
+            noise = (
+                self.eigenvectors.to(image)
+                * alpha.view(1, 3)
+                * self.eigenvalues.to(image).view(1, 3)
+            ).sum(1)
+            return image + noise.view(3, 1, 1)
+
     if config.get("auto_augment") or config.get("random_erase_probability"):
         from timm.data import create_transform
 
@@ -660,17 +682,21 @@ def _imagenet_transforms(input_size: int, config: dict[str, Any]) -> tuple[Any, 
                 brightness=32.0 / 255.0,
                 saturation=0.5,
             )
+        elif distortion == "aznas_imagenet":
+            color_transform = transforms.ColorJitter(0.4, 0.4, 0.4)
         elif distortion in {"torch", "strong"}:
             color_transform = transforms.ColorJitter(0.4, 0.4, 0.4, 0.2)
         elif distortion in {"none", "null", "false"}:
             color_transform = None
         else:
             raise ValueError(f"Unsupported ImageNet color_distortion {distortion!r}")
+        crop_arguments: dict[str, Any] = {
+            "scale": (float(config.get("resize_scale", 0.08)), 1.0)
+        }
+        if distortion == "aznas_imagenet":
+            crop_arguments["interpolation"] = transforms.InterpolationMode.BICUBIC
         train_steps: list[Any] = [
-            transforms.RandomResizedCrop(
-                input_size,
-                scale=(float(config.get("resize_scale", 0.08)), 1.0),
-            ),
+            transforms.RandomResizedCrop(input_size, **crop_arguments),
             transforms.RandomHorizontalFlip(),
         ]
         if color_transform is not None:
@@ -678,8 +704,12 @@ def _imagenet_transforms(input_size: int, config: dict[str, Any]) -> tuple[Any, 
         train_steps.extend(
             [
                 transforms.ToTensor(),
-                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
+        )
+        if distortion == "aznas_imagenet":
+            train_steps.append(AlexNetLighting())
+        train_steps.append(
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))
         )
         train_transform = transforms.Compose(train_steps)
     valid_transform = transforms.Compose(
@@ -2023,9 +2053,7 @@ def command_train(args: argparse.Namespace) -> None:
         ),
         exclude_norm_from_weight_decay=bool(config.get("exclude_norm_from_weight_decay", False)),
         gradient_accumulation_steps=gradient_accumulation_steps,
-        schedule_epochs=(
-            int(config["epochs"]) if acceptance_smoke or real_data_preflight else epochs
-        ),
+        schedule_epochs=int(config["epochs"]),
     )
     data_root = None if args.smoke else _resolve_data_root(args, dataset)
     if not args.smoke and not data_root:

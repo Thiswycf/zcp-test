@@ -10,8 +10,8 @@
 |---|---|---|---|
 | `darts` | `reference_model` | 已放行，尚未完成高成本精度验收 | CIFAR-10/100、原始 DARTS ImageNet、TE-NAS retrain 分 profile |
 | `autoformer` | `reference_model` | **阻断** | AZ-NAS Tiny/Small 500-epoch profile、no-decay、warmup/min-LR、plain validation CE 已锁定；双重 1% GPU 验收未完成 |
-| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 已分离；`he_fout`、batch-cosine、TF color jitter、BN no-decay/recalibration 已锁定，仍缺 MAC golden 与双重 1% GPU 验收 |
-| `zennas_plainnet_mbv2` | `proxy_approximation` | **禁止正式训练** | 当前固定 stage MBConv 编码不是 ZenNAS/AZ-NAS structure-string 搜索空间；必须完成真实 PlainNet port 后才能升级 |
+| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 已分离；`he_fout`、batch-cosine、TF color jitter、BN no-decay/recalibration 和 MAC golden 已锁定，仍缺双重 1% GPU 验收 |
+| `zennas_plainnet_mbv2` | `reference_model` | **阻断** | structure-string、12 类 residual block、SE、参数/MAC golden 与 150-epoch candidate profile 已锁定；仍缺双重 1% GPU 验收 |
 | `pit` | `reference_topology_pytorch_port` | **尚无正式配置** | Auto-Prox `90ed458` 三阶段拓扑、参数/MAC fixture 已核对；缺 checkpoint/逐层数值对照，ViT-Bench vanilla/KD 真值只用于查询 |
 | `ofa_mbv3` | `reference_model` | **尚无正式配置** | 官方五阶段/20-block 静态子网与 BN recalibration；尚未接入 inherited checkpoint/active weight export |
 
@@ -74,6 +74,8 @@ JSONL 和 checkpoint。
 ```bash
 zcp-test train --config configs/training/autoformer_imagenet.yaml \
   --architecture "$AUTOFORMER_ARCH" --smoke --epochs 1 --gpu auto
+zcp-test train --config configs/training/zennas_plainnet_mbv2_imagenet.yaml \
+  --architecture "$PLAINNET_ARCH" --smoke --epochs 1 --gpu auto
 zcp-test train --config configs/training/ofa_proxyless_mbv2_imagenet.yaml \
   --architecture "$MBV2_ARCH" --smoke --epochs 1 --gpu auto
 ```
@@ -89,6 +91,22 @@ AutoFormer 当前配置对应 AZ-NAS Tiny 搜索域：500 epoch、20 epoch warmu
 `5e-4`、`warmup_lr=1e-6`、`min_lr=1e-5`，并按有效 global batch 相对 512 线性缩放。bias、Norm、
 class token 与 position embedding 不做 weight decay，validation 使用 plain cross entropy。
 这些字段已经单元测试和 profile validator 锁定，但在双重 1% GPU 验收完成前仍不能去掉 `--smoke`。
+
+PlainNet 架构 JSON 使用 canonical structure string，而不是 OFA positional arrays：
+
+```json
+{
+  "spec": {
+    "structure": "SuperConvK3BNRELU(3,8,2,1)SuperResIDWE6K3(8,32,2,8,1)SuperResIDWE6K3(32,48,2,32,1)SuperResIDWE6K3(48,96,2,48,1)SuperResIDWE6K3(96,128,2,96,1)SuperConvK1BNRELU(128,2048,1,1)",
+    "resolution": 224
+  }
+}
+```
+
+正式验收命令分别使用 `--epochs 2 --data-fraction 1.0` 和
+`--epochs 150 --data-fraction 0.01`。配置按 global batch 512 将 `lr_per_256=0.4` 缩放为有效
+LR 0.8，并锁定 5-epoch step warmup、cosine、SE、BN momentum 0.01、PCA lighting 与 bias/BN
+no-decay。搜索模型按上游脚本不启用 SE，scratch retrain 启用 SE；报告必须把两者标为不同模型协议。
 
 ## 5. 恢复、监控与产物
 

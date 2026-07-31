@@ -309,6 +309,24 @@ def test_proxyless_candidate_training_protocol_is_locked():
     assert config["formal_training_ready"] is False
 
 
+def test_plainnet_candidate_training_protocol_is_locked():
+    config = yaml.safe_load(
+        Path("configs/training/zennas_plainnet_mbv2_imagenet.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert validate_candidate_training_protocol(config) == (
+        "aznas-plainnet-mbv2-scratch-5e6683a2"
+    )
+    assert config["scheduler"] == "cosine_warmup_step"
+    assert config["learning_rate_reference_batch_size"] == 256
+    assert config["batch_size"] == 512
+    assert config["bn_momentum"] == pytest.approx(0.01)
+    assert config["use_se"] is True
+    assert config["formal_training_ready"] is False
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

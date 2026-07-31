@@ -444,6 +444,34 @@ def test_cosine_step_scheduler_matches_proxyless_batch_schedule(tmp_path):
     assert checkpoint["scheduler"]["last_epoch"] == 2
 
 
+def test_cosine_warmup_step_scheduler_matches_aznas_sample_schedule(tmp_path):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,))),
+        batch_size=2,
+        shuffle=False,
+    )
+    config = TrainingConfig(
+        2,
+        "sgd",
+        0.1,
+        0.0,
+        scheduler="cosine_warmup_step",
+        warmup_epochs=1,
+        amp=False,
+        nesterov=False,
+    )
+
+    train_model(model, loader, loader, config, tmp_path, torch.device("cpu"))
+
+    records = list(read_jsonl(tmp_path / "training.jsonl"))
+    checkpoint = load_checkpoint(tmp_path / "checkpoints" / "last.pt", trusted=True)
+    assert records[0]["learning_rate"] == pytest.approx(0.05)
+    assert records[0]["next_learning_rate"] == pytest.approx(0.05)
+    assert records[1]["next_learning_rate"] == pytest.approx(0.0)
+    assert checkpoint["scheduler"]["last_epoch"] == 4
+
+
 def test_autoformer_cosine_schedule_matches_aznas_warmup_and_floor():
     config = TrainingConfig(
         500,

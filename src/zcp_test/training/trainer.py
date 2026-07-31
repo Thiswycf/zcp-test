@@ -283,7 +283,7 @@ def train_model(
     if config.gradient_accumulation_steps <= 0:
         raise ValueError("gradient_accumulation_steps must be positive")
     scheduler_steps_per_epoch = math.ceil(len(train_loader) / config.gradient_accumulation_steps)
-    scheduler_per_optimizer_step = scheduler_name == "cosine_step"
+    scheduler_per_optimizer_step = scheduler_name in {"cosine_step", "cosine_warmup_step"}
     if scheduler_name == "cosine":
 
         def learning_rate_multiplier(epoch: int) -> float:
@@ -299,6 +299,23 @@ def train_model(
 
         def learning_rate_multiplier(step: int) -> float:
             progress = min(1.0, step / max(1, total_steps))
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, learning_rate_multiplier)
+    elif scheduler_name == "cosine_warmup_step":
+        if config.warmup_learning_rate is not None:
+            raise ValueError("cosine_warmup_step derives warmup from zero")
+        if config.minimum_learning_rate:
+            raise ValueError("cosine_warmup_step requires a zero target learning rate")
+        warmup_steps = config.warmup_epochs * scheduler_steps_per_epoch
+        total_steps = schedule_epochs * scheduler_steps_per_epoch
+        if not 0 < warmup_steps < total_steps:
+            raise ValueError("cosine_warmup_step requires warmup shorter than training")
+
+        def learning_rate_multiplier(step: int) -> float:
+            if step < warmup_steps:
+                return (step + 1) / warmup_steps
+            progress = min(1.0, (step - warmup_steps + 1) / (total_steps - warmup_steps))
             return 0.5 * (1.0 + math.cos(math.pi * progress))
 
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, learning_rate_multiplier)
