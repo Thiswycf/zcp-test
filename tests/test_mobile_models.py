@@ -9,6 +9,11 @@ from zcp_test.models.mobile import OFAProxylessMobileNetV2, recalibrate_batch_no
 
 
 OFFICIAL_OFA_COMMIT = "f03b2673db313b9167e2a1c2b7a5cad540cc1313"
+OFFICIAL_PROXYLESS_COMMIT = "b23018c9c369d22931f7422b71ca6a7eaa354c46"
+OFFICIAL_PROXYLESS_EXACT_MACS = 265_526_256
+OFFICIAL_OFA_FLOAT32_REPORTED_OPS = 265_526_240
+OFFICIAL_PROXYLESS_CONV_MACS = 263_862_256
+OFFICIAL_PROXYLESS_LINEAR_MACS = 1_664_000
 OFFICIAL_PROXYLESS_1_3_DEPTH_TWO_BLOCKS = (
     (40, None, 24, 3, 1, False),
     (24, 72, 32, 3, 2, False),
@@ -64,6 +69,42 @@ def _block_fixture(model: OFAProxylessMobileNetV2):
     return tuple(blocks)
 
 
+def _official_conv_linear_macs(model: nn.Module):
+    layer_macs = {}
+    handles = []
+
+    def count_layer(module, _, output):
+        if isinstance(module, nn.Conv2d):
+            kernel_ops = module.kernel_size[0] * module.kernel_size[1]
+            layer_macs[module] = (
+                module.in_channels * output.numel() * kernel_ops // module.groups
+            )
+        elif isinstance(module, nn.Linear):
+            layer_macs[module] = module.in_features * module.out_features
+
+    for module in model.modules():
+        if isinstance(module, (nn.Conv2d, nn.Linear)):
+            handles.append(module.register_forward_hook(count_layer))
+    try:
+        with torch.no_grad():
+            model.eval()(torch.zeros(1, 3, 224, 224))
+    finally:
+        for handle in handles:
+            handle.remove()
+
+    conv_macs = sum(
+        macs for module, macs in layer_macs.items() if isinstance(module, nn.Conv2d)
+    )
+    linear_macs = sum(
+        macs for module, macs in layer_macs.items() if isinstance(module, nn.Linear)
+    )
+    ofa_float32_total = torch.zeros(1)
+    for module in model.modules():
+        if module in layer_macs:
+            ofa_float32_total += torch.zeros(1).fill_(layer_macs[module])
+    return conv_macs, linear_macs, int(ofa_float32_total.item())
+
+
 def test_ofa_proxyless_structure_matches_official_export_fixture():
     model = _ofa_proxyless_model()
 
@@ -73,6 +114,20 @@ def test_ofa_proxyless_structure_matches_official_export_fixture():
     assert (model.head[0].in_channels, model.head[0].out_channels) == (416, 1664)
     assert (model.classifier.in_features, model.classifier.out_features) == (1664, 1000)
     assert sum(parameter.numel() for parameter in model.parameters()) == 3_718_832
+
+
+def test_ofa_proxyless_224_official_mac_golden():
+    model = _ofa_proxyless_model()
+
+    conv_macs, linear_macs, ofa_reported_ops = _official_conv_linear_macs(model)
+
+    assert model.implementation_commit == OFFICIAL_OFA_COMMIT
+    assert OFFICIAL_PROXYLESS_COMMIT == "b23018c9c369d22931f7422b71ca6a7eaa354c46"
+    assert conv_macs == OFFICIAL_PROXYLESS_CONV_MACS
+    assert linear_macs == OFFICIAL_PROXYLESS_LINEAR_MACS
+    assert conv_macs + linear_macs == OFFICIAL_PROXYLESS_EXACT_MACS
+    assert ofa_reported_ops == OFFICIAL_OFA_FLOAT32_REPORTED_OPS
+    assert 2 * OFFICIAL_PROXYLESS_EXACT_MACS == 531_052_512
 
 
 def test_ofa_proxyless_constructor_applies_official_he_fout(monkeypatch):
