@@ -653,6 +653,28 @@ zcp-test acceptance freeze-candidates \
   --output /path/to/frozen-candidates/autoformer
 ```
 
+多 seed 搜索不得直接平均不同候选集合中的原始 ZCP/rank 分数，也不得在搜索完成后从多个 winner 中
+事后挑选。应在完成前预声明一个 primary run，其他 run 只作为稳健性证据：
+
+```bash
+PRIMARY=/path/to/seed-20260731/timestamped-run
+SUPPORT_1=/path/to/seed-20260732/timestamped-run
+SUPPORT_2=/path/to/seed-20260733/timestamped-run
+zcp-test acceptance freeze-candidates \
+  --search-run "$PRIMARY" \
+  --supporting-search-run "$SUPPORT_1" \
+  --supporting-search-run "$SUPPORT_2" \
+  --training-config configs/training/autoformer_imagenet.yaml \
+  --seed 20260731 --pool-size 32 \
+  --output /path/to/frozen-candidates/autoformer
+```
+
+命令要求三个 run 均为 completed、搜索空间/模型/代理/聚合器/种群和输入协议一致且 seed 唯一。
+`zcp_selected.json` 只来自 primary run；supporting winner 仅写入 provenance。最终 population 的最高分
+若并列，按 canonical architecture ID 升序稳定裁决，并同时记录原 `best_architecture.json` 的选择、
+并列数以及 `search-state.json` checksum。固定随机和参数量/计算量匹配候选仍由冻结 seed 独立生成，
+不得从 supporting winner 替代。
+
 命令要求 search manifest 为 `completed`，且 `search_identity` 完整包含 space、proxy/version、dataset、
 input fingerprint 和 seed；`best_architecture.json` 还必须真实出现在 `search.jsonl` candidate 记录中。
 输出严格为每种角色一份 JSON 加 `candidates-manifest.json`，其中保存 search/config/JSONL SHA-256、

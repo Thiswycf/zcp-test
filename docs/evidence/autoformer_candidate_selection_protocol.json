@@ -1,0 +1,25 @@
+{
+  "schema_version": "1.0",
+  "declared_at": "2026-07-31T17:44:54.795876+08:00",
+  "declared_before_search_completion": true,
+  "search_root": "runs/acceptance/autoformer-aznas-random-8000",
+  "search_space_id": "autoformer",
+  "proxy_id": "az_nas_autoformer",
+  "aggregator": "az_nas_log_rank",
+  "population_per_seed": 8000,
+  "primary_selection_seed": 20260731,
+  "supporting_robustness_seeds": [20260732, 20260733],
+  "selection_protocol": "predeclared_primary_run_supporting_seed_robustness_v1",
+  "rules": [
+    "Only the completed seed-20260731 run may select zcp_selected.",
+    "Seeds 20260732 and 20260733 are supporting robustness evidence and cannot replace the primary winner.",
+    "Raw scores from different sampled cohorts are not averaged.",
+    "Maximum-score ties in a final population are resolved by canonical architecture ID ascending.",
+    "Fixed-random and parameter/compute-matched controls are sampled independently by the freeze seed."
+  ],
+  "state_at_declaration": {
+    "overall_status": "running",
+    "target_evaluations": 24000,
+    "completed_evaluations_lower_bound": 15699
+  }
+}

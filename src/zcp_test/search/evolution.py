@@ -423,7 +423,9 @@ class EvolutionSearch:
                 raise ValueError("Requested generations precede the completed search state")
             first_generation = self._completed_generation + 1
         for generation in range(first_generation, generations + 1):
-            population.sort(key=lambda candidate: candidate.score, reverse=True)
+            population.sort(
+                key=lambda candidate: (-candidate.score, candidate.architecture.architecture_id)
+            )
             elites = population[: self.elite_count]
             next_population = list(elites)
             new_records: list[tuple[Candidate, bool]] = []
@@ -458,7 +460,10 @@ class EvolutionSearch:
                 self._record(generation, candidate, hit, selected=True)
             self._summary(generation, population)
             self._save_state(generation, population)
-        return max(population, key=lambda candidate: candidate.score)
+        return min(
+            population,
+            key=lambda candidate: (-candidate.score, candidate.architecture.architecture_id),
+        )
 
     def _record(
         self, generation: int, candidate: Candidate, cache_hit: bool, selected: bool

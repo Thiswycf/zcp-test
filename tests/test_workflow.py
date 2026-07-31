@@ -133,6 +133,7 @@ def test_acceptance_freeze_candidates_cli_is_exposed():
     assert arguments.action == "freeze-candidates"
     assert arguments.pool_size == 32
     assert arguments.classes == 1000
+    assert arguments.supporting_search_run == []
 
 
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):

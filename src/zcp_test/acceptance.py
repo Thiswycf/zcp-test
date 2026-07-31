@@ -4,7 +4,7 @@ import hashlib
 import json
 import math
 import os
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -40,6 +40,7 @@ def _load_search_selection(
         "manifest": run / "manifest.json",
         "config": run / "config.yaml",
         "search": run / "search.jsonl",
+        "state": run / "search-state.json",
         "best": run / "best_architecture.json",
     }
     missing = [name for name, path in required.items() if not path.is_file()]
@@ -64,25 +65,159 @@ def _load_search_selection(
     if best.get("search_space_id") != expected_space or not isinstance(best.get("spec"), dict):
         raise ValueError("best_architecture.json does not match the requested search space")
     best_id = str(best.get("architecture_id", ""))
-    found = False
+    candidate_ids: set[str] = set()
     with required["search"].open(encoding="utf-8") as handle:
         for line in handle:
             if not line.strip():
                 continue
             row = json.loads(line)
-            if row.get("record_kind") == "candidate" and row.get("architecture_id") == best_id:
-                found = True
-                break
-    if not found:
+            if row.get("record_kind") == "candidate":
+                candidate_ids.add(str(row.get("architecture_id", "")))
+    if best_id not in candidate_ids:
         raise ValueError("Best architecture is absent from search.jsonl candidate records")
+    state = json.loads(required["state"].read_text(encoding="utf-8"))
+    if int(state.get("completed_generation", -1)) < 0:
+        raise ValueError("Candidate freezing requires a completed search state")
+    if state.get("identity") != identity:
+        raise ValueError("Search state identity does not match resolved search config")
+    population = state.get("population")
+    if not isinstance(population, list) or not population:
+        raise ValueError("Search state does not contain a final population")
+    scored: list[tuple[float, str, dict[str, Any]]] = []
+    architecture_by_id: dict[str, dict[str, Any]] = {}
+    for entry in population:
+        if not isinstance(entry, dict) or not isinstance(entry.get("architecture"), dict):
+            raise ValueError("Search state contains an invalid population entry")
+        architecture = entry["architecture"]
+        architecture_id = str(architecture.get("architecture_id", ""))
+        try:
+            score = float(entry["score"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError("Search state contains an invalid candidate score") from error
+        if not architecture_id or not math.isfinite(score):
+            raise ValueError("Search state contains a non-finite or unidentified candidate")
+        previous = architecture_by_id.setdefault(architecture_id, architecture)
+        if previous != architecture:
+            raise ValueError("Search state maps one architecture ID to conflicting specifications")
+        scored.append((score, architecture_id, architecture))
+    maximum = max(score for score, _architecture_id, _architecture in scored)
+    tied = sorted(
+        {
+            architecture_id: architecture
+            for score, architecture_id, architecture in scored
+            if score == maximum
+        }.items()
+    )
+    tied_ids = [architecture_id for architecture_id, _architecture in tied]
+    if best_id not in tied_ids:
+        raise ValueError("best_architecture.json is not a maximum-score final candidate")
+    stable_id, stable_architecture = tied[0]
+    if stable_id not in candidate_ids:
+        raise ValueError("Stable best architecture is absent from search.jsonl candidate records")
+    best = {
+        "search_space_id": stable_architecture.get("search_space_id"),
+        "architecture_id": stable_id,
+        "benchmark_index": stable_architecture.get("benchmark_index"),
+        "spec": stable_architecture.get("spec"),
+    }
     provenance = {
         "search_run_id": manifest.get("run_id", run.name),
         "search_manifest_sha256": file_sha256(required["manifest"]),
         "search_config_sha256": file_sha256(required["config"]),
         "search_jsonl_sha256": file_sha256(required["search"]),
+        "search_state_sha256": file_sha256(required["state"]),
         "search_identity": identity,
+        "best_selection": {
+            "strategy": "maximum_score_then_architecture_id_ascending_v1",
+            "maximum_score": maximum,
+            "maximum_score_tie_count": len(tied),
+            "best_file_architecture_id": best_id,
+            "selected_architecture_id": stable_id,
+        },
     }
     return best, provenance
+
+
+_COHORT_IDENTITY_FIELDS = (
+    "search_space_id",
+    "model_fidelity",
+    "model_profile",
+    "implementation_commit",
+    "proxy_id",
+    "proxy_version",
+    "proxy_direction",
+    "aggregator",
+    "model_initialization_protocol",
+    "dataset",
+    "input_source",
+    "population_size",
+    "elite_ratio",
+    "batch_size",
+    "input_size",
+    "classes",
+    "weight_mode",
+)
+
+
+def _validate_supporting_searches(
+    primary: Mapping[str, Any],
+    supporting: Sequence[tuple[Mapping[str, Any], Mapping[str, Any]]],
+) -> dict[str, Any]:
+    primary_identity = primary["search_identity"]
+    primary_missing = [
+        field for field in _COHORT_IDENTITY_FIELDS if field not in primary_identity
+    ]
+    if supporting and primary_missing:
+        raise ValueError(
+            "Primary search identity is incomplete for a cohort: "
+            + ", ".join(primary_missing)
+        )
+    primary_seed = int(primary_identity["seed"])
+    seen_seeds = {primary_seed}
+    records = []
+    top_candidates = [
+        {
+            "role": "primary_selection",
+            "seed": primary_seed,
+            "architecture_id": primary["best_selection"]["selected_architecture_id"],
+        }
+    ]
+    for best, provenance in supporting:
+        identity = provenance["search_identity"]
+        missing = [field for field in _COHORT_IDENTITY_FIELDS if field not in identity]
+        if missing:
+            raise ValueError(
+                "Supporting search identity is incomplete: " + ", ".join(missing)
+            )
+        mismatched = [
+            field
+            for field in _COHORT_IDENTITY_FIELDS
+            if primary_identity.get(field) != identity.get(field)
+        ]
+        if mismatched:
+            raise ValueError(
+                "Supporting search protocol mismatch: " + ", ".join(mismatched)
+            )
+        seed = int(identity["seed"])
+        if seed in seen_seeds:
+            raise ValueError(f"Search cohort contains duplicate seed {seed}")
+        seen_seeds.add(seed)
+        records.append(dict(provenance))
+        top_candidates.append(
+            {
+                "role": "supporting_robustness_only",
+                "seed": seed,
+                "architecture_id": best["architecture_id"],
+            }
+        )
+    return {
+        "protocol": "predeclared_primary_run_supporting_seed_robustness_v1",
+        "selection_rule": "Only the primary run selects zcp_selected; supporting runs are not averaged or cherry-picked.",
+        "primary_seed": primary_seed,
+        "supporting_seeds": sorted(seen_seeds - {primary_seed}),
+        "supporting_searches": records,
+        "top_candidates": top_candidates,
+    }
 
 
 def _build_training_model(
@@ -162,6 +297,7 @@ def freeze_training_candidates(
     seed: int,
     pool_size: int = 32,
     classes: int = 1000,
+    supporting_search_runs: Sequence[str | Path] = (),
     measure: Callable[[Any, Architecture, Mapping[str, Any], int], ResourceMeasurement]
     | None = None,
 ) -> dict[str, Any]:
@@ -173,6 +309,11 @@ def freeze_training_candidates(
     load_builtin_spaces()
     space = SPACES.create(space_id)
     best, search_provenance = _load_search_selection(search_run, space_id)
+    supporting = [
+        _load_search_selection(supporting_run, space_id)
+        for supporting_run in supporting_search_runs
+    ]
+    cohort = _validate_supporting_searches(search_provenance, supporting)
     selected = space.canonicalize(best["spec"])
     if selected.architecture_id != best["architecture_id"]:
         raise ValueError("Best architecture ID does not match current canonicalization")
@@ -219,7 +360,10 @@ def freeze_training_candidates(
     }
     payloads = {
         "zcp_selected.json": _candidate_payload(
-            selected, "zcp_selected", selected_resources, {**common, **search_provenance}
+            selected,
+            "zcp_selected",
+            selected_resources,
+            {**common, **search_provenance, "search_cohort": cohort},
         ),
         "fixed_random.json": _candidate_payload(
             fixed_random,
@@ -248,6 +392,7 @@ def freeze_training_candidates(
         "created_at": project_now_iso(),
         "training_config_sha256": common["training_config_sha256"],
         "search_provenance": search_provenance,
+        "search_cohort": cohort,
         "resource_protocol": {
             "compute_metric": selected_resources.compute_metric,
             "generic_flops": selected_resources.generic_flops,

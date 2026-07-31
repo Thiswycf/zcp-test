@@ -2677,6 +2677,7 @@ def command_acceptance(args: argparse.Namespace) -> None:
                 seed=args.seed,
                 pool_size=args.pool_size,
                 classes=args.classes,
+                supporting_search_runs=args.supporting_search_run,
             )
         )
         return
@@ -3064,6 +3065,12 @@ def build_parser() -> argparse.ArgumentParser:
     acceptance_actions = acceptance.add_subparsers(dest="action", required=True)
     freeze_candidates = acceptance_actions.add_parser("freeze-candidates")
     freeze_candidates.add_argument("--search-run", required=True)
+    freeze_candidates.add_argument(
+        "--supporting-search-run",
+        action="append",
+        default=[],
+        help="Completed same-protocol run used only as seed-robustness provenance; repeatable",
+    )
     freeze_candidates.add_argument("--training-config", required=True)
     freeze_candidates.add_argument("--output", required=True)
     freeze_candidates.add_argument("--seed", type=int, default=20260731)

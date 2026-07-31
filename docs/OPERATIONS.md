@@ -555,6 +555,25 @@ zcp-test acceptance freeze-candidates \
   --output /path/to/frozen-candidates/autoformer
 ```
 
+For a multi-seed cohort, predeclare one primary run before completion and use all other runs only as
+robustness provenance. Do not average raw scores from different candidate cohorts and do not select
+the most favorable seed winner after seeing results:
+
+```bash
+zcp-test acceptance freeze-candidates \
+  --search-run /path/to/seed-20260731/timestamped-run \
+  --supporting-search-run /path/to/seed-20260732/timestamped-run \
+  --supporting-search-run /path/to/seed-20260733/timestamped-run \
+  --training-config configs/training/autoformer_imagenet.yaml \
+  --seed 20260731 --pool-size 32 \
+  --output /path/to/frozen-candidates/autoformer
+```
+
+All runs must be completed and protocol-compatible with unique seeds. Only the primary winner becomes
+`zcp_selected`; supporting winners remain provenance. Maximum-score ties in the final population use
+canonical architecture ID ascending, with the original best file, tie count, state checksum, and rule
+recorded in the candidate manifest.
+
 The command requires a versioned search identity containing space, proxy/version, dataset, input
 fingerprint, and seed, and verifies that the best architecture occurs in `search.jsonl`. The output
 manifest locks all source and candidate checksums. MobileNet uses THOP MACs as its explicit compute

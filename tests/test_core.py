@@ -359,6 +359,27 @@ def test_statistics_and_search(tmp_path):
     )
 
 
+def test_evolution_search_resolves_score_ties_by_architecture_id(tmp_path):
+    load_builtin_spaces()
+    path = tmp_path / "tied-search.jsonl"
+    search = EvolutionSearch(
+        SPACES.create("darts"),
+        lambda _architecture: 1.0,
+        JsonlWriter(path, 1),
+        8,
+        seed=37,
+    )
+
+    best = search.run(0)
+    candidate_ids = {
+        row["architecture_id"]
+        for row in read_jsonl(path)
+        if row["record_kind"] == "candidate"
+    }
+
+    assert best.architecture.architecture_id == min(candidate_ids)
+
+
 def test_rank_aggregated_evolution_records_components_and_resumes(tmp_path):
     from zcp_test.proxies.az_nas import log_rank_aggregate
 
