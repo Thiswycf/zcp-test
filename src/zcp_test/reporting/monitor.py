@@ -15,7 +15,7 @@ def _source_path(source: PathLike) -> Path:
     path = Path(source)
     if not path.is_dir():
         return path
-    for name in ("scores.jsonl", "search.jsonl", "training.jsonl", "events.jsonl"):
+    for name in ("scores.jsonl", "search.jsonl", "events.jsonl", "training.jsonl"):
         candidate = path / name
         if candidate.exists():
             return candidate
@@ -25,7 +25,7 @@ def _source_path(source: PathLike) -> Path:
         if child.is_dir()
         and any(
             (child / name).exists()
-            for name in ("scores.jsonl", "search.jsonl", "training.jsonl", "events.jsonl")
+            for name in ("scores.jsonl", "search.jsonl", "events.jsonl", "training.jsonl")
         )
     ]
     if len(candidates) == 1:

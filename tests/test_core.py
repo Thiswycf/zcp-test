@@ -472,6 +472,35 @@ def test_cosine_warmup_step_scheduler_matches_aznas_sample_schedule(tmp_path):
     assert checkpoint["scheduler"]["last_epoch"] == 4
 
 
+def test_training_progress_callback_separates_batch_and_epoch_events(tmp_path):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,))),
+        batch_size=2,
+        shuffle=False,
+    )
+    events = []
+
+    train_model(
+        model,
+        loader,
+        loader,
+        TrainingConfig(1, "sgd", 0.1, 0.0, amp=False, nesterov=False),
+        tmp_path,
+        torch.device("cpu"),
+        progress_callback=lambda kind, fields: events.append({"kind": kind, **fields}),
+        progress_interval_seconds=3600,
+    )
+
+    batch_events = [event for event in events if event["kind"] == "training_batch_progress"]
+    assert [event["split"] for event in batch_events] == ["train", "valid"]
+    assert all(event["batch"] == event["batch_count"] == 2 for event in batch_events)
+    assert all(event["eta_seconds"] == pytest.approx(0.0) for event in batch_events)
+    assert events[-1]["kind"] == "training_epoch_completed"
+    assert events[-1]["epoch"] == 0
+    assert len(list(read_jsonl(tmp_path / "training.jsonl"))) == 1
+
+
 def test_autoformer_cosine_schedule_matches_aznas_warmup_and_floor():
     config = TrainingConfig(
         500,

@@ -120,6 +120,11 @@ zcp-test analyze training --source "$RUN/training.jsonl" --output "$RUN/reports/
 
 恢复会比较 architecture ID、space、dataset、protocol、classes、input size 和训练配置，并恢复 model、
 optimizer、scheduler、AMP scaler 与 RNG。`--trusted` 只确认操作者信任 checkpoint，不负责验证来源。
+训练期间 rank 0 默认约每 30 秒把 `training_batch_progress` 写入 `events.jsonl`，并在每个 split 的
+最后一个 batch 和 epoch 完成时立即写入。`zcp-test monitor "$RUN" --interval 5` 优先展示这些实时
+事件；`training.jsonl` 只在 epoch 完成后追加一行，仍是训练曲线的唯一规范来源。heartbeat 中的
+`rank_local_samples` 仅表示 rank 0 本地 DataLoader 进度，不可当作全局样本计数或精确全局吞吐。
+在该机制加入前创建的旧 run 不会自动产生 heartbeat。
 每个 epoch 还记录 train/validation 耗时、样本吞吐、CUDA 峰值 allocated/reserved 显存；CPU 运行的
 显存字段为 `null`。训练图将 accuracy、loss、LR/drop-path 与 epoch 耗时/峰值显存分面展示，避免
 把量纲不同的优化指标混在同一纵轴。

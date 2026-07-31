@@ -476,6 +476,18 @@ def test_monitor_discovers_single_timestamped_run_and_rejects_ambiguous_root(tmp
         refresh_once(tmp_path)
 
 
+def test_monitor_prefers_live_training_events_over_epoch_log(tmp_path):
+    (tmp_path / "training.jsonl").write_text('{"epoch": 0}\n', encoding="utf-8")
+    (tmp_path / "events.jsonl").write_text(
+        '{"kind":"training_batch_progress","batch":12}\n', encoding="utf-8"
+    )
+
+    result = refresh_once(tmp_path)
+
+    assert result["source"] == str(tmp_path / "events.jsonl")
+    assert result["rows"][0]["kind"] == "training_batch_progress"
+
+
 def test_training_plot_includes_resource_metrics(tmp_path):
     destination = tmp_path / "training.svg"
     figure = plot_training(

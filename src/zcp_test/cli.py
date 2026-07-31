@@ -2199,6 +2199,11 @@ def command_train(args: argparse.Namespace) -> None:
                     ),
                     "acceptance_protocol": acceptance_protocol,
                 },
+                progress_callback=(
+                    (lambda kind, fields: run.event(kind, **fields))
+                    if distributed_rank == 0
+                    else None
+                ),
             )
             if distributed_rank == 0:
                 _json({"run": str(run.directory), **result})

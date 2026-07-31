@@ -6,7 +6,7 @@ import time
 from contextlib import nullcontext
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from zcp_test.artifacts import JsonlWriter, read_jsonl
 from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint, restore_rng, rng_state
@@ -217,6 +217,8 @@ def train_model(
     *,
     resume_trusted: bool = False,
     run_identity: dict[str, Any] | None = None,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
+    progress_interval_seconds: float = 30.0,
 ) -> dict[str, Any]:
     import torch
 
@@ -387,13 +389,25 @@ def train_model(
             scaler,
             mixup_fn,
             scheduler if scheduler_per_optimizer_step else None,
+            progress_callback=progress_callback if primary_process else None,
+            progress_interval_seconds=progress_interval_seconds,
+            epoch=epoch,
+            split="train",
         )
         if device.type == "cuda":
             torch.cuda.synchronize(device)
         train_duration = time.perf_counter() - train_started
         valid_started = time.perf_counter()
         valid_loss, valid_top1, valid_top5, valid_count, _ = _epoch(
-            model, valid_loader, valid_criterion, device, config
+            model,
+            valid_loader,
+            valid_criterion,
+            device,
+            config,
+            progress_callback=progress_callback if primary_process else None,
+            progress_interval_seconds=progress_interval_seconds,
+            epoch=epoch,
+            split="valid",
         )
         if device.type == "cuda":
             torch.cuda.synchronize(device)
@@ -434,6 +448,17 @@ def train_model(
         }
         if writer is not None:
             writer.append(record)
+        if progress_callback is not None and primary_process:
+            progress_callback(
+                "training_epoch_completed",
+                {
+                    "epoch": epoch,
+                    "epoch_count": config.epochs,
+                    "train_top1": train_accuracy,
+                    "valid_top1": valid_accuracy,
+                    "duration_seconds": duration,
+                },
+            )
         best_accuracy = max(best_accuracy, valid_accuracy)
         checkpoint_rng = _collect_checkpoint_rng(distributed, distributed_rank)
         if primary_process:
@@ -473,6 +498,11 @@ def _epoch(
     scaler: Any | None = None,
     mixup_fn: Any | None = None,
     step_scheduler: Any | None = None,
+    *,
+    progress_callback: Callable[[str, dict[str, Any]], None] | None = None,
+    progress_interval_seconds: float = 30.0,
+    epoch: int | None = None,
+    split: str | None = None,
 ) -> tuple[float, int, int, int, int]:
     import torch
 
@@ -483,8 +513,12 @@ def _epoch(
     total_loss = top1_correct = top5_correct = count = optimizer_steps = 0
     if config.gradient_accumulation_steps <= 0:
         raise ValueError("gradient_accumulation_steps must be positive")
+    if progress_interval_seconds <= 0:
+        raise ValueError("progress_interval_seconds must be positive")
     loader_batches = len(loader)
     accumulated_batches = 0
+    progress_started = time.perf_counter()
+    next_progress_at = progress_started + progress_interval_seconds
     for batch_index, (inputs, labels) in enumerate(loader):
         inputs, labels = inputs.to(device), labels.to(device)
         accuracy_labels = labels
@@ -553,6 +587,28 @@ def _epoch(
         top1_correct += int(matches[:, :1].any(dim=1).sum())
         top5_correct += int(matches.any(dim=1).sum())
         count += accuracy_labels.size(0)
+        now = time.perf_counter()
+        if progress_callback is not None and (
+            now >= next_progress_at or batch_index + 1 == loader_batches
+        ):
+            elapsed = now - progress_started
+            completed_batches = batch_index + 1
+            batches_per_second = completed_batches / max(elapsed, 1e-12)
+            progress_callback(
+                "training_batch_progress",
+                {
+                    "epoch": epoch,
+                    "split": split,
+                    "batch": completed_batches,
+                    "batch_count": loader_batches,
+                    "rank_local_samples": count,
+                    "elapsed_seconds": elapsed,
+                    "batches_per_second": batches_per_second,
+                    "eta_seconds": (loader_batches - completed_batches)
+                    / max(batches_per_second, 1e-12),
+                },
+            )
+            next_progress_at = now + progress_interval_seconds
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         totals = torch.tensor(
             [total_loss, top1_correct, top5_correct, count],

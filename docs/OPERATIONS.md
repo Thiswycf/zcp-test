@@ -93,8 +93,14 @@ zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
 zcp-test monitor "$RUN" --interval 5
 ```
 
-Neither `report bundle` nor `monitor` recursively discovers timestamped runs below a parent
-folder.
+`report bundle` expands one level below a parent without direct artifacts and processes all
+recognizable timestamped runs. `monitor` enters a parent only when it contains exactly one
+recognizable run; pass the exact `RUN` when multiple runs exist. During training it prefers
+`events.jsonl`: rank 0 writes `training_batch_progress` about every 30 seconds and at each split's
+last batch, plus `training_epoch_completed` at epoch completion. `training.jsonl` remains one row
+per completed epoch and is the canonical curve source. `rank_local_samples` is rank 0 local
+progress, not an exact distributed sample count. Runs created before heartbeat support are not
+backfilled.
 
 ## Range partitioning and merge
 
@@ -299,7 +305,9 @@ HTML. `zcp-test analyze correlation`, `zcp-test analyze compare` and
 `zcp-test analyze sensitivity` cover bootstrap correlations, top-k overlap, validation-only rank
 aggregation, transfer, cost/memory Pareto and sample-size convergence. `zcp-test analyze search`
 and `zcp-test analyze training` render progression curves. `zcp-test monitor RUN --interval 5`
-tolerates an incomplete JSONL tail and atomically refreshes an auto-reloading HTML page.
+tolerates an incomplete JSONL tail and atomically refreshes an auto-reloading HTML page. For a
+live training run it reads batch heartbeat events first; completed-epoch plots still read
+`training.jsonl`.
 
 ## DARTS
 

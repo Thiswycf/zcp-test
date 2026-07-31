@@ -66,6 +66,11 @@ zcp-test monitor "$RUN" --interval 5
 
 `report bundle` 会把没有直接 artifact 的父目录展开一层，并处理其中全部可识别 timestamp run；
 `monitor` 仅在父目录恰好包含一个可识别 run 时自动进入。父目录有多个 run 时必须传入准确 `RUN`。
+训练监控优先读取 `events.jsonl`：rank 0 默认约每 30 秒写入一次
+`training_batch_progress`，每个 train/valid split 的最后一个 batch 也会写入；epoch 完成后写入
+`training_epoch_completed`。`training.jsonl` 仍严格保持每个完成 epoch 一行，训练曲线只从该文件重建。
+事件中的 `rank_local_samples` 是 rank 0 的本地计数，不是分布式全局精确样本数。旧 run 不会补写
+heartbeat；若其 epoch 尚未结束，monitor 只能显示已有 artifact。
 
 当前 `search` 尚无 `--resume`：`search.jsonl` 是可审计记录，不是 population/RNG/cache checkpoint。
 中断后必须新建 run；不得把向旧文件追加记录称为恢复。训练恢复则使用同一架构、配置和协议身份，
@@ -536,7 +541,7 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 |---|---|---:|---|
 | `evaluate` | `scores.jsonl` | `架构数 × 代理数` | architecture/benchmark/space、proxy/version/component/direction、dataset/input fingerprint、fidelity、status |
 | `search` | `search.jsonl` | candidate：`population + generations × (population-elite_count)`；summary：`generations+1` | generation、candidate/parent/mutation、proxy、资源约束、累计预算、模型/输入协议 |
-| `train` | `training.jsonl` | 每个实际完成 epoch 一行 | epoch、train/valid loss 与 top-1/top-5、LR、耗时、最佳状态、训练协议 |
+| `train` | `training.jsonl`、`events.jsonl` | training：每个实际完成 epoch 一行；events：约每 30 秒及 split 末尾一行 | epoch 曲线指标；rank 0 本地 batch heartbeat、ETA 与 epoch 完成事件 |
 | `correlate` | 用户指定 JSONL | 每个实际有 canonical-ID join 的 proxy 一行 | component、score/target direction、paired/coverage、统计量 |
 | `report bundle` | CSV/HTML/可选图表 | 由可用 artifact 和字段决定 | 源 run、协议分组和派生产物类型 |
 
