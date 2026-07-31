@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 07:28 CST",
+  updatedAt: "2026-07-31 08:37 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -186,10 +186,10 @@ window.ZCP_PANEL_DATA = {
       id: "F4", phase: "报告", priority: "P1", title: "HTML 实时任务看板",
       content: "维护无外部依赖的数据驱动看板，提供筛选、统计、风险、证据、详情和主题切换。",
       purpose: "让并发任务状态和验收边界可快速审阅、可持续更新。",
-      estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-30 19:25", status: "已完成", progress: 100,
-      detail: "看板无需 F5：HTTP 服务下每次刷新均通过唯一 cache-busting URL 重新加载 data.js，而不是只重绘旧对象。顶部提供立即刷新、默认 30 秒自动刷新、5/15/30/60 秒间隔与暂停；显示数据更新时间、最后成功刷新、检查状态和倒计时。页面隐藏时暂停，恢复可见立即检查；共享 Promise、单计时器与初始化 guard 防并发重入。刷新间隔持久化，并保留搜索、筛选、排序和滚动位置；失败保留旧数据。file:// 仅显示初始快照，自动更新明确停用并引导使用静态 HTTP 服务。",
-      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "HTTP 默认 30 秒自动刷新与 5/15/30/60 秒间隔", "每次重新加载 cache-busted data.js", "数据更新时间、最后成功刷新、检查时间与倒计时", "刷新中 aria-busy 状态", "visibility 隐藏暂停且恢复立即检查", "保留搜索、筛选、排序、滚动位置与刷新间隔", "初始化、计时器和并发请求去重", "失败保留旧数据并提示重试", "file:// 仅初始快照且停用自动更新", "纯静态 HTTP 托管兼容", "Node 语法、数据契约、HTTP 拉取与 diff 检查通过"],
-      evidence: ["EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT", "EV-PANEL-LIVE-REFRESH-V2", "EV-PANEL-HTTP-FILE-GUARD"], risks: [], updatedAt: "2026-07-31 03:57"
+      estimate: "2–4 小时", startedAt: "2026-07-30 14:15", finishedAt: "2026-07-31 08:13", status: "已完成", progress: 100,
+      detail: "看板自动刷新可靠性于 2026-07-31 08:13 完成：HTTP 服务下手动与自动刷新均通过唯一 cache-busting URL 重新加载 data.js，无需 F5；动态脚本设有 10 秒超时、单次 settle 与统一 cleanup，失败保留旧数据并释放刷新 Promise/按钮。顶部保留立即刷新、5/15/30/60 秒间隔、暂停、状态与倒计时；共享 Promise、单计时器和初始化 guard 防重入。局部刷新保留搜索、筛选、排序和滚动位置；file:// 动态加载失败时保存相同状态并以 cache-busting 页面重载回退。",
+      acceptance: ["无 CDN 或服务端依赖", "任务必填字段齐全", "筛选/搜索/详情可用", "可见立即刷新按钮", "HTTP 默认 30 秒自动刷新与 5/15/30/60 秒间隔", "每次重新加载 cache-busted data.js", "动态 data.js 加载有超时与统一 cleanup", "数据更新时间、最后成功刷新、检查时间与倒计时", "刷新中 aria-busy 状态", "visibility 隐藏暂停且恢复立即检查", "保留搜索、筛选、排序、滚动位置与刷新间隔", "初始化、计时器和并发请求去重", "失败保留旧数据并提示重试", "file:// 页面重载回退并恢复视图状态", "纯静态 HTTP 托管兼容", "Node 语法、数据契约与 diff 检查通过"],
+      evidence: ["EV-PANEL-REFRESH-RELIABILITY", "EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT", "EV-PANEL-LIVE-REFRESH-V2", "EV-PANEL-HTTP-FILE-GUARD"], risks: [], updatedAt: "2026-07-31 08:13"
     },
     {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
@@ -237,6 +237,42 @@ window.ZCP_PANEL_DATA = {
       evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-STRATIFIED-EXACT-ONE-PERCENT", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA", "R-MBV2-REMAINING", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 05:39"
     },
     {
+      id: "J1", phase: "实时", priority: "P1", title: "Search resume 严格恢复",
+      content: "已实现 search-state 原子恢复、身份校验、缓存/RNG/历史连续性和 CLI 恢复入口。",
+      purpose: "使中断后的进化搜索可在相同科学协议下继续，同时拒绝身份漂移或重复写入。",
+      estimate: "2–4 小时", startedAt: "2026-07-31 08:17", finishedAt: "2026-07-31 08:34", status: "已完成", progress: 100,
+      detail: "integration 已提交 search resume：恢复 population、RNG、cache、history、generation 与 counters；协议身份漂移 fail closed；恢复 run 复制历史且不重复 summary。随后与 OFA 候选输入身份组合，并增加候选分辨率恢复测试。",
+      acceptance: ["恢复 search-state 且代际连续", "科学身份不一致时拒绝", "search.jsonl 不重复且历史连续", "定向测试通过后再完成"],
+      evidence: ["EV-LIVE-SEARCH-RESUME"], risks: [], updatedAt: "2026-07-31 08:37"
+    },
+    {
+      id: "J2", phase: "实时", priority: "P0", title: "严格 one_percent_data 抽样",
+      content: "已按 split 全局目标实现确定性最大余数分层抽样，并锁定 acceptance 与 checkpoint identity。",
+      purpose: "确保每个 split 恰好按全局 round(N×0.01) 抽样，不因逐类最小值扩大样本量。",
+      estimate: "2–4 小时", startedAt: "2026-07-31 08:18", finishedAt: "2026-07-31 08:32", status: "已完成", progress: 100,
+      detail: "严格 1% 提交已合入 integration：每个 split 使用 round(N×0.01) 全局目标，零目标 fail closed；ImageNet validation 为 500/50,000 而非 1,000；data_fraction 进入 checkpoint identity。专项 17 tests 与 Ruff 通过。",
+      acceptance: ["train/valid split 分别严格 1%", "零目标拒绝而非扩为 1", "仅精确 0.01 进入 acceptance", "checkpoint identity 锁定协议与 fraction", "定向测试通过并集成后再完成"],
+      evidence: ["EV-LIVE-STRICT-ONE-PERCENT"], risks: [], updatedAt: "2026-07-31 08:37"
+    },
+    {
+      id: "J3", phase: "实时", priority: "P1", title: "OFA 候选 resolution fidelity",
+      content: "已对齐 OFA candidate resolution、真实输入、模型、缓存身份、结果行和 BN recalibration。",
+      purpose: "防止不同 resolution 候选仍使用固定 input size，导致代理、评估和搜索 fidelity 漂移。",
+      estimate: "3–6 小时", startedAt: "2026-07-31 08:20", finishedAt: "2026-07-31 08:36", status: "已完成", progress: 100,
+      detail: "OFA resolution P0 修复已合入 integration：每个候选按 architecture resolution 解析确定性 batch；显式冲突 input_size 在创建 run 前拒绝；fingerprint、cache key、score/search row 与 BN stream 均按实际 resolution 区分。OFA+resume 联合测试通过。",
+      acceptance: ["输入尺寸来自 OFA candidate resolution", "显式冲突 input_size 时拒绝", "模型与输入张量尺寸一致", "BN recalibration 按实际 resolution 分流", "验证并集成后再完成"],
+      evidence: ["EV-LIVE-OFA-RESOLUTION"], risks: [], updatedAt: "2026-07-31 08:37"
+    },
+    {
+      id: "J4", phase: "实时", priority: "P0", title: "DARTS ImageNet real-data preflight",
+      content: "在完整 ImageNet-1k 上运行 DARTS 四卡 real-data preflight。",
+      purpose: "在启动正式双重 1% 训练前验证真实数据、DDP、吞吐、显存和训练产物链路。",
+      estimate: "以当前运行结束为准（当前无可靠 ETA）", startedAt: "2026-07-31 05:52", finishedAt: "—", status: "进行中", progress: 0,
+      detail: "原始启动时间为 2026-07-30T21:52:25Z（Asia/Shanghai 为 2026-07-31 05:52）；当前 manifest status=running，不写完成时间或通过结论。可核验 manifest：<audit-root>/training/darts-imagenet-preflight-zcp-selected/20260730T215225Z_f435a12631fa/manifest.json。",
+      acceptance: ["manifest 最终状态明确", "真实 ImageNet batch 完成训练", "DDP 各 rank 正常退出", "training.jsonl 与 checkpoint 完整", "运行结束并审计后再判断"],
+      evidence: ["EV-LIVE-DARTS-IMAGENET-PREFLIGHT"], risks: ["R-LIVE-DARTS-IMAGENET-PREFLIGHT", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 08:23"
+    },
+    {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
@@ -268,9 +304,18 @@ window.ZCP_PANEL_DATA = {
     { id: "R-DDP-RANK-RNG", severity: "高", status: "开放", title: "DDP rank-local RNG 恢复尚未专项审计", description: "DDP checkpoint 可能只保存 rank-0 RNG；多 rank 恢复后各 rank RNG 独立性尚未专项审计，属于未验证风险，不代表已观察到异常。", mitigation: "专项审计 checkpoint 中各 rank RNG state 的保存与恢复，并验证多 rank 恢复后的 RNG 独立性；完成前保持风险开放。", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "R-LAUNCHER-EXIT-CODE", severity: "高", status: "开放", title: "launcher exit-code 异常", description: "launcher 的退出码传播仍存在异常风险，子进程失败可能无法被上层可靠识别。", mitigation: "增加失败注入与退出码传播验收；修复前以 run manifest、日志和产物完整性共同判定。", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
-    { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] }
+    { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] },
+    { id: "R-LIVE-SEARCH-RESUME", severity: "中", status: "关闭", title: "Search resume 集成验收完成", description: "恢复状态、协议身份、历史连续性、原子状态文件和 OFA 候选输入身份均已集成。", mitigation: "保留 uninterrupted/resume 等价、身份漂移拒绝和 OFA 分辨率恢复回归测试。", taskIds: ["J1"] },
+    { id: "R-LIVE-STRICT-ONE-PERCENT", severity: "高", status: "关闭", title: "严格 1% 协议已集成", description: "split 全局目标、边界 fraction、确定性配额和 checkpoint identity 已进入 integration。", mitigation: "继续在真实训练产物中核对 resolved config 的实际 split 数量。", taskIds: ["J2"] },
+    { id: "R-LIVE-OFA-RESOLUTION", severity: "高", status: "关闭", title: "OFA resolution fidelity P0 已修复", description: "候选 resolution 现控制实际输入、fingerprint、cache、结果行和 BN stream。", mitigation: "保留不同 resolution tensor shape、cache identity、forward 与 resume 联合测试。", taskIds: ["J3"] },
+    { id: "R-LIVE-DARTS-IMAGENET-PREFLIGHT", severity: "高", status: "开放", title: "DARTS ImageNet preflight 仍在运行", description: "manifest 当前为 running，尚无最终退出状态、完整日志或产物审计；运行中状态不能外推为完成或通过。", mitigation: "持续读取指定 manifest；仅在进程结束并核验 manifest、training.jsonl、checkpoint 与 launcher 退出状态后更新。", taskIds: ["J4", "D1", "H2"] }
   ],
   evidence: [
+    { id: "EV-LIVE-SEARCH-RESUME", time: "2026-07-31 08:37", title: "Search resume 集成完成", result: "integration commits fb168fa/9d8af34 实现原子状态、RNG/cache/history/population 恢复、协议身份拒绝和 OFA 候选输入身份联合恢复；定向测试通过。", command: "pytest tests/test_core.py tests/test_cli_commands.py tests/test_ofa_resolution_protocol.py -k 'search or resume'", taskIds: ["J1"] },
+    { id: "EV-LIVE-STRICT-ONE-PERCENT", time: "2026-07-31 08:37", title: "严格 one_percent_data 集成完成", result: "commit 9c58080 对 CIFAR/ImageNet train/valid 使用严格全局 1% 目标，拒绝空目标与近似 fraction，并把 data_fraction 纳入 checkpoint identity；17 项专项测试通过。", command: "pytest tests/test_workflow.py tests/test_core.py -k 'one_percent or stratified_subset'", taskIds: ["J2"] },
+    { id: "EV-LIVE-OFA-RESOLUTION", time: "2026-07-31 08:37", title: "OFA candidate resolution fidelity 集成完成", result: "commit 9d8af34 让 candidate resolution 控制 tensor、model validation、fingerprint、cache key、score/search row 与 BN stream；122 项组合测试和新增 resume 联合测试通过。", command: "pytest tests/test_ofa_resolution_protocol.py tests/test_core.py tests/test_cli_commands.py tests/test_workflow.py", taskIds: ["J3"] },
+    { id: "EV-LIVE-DARTS-IMAGENET-PREFLIGHT", time: "2026-07-31 08:23", title: "DARTS ImageNet real-data preflight 运行中", result: "manifest started_at=2026-07-30T21:52:25.686791Z，当前 status=running；不记录完成时间，不声称训练通过。", command: "<audit-root>/training/darts-imagenet-preflight-zcp-selected/20260730T215225Z_f435a12631fa/manifest.json", taskIds: ["J4", "D1", "H2"] },
+    { id: "EV-PANEL-REFRESH-RELIABILITY", time: "2026-07-31 08:13", title: "看板自动刷新可靠性完成", result: "修复 file:// 页面重载状态恢复的 search/sort DOM ID；动态 data.js 加载增加 10 秒超时、单次 settle、handler/timer/script 统一 cleanup。HTTP 模式继续使用 cache-busting data.js 局部刷新且无需 F5，失败保留旧数据并释放 refreshPromise/按钮；file:// 可回退 cache-busting 页面重载并恢复搜索、筛选、排序与滚动位置。", command: "node --check panel/app.js; node --check panel/check-data.js; node panel/check-data.js; git diff --check -- panel", taskIds: ["F4"] },
     { id: "EV-PLAINNET-FIDELITY-AUDIT", time: "2026-07-31 07:28", title: "PlainNet-MBV2 fidelity fail-closed 审计", result: "锁定 ZenNAS d1d617e、AZ-NAS 5e6683a 与 ZiCo b0fec65 后确认：当前固定-stage MBConv 编码不等于上游 structure-string/MasterNet/SuperResIDWE 空间，且缺 SE、custom Kaiming、BN momentum 0.01 等训练语义。代码与 metadata 已降级为 proxy_approximation，默认正式路径拒绝。", command: "docs/evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md; pytest tests/test_reference_models.py tests/test_core.py; ruff", taskIds: ["C2", "G1", "H2", "H3"] },
     { id: "EV-FULL-GATE-398", time: "2026-07-31 06:21", title: "最新全仓质量门禁 398", result: "DDP rank-local RNG checkpoint 修复后，28 个测试文件共 398 tests passed；第一方 source coverage 87%、CLI coverage 82%。Ruff、compileall、pip check、repository hygiene、panel 与 diff 全部通过；该证据取代 396 及更早门禁成为当前口径。", command: "coverage run -m pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "D2", "G1"] },
     { id: "EV-FULL-GATE-396", time: "2026-07-31 05:47", title: "历史全仓质量门禁 396", result: "历史口径：28 个测试文件共 396 tests passed；第一方 source coverage 87%、CLI coverage 82%。该证据已由 DDP rank-local RNG 修复后的 EV-FULL-GATE-398 取代。", command: "pytest; coverage report; ruff check; python -m compileall; pip check; pytest tests/test_repository_hygiene.py; node panel/check-data.js; git diff --check", taskIds: ["A1", "G1"] },
