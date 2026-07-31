@@ -552,7 +552,11 @@ with the complete shared NUMA-1 list did not establish a gain over baseline. The
 therefore fully reverted to the system affinity. Affinity remains an opt-in experiment, not a
 default recommendation. Without packed-memory evidence, use `parallel_single_gpu`.
 
-Explicit runtime tuning keys are `prefetch_factor`, `pin_memory`, `persistent_workers`,
+Use `--workers` for the training loader and `--valid-workers` for the validation loader. The
+acceptance launchers default validation to two workers because a 1% ImageNet validation subset has
+only four batches; this does not change samples, ordering, transforms, batch, or LR. Explicit
+runtime tuning keys are `prefetch_factor`, `valid_prefetch_factor`, `pin_memory`,
+`persistent_workers`, `valid_persistent_workers`,
 `non_blocking_transfer`, `memory_format: channels_last`, `cudnn_benchmark`, and `allow_tf32`.
 Defaults retain the prior protocol. Enable channels-last only after a CNN-specific smoke.
 `cudnn_benchmark: true` is rejected with deterministic training; TF32 or nondeterministic settings
@@ -563,4 +567,6 @@ which under-fills 4090-class devices; increasing the scientific batch merely to 
 is not allowed. After the already completed first task, use
 `resume-darts-imagenet-parallel-from-task2.sh` to run tasks 2–6 as four independent one-GPU lanes.
 Every run retains global batch 128 and the locked LR, while different candidate/protocol runs execute
-concurrently. Lane zero chains task 2 then task 6; the other lanes run tasks 3, 4, and 5.
+concurrently. The three 250-epoch tasks start first on separate lanes; tasks 2 and 3 share the
+fourth lane. Each lane owns and releases only its own GPU lock, so a completed lane can be reused
+immediately instead of remaining locked until the slowest task exits.

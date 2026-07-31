@@ -14,6 +14,7 @@ START_AT=${ZCP_START_AT:-1}
 PYTHON=${ZCP_PYTHON:-python}
 TORCHRUN=${ZCP_TORCHRUN:-torchrun}
 WORKERS=${ZCP_DATA_WORKERS:-8}
+VALID_WORKERS=${ZCP_VALID_DATA_WORKERS:-2}
 EXECUTION_STRATEGY=${ZCP_EXECUTION_STRATEGY:-sequential_ddp}
 CPU_AFFINITIES=${ZCP_CPU_AFFINITIES:-}
 LOCK_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks
@@ -226,7 +227,8 @@ run_one() {
   "$TORCHRUN" --standalone --nproc-per-node=4 -m zcp_test.cli train \
     --config "$CONFIG_PATH" --acceptance-smoke --epochs "$epochs" \
     --data-fraction "$fraction" --architecture "$architecture" \
-    --data-root "$DATA_ROOT" --workers "$WORKERS" --seed 20260731 --output "$output" \
+    --data-root "$DATA_ROOT" --workers "$WORKERS" --valid-workers "$VALID_WORKERS" \
+    --seed 20260731 --output "$output" \
     2>&1 | tee -a "$launcher_log"
   local run
   run=$(find "$output" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
@@ -264,7 +266,8 @@ run_one_single() {
   "${launch[@]}" "$PYTHON" -m zcp_test.cli train \
     --config "$CONFIG_PATH" --acceptance-smoke --epochs "$epochs" \
     --data-fraction "$fraction" --architecture "$architecture" \
-    --data-root "$DATA_ROOT" --workers "$WORKERS" --seed 20260731 \
+    --data-root "$DATA_ROOT" --workers "$WORKERS" --valid-workers "$VALID_WORKERS" \
+    --seed 20260731 \
     --device cuda:0 --output "$output" 2>&1 | tee -a "$launcher_log"
   local run
   run=$(find "$output" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \

@@ -10,6 +10,7 @@ START_AT=${ZCP_START_AT:-1}
 PYTHON=${ZCP_PYTHON:-python}
 TORCHRUN=${ZCP_TORCHRUN:-torchrun}
 WORKERS=${ZCP_DATA_WORKERS:-8}
+VALID_WORKERS=${ZCP_VALID_DATA_WORKERS:-2}
 LOCK_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks
 STATUS=$OUTPUT_ROOT/status.json
 
@@ -136,6 +137,7 @@ run_one() {
     --config "$PROJECT_ROOT/configs/training/darts_imagenet.yaml" \
     --acceptance-smoke --epochs "$epochs" --data-fraction "$fraction" \
     --architecture "$architecture" --data-root "$DATA_ROOT" --workers "$WORKERS" \
+    --valid-workers "$VALID_WORKERS" \
     --seed 20260731 --output "$output" 2>&1 | tee -a "$launcher_log"
   local run
   run=$(find "$output" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \

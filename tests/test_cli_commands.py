@@ -915,6 +915,19 @@ def test_real_loaders_cover_cifar_and_imagenet_protocols(monkeypatch, tmp_path):
     assert len(train.dataset) == 2
     assert len(valid.dataset) == 2
 
+    train, valid = cli._real_loaders(
+        "cifar10",
+        str(tmp_path),
+        batch_size=2,
+        input_size=8,
+        workers=2,
+        config={"valid_workers": 1},
+        fraction=0.5,
+        seed=3,
+    )
+    assert train.num_workers == 2
+    assert valid.num_workers == 1
+
     (tmp_path / "val").mkdir()
     train, valid = cli._real_loaders(
         "imagenet1k",

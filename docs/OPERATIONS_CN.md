@@ -664,7 +664,10 @@ export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
 因此现场已完全回退为系统默认 affinity。亲和性只保留为可选实验参数，不作为推荐默认。若没有 smoke
 证据，继续使用 `parallel_single_gpu`。
 
-训练配置还支持显式性能键：`prefetch_factor`、`pin_memory`、`persistent_workers`、
+训练 loader 使用 `--workers`，验证 loader 可独立使用 `--valid-workers`。1% ImageNet 验证集仅有 4 个
+batch，因此验收脚本默认使用 2 个验证 worker；这不改变样本、顺序、transform、batch 或 LR。训练配置
+还支持显式性能键：`prefetch_factor`、`valid_prefetch_factor`、`pin_memory`、`persistent_workers`、
+`valid_persistent_workers`、
 `non_blocking_transfer`、`memory_format: channels_last`、`cudnn_benchmark` 和 `allow_tf32`。默认值保持旧
 协议；`channels_last` 只应在 CNN profile 单独 smoke 后启用。`cudnn_benchmark: true` 与
 `deterministic: true` 冲突并会直接报错；TF32/非确定性设置可能改变数值轨迹，必须形成新的版本化训练
@@ -677,5 +680,6 @@ manifest。该验收用于放行训练实现，不等于论文完整数据完整
 DARTS ImageNet 的正式 global batch 为 128。四卡 DDP 会把它拆成每卡 32，在 4090/4090D 上只占约
 1.8 GiB 且同步开销明显；不能为追求利用率擅自扩大科学 batch。首项已完成后，可使用
 `resume-darts-imagenet-parallel-from-task2.sh`：它将 task2–6 分成四条独立单卡 lane，每个 run 仍使用
-global batch 128，但并行不同候选/协议。lane 0 在 task2 后接 task6，其余三条分别执行 task3、4、5。
+global batch 128，但并行不同候选/协议。三个 250-epoch 任务优先在三条 lane 启动，task2/3 共用第四条；
+每条 lane 只持有并在结束时释放自己的 GPU 锁，已完成 lane 可立即被后续任务复用，不再等待最慢任务。
 这提高总吞吐而不改变单个实验的 batch/LR 协议；结果仍需逐 run 验证，不能把并行完成顺序当科学顺序。

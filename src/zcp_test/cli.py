@@ -808,7 +808,12 @@ def _real_loaders(
     if not 0 <= distributed_rank < distributed_world_size:
         raise ValueError("distributed_rank must be within distributed_world_size")
     generator = torch.Generator().manual_seed(seed)
-    common = {
+    if workers < 0:
+        raise ValueError("workers must be non-negative")
+    valid_workers = int(config.get("valid_workers", workers))
+    if valid_workers < 0:
+        raise ValueError("valid_workers must be non-negative")
+    train_common = {
         "num_workers": workers,
         "pin_memory": bool(config.get("pin_memory", True)),
         "persistent_workers": workers > 0 and bool(config.get("persistent_workers", True)),
@@ -817,7 +822,20 @@ def _real_loaders(
         prefetch_factor = int(config.get("prefetch_factor", 2))
         if prefetch_factor <= 0:
             raise ValueError("prefetch_factor must be positive")
-        common["prefetch_factor"] = prefetch_factor
+        train_common["prefetch_factor"] = prefetch_factor
+    valid_common = {
+        "num_workers": valid_workers,
+        "pin_memory": bool(config.get("pin_memory", True)),
+        "persistent_workers": valid_workers > 0
+        and bool(config.get("valid_persistent_workers", config.get("persistent_workers", True))),
+    }
+    if valid_workers > 0:
+        valid_prefetch_factor = int(
+            config.get("valid_prefetch_factor", config.get("prefetch_factor", 2))
+        )
+        if valid_prefetch_factor <= 0:
+            raise ValueError("valid_prefetch_factor must be positive")
+        valid_common["prefetch_factor"] = valid_prefetch_factor
     train_sampler = None
     if bool(config.get("repeated_augmentation", False)):
         from timm.data.distributed_sampler import RepeatAugSampler
@@ -855,14 +873,14 @@ def _real_loaders(
             sampler=train_sampler,
             generator=generator,
             batch_size=batch_size,
-            **common,
+            **train_common,
         ),
         torch.utils.data.DataLoader(
             valid_set,
             shuffle=False,
             sampler=valid_sampler,
             batch_size=int(config.get("test_batch_size", batch_size)),
-            **common,
+            **valid_common,
         ),
     )
 
@@ -2200,6 +2218,8 @@ def command_train(args: argparse.Namespace) -> None:
             "distributed_local_rank": distributed_local_rank,
             "seed": args.seed,
             "rank_seed": seed_state["rank_seed"],
+            "train_workers": args.workers,
+            "valid_workers": args.valid_workers if args.valid_workers is not None else args.workers,
             "deterministic": deterministic,
             "per_device_batch_size": batch_size,
             "gradient_accumulation_steps": gradient_accumulation_steps,
@@ -2251,13 +2271,16 @@ def command_train(args: argparse.Namespace) -> None:
                 train_loader = _synthetic_loader(batch, size, classes, 2)
                 valid_loader = _synthetic_loader(batch, size, classes, 1)
             else:
+                loader_config = dict(config)
+                if args.valid_workers is not None:
+                    loader_config["valid_workers"] = args.valid_workers
                 train_loader, valid_loader = _real_loaders(
                     dataset,
                     data_root,
                     batch,
                     size,
                     args.workers,
-                    config,
+                    loader_config,
                     args.data_fraction,
                     args.seed,
                     distributed_world_size,
@@ -2908,6 +2931,11 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--data-root")
     train.add_argument("--catalog", default=data_default)
     train.add_argument("--workers", type=int, default=4)
+    train.add_argument(
+        "--valid-workers",
+        type=int,
+        help="validation DataLoader workers; defaults to --workers for compatibility",
+    )
     train.add_argument("--data-fraction", type=float, default=1.0)
     train.add_argument("--output", default="runs/training")
     training_mode = train.add_mutually_exclusive_group()
