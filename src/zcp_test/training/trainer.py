@@ -42,6 +42,10 @@ class TrainingConfig:
     schedule_epochs: int | None = None
     exclude_bias_norm_from_weight_decay: bool = False
     exclude_norm_from_weight_decay: bool = False
+    non_blocking_transfer: bool = True
+    memory_format: str = "contiguous"
+    cudnn_benchmark: bool = False
+    allow_tf32: bool = False
 
 
 def _normalized_checkpoint_config(payload: Any) -> dict[str, Any]:
@@ -227,7 +231,12 @@ def train_model(
     distributed_rank = torch.distributed.get_rank() if distributed else 0
     primary_process = distributed_rank == 0
     writer = JsonlWriter(output / "training.jsonl", fsync_every=1) if primary_process else None
-    model.to(device)
+    if config.memory_format not in {"contiguous", "channels_last"}:
+        raise ValueError("memory_format must be 'contiguous' or 'channels_last'")
+    if config.memory_format == "channels_last":
+        model.to(device=device, memory_format=torch.channels_last)
+    else:
+        model.to(device)
     train_criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
     valid_criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.validation_label_smoothing)
     mixup_fn = None
@@ -520,7 +529,15 @@ def _epoch(
     progress_started = time.perf_counter()
     next_progress_at = progress_started + progress_interval_seconds
     for batch_index, (inputs, labels) in enumerate(loader):
-        inputs, labels = inputs.to(device), labels.to(device)
+        if config.memory_format == "channels_last" and inputs.ndim == 4:
+            inputs = inputs.to(
+                device,
+                non_blocking=config.non_blocking_transfer,
+                memory_format=torch.channels_last,
+            )
+        else:
+            inputs = inputs.to(device, non_blocking=config.non_blocking_transfer)
+        labels = labels.to(device, non_blocking=config.non_blocking_transfer)
         accuracy_labels = labels
         if training and mixup_fn is not None:
             inputs, labels = mixup_fn(inputs, labels)

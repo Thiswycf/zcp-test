@@ -502,6 +502,30 @@ the profile's unchanged batch fits, set `ZCP_EXECUTION_STRATEGY=parallel_single_
 lanes. This never overrides batch, accumulation, or LR. The acceptance flag is a manual gate, not
 automatic memory evidence; AutoFormer, PlainNet, and Proxyless require separate smokes.
 
+After a real two-process-per-GPU forward/backward smoke also passes, the six runs may start at once:
+
+```bash
+export ZCP_EXECUTION_STRATEGY=packed_single_gpu
+export ZCP_PACKED_SINGLE_GPU_ACCEPTED=yes
+export ZCP_DATA_WORKERS=4
+export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
+```
+
+This raises aggregate project throughput without changing any run's batch or LR. Verify combined
+peak memory first and reduce workers to avoid CPU decode contention. The optional four affinity
+lists correspond to the four GPU UUIDs and must be derived from `nvidia-smi topo -m`; never copy
+host-specific CPU IDs to another machine or mechanically split a NUMA node into undersized groups.
+On this host, a 16-logical-CPU-per-run trial reduced throughput by about 6–8%, while a short trial
+with the complete shared NUMA-1 list did not establish a gain over baseline. The live jobs were
+therefore fully reverted to the system affinity. Affinity remains an opt-in experiment, not a
+default recommendation. Without packed-memory evidence, use `parallel_single_gpu`.
+
+Explicit runtime tuning keys are `prefetch_factor`, `pin_memory`, `persistent_workers`,
+`non_blocking_transfer`, `memory_format: channels_last`, `cudnn_benchmark`, and `allow_tf32`.
+Defaults retain the prior protocol. Enable channels-last only after a CNN-specific smoke.
+`cudnn_benchmark: true` is rejected with deterministic training; TF32 or nondeterministic settings
+must define a new versioned protocol and must not silently resume or merge with older runs.
+
 The formal DARTS ImageNet global batch is 128. Four-way DDP reduces this to 32 images per GPU,
 which under-fills 4090-class devices; increasing the scientific batch merely to raise utilization
 is not allowed. After the already completed first task, use

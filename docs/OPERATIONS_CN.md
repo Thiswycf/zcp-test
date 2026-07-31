@@ -620,6 +620,29 @@ export ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes
 验收闸门，不是自动显存证明；未做真实模型 forward/backward smoke 时不得设置。AutoFormer、PlainNet
 和 Proxyless 必须分别验收，不能因为 DARTS 单卡可运行就直接放行。
 
+如果“两进程同卡”的真实 forward/backward smoke 也已通过，可进一步同时启动六项任务：
+
+```bash
+export ZCP_EXECUTION_STRATEGY=packed_single_gpu
+export ZCP_PACKED_SINGLE_GPU_ACCEPTED=yes
+export ZCP_DATA_WORKERS=4
+export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
+```
+
+`packed_single_gpu` 在两张卡上各放置两个独立 run，其余两张卡各一个；它提高的是项目总吞吐，不改变
+单个 run 的 batch/LR。必须先确认两进程峰值显存总和有安全余量，并用较少 workers 防止 CPU 解码争用。
+`ZCP_CPU_AFFINITIES` 可选，四段依次对应四个 GPU UUID；应按 `nvidia-smi topo -m` 选择 GPU 所属 NUMA
+节点，不得照抄本机 CPU 编号到其他机器，也不要未经测量就把一个 NUMA 节点机械切成过小的互斥分组。
+本机 16 逻辑核/任务的试验使吞吐下降约 6–8%；共享完整 NUMA1 的短时观察也没有证明优于基线，
+因此现场已完全回退为系统默认 affinity。亲和性只保留为可选实验参数，不作为推荐默认。若没有 smoke
+证据，继续使用 `parallel_single_gpu`。
+
+训练配置还支持显式性能键：`prefetch_factor`、`pin_memory`、`persistent_workers`、
+`non_blocking_transfer`、`memory_format: channels_last`、`cudnn_benchmark` 和 `allow_tf32`。默认值保持旧
+协议；`channels_last` 只应在 CNN profile 单独 smoke 后启用。`cudnn_benchmark: true` 与
+`deterministic: true` 冲突并会直接报错；TF32/非确定性设置可能改变数值轨迹，必须形成新的版本化训练
+协议，不能用于续跑旧 checkpoint 或与旧候选结果无标记混合。
+
 六项顺序固定为三个候选的全数据最少 1% epoch，再运行三个候选的 1% 数据完整 schedule。每个 run
 必须有持续增长的 `run.log`/`events.jsonl`、每 epoch 的 `training.jsonl`、`last.pt`、`best.pt` 与最终
 manifest。该验收用于放行训练实现，不等于论文完整数据完整 schedule 精度复现。

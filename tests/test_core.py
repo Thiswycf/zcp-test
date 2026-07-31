@@ -473,6 +473,53 @@ def test_cosine_step_scheduler_matches_proxyless_batch_schedule(tmp_path):
     assert checkpoint["scheduler"]["last_epoch"] == 2
 
 
+def test_training_rejects_unknown_memory_format(tmp_path):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(torch.randn(2, 3, 4, 4), torch.randint(2, (2,))),
+        batch_size=2,
+    )
+    config = TrainingConfig(
+        1,
+        "sgd",
+        0.1,
+        0.0,
+        amp=False,
+        nesterov=False,
+        memory_format="invalid",
+    )
+
+    with pytest.raises(ValueError, match="memory_format"):
+        train_model(model, loader, loader, config, tmp_path, torch.device("cpu"))
+
+
+def test_training_channels_last_smoke(tmp_path):
+    model = torch.nn.Sequential(
+        torch.nn.Conv2d(3, 4, 3, padding=1),
+        torch.nn.AdaptiveAvgPool2d(1),
+        torch.nn.Flatten(),
+        torch.nn.Linear(4, 2),
+    )
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(torch.randn(2, 3, 8, 8), torch.randint(2, (2,))),
+        batch_size=2,
+    )
+    config = TrainingConfig(
+        1,
+        "sgd",
+        0.1,
+        0.0,
+        amp=False,
+        nesterov=False,
+        memory_format="channels_last",
+    )
+
+    result = train_model(model, loader, loader, config, tmp_path, torch.device("cpu"))
+
+    assert result["last_epoch"] == 0
+    assert model[0].weight.is_contiguous(memory_format=torch.channels_last)
+
+
 def test_cosine_warmup_step_scheduler_matches_aznas_sample_schedule(tmp_path):
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
     loader = torch.utils.data.DataLoader(

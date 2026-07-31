@@ -159,7 +159,14 @@ def _research_model_provenance(space: Any, adapter: Any = None) -> dict[str, Any
     return provenance
 
 
-def _seed_training(seed: int, rank: int, deterministic: bool) -> dict[str, Any]:
+def _seed_training(
+    seed: int,
+    rank: int,
+    deterministic: bool,
+    *,
+    cudnn_benchmark: bool = False,
+    allow_tf32: bool = False,
+) -> dict[str, Any]:
     import random
 
     import numpy as np
@@ -169,8 +176,11 @@ def _seed_training(seed: int, rank: int, deterministic: bool) -> dict[str, Any]:
         os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
     torch.use_deterministic_algorithms(deterministic)
     torch.backends.cudnn.deterministic = deterministic
-    if deterministic:
-        torch.backends.cudnn.benchmark = False
+    if deterministic and cudnn_benchmark:
+        raise ValueError("cudnn_benchmark is incompatible with deterministic training")
+    torch.backends.cudnn.benchmark = cudnn_benchmark if not deterministic else False
+    torch.backends.cuda.matmul.allow_tf32 = allow_tf32
+    torch.backends.cudnn.allow_tf32 = allow_tf32
     rank_seed = (int(seed) + int(rank)) % (2**32)
     random.seed(rank_seed)
     np.random.seed(rank_seed)
@@ -183,6 +193,8 @@ def _seed_training(seed: int, rank: int, deterministic: bool) -> dict[str, Any]:
         "deterministic_algorithms": torch.are_deterministic_algorithms_enabled(),
         "cudnn_deterministic": bool(torch.backends.cudnn.deterministic),
         "cudnn_benchmark": bool(torch.backends.cudnn.benchmark),
+        "matmul_allow_tf32": bool(torch.backends.cuda.matmul.allow_tf32),
+        "cudnn_allow_tf32": bool(torch.backends.cudnn.allow_tf32),
     }
 
 
@@ -777,9 +789,14 @@ def _real_loaders(
     generator = torch.Generator().manual_seed(seed)
     common = {
         "num_workers": workers,
-        "pin_memory": True,
-        "persistent_workers": workers > 0,
+        "pin_memory": bool(config.get("pin_memory", True)),
+        "persistent_workers": workers > 0 and bool(config.get("persistent_workers", True)),
     }
+    if workers > 0:
+        prefetch_factor = int(config.get("prefetch_factor", 2))
+        if prefetch_factor <= 0:
+            raise ValueError("prefetch_factor must be positive")
+        common["prefetch_factor"] = prefetch_factor
     train_sampler = None
     if bool(config.get("repeated_augmentation", False)):
         from timm.data.distributed_sampler import RepeatAugSampler
@@ -2055,6 +2072,10 @@ def command_train(args: argparse.Namespace) -> None:
         exclude_norm_from_weight_decay=bool(config.get("exclude_norm_from_weight_decay", False)),
         gradient_accumulation_steps=gradient_accumulation_steps,
         schedule_epochs=int(config["epochs"]),
+        non_blocking_transfer=bool(config.get("non_blocking_transfer", True)),
+        memory_format=str(config.get("memory_format", "contiguous")),
+        cudnn_benchmark=bool(config.get("cudnn_benchmark", False)),
+        allow_tf32=bool(config.get("allow_tf32", False)),
     )
     data_root = None if args.smoke else _resolve_data_root(args, dataset)
     if not args.smoke and not data_root:
@@ -2068,7 +2089,13 @@ def command_train(args: argparse.Namespace) -> None:
         distributed_local_rank,
     ) as (device, selection):
         deterministic = bool(config.get("deterministic", True))
-        seed_state = _seed_training(args.seed, distributed_rank, deterministic)
+        seed_state = _seed_training(
+            args.seed,
+            distributed_rank,
+            deterministic,
+            cudnn_benchmark=training.cudnn_benchmark,
+            allow_tf32=training.allow_tf32,
+        )
         model = _build_training_model(space, architecture, classes, config)
         if distributed_world_size > 1:
             import torch

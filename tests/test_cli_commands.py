@@ -85,6 +85,12 @@ def test_imagenet_aznas_augmentation_includes_bicubic_jitter_and_lighting():
     assert type(train_transform.transforms[-2]).__name__ == "AlexNetLighting"
 
 
+def test_deterministic_training_rejects_cudnn_benchmark():
+    with pytest.raises(ValueError, match="incompatible"):
+        cli._seed_training(7, 0, True, cudnn_benchmark=True)
+    cli._seed_training(7, 0, False)
+
+
 def test_json_output_does_not_fail_completed_work_on_broken_pipe(monkeypatch):
     class BrokenStream:
         def write(self, value):
