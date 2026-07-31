@@ -9,14 +9,16 @@
 | Space | 静态模型 fidelity | 正式训练 | 当前边界 |
 |---|---|---|---|
 | `darts` | `reference_model` | 已放行，尚未完成高成本精度验收 | CIFAR-10/100、原始 DARTS ImageNet、TE-NAS retrain 分 profile |
-| `autoformer` | `reference_model` | **阻断** | repeated augmentation、分布式全局 batch/LR scaling、官方 fixture 未验收 |
+| `autoformer` | `reference_model` | **阻断** | AZ-NAS Tiny/Small 500-epoch profile、no-decay、warmup/min-LR、plain validation CE 已锁定；双重 1% GPU 验收未完成 |
 | `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 权重协议已分离；正式训练仍缺颜色扰动、MAC 与分布式验收 |
 | `zennas_plainnet_mbv2` | `proxy_approximation` | **禁止正式训练** | 当前固定 stage MBConv 编码不是 ZenNAS/AZ-NAS structure-string 搜索空间；必须完成真实 PlainNet port 后才能升级 |
-
-详细上游对照、150/480 epoch 配方边界和升级门槛见
-[`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)。
 | `pit` | `reference_topology_pytorch_port` | **尚无正式配置** | Auto-Prox `90ed458` 三阶段拓扑、参数/MAC fixture 已核对；缺 checkpoint/逐层数值对照，ViT-Bench vanilla/KD 真值只用于查询 |
 | `ofa_mbv3` | `reference_model` | **尚无正式配置** | 官方五阶段/20-block 静态子网与 BN recalibration；尚未接入 inherited checkpoint/active weight export |
+
+详细上游对照、150/480 epoch 配方边界和升级门槛见
+[`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)；
+AutoFormer optimizer、LR 与 validation 协议证据见
+[`evidence/AUTOFORMER_TRAINING_PROTOCOL_CN.md`](evidence/AUTOFORMER_TRAINING_PROTOCOL_CN.md)。
 
 模型为 `reference_model` 不自动表示训练协议完备。非 smoke 训练同时要求配置
 `formal_training_ready: true`，并且 `protocol` 及关键超参数必须匹配当前版本代码内置的已验收
@@ -80,6 +82,11 @@ zcp-test train --config configs/training/ofa_proxyless_mbv2_imagenet.yaml \
 和 active `ks/e/d` 权重导出已接入 `evaluate/search`，但每个 subnet 的独立真实数据 BN
 recalibration 与 inherited accuracy 尚未验收，不能用未校准 ZCP smoke 替代。正式 scratch 训练
 仍保持门禁阻断。
+
+AutoFormer 当前配置对应 AZ-NAS Tiny 搜索域：500 epoch、20 epoch warmup、AdamW、base LR
+`5e-4`、`warmup_lr=1e-6`、`min_lr=1e-5`，并按有效 global batch 相对 512 线性缩放。bias、Norm、
+class token 与 position embedding 不做 weight decay，validation 使用 plain cross entropy。
+这些字段已经单元测试和 profile validator 锁定，但在双重 1% GPU 验收完成前仍不能去掉 `--smoke`。
 
 ## 5. 恢复、监控与产物
 

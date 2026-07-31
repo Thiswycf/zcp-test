@@ -9,10 +9,14 @@ learning_rate_reference_batch_size: 512
 weight_decay: 0.05
 scheduler: cosine
 warmup_epochs: 20
+warmup_learning_rate: 0.000001
+minimum_learning_rate: 0.00001
 batch_size: 256
 target_global_batch_size: 2048
 gradient_accumulation_steps: auto
 label_smoothing: 0.1
+validation_label_smoothing: 0.0
+exclude_bias_norm_from_weight_decay: true
 amp: true
 deterministic: true
 drop_path_prob: 0.1

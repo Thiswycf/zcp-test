@@ -22,7 +22,10 @@ class TrainingConfig:
     scheduler_step_size: int = 1
     scheduler_gamma: float = 0.97
     warmup_epochs: int = 0
+    warmup_learning_rate: float | None = None
+    minimum_learning_rate: float = 0.0
     label_smoothing: float = 0.0
+    validation_label_smoothing: float = 0.0
     amp: bool = True
     momentum: float = 0.9
     nesterov: bool = True
@@ -37,6 +40,57 @@ class TrainingConfig:
     mixup_mode: str = "batch"
     gradient_accumulation_steps: int = 1
     schedule_epochs: int | None = None
+    exclude_bias_norm_from_weight_decay: bool = False
+
+
+def _optimizer_parameter_groups(
+    model: Any, weight_decay: float, exclude_bias_norm: bool
+) -> Any:
+    if not exclude_bias_norm:
+        return model.parameters()
+    unwrapped = getattr(model, "module", model)
+    declared = (
+        set(unwrapped.no_weight_decay())
+        if callable(getattr(unwrapped, "no_weight_decay", None))
+        else set()
+    )
+    decay = []
+    no_decay = []
+    for name, parameter in unwrapped.named_parameters():
+        if not parameter.requires_grad:
+            continue
+        if parameter.ndim <= 1 or name.endswith(".bias") or name in declared:
+            no_decay.append(parameter)
+        else:
+            decay.append(parameter)
+    if not decay or not no_decay:
+        raise ValueError("weight-decay exemption requires both decay and no-decay parameters")
+    return [
+        {"params": decay, "weight_decay": weight_decay},
+        {"params": no_decay, "weight_decay": 0.0},
+    ]
+
+
+def _cosine_learning_rate(config: TrainingConfig, epoch: int, schedule_epochs: int) -> float:
+    if schedule_epochs <= 0 or epoch < 0:
+        raise ValueError("schedule epoch values must be non-negative and non-empty")
+    minimum = float(config.minimum_learning_rate)
+    base = float(config.learning_rate)
+    if not 0 <= minimum <= base:
+        raise ValueError("minimum_learning_rate must be between zero and learning_rate")
+    if config.warmup_epochs and epoch < config.warmup_epochs:
+        if config.warmup_learning_rate is None:
+            return base * float(epoch + 1) / config.warmup_epochs
+        warmup = float(config.warmup_learning_rate)
+        if not 0 <= warmup <= base:
+            raise ValueError("warmup_learning_rate must be between zero and learning_rate")
+        return warmup + (base - warmup) * epoch / config.warmup_epochs
+    progress = (epoch - config.warmup_epochs) / max(
+        1, schedule_epochs - config.warmup_epochs
+    )
+    return minimum + 0.5 * (base - minimum) * (
+        1.0 + math.cos(math.pi * min(1.0, progress))
+    )
 
 
 def _restore_training_log(
@@ -126,9 +180,9 @@ def train_model(
     primary_process = distributed_rank == 0
     writer = JsonlWriter(output / "training.jsonl", fsync_every=1) if primary_process else None
     model.to(device)
-    valid_criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
+    train_criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.label_smoothing)
+    valid_criterion = torch.nn.CrossEntropyLoss(label_smoothing=config.validation_label_smoothing)
     mixup_fn = None
-    train_criterion = valid_criterion
     if config.mixup > 0 or config.cutmix > 0:
         from timm.data import Mixup
         from timm.loss import SoftTargetCrossEntropy
@@ -149,7 +203,16 @@ def train_model(
         )
         train_criterion = SoftTargetCrossEntropy()
     if config.optimizer.lower() == "adamw":
-        optimizer = torch.optim.AdamW(model.parameters(), config.learning_rate, weight_decay=config.weight_decay)
+        parameters = _optimizer_parameter_groups(
+            model,
+            config.weight_decay,
+            config.exclude_bias_norm_from_weight_decay,
+        )
+        optimizer = torch.optim.AdamW(
+            parameters,
+            config.learning_rate,
+            weight_decay=config.weight_decay,
+        )
     elif config.optimizer.lower() == "sgd":
         optimizer = torch.optim.SGD(
             model.parameters(),
@@ -166,12 +229,7 @@ def train_model(
         raise ValueError("schedule_epochs must be greater than or equal to epochs")
     if scheduler_name == "cosine":
         def learning_rate_multiplier(epoch: int) -> float:
-            if config.warmup_epochs and epoch < config.warmup_epochs:
-                return float(epoch + 1) / config.warmup_epochs
-            progress = (epoch - config.warmup_epochs) / max(
-                1, schedule_epochs - config.warmup_epochs
-            )
-            return 0.5 * (1.0 + math.cos(math.pi * min(1.0, progress)))
+            return _cosine_learning_rate(config, epoch, schedule_epochs) / config.learning_rate
 
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, learning_rate_multiplier)
     elif scheduler_name == "step":

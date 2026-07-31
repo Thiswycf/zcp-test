@@ -1972,7 +1972,16 @@ def command_train(args: argparse.Namespace) -> None:
         scheduler_step_size=int(config.get("scheduler_step_size", 1)),
         scheduler_gamma=float(config.get("scheduler_gamma", 0.97)),
         warmup_epochs=int(config.get("warmup_epochs", 0)),
+        warmup_learning_rate=(
+            None
+            if config.get("warmup_learning_rate") is None
+            else float(config["warmup_learning_rate"])
+        ),
+        minimum_learning_rate=float(config.get("minimum_learning_rate", 0.0)),
         label_smoothing=float(config.get("label_smoothing", 0)),
+        validation_label_smoothing=float(
+            config.get("validation_label_smoothing", 0.0)
+        ),
         amp=bool(config.get("amp", True)),
         momentum=float(config.get("momentum", 0.9)),
         nesterov=bool(config.get("nesterov", True)),
@@ -1985,6 +1994,9 @@ def command_train(args: argparse.Namespace) -> None:
         mixup_probability=float(config.get("mixup_probability", 1.0)),
         mixup_switch_probability=float(config.get("mixup_switch_probability", 0.5)),
         mixup_mode=str(config.get("mixup_mode", "batch")),
+        exclude_bias_norm_from_weight_decay=bool(
+            config.get("exclude_bias_norm_from_weight_decay", False)
+        ),
         gradient_accumulation_steps=gradient_accumulation_steps,
         schedule_epochs=(
             int(config["epochs"]) if acceptance_smoke or real_data_preflight else epochs

@@ -282,6 +282,12 @@ def test_autoformer_candidate_training_protocol_is_locked():
         Path("configs/training/autoformer_imagenet.yaml").read_text(encoding="utf-8")
     )
     assert validate_candidate_training_protocol(config) == "aznas-autoformer-scratch"
+    assert config["epochs"] == 500
+    assert config["warmup_epochs"] == 20
+    assert config["warmup_learning_rate"] == pytest.approx(1e-6)
+    assert config["minimum_learning_rate"] == pytest.approx(1e-5)
+    assert config["validation_label_smoothing"] == 0.0
+    assert config["exclude_bias_norm_from_weight_decay"] is True
     config["mixup"] = 0.0
     with pytest.raises(ValueError, match="mixup"):
         validate_candidate_training_protocol(config)

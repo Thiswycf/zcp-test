@@ -325,6 +325,15 @@ class StaticAutoFormer(nn.Module):
                 nn.init.ones_(module.weight)
                 nn.init.zeros_(module.bias)
 
+    def no_weight_decay(self) -> set[str]:
+        names = {"class_token", "position_embedding"}
+        names.update(
+            name
+            for name, _parameter in self.named_parameters()
+            if ".relative_key." in name or ".relative_value." in name
+        )
+        return names
+
     def reference_metadata(self) -> dict[str, Any]:
         if self.profile == VITBENCH_AUTOPROX_PROFILE:
             source = "https://github.com/lliai/Auto-Prox-AAAI24"

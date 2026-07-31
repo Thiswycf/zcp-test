@@ -15,6 +15,8 @@ from zcp_test.training import TrainingConfig, train_model
 from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint
 from zcp_test.training.trainer import (
     _collect_checkpoint_rng,
+    _cosine_learning_rate,
+    _optimizer_parameter_groups,
     _restore_checkpoint_rng,
     _restore_training_log,
 )
@@ -335,6 +337,121 @@ def test_training_artifacts(tmp_path):
     loader = torch.utils.data.DataLoader(data, batch_size=4)
     train_model(model, loader, loader, TrainingConfig(1, "sgd", 0.01, 0), tmp_path, torch.device("cpu"))
     assert (tmp_path / "checkpoints" / "last.pt").exists()
+
+
+def test_autoformer_optimizer_exempts_bias_norm_and_tokens_from_weight_decay():
+    from zcp_test.models.autoformer import AZNAS_SCRATCH_PROFILE, StaticAutoFormer
+
+    model = StaticAutoFormer(
+        profile=AZNAS_SCRATCH_PROFILE,
+        image_size=32,
+        patch_size=16,
+        num_classes=3,
+        embed_dim=24,
+        depth=2,
+        num_heads=[2, 2],
+        mlp_ratio=[2.0, 2.0],
+        super_depth=14,
+    )
+    groups = _optimizer_parameter_groups(model, 0.05, True)
+    decay_ids = {id(parameter) for parameter in groups[0]["params"]}
+    no_decay_ids = {id(parameter) for parameter in groups[1]["params"]}
+    names = {name: id(parameter) for name, parameter in model.named_parameters()}
+
+    assert groups[0]["weight_decay"] == 0.05
+    assert groups[1]["weight_decay"] == 0.0
+    assert names["class_token"] in no_decay_ids
+    assert names["position_embedding"] in no_decay_ids
+    assert names["blocks.0.attention.relative_key.vertical"] in no_decay_ids
+    assert names["blocks.0.attention.relative_value.horizontal"] in no_decay_ids
+    assert names["norm.weight"] in no_decay_ids
+    assert names["head.bias"] in no_decay_ids
+    assert names["head.weight"] in decay_ids
+    assert not decay_ids & no_decay_ids
+
+
+def test_autoformer_cosine_schedule_matches_aznas_warmup_and_floor():
+    config = TrainingConfig(
+        500,
+        "adamw",
+        5e-4,
+        0.05,
+        warmup_epochs=20,
+        warmup_learning_rate=1e-6,
+        minimum_learning_rate=1e-5,
+    )
+
+    assert _cosine_learning_rate(config, 0, 500) == pytest.approx(1e-6)
+    assert _cosine_learning_rate(config, 20, 500) == pytest.approx(5e-4)
+    assert _cosine_learning_rate(config, 500, 500) == pytest.approx(1e-5)
+    assert _cosine_learning_rate(config, 499, 500) > 1e-5
+
+
+def test_validation_uses_plain_cross_entropy_when_training_uses_smoothing(tmp_path):
+    torch.manual_seed(7)
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 3))
+    inputs = torch.randn(4, 3, 4, 4)
+    labels = torch.tensor([0, 1, 2, 1])
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(inputs, labels), batch_size=2, shuffle=False
+    )
+    config = TrainingConfig(
+        1,
+        "sgd",
+        0.01,
+        0.0,
+        scheduler="none",
+        label_smoothing=0.2,
+        validation_label_smoothing=0.0,
+        nesterov=False,
+    )
+    train_model(model, loader, loader, config, tmp_path, torch.device("cpu"))
+    record = next(read_jsonl(tmp_path / "training.jsonl"))
+    checkpoint = load_checkpoint(tmp_path / "checkpoints" / "last.pt", trusted=True)
+    model.load_state_dict(checkpoint["model"])
+    with torch.no_grad():
+        expected = torch.nn.functional.cross_entropy(model(inputs), labels).item()
+        smoothed = torch.nn.functional.cross_entropy(
+            model(inputs), labels, label_smoothing=0.2
+        ).item()
+
+    assert record["valid_loss"] == pytest.approx(expected)
+    assert record["valid_loss"] != pytest.approx(smoothed)
+
+
+def test_training_keeps_label_smoothing_without_mixup(tmp_path, monkeypatch):
+    observed: list[float] = []
+    original = torch.nn.functional.cross_entropy
+
+    def recording_cross_entropy(inputs, targets, *args, **kwargs):
+        if torch.is_grad_enabled():
+            observed.append(float(kwargs.get("label_smoothing", 0.0)))
+        return original(inputs, targets, *args, **kwargs)
+
+    monkeypatch.setattr(torch.nn.functional, "cross_entropy", recording_cross_entropy)
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 3))
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(
+            torch.randn(4, 3, 4, 4), torch.tensor([0, 1, 2, 1])
+        ),
+        batch_size=2,
+        shuffle=False,
+    )
+    config = TrainingConfig(
+        1,
+        "sgd",
+        0.01,
+        0.0,
+        scheduler="none",
+        label_smoothing=0.2,
+        validation_label_smoothing=0.0,
+        nesterov=False,
+    )
+
+    train_model(model, loader, loader, config, tmp_path, torch.device("cpu"))
+
+    assert observed
+    assert set(observed) == {0.2}
 
 
 def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
