@@ -569,6 +569,27 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 seed；第三个从独立随机池中同时匹配参数量与 FLOPs。不得把官方发布 architecture、手选 architecture
 或只匹配参数量的候选标成 `zcp_selected`/`params_flops_matched`。
 
+候选冻结使用已完成的搜索 run，而不是直接传入一个任意 architecture 文件：
+
+```bash
+SEARCH_RUN=/path/to/timestamped/search-run
+zcp-test acceptance freeze-candidates \
+  --search-run "$SEARCH_RUN" \
+  --training-config configs/training/autoformer_imagenet.yaml \
+  --seed 20260731 --pool-size 32 \
+  --output /path/to/frozen-candidates/autoformer
+```
+
+命令要求 search manifest 为 `completed`，且 `search_identity` 完整包含 space、proxy/version、dataset、
+input fingerprint 和 seed；`best_architecture.json` 还必须真实出现在 `search.jsonl` candidate 记录中。
+输出严格为每种角色一份 JSON 加 `candidates-manifest.json`，其中保存 search/config/JSONL SHA-256、
+训练配置 SHA-256、架构 ID、资源协议和匹配距离。训练 CLI 只读取其中的 `spec`，其余 provenance 保持
+只读审计。
+
+MobileNet 使用同一模型实现上的 THOP MAC 作为计算量约定。AutoFormer 使用 Cream/AZ-NAS 官方
+`get_complexity` 口径，并明确写入 `generic_flops=false`；它不能被重命名为通用 FLOPs。匹配距离为参数量
+和该空间计算量的 log-ratio L1，因此只表示资源相近，不表示精度、延迟或训练成本完全相同。
+
 四卡后台启动示例：
 
 ```bash

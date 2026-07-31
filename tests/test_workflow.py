@@ -44,8 +44,10 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
         "zcp_selected.json",
         "fixed_random.json",
         "params_flops_matched.json",
+        "candidates-manifest.json",
     ):
         assert candidate in common_source
+    assert "candidate manifest checksum/role mismatch" in common_source
     assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in common_source
     assert "ZoneInfo(\"Asia/Shanghai\")" in common_source
     assert "Project worktree must be clean" in common_source
@@ -69,6 +71,25 @@ def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
     assert "torchrun" not in source
     for task_index in range(2, 7):
         assert f"run_single {task_index} " in source
+
+
+def test_acceptance_freeze_candidates_cli_is_exposed():
+    parser = cli.build_parser()
+    arguments = parser.parse_args(
+        [
+            "acceptance",
+            "freeze-candidates",
+            "--search-run",
+            "search-run",
+            "--training-config",
+            "training.yaml",
+            "--output",
+            "candidates",
+        ]
+    )
+    assert arguments.action == "freeze-candidates"
+    assert arguments.pool_size == 32
+    assert arguments.classes == 1000
 
 
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):

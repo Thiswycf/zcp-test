@@ -133,6 +133,18 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 
 ## 正式训练
 
+无标准答案搜索空间在正式训练前，先从一个 `completed` search run 冻结三类候选：
+
+```bash
+zcp-test acceptance freeze-candidates \
+  --search-run /path/to/timestamped/search-run \
+  --training-config configs/training/autoformer_imagenet.yaml \
+  --output /path/to/frozen-candidates/autoformer
+```
+
+该命令拒绝缺少 proxy/version、输入指纹或 search JSONL 证据的手工候选。详细 provenance、资源
+匹配语义、双重 1% 启动与恢复见[操作手册](docs/OPERATIONS_CN.md)。
+
 - AutoFormer：AZ-NAS Tiny/Small 为 500 epoch、Base 为 300 epoch；基础 LR `5e-4` 按
   `per_device_batch × world_size / 512` 线性缩放（官方 8×256 时有效 LR `0.002`），AdamW、
   weight decay `0.05`、cosine、20 epoch warmup。当前已接入 repeated-augmentation sampler 和

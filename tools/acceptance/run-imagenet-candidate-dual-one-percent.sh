@@ -29,6 +29,10 @@ CONFIG_PATH=$PROJECT_ROOT/$CONFIG
 for name in zcp_selected.json fixed_random.json params_flops_matched.json; do
   [[ -f "$CANDIDATE_ROOT/$name" ]] || { echo "Missing candidate: $CANDIDATE_ROOT/$name" >&2; exit 2; }
 done
+[[ -f "$CANDIDATE_ROOT/candidates-manifest.json" ]] || {
+  echo "Missing candidate manifest: $CANDIDATE_ROOT/candidates-manifest.json" >&2
+  exit 2
+}
 [[ -d "$DATA_ROOT/train" && -d "$DATA_ROOT/val" ]] || {
   echo "ImageNet root must contain train/ and val/: $DATA_ROOT" >&2
   exit 2
@@ -45,6 +49,36 @@ if config.get("space") != sys.argv[2]:
     raise SystemExit(f"config space mismatch: {config.get('space')!r} != {sys.argv[2]!r}")
 if int(config.get("epochs", -1)) != int(sys.argv[3]):
     raise SystemExit(f"config epoch mismatch: {config.get('epochs')!r} != {sys.argv[3]!r}")
+PY
+"$PYTHON" - "$CANDIDATE_ROOT" "$SPACE" <<'PY'
+import hashlib
+import json
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+space = sys.argv[2]
+manifest = json.loads((root / "candidates-manifest.json").read_text(encoding="utf-8"))
+if manifest.get("search_space_id") != space:
+    raise SystemExit(
+        f"candidate manifest space mismatch: {manifest.get('search_space_id')!r} != {space!r}"
+    )
+expected = {
+    "zcp_selected.json": "zcp_selected",
+    "fixed_random.json": "fixed_random",
+    "params_flops_matched.json": "params_flops_matched",
+}
+for name, role in expected.items():
+    path = root / name
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    entry = manifest.get("candidates", {}).get(name, {})
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    if payload.get("search_space_id") != space or payload.get("candidate_role") != role:
+        raise SystemExit(f"candidate identity mismatch: {name}")
+    if entry.get("sha256") != digest or entry.get("role") != role:
+        raise SystemExit(f"candidate manifest checksum/role mismatch: {name}")
+    if entry.get("architecture_id") != payload.get("architecture_id"):
+        raise SystemExit(f"candidate manifest architecture mismatch: {name}")
 PY
 
 train_classes=$(find "$DATA_ROOT/train" -mindepth 1 -maxdepth 1 -type d | wc -l)
@@ -66,7 +100,7 @@ for index in "${!gpu_array[@]}"; do
   flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
 done
 
-for name in zcp_selected.json fixed_random.json params_flops_matched.json; do
+for name in zcp_selected.json fixed_random.json params_flops_matched.json candidates-manifest.json; do
   source_path=$(realpath "$CANDIDATE_ROOT/$name")
   destination_path=$(realpath -m "$OUTPUT_ROOT/candidates/$name")
   if [[ "$source_path" != "$destination_path" ]]; then

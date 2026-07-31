@@ -462,6 +462,23 @@ Each candidate directory must contain `zcp_selected.json`, `fixed_random.json`, 
 a fixed-seed sample, and an independently sampled candidate matched on both parameters and FLOPs.
 Do not relabel published, hand-picked, or parameter-only candidates.
 
+Freeze candidates from a completed search run, not from an arbitrary architecture file:
+
+```bash
+zcp-test acceptance freeze-candidates \
+  --search-run /path/to/timestamped/search-run \
+  --training-config configs/training/autoformer_imagenet.yaml \
+  --seed 20260731 --pool-size 32 \
+  --output /path/to/frozen-candidates/autoformer
+```
+
+The command requires a versioned search identity containing space, proxy/version, dataset, input
+fingerprint, and seed, and verifies that the best architecture occurs in `search.jsonl`. The output
+manifest locks all source and candidate checksums. MobileNet uses THOP MACs as its explicit compute
+convention. AutoFormer instead uses the Cream/AZ-NAS `get_complexity` protocol and records
+`generic_flops=false`; it must not be relabelled as generic FLOPs. Resource matching means log-ratio
+proximity in parameters and the declared compute metric, not equivalent accuracy or latency.
+
 ```bash
 export TZ=Asia/Shanghai
 export CUDA_DEVICE_ORDER=PCI_BUS_ID

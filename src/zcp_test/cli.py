@@ -21,6 +21,7 @@ from zcp_test.artifacts import (
     score_component,
 )
 from zcp_test.artifacts.run import file_sha256
+from zcp_test.acceptance import freeze_training_candidates
 from zcp_test.benchmarks import BENCHMARKS, load_builtin_benchmarks
 from zcp_test.config import TRAIN_PROFILE_KEYS, load_config, reject_unknown_config_keys
 from zcp_test.doctor import diagnostics
@@ -2533,6 +2534,22 @@ def command_legacy(args: argparse.Namespace) -> None:
     _json({"records": import_pickle(args.source, args.output, args.trusted), "output": args.output})
 
 
+def command_acceptance(args: argparse.Namespace) -> None:
+    if args.action == "freeze-candidates":
+        _json(
+            freeze_training_candidates(
+                search_run=args.search_run,
+                training_config_path=args.training_config,
+                output=args.output,
+                seed=args.seed,
+                pool_size=args.pool_size,
+                classes=args.classes,
+            )
+        )
+        return
+    raise ValueError(f"Unsupported acceptance action: {args.action}")
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="zcp-test")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -2900,6 +2917,16 @@ def build_parser() -> argparse.ArgumentParser:
     monitor.add_argument("--title", default="zcp-test monitor")
     monitor.add_argument("--once", action="store_true")
     monitor.set_defaults(function=command_monitor)
+    acceptance = subparsers.add_parser("acceptance")
+    acceptance_actions = acceptance.add_subparsers(dest="action", required=True)
+    freeze_candidates = acceptance_actions.add_parser("freeze-candidates")
+    freeze_candidates.add_argument("--search-run", required=True)
+    freeze_candidates.add_argument("--training-config", required=True)
+    freeze_candidates.add_argument("--output", required=True)
+    freeze_candidates.add_argument("--seed", type=int, default=20260731)
+    freeze_candidates.add_argument("--pool-size", type=int, default=32)
+    freeze_candidates.add_argument("--classes", type=int, default=1000)
+    freeze_candidates.set_defaults(function=command_acceptance)
     legacy = subparsers.add_parser("legacy")
     legacy_actions = legacy.add_subparsers(dest="action", required=True)
     legacy_import = legacy_actions.add_parser("import")

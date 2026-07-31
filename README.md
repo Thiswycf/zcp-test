@@ -161,6 +161,19 @@ Research manuals:
 - [Retained reproducible examples](examples/studies/README_CN.md)
 - [Acceptance status](docs/ACCEPTANCE.md) / [中文验收状态](docs/ACCEPTANCE_CN.md)
 
+Before formally training an open search space, freeze the three candidate roles from a completed,
+versioned search run:
+
+```bash
+zcp-test acceptance freeze-candidates \
+  --search-run /path/to/timestamped/search-run \
+  --training-config configs/training/autoformer_imagenet.yaml \
+  --output /path/to/frozen-candidates/autoformer
+```
+
+The operations manual documents provenance checks, resource matching, dual-one-percent launchers,
+and interruption recovery.
+
 ```bash
 zcp-test data list --catalog configs/data.example.json
 zcp-test data verify vitbench101_0 --catalog configs/data.example.json
