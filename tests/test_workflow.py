@@ -58,6 +58,19 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
         assert f"ZCP_FULL_DATA_EPOCHS={full_epochs}" in source
 
 
+def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "tools" / "acceptance" / "resume-darts-imagenet-parallel-from-task2.sh"
+    subprocess.run(["bash", "-n", str(script)], check=True)
+    source = script.read_text(encoding="utf-8")
+    assert "four_single_gpu_lanes_global_batch_128" in source
+    assert "CUDA_VISIBLE_DEVICES=$uuid" in source
+    assert "--device cuda:0" in source
+    assert "torchrun" not in source
+    for task_index in range(2, 7):
+        assert f"run_single {task_index} " in source
+
+
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):
     output = tmp_path / "runs"
     main(

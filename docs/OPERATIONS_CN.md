@@ -590,3 +590,9 @@ PlainNet 和 Proxyless 只替换候选目录与启动器。启动器会验证 Im
 六项顺序固定为三个候选的全数据最少 1% epoch，再运行三个候选的 1% 数据完整 schedule。每个 run
 必须有持续增长的 `run.log`/`events.jsonl`、每 epoch 的 `training.jsonl`、`last.pt`、`best.pt` 与最终
 manifest。该验收用于放行训练实现，不等于论文完整数据完整 schedule 精度复现。
+
+DARTS ImageNet 的正式 global batch 为 128。四卡 DDP 会把它拆成每卡 32，在 4090/4090D 上只占约
+1.8 GiB 且同步开销明显；不能为追求利用率擅自扩大科学 batch。首项已完成后，可使用
+`resume-darts-imagenet-parallel-from-task2.sh`：它将 task2–6 分成四条独立单卡 lane，每个 run 仍使用
+global batch 128，但并行不同候选/协议。lane 0 在 task2 后接 task6，其余三条分别执行 task3、4、5。
+这提高总吞吐而不改变单个实验的 batch/LR 协议；结果仍需逐 run 验证，不能把并行完成顺序当科学顺序。

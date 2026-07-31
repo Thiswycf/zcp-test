@@ -478,3 +478,10 @@ GPU UUID locks, candidate staging, and a clean Git worktree. New workflow times 
 unfinished task with `ZCP_START_AT=2..6`; never relabel `interrupted` as `completed`. A passing dual
 1% run validates the implementation and recovery protocol, not full-data/full-schedule paper
 accuracy reproduction.
+
+The formal DARTS ImageNet global batch is 128. Four-way DDP reduces this to 32 images per GPU,
+which under-fills 4090-class devices; increasing the scientific batch merely to raise utilization
+is not allowed. After the already completed first task, use
+`resume-darts-imagenet-parallel-from-task2.sh` to run tasks 2–6 as four independent one-GPU lanes.
+Every run retains global batch 128 and the locked LR, while different candidate/protocol runs execute
+concurrently. Lane zero chains task 2 then task 6; the other lanes run tasks 3, 4, and 5.
