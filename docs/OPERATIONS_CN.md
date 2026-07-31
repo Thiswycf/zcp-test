@@ -29,9 +29,10 @@ evaluate:
 ```
 
 解析顺序为：CLI 默认值 → 匹配的配置值 → 命令行显式参数。`--count 20` 与标准 argparse 写法
-`--count=20` 都会被识别为显式覆盖。除 `train` 的模型/训练 profile 透传字段外，配置中不存在的
-命令参数会 fail closed；训练配置仍须通过 protocol validator，并检查 run 目录中的 resolved
-`config.yaml`。YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
+`--count=20` 都会被识别为显式覆盖。所有命令都会拒绝未知键；`train` 额外允许版本化训练 profile
+schema 中声明的模型、优化器、增强和协议字段，因此 `learnng_rate` 等拼写错误会在启动训练前
+fail closed。训练配置还须通过 protocol validator，并检查 run 目录中的 resolved `config.yaml`。
+YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 
 ## GPU 锁
 

@@ -32,10 +32,12 @@ evaluate:
 
 The effective order is parser defaults, then matching config values, then options explicitly present
 on the command line. Both `--count 20` and standard argparse spelling `--count=20` are recognized as
-explicit overrides. Except for training-profile fields passed through to the model/trainer, unknown
-command config keys fail closed. Training configs remain subject to protocol validation; inspect each
-run's resolved `config.yaml` before treating it as research evidence. In particular, `trusted: true`
-in YAML is rejected unless `--trusted` is also present on the CLI.
+explicit overrides. Every command rejects unknown keys. `train` additionally accepts only the
+model, optimizer, augmentation and protocol fields declared by the versioned training-profile
+schema, so misspellings such as `learnng_rate` fail before a run starts. Training configs remain
+subject to protocol validation; inspect each run's resolved `config.yaml` before treating it as
+research evidence. In particular, `trusted: true` in YAML is rejected unless `--trusted` is also
+present on the CLI.
 
 ## GPU selection and locking
 

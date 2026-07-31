@@ -8,6 +8,76 @@ from typing import Any
 import yaml
 
 
+TRAIN_PROFILE_KEYS = frozenset(
+    {
+        "amp",
+        "amp_initial_scale",
+        "attention_dropout",
+        "auto_augment",
+        "auxiliary",
+        "auxiliary_weight",
+        "batch_size",
+        "batch_size_semantics",
+        "change_qkv",
+        "color_distortion",
+        "color_jitter",
+        "cutmix",
+        "cutout_length",
+        "dataset",
+        "deterministic",
+        "drop_path_prob",
+        "dropout",
+        "epochs",
+        "formal_training_blockers",
+        "formal_training_ready",
+        "global_pool",
+        "grad_clip",
+        "gradient_accumulation_steps",
+        "implementation_commit",
+        "implementation_source",
+        "init_channels",
+        "input_size",
+        "label_smoothing",
+        "layers",
+        "learning_rate",
+        "learning_rate_reference_batch_size",
+        "learning_rate_scaling",
+        "max_relative_position",
+        "mixup",
+        "mixup_mode",
+        "mixup_probability",
+        "mixup_switch_probability",
+        "model_profile",
+        "momentum",
+        "nesterov",
+        "optimizer",
+        "patch_size",
+        "protocol",
+        "qkv_head_dim",
+        "random_erase_count",
+        "random_erase_mode",
+        "random_erase_probability",
+        "reference_global_batch_size",
+        "reference_world_size",
+        "relative_position",
+        "repeated_augmentation",
+        "repeated_augmentation_repeats",
+        "repeated_augmentation_selected_ratio",
+        "repeated_augmentation_selected_round",
+        "resize_scale",
+        "scheduler",
+        "scheduler_gamma",
+        "scheduler_step_size",
+        "space",
+        "target_global_batch_size",
+        "test_batch_size",
+        "train_interpolation",
+        "warmup_epochs",
+        "weight_decay",
+    }
+)
+
+
 def load_config(path: str | Path | None) -> dict[str, Any]:
     if path is None:
         return {}
@@ -16,6 +86,16 @@ def load_config(path: str | Path | None) -> dict[str, Any]:
     if not isinstance(data, dict):
         raise ValueError("Configuration root must be a mapping")
     return data
+
+
+def reject_unknown_config_keys(
+    values: dict[str, Any], allowed: set[str] | frozenset[str], section: str
+) -> None:
+    unknown = sorted(set(values) - set(allowed))
+    if unknown:
+        raise ValueError(
+            f"Config section {section!r} contains unknown keys: " + ", ".join(unknown)
+        )
 
 
 def merge_config(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

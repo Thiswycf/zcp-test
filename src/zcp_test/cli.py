@@ -21,7 +21,7 @@ from zcp_test.artifacts import (
 )
 from zcp_test.artifacts.run import file_sha256
 from zcp_test.benchmarks import BENCHMARKS, load_builtin_benchmarks
-from zcp_test.config import load_config
+from zcp_test.config import TRAIN_PROFILE_KEYS, load_config, reject_unknown_config_keys
 from zcp_test.doctor import diagnostics
 from zcp_test.data import (
     DataAsset,
@@ -2855,13 +2855,9 @@ def main(argv: list[str] | None = None) -> None:
         values = loaded.get(args.command, loaded)
         if not isinstance(values, dict):
             raise ValueError(f"Config section {args.command!r} must be a mapping")
-        if args.command != "train":
-            unknown = sorted(key for key in values if not hasattr(args, key))
-            if unknown:
-                raise ValueError(
-                    f"Config section {args.command!r} contains unknown keys: "
-                    + ", ".join(unknown)
-                )
+        runtime_keys = {key for key in values if hasattr(args, key)}
+        allowed_keys = runtime_keys | (set(TRAIN_PROFILE_KEYS) if args.command == "train" else set())
+        reject_unknown_config_keys(values, allowed_keys, args.command)
         for key, value in values.items():
             if key == "trusted" and value and key not in explicitly_set:
                 raise PermissionError(

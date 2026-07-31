@@ -570,6 +570,53 @@ def test_non_training_config_rejects_unknown_keys(tmp_path):
         cli.main(["evaluate", "--config", str(config)])
 
 
+def test_training_config_rejects_unknown_profile_keys(tmp_path):
+    config = tmp_path / "training.yaml"
+    config.write_text(
+        "space: darts\n"
+        "dataset: cifar10\n"
+        "learnng_rate: 0.025\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="unknown keys: learnng_rate"):
+        cli.main(["train", "--config", str(config), "--smoke"])
+
+
+@pytest.mark.parametrize("config_path", sorted(Path("configs/training").glob("*.yaml")))
+def test_shipped_training_profiles_pass_config_key_schema(monkeypatch, config_path):
+    captured = {}
+
+    def command(arguments):
+        captured["config"] = arguments.config
+
+    monkeypatch.setattr(cli, "command_train", command)
+    cli.main(["train", "--config", str(config_path), "--smoke"])
+
+    assert captured["config"] == str(config_path)
+
+
+def test_training_config_allows_runtime_cli_keys(monkeypatch, tmp_path):
+    config = tmp_path / "training.yaml"
+    config.write_text(
+        "space: darts\n"
+        "dataset: cifar10\n"
+        f"data_root: {tmp_path.as_posix()}\n"
+        "workers: 3\n",
+        encoding="utf-8",
+    )
+    captured = {}
+
+    def command(arguments):
+        captured["data_root"] = arguments.data_root
+        captured["workers"] = arguments.workers
+
+    monkeypatch.setattr(cli, "command_train", command)
+    cli.main(["train", "--config", str(config), "--smoke"])
+
+    assert captured == {"data_root": str(tmp_path), "workers": 3}
+
+
 def test_cli_training_smoke_end_to_end_with_tiny_reference_space(
     monkeypatch, capsys, tmp_path
 ):
