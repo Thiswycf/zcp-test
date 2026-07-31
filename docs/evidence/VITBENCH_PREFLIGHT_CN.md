@@ -143,7 +143,11 @@ stage depth/base dimension/head/MLP。样本只有 5 时，相关系数置信区
 Auto-Prox 固定 commit 中的卷积 patch embedding、三阶段 transformer、depthwise pooling、QKV/projection、
 `LayerNorm(eps=1e-6)` 和 `drop_path_rate * block_index / total_blocks`。固定架构
 `base_dim=16, depth=[2,8,4], heads=[2,4,4], mlp_ratio=6` 的参数量为 `893,828`，当前锁定的
-THOP fixture 为 `159,665,472` MACs。
+THOP fixture 为 `159,665,472` MACs。审计在
+[`lliai/Auto-Prox-AAAI24@90ed458`](https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458eff6948a6f0d23e440a8d21bbec50d091)
+的原始 `pycls/models/auto/pit_subnet.py` 与项目 port 上分别执行同一 THOP 计数；两者均为
+`159,665,472`，参数 shape multiset 也完全一致。THOP 返回的参数计数不含部分独立 parameter，
+因此参数 golden 仍使用 `sum(p.numel())=893,828`，不得把 THOP 的 `870,468` 误写成模型总参数量。
 
 但当前项目不加载上游训练 checkpoint，也没有完成逐层输出数值对照；模块创建顺序与 PyTorch 版本还会
 影响同一 seed 下的具体初始化样本。因此 fidelity 必须写为
