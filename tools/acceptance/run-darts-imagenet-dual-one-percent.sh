@@ -58,12 +58,13 @@ write_status() {
 import json
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 path = Path(sys.argv[1])
 existing = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
-now = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+now = datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
 payload = {
     **existing,
     "status": sys.argv[2],
@@ -99,6 +100,7 @@ trap on_signal INT TERM
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export CUDA_VISIBLE_DEVICES=$GPU_UUIDS
+export TZ=Asia/Shanghai
 export OMP_NUM_THREADS=1
 export PYTHONPATH=$PROJECT_ROOT/src
 

@@ -465,11 +465,11 @@ def test_monitor_html_uses_requested_browser_refresh_interval(tmp_path: Path) ->
 
 
 def test_monitor_discovers_single_timestamped_run_and_rejects_ambiguous_root(tmp_path):
-    first = tmp_path / "20260101T000000Z_first"
+    first = tmp_path / "20260101T080000+0800_first"
     first.mkdir()
     (first / "scores.jsonl").write_text('{"score": 1}\n')
     assert refresh_once(tmp_path)["source"] == str(first / "scores.jsonl")
-    second = tmp_path / "20260101T000001Z_second"
+    second = tmp_path / "20260101T080001+0800_second"
     second.mkdir()
     (second / "training.jsonl").write_text('{"epoch": 0}\n')
     with pytest.raises(ValueError, match="select one"):

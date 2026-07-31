@@ -1,10 +1,12 @@
-import pytest
-import torch
+import json
 import math
 from pathlib import Path
 
+import pytest
+import torch
+
 from zcp_test.artifacts import JsonlWriter, RunContext, merge_jsonl, read_jsonl
-from zcp_test.artifacts.run import _package_versions
+from zcp_test.artifacts.run import PROJECT_TIMEZONE_NAME, _package_versions, project_now_iso
 from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.builtin import FunctionProxy
@@ -47,10 +49,24 @@ def test_runtime_package_versions_skip_uninstalled_packages(monkeypatch):
     assert _package_versions(("present", "missing")) == {"present": "1.2.3"}
 
 
+def test_project_timestamps_use_beijing_timezone():
+    assert project_now_iso().endswith("+08:00")
+    assert PROJECT_TIMEZONE_NAME == "Asia/Shanghai"
+
+
 def test_run_context_logs_structured_events(tmp_path):
     with RunContext(tmp_path, ["zcp-test", "train"], {"dataset": "fixture"}) as run:
         run.event("training_batch_progress", epoch=0, batch=3, batch_count=10)
 
+    assert "+0800_" in run.directory.name
+    manifest = json.loads((run.directory / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["timezone"] == "Asia/Shanghai"
+    assert manifest["started_at"].endswith("+08:00")
+    assert manifest["ended_at"].endswith("+08:00")
+    assert all(
+        row["timestamp"].endswith("+08:00")
+        for row in read_jsonl(run.directory / "events.jsonl")
+    )
     log = (run.directory / "run.log").read_text(encoding="utf-8")
     assert "run_started {}" in log
     assert "training_batch_progress" in log

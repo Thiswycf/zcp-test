@@ -55,11 +55,11 @@ YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 
 ## RUN 目录
 
-`--output` 是父目录；实际运行目录为 `<output>/YYYYMMDDTHHMMSSZ_<run-id>/`。后续报告、监控和
+`--output` 是父目录；实际运行目录为 `<output>/YYYYMMDDTHHMMSS+0800_<run-id>/`。后续报告、监控和
 恢复必须使用命令输出 JSON 中的准确 `run` 值：
 
 ```bash
-RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSSZ_runid
+RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSS+0800_runid
 zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
 zcp-test monitor "$RUN" --interval 5
 ```
@@ -538,8 +538,10 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 
 ## Artifact 行数与最小 schema
 
-所有 `--output` 均先视为父目录；会创建 run 的命令在其下生成
-`YYYYMMDDTHHMMSSZ_<run-id>/`。终端 JSON 的 `run` 才是后续命令应使用的路径。
+所有 `--output` 均先视为父目录；会创建 run 的命令在其下生成北京时间目录
+`YYYYMMDDTHHMMSS+0800_<run-id>/`。manifest、events、status 与隔离文件名统一使用
+`Asia/Shanghai` 和显式 `+08:00`/`+0800`；终端 JSON 的 `run` 才是后续命令应使用的路径。
+旧 `...Z_...` run 只读兼容，不原地改写。
 
 | 命令 | 规范 artifact | 预期行数 | 最小科学身份 |
 |---|---|---:|---|

@@ -84,11 +84,11 @@ Do not pool these result types or substitute NAS-Bench-201 truth for NATS-TSS tr
 ## Run directories
 
 `--output` is a parent directory. Every command creates
-`<output>/YYYYMMDDTHHMMSSZ_<run-id>/` and prints that exact path as `run`. Use the printed path
+`<output>/YYYYMMDDTHHMMSS+0800_<run-id>/` in `Asia/Shanghai` and prints that exact path as `run`. Use the printed path
 for reports, monitoring and resume:
 
 ```bash
-RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSSZ_runid
+RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSS+0800_runid
 zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
 zcp-test monitor "$RUN" --interval 5
 ```
@@ -105,6 +105,9 @@ non-empty `events.jsonl` with a persistently empty `run.log` is a logging regres
 1.28 million small files, inspect the actual mount with `findmnt -T`, run a full-epoch preflight and
 point `--data-root` to a verified local SSD/NVMe copy when available. The CLI never hard-codes,
 copies or silently switches between `/home`, `/public` or other machine-specific roots.
+All new manifest, event, status and quarantine timestamps use explicit Beijing offsets
+(`+08:00` in ISO fields and `+0800` in filenames). Historical `...Z_...` runs remain read-only
+compatible and are not rewritten.
 The four-GPU DARTS ImageNet acceptance launcher is
 `tools/acceptance/run-darts-imagenet-dual-one-percent.sh`. It requires explicit
 `ZCP_IMAGENET_ROOT`, `ZCP_DARTS_CANDIDATES` and four UUIDs in `ZCP_GPU_UUIDS`, validates the

@@ -10,10 +10,11 @@ import urllib.request
 import zipfile
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from enum import Enum
 from pathlib import Path, PurePosixPath
 from typing import BinaryIO, Protocol
+from zoneinfo import ZoneInfo
 
 
 def _validate_relative_path(value: str, field: str) -> None:
@@ -498,7 +499,7 @@ def _partial_size(path: Path) -> int:
 
 
 def quarantine_file(path: Path) -> Path:
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S.%fZ")
+    timestamp = datetime.now(ZoneInfo("Asia/Shanghai")).strftime("%Y%m%dT%H%M%S.%f%z")
     quarantine = path.with_name(f"{path.name}.invalid-{timestamp}")
     path.replace(quarantine)
     return quarantine

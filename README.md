@@ -50,7 +50,7 @@ zcp-test evaluate --config configs/benchmarks/nasbench201.yaml --trusted \
   --output /path/to/runs/evaluate
 
 # 3. 使用命令返回的准确 timestamp run，而不是 --output 父目录
-RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSSZ_runid
+RUN=/path/to/runs/evaluate/YYYYMMDDTHHMMSS+0800_runid
 zcp-test analyze correlation --scores "$RUN/scores.jsonl" --output "$RUN/reports/correlation"
 zcp-test analyze compare --scores "$RUN/scores.jsonl" --output "$RUN/reports/compare"
 zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
@@ -177,7 +177,7 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke \
   --output /path/to/data/runs/training
 
 # Copy the exact "run" value printed by evaluate; --output is only the parent directory.
-RUN=/path/to/data/runs/evaluate/YYYYMMDDTHHMMSSZ_runid
+RUN=/path/to/data/runs/evaluate/YYYYMMDDTHHMMSS+0800_runid
 zcp-test report --source "$RUN/scores.jsonl" --output "$RUN/reports/scores.csv"
 zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
 zcp-test monitor "$RUN" --interval 5
@@ -240,7 +240,7 @@ the [cross-dataset evidence](docs/evidence/NATS_SSS_CROSS_DATASET_CN.md).
 
 ## Artifacts
 
-Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `config.yaml`, `events.jsonl`, human-readable `run.log`, command-specific JSONL files, checkpoints, and derived reports. JSONL is the source of truth; CSV and HTML are rebuildable views.
+Each new run creates `YYYYMMDDTHHMMSS+0800_<run-id>/` in the fixed `Asia/Shanghai` timezone, with `manifest.json`, resolved `config.yaml`, `events.jsonl`, human-readable `run.log`, command-specific JSONL files, checkpoints, and derived reports. ISO timestamps carry an explicit `+08:00` offset. Historical `...Z_...` runs remain readable and are not rewritten. JSONL is the source of truth; CSV and HTML are rebuildable views.
 
 ## Current boundaries
 

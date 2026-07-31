@@ -1,6 +1,7 @@
 name: zcp-test
 variables:
   CUDA_DEVICE_ORDER: PCI_BUS_ID
+  TZ: Asia/Shanghai
 channels:
   - pytorch
   - nvidia

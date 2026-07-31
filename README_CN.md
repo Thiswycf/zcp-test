@@ -53,7 +53,7 @@ OUTPUT=/path/to/data/runs/training
 zcp-test train --config configs/training/darts_cifar10.yaml --smoke \
   --architecture "$ARCH" --output "$OUTPUT"
 # 从上一命令输出 JSON 复制准确的 timestamp run；仅恢复已核验的本项目 checkpoint。
-RUN="$OUTPUT/YYYYMMDDTHHMMSSZ_runid"
+RUN="$OUTPUT/YYYYMMDDTHHMMSS+0800_runid"
 zcp-test train --config configs/training/darts_cifar10.yaml --smoke \
   --architecture "$ARCH" --output "$OUTPUT" \
   --resume "$RUN/checkpoints/last.pt" --trusted
@@ -171,6 +171,10 @@ Proxyless-MBV2 的双重 1% 验收均未完成。
 
 catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、version 和 protocol；错配会明确失败。
 显式 `--benchmark-path` 不经过 catalog 完整性证明，只应在调用者已经独立核验来源时使用。
+
+项目统一使用北京时间 `Asia/Shanghai`：新 run 目录为 `YYYYMMDDTHHMMSS+0800_<run-id>`，manifest、
+events、status 和隔离文件名均携带 `+08:00`/`+0800`。历史 `...Z_...` run 保持只读兼容，不原地
+改写；报告展示历史记录时应按其原始 offset 解析并转换为北京时间。
 
 ## 当前边界
 

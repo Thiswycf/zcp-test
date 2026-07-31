@@ -9,15 +9,18 @@ import subprocess
 import sys
 import uuid
 from contextlib import AbstractContextManager
-from datetime import datetime, timezone
+from datetime import datetime
 from importlib import metadata
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from zcp_test.artifacts.jsonl import JsonlWriter
 from zcp_test.config import dump_config
 
 SCHEMA_VERSION = "1.0"
+PROJECT_TIMEZONE_NAME = "Asia/Shanghai"
+PROJECT_TIMEZONE = ZoneInfo(PROJECT_TIMEZONE_NAME)
 RUNTIME_PACKAGES = (
     "zcp-test",
     "torch",
@@ -32,8 +35,12 @@ RUNTIME_PACKAGES = (
 )
 
 
-def utc_now() -> str:
-    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+def project_now() -> datetime:
+    return datetime.now(PROJECT_TIMEZONE)
+
+
+def project_now_iso() -> str:
+    return project_now().isoformat()
 
 
 def file_sha256(path: str | Path) -> str:
@@ -71,7 +78,7 @@ class RunContext(AbstractContextManager["RunContext"]):
         config: dict[str, Any],
         runtime: dict[str, Any] | None = None,
     ) -> None:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+        timestamp = project_now().strftime("%Y%m%dT%H%M%S%z")
         self.run_id = uuid.uuid4().hex[:12]
         self.directory = Path(root) / f"{timestamp}_{self.run_id}"
         self.directory.mkdir(parents=True, exist_ok=False)
@@ -82,7 +89,7 @@ class RunContext(AbstractContextManager["RunContext"]):
             "run_id": self.run_id,
             "status": "running",
             "command": command,
-            "started_at": utc_now(),
+            "started_at": project_now_iso(),
             "ended_at": None,
             "python": sys.version,
             "platform": platform.platform(),
@@ -92,7 +99,9 @@ class RunContext(AbstractContextManager["RunContext"]):
             "environment": {
                 "CUDA_DEVICE_ORDER": os.environ.get("CUDA_DEVICE_ORDER"),
                 "CUDA_VISIBLE_DEVICES": os.environ.get("CUDA_VISIBLE_DEVICES"),
+                "TZ": os.environ.get("TZ"),
             },
+            "timezone": PROJECT_TIMEZONE_NAME,
             "runtime": runtime or {},
             "package_versions": _package_versions(),
         }
@@ -130,7 +139,7 @@ class RunContext(AbstractContextManager["RunContext"]):
         temporary.replace(self.manifest_path)
 
     def event(self, kind: str, **fields: Any) -> None:
-        event = {"run_id": self.run_id, "timestamp": utc_now(), "kind": kind, **fields}
+        event = {"run_id": self.run_id, "timestamp": project_now_iso(), "kind": kind, **fields}
         self.events.append(event)
         self.logger.info(
             "%s %s",
@@ -139,7 +148,7 @@ class RunContext(AbstractContextManager["RunContext"]):
         )
 
     def close(self, status: str, error: str | None = None) -> None:
-        self.manifest.update(status=status, ended_at=utc_now(), error=error)
+        self.manifest.update(status=status, ended_at=project_now_iso(), error=error)
         self._write_manifest()
         self.event("run_finished", status=status, error=error)
         for handler in list(self.logger.handlers):
