@@ -450,7 +450,8 @@ ViT-Bench 与开放 AutoFormer 搜索必须分开：前者查询发布 GT，不�
 真值，使用 validation-only 搜索并对选中候选做 scratch training。公开 ViT-Bench 的 AutoFormer
 main、来源说明不足的 extension 与 PiT 永不合并，vanilla、KD、ImageNet inherited 也永不合并。
 
-开放 AutoFormer 的 AZ-NAS 搜索必须使用独立的论文组件端口和群体聚合器：
+开放 AutoFormer 的 AZ-NAS 搜索必须使用独立的论文组件端口和群体聚合器。下例用于验收项目自身的
+探索性进化控制器，不是上游 8,000 随机候选协议：
 
 ```bash
 zcp-test search --space autoformer \
@@ -475,6 +476,24 @@ AZ-NAS 组件与 log-rank 组合，但不是上游 AutoFormer 候选控制器的
 行数为 `population + 1 summary`；后续每代新增 `population - elite_count` 个候选和一条 summary。模型
 初始化与代理随机向量使用 `architecture-hash-v1`，由 search seed 和 canonical architecture ID 派生；
 同 seed 的两次独立 GPU smoke 在去除耗时字段后逐行一致。
+
+来源对齐的验收 cohort 使用 generation 0、每个 seed 随机评估 8,000 个候选。launcher 会在一张卡
+装箱两个已通过显存 smoke 的进程、第二张卡运行一个进程；等待逐卡锁不会阻塞调用者，并且每 100 次
+评估原子保存一次未完成初始 population：
+
+```bash
+export ZCP_PYTHON=/path/to/envs/zcp-test/bin/python
+export ZCP_GPU_UUIDS=GPU-UUID-A,GPU-UUID-B
+export ZCP_GPU_LOCK_TIMEOUT_SECONDS=7200
+tools/acceptance/run-autoformer-aznas-random-8000.sh
+```
+
+需要脱离终端时，可用用户级 `systemd-run --user --unit=zcp-test-autoformer-aznas-8000 --collect ...`
+托管同一 launcher。检查 `runs/acceptance/autoformer-aznas-random-8000/status.json` 和各 seed 最新的
+`search-state.json`；`completed_generation=-1` 表示 generation 0 尚未结束但可恢复。重新执行 launcher
+会跳过 completed seed，并对最新 incomplete state 自动传入 `--resume`。不得绕过其他进程的 GPU 锁，
+也不得把该 cohort 称为上游控制器逐行复刻：公式与 8,000 候选规模来源对齐，但采样器和 artifact
+系统仍是显式版本化的项目实现。
 
 首次机器初始化：
 

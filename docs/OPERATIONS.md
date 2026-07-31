@@ -413,7 +413,8 @@ split; the public files do not identify that split. Therefore the current run is
 `partial_release_slice_preacceptance`, not formal paper-level H1 acceptance.
 
 Open AutoFormer AZ-NAS search uses the source-pinned component port and an explicit cohort
-aggregator:
+aggregator. The following command exercises the project's exploratory evolutionary controller; it
+is not the upstream 8,000-random-candidate protocol:
 
 ```bash
 zcp-test search --space autoformer \
@@ -441,6 +442,27 @@ writes `population + 1 summary` rows; each later generation adds `population - e
 candidate rows plus one summary. Model initialization and proxy random vectors use
 `architecture-hash-v1`, derived from the search seed and canonical architecture ID. Two independent
 same-seed GPU smokes are identical after removing timing fields.
+
+The source-aligned acceptance cohort uses generation zero with 8,000 random candidates per seed.
+The launcher packs two measured-safe processes on one GPU and one process on a second GPU, waits on
+per-GPU locks without blocking the caller, and saves a partial initial-population state every 100
+evaluations:
+
+```bash
+export ZCP_PYTHON=/path/to/envs/zcp-test/bin/python
+export ZCP_GPU_UUIDS=GPU-UUID-A,GPU-UUID-B
+export ZCP_GPU_LOCK_TIMEOUT_SECONDS=7200
+tools/acceptance/run-autoformer-aznas-random-8000.sh
+```
+
+For terminal-independent execution, run the same launcher with a user-level service, for example
+`systemd-run --user --unit=zcp-test-autoformer-aznas-8000 --collect ...`. Inspect
+`runs/acceptance/autoformer-aznas-random-8000/status.json` and each seed's latest
+`search-state.json`; `completed_generation=-1` means a recoverable partial generation-zero cohort.
+Rerunning the launcher skips completed seeds and supplies `--resume` for the latest incomplete
+state. Do not bypass another process's GPU lock or call this cohort an upstream controller replica:
+the formulas and 8,000-candidate sampling scale are source-aligned, while the project sampler and
+artifact system remain versioned project implementations.
 
 ```bash
 CATALOG=~/.config/zcp-test/data.json
