@@ -496,6 +496,12 @@ unfinished task with `ZCP_START_AT=2..6`; never relabel `interrupted` as `comple
 1% run validates the implementation and recovery protocol, not full-data/full-schedule paper
 accuracy reproduction.
 
+The common launcher defaults to `sequential_ddp`. After a real single-GPU memory smoke proves that
+the profile's unchanged batch fits, set `ZCP_EXECUTION_STRATEGY=parallel_single_gpu` and
+`ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes` to schedule the six runs over four independent candidate
+lanes. This never overrides batch, accumulation, or LR. The acceptance flag is a manual gate, not
+automatic memory evidence; AutoFormer, PlainNet, and Proxyless require separate smokes.
+
 The formal DARTS ImageNet global batch is 128. Four-way DDP reduces this to 32 images per GPU,
 which under-fills 4090-class devices; increasing the scientific batch merely to raise utilization
 is not allowed. After the already completed first task, use

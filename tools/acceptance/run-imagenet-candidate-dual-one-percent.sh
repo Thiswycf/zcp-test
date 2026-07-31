@@ -14,10 +14,19 @@ START_AT=${ZCP_START_AT:-1}
 PYTHON=${ZCP_PYTHON:-python}
 TORCHRUN=${ZCP_TORCHRUN:-torchrun}
 WORKERS=${ZCP_DATA_WORKERS:-8}
+EXECUTION_STRATEGY=${ZCP_EXECUTION_STRATEGY:-sequential_ddp}
 LOCK_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks
 STATUS=$OUTPUT_ROOT/status.json
 
 [[ "$START_AT" =~ ^[1-6]$ ]] || { echo "ZCP_START_AT must be in 1..6" >&2; exit 2; }
+[[ "$EXECUTION_STRATEGY" =~ ^(sequential_ddp|parallel_single_gpu)$ ]] || {
+  echo "ZCP_EXECUTION_STRATEGY must be sequential_ddp or parallel_single_gpu" >&2
+  exit 2
+}
+if [[ "$EXECUTION_STRATEGY" == parallel_single_gpu && "${ZCP_PARALLEL_SINGLE_GPU_ACCEPTED:-}" != yes ]]; then
+  echo "parallel_single_gpu requires ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes after a memory smoke" >&2
+  exit 2
+fi
 [[ "$FORMAL_EPOCHS" =~ ^[1-9][0-9]*$ ]] || { echo "ZCP_FORMAL_EPOCHS must be positive" >&2; exit 2; }
 [[ "$FULL_DATA_EPOCHS" =~ ^[1-9][0-9]*$ ]] || { echo "ZCP_FULL_DATA_EPOCHS must be positive" >&2; exit 2; }
 (( FULL_DATA_EPOCHS * 100 >= FORMAL_EPOCHS )) || {
@@ -117,7 +126,7 @@ commit=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
 
 write_status() {
   local state=$1 current=$2 detail=$3
-  "$PYTHON" - "$STATUS" "$state" "$current" "$detail" "$commit" "$DATA_ROOT" "$GPU_UUIDS" "$SPACE" <<'PY'
+  "$PYTHON" - "$STATUS" "$state" "$current" "$detail" "$commit" "$DATA_ROOT" "$GPU_UUIDS" "$SPACE" "$EXECUTION_STRATEGY" <<'PY'
 import json
 import os
 import sys
@@ -137,6 +146,7 @@ payload = {
     "data_root": sys.argv[6],
     "gpu_uuids": sys.argv[7].split(","),
     "search_space_id": sys.argv[8],
+    "execution_strategy": sys.argv[9],
     "pid": os.getppid(),
     "started_at": existing.get("started_at", now),
     "updated_at": now,
@@ -150,12 +160,20 @@ PY
 }
 
 current_task=initializing
+child_pids=()
+stop_children() {
+  for pid in "${child_pids[@]:-}"; do
+    kill -TERM "$pid" 2>/dev/null || true
+  done
+}
 on_error() {
   local exit_code=$?
+  stop_children
   write_status failed "$current_task" "runner failed at line $1 with exit code $exit_code"
   exit "$exit_code"
 }
 on_signal() {
+  stop_children
   write_status interrupted "$current_task" "runner received signal"
   exit 130
 }
@@ -172,8 +190,8 @@ export PYTHONPATH=$PROJECT_ROOT/src
   date -Is
   findmnt -T "$DATA_ROOT"
   df -hT "$DATA_ROOT"
-  printf 'space=%s ImageNet classes=%s train_files=%s val_files=%s workers_per_rank=%s\n' \
-    "$SPACE" "$train_classes" "$train_files" "$val_files" "$WORKERS"
+  printf 'space=%s ImageNet classes=%s train_files=%s val_files=%s workers=%s strategy=%s\n' \
+    "$SPACE" "$train_classes" "$train_files" "$val_files" "$WORKERS" "$EXECUTION_STRATEGY"
   nvidia-smi --query-gpu=index,pci.bus_id,uuid,name,memory.used,memory.free,utilization.gpu \
     --format=csv,noheader,nounits
 } | tee "$OUTPUT_ROOT/preflight.log"
@@ -213,14 +231,66 @@ print(f"validated {path.parent.name}: completed")
 PY
 }
 
+run_one_single() {
+  local task_index=$1 uuid=$2 role=$3 architecture=$4 protocol=$5 epochs=$6 fraction=$7
+  if (( task_index < START_AT )); then
+    printf '[%s] skipping task=%s role=%s via ZCP_START_AT=%s\n' \
+      "$(date -Is)" "$task_index" "$role" "$START_AT" | tee -a "$OUTPUT_ROOT/supervisor.log"
+    return
+  fi
+  local output=$OUTPUT_ROOT/$protocol-$role
+  local launcher_log=$OUTPUT_ROOT/task-$task_index-$protocol-$role.launcher.log
+  printf '\n[%s] starting task=%s gpu=%s role=%s protocol=%s epochs=%s fraction=%s\n' \
+    "$(date -Is)" "$task_index" "$uuid" "$role" "$protocol" "$epochs" "$fraction" \
+    | tee -a "$launcher_log" "$OUTPUT_ROOT/supervisor.log"
+  CUDA_VISIBLE_DEVICES=$uuid "$PYTHON" -m zcp_test.cli train \
+    --config "$CONFIG_PATH" --acceptance-smoke --epochs "$epochs" \
+    --data-fraction "$fraction" --architecture "$architecture" \
+    --data-root "$DATA_ROOT" --workers "$WORKERS" --seed 20260731 \
+    --device cuda:0 --output "$output" 2>&1 | tee -a "$launcher_log"
+  local run
+  run=$(find "$output" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' \
+    | sort -nr | head -1 | cut -d' ' -f2-)
+  "$PYTHON" - "$run/manifest.json" <<'PY'
+import json
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+manifest = json.loads(path.read_text(encoding="utf-8"))
+if manifest.get("status") != "completed":
+    raise SystemExit(f"manifest not completed: {path}: {manifest.get('status')}")
+print(f"validated {path.parent.name}: completed")
+PY
+}
+
 full_protocol=full-data-${FULL_DATA_EPOCHS}epoch
 schedule_protocol=one-percent-data-${FORMAL_EPOCHS}epoch
 write_status running initializing "locks acquired; validated data/config/candidates; preparing six tasks"
-run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-run_one 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-run_one 6 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+if [[ "$EXECUTION_STRATEGY" == sequential_ddp ]]; then
+  run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+  run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+  run_one 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+  run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  run_one 6 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+else
+  lane_zero() {
+    run_one_single 1 "${gpu_array[0]}" zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+    run_one_single 5 "${gpu_array[0]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  }
+  lane_one() {
+    run_one_single 2 "${gpu_array[1]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+    run_one_single 6 "${gpu_array[1]}" params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  }
+  write_status running parallel_tasks "four independent one-GPU lanes; each run retains its configured batch/LR protocol"
+  lane_zero & child_pids+=("$!")
+  lane_one & child_pids+=("$!")
+  run_one_single 3 "${gpu_array[2]}" params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
+  run_one_single 4 "${gpu_array[3]}" zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
+  for _ in "${child_pids[@]}"; do
+    wait -n
+  done
+fi
 current_task=all
 write_status completed all "all six $SPACE ImageNet acceptance runs completed"

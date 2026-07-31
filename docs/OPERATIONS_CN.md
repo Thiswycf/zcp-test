@@ -608,6 +608,18 @@ PlainNet 和 Proxyless 只替换候选目录与启动器。启动器会验证 Im
 审计最近 run 的 manifest/checkpoint，再用 `ZCP_START_AT=2..6` 从尚未完成的任务恢复；不要重复已完成
 候选，也不要把 interrupted 记作 completed。
 
+通用启动器默认采用 `sequential_ddp`。若单卡显存 smoke 已证明该 profile 的原始 batch 可放入一张卡，
+可显式启用按候选并行：
+
+```bash
+export ZCP_EXECUTION_STRATEGY=parallel_single_gpu
+export ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes
+```
+
+此模式以四条单卡 lane 运行六项任务，但不会覆盖 config 的 batch、梯度累积或 LR。第二个变量是人为
+验收闸门，不是自动显存证明；未做真实模型 forward/backward smoke 时不得设置。AutoFormer、PlainNet
+和 Proxyless 必须分别验收，不能因为 DARTS 单卡可运行就直接放行。
+
 六项顺序固定为三个候选的全数据最少 1% epoch，再运行三个候选的 1% 数据完整 schedule。每个 run
 必须有持续增长的 `run.log`/`events.jsonl`、每 epoch 的 `training.jsonl`、`last.pt`、`best.pt` 与最终
 manifest。该验收用于放行训练实现，不等于论文完整数据完整 schedule 精度复现。

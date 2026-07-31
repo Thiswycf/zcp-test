@@ -48,6 +48,9 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
     ):
         assert candidate in common_source
     assert "candidate manifest checksum/role mismatch" in common_source
+    assert "parallel_single_gpu requires ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes" in common_source
+    assert "four independent one-GPU lanes" in common_source
+    assert "CUDA_VISIBLE_DEVICES=$uuid" in common_source
     assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in common_source
     assert "ZoneInfo(\"Asia/Shanghai\")" in common_source
     assert "Project worktree must be clean" in common_source
