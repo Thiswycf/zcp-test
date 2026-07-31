@@ -113,7 +113,7 @@ assert(appSource.includes('if (refreshCountdownTimer === null)'), "刷新倒计�
 assert(appSource.includes("window.ZCP_PANEL_DATA = previousData"), "刷新失败时未保留旧数据");
 assert(appSource.includes('`最后成功刷新：${formatClock()}`'), "刷新成功后未更新时间戳");
 assert(appSource.includes('`上次检查：${formatClock()}`'), "刷新完成后未更新检查时间");
-assert(appSource.includes('`数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`'), "未明确显示数据更新时间");
+assert(appSource.includes('`数据更新时间（北京时间）：${formatPanelTime(data.updatedAt)} · schema v${data.schemaVersion}`'), "未明确显示北京时间数据更新时间");
 assert(appSource.includes("window.scrollTo(viewport.left, viewport.top)"), "刷新后未恢复滚动位置");
 assert(appSource.includes('window.location.protocol === "file:"'), "缺少 file:// 兼容提示逻辑");
 assert(appSource.includes("reloadPageWithCacheBusting()"), "file:// 模式缺少页面级刷新回退");
@@ -213,12 +213,12 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     assert(task?.evidence.includes("EV-DARTS-C0C7815-RUNNING"), `任务 ${task?.id || "?"} 未引用新 run 证据`);
     assert(task?.risks.includes("R-LEGACY-TRAINING-NO-HEARTBEAT"), `任务 ${task?.id || "?"} 未引用旧运行 heartbeat 风险`);
   }
-  assert(dartsLiveTask?.detail.includes("78d8118") && dartsLiveTask?.detail.includes("supervisor status 与 manifest 均为 interrupted"), "DARTS 实时任务未同步旧 run 中断");
-  assert(dartsLiveTask?.detail.includes("c0c7815") && dartsLiveTask?.detail.includes("events.jsonl 与 run.log 均增长"), "DARTS 实时任务未同步新 run 进度");
-  assert(dartsLiveTask?.detail.includes("仍 running") && dartsLiveTask?.detail.includes("不得标 completed"), "DARTS 实时任务未保持新 run 未完成边界");
+  assert(dartsLiveTask?.detail.includes("zcp-selected 已于北京时间完成 3/3 epoch"), "DARTS 实时任务未同步首项完成");
+  assert(dartsLiveTask?.detail.includes("task2") && dartsLiveTask?.detail.includes("主动 interrupted"), "DARTS 实时任务未同步 task2 中断");
+  assert(dartsLiveTask?.detail.includes("总体六项仍进行中") && dartsLiveTask?.detail.includes("不得标 completed"), "DARTS 实时任务未保持六项未完成边界");
   const dartsRisk = data.risks.find((entry) => entry.id === "R-DARTS-IMAGENET-DATA");
-  assert(dartsRisk?.status === "开放" && dartsRisk?.description.includes("c0c7815") && dartsRisk?.description.includes("当前仍 running"), "DARTS 新 run 风险未保持开放");
-  assert(dartsRisk?.mitigation.includes("首分钟吞吐和 ETA 只证明进展") && dartsRisk?.mitigation.includes("不得标 completed"), "DARTS 新 run 风险边界缺失");
+  assert(dartsRisk?.status === "开放" && dartsRisk?.description.includes("zcp-selected 已完成 3/3 epoch") && dartsRisk?.description.includes("当前无 zcp-test GPU 任务"), "DARTS 六项风险状态不准确");
+  assert(dartsRisk?.mitigation.includes("从 task2 启动") && dartsRisk?.mitigation.includes("不得外推六项全部完成"), "DARTS 六项风险边界缺失");
   const fullGate468 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-468");
   assert(fullGate468?.result.includes("commit c0c7815") && fullGate468?.result.includes("468 tests 全部通过"), "当前主仓 468 pytest 结果缺失");
   assert(fullGate468?.result.includes("Ruff") && fullGate468?.result.includes("compileall") && fullGate468?.result.includes("pip check"), "当前主仓 468 静态门禁缺失");
@@ -228,7 +228,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(fullGate467?.result.includes("已由 EV-FULL-GATE-468 取代"), "历史 467 门禁未标记为被 468 取代");
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
-  for (const task of [baselineTask, qualityGateTask, dartsLiveTask]) {
+  for (const task of [baselineTask, qualityGateTask]) {
     assert(task?.detail.includes("commit c0c7815") && task?.detail.includes("468 tests 全部通过"), `任务 ${task?.id || "?"} 缺少当前 468 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
   }

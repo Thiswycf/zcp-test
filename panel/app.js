@@ -23,6 +23,22 @@
   const dataScriptTimeoutMs = 10_000;
   const refreshIntervalStorageKey = "zcp-panel-refresh-interval";
   const reloadStateStorageKey = "zcp-panel-reload-state";
+  const panelDateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false
+  });
+  const panelClockFormatter = new Intl.DateTimeFormat("zh-CN", {
+    timeZone: "Asia/Shanghai",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
 
   function escapeHtml(value) {
     return String(value ?? "").replace(/[&<>'"]/g, (character) => ({
@@ -32,6 +48,14 @@
       "'": "&#39;",
       "\"": "&quot;"
     })[character]);
+  }
+
+  function formatPanelTime(value) {
+    if (value === "—" || value == null || value === "") return "—";
+    const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2}) (\d{2}):(\d{2})/);
+    if (!match) return `${value}（北京时间）`;
+    const date = new Date(`${match[1]}-${match[2]}-${match[3]}T${match[4]}:${match[5]}:00+08:00`);
+    return `${panelDateTimeFormatter.format(date)}（北京时间）`;
   }
 
   function validateData(data) {
@@ -215,9 +239,9 @@
         <dt>任务内容</dt><dd>${escapeHtml(task.content)}</dd>
         <dt>工作目的</dt><dd>${escapeHtml(task.purpose)}</dd>
         <dt>预计时间</dt><dd>${escapeHtml(task.estimate)}</dd>
-        <dt>开始时间</dt><dd>${escapeHtml(task.startedAt)}</dd>
-        <dt>完成时间</dt><dd>${escapeHtml(task.finishedAt)}</dd>
-        <dt>最近更新</dt><dd>${escapeHtml(task.updatedAt)}</dd>
+        <dt>开始时间（北京时间）</dt><dd>${escapeHtml(formatPanelTime(task.startedAt))}</dd>
+        <dt>完成时间（北京时间）</dt><dd>${escapeHtml(formatPanelTime(task.finishedAt))}</dd>
+        <dt>最近更新（北京时间）</dt><dd>${escapeHtml(formatPanelTime(task.updatedAt))}</dd>
         <dt>完成情况</dt><dd>${escapeHtml(task.detail)}</dd>
       </dl>
       <section class="dialog-section" aria-labelledby="criteria-${escapeHtml(task.id)}">
@@ -229,7 +253,7 @@
         ${evidence.length ? evidence.map((entry) => `
           <article class="detail-evidence">
             <strong>${escapeHtml(entry.id)} · ${escapeHtml(entry.title)}</strong>
-            <span>${escapeHtml(entry.time)}</span>
+            <span>${escapeHtml(formatPanelTime(entry.time))}</span>
             <p>${escapeHtml(entry.result)}</p>
             <code>${escapeHtml(entry.command)}</code>
           </article>`).join("") : "<p class=\"muted\">尚无验收证据</p>"}
@@ -277,7 +301,7 @@
         </span>
         <span class="task-time">
           <small>预计 ${escapeHtml(task.estimate)}</small>
-          <small>完成 ${escapeHtml(task.finishedAt)}</small>
+          <small>完成 ${escapeHtml(formatPanelTime(task.finishedAt))}</small>
         </span>
         <span class="task-state">${badge(task.status)}<small>${task.progress}%</small></span>
       </button>`).join("") : `
@@ -320,7 +344,7 @@
     $("#evidence-count").textContent = `${data.evidence.length} 条`;
     $("#evidence-list").innerHTML = data.evidence.map((entry) => `
       <li>
-        <time>${escapeHtml(entry.time)}</time>
+        <time>${escapeHtml(formatPanelTime(entry.time))}</time>
         <strong>${escapeHtml(entry.id)} · ${escapeHtml(entry.title)}</strong>
         <p>${escapeHtml(entry.result)}</p>
         <code>${escapeHtml(entry.command)}</code>
@@ -405,7 +429,7 @@
   }
 
   function formatClock(date = new Date()) {
-    return date.toLocaleTimeString("zh-CN", { hour12: false });
+    return `${panelClockFormatter.format(date)}（北京时间）`;
   }
 
   function setTheme(theme, persist = false) {
@@ -502,7 +526,7 @@
     populateFilters();
     $("#project-status").textContent = `项目状态：${data.project.status}`;
     $("#project-purpose").textContent = data.project.purpose;
-    $("#last-updated").textContent = `数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`;
+    $("#last-updated").textContent = `数据更新时间（北京时间）：${formatPanelTime(data.updatedAt)} · schema v${data.schemaVersion}`;
     renderRisks();
     renderEvidence();
     renderAllTaskViews();
@@ -671,7 +695,7 @@
 
   $("#project-status").textContent = `项目状态：${data.project.status}`;
   $("#project-purpose").textContent = data.project.purpose;
-  $("#last-updated").textContent = `数据更新时间：${data.updatedAt} · schema v${data.schemaVersion}`;
+  $("#last-updated").textContent = `数据更新时间（北京时间）：${formatPanelTime(data.updatedAt)} · schema v${data.schemaVersion}`;
   initializeTheme();
   populateFilters();
   bindControls();
