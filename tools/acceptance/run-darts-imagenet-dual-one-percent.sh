@@ -42,7 +42,11 @@ for index in "${!gpu_array[@]}"; do
 done
 
 for name in zcp_selected.json fixed_random.json params_matched_random_pool.json; do
-  cp "$CANDIDATE_ROOT/$name" "$OUTPUT_ROOT/candidates/$name"
+  source_path=$(realpath "$CANDIDATE_ROOT/$name")
+  destination_path=$(realpath -m "$OUTPUT_ROOT/candidates/$name")
+  if [[ "$source_path" != "$destination_path" ]]; then
+    cp "$source_path" "$destination_path"
+  fi
 done
 CANDIDATE_ROOT=$OUTPUT_ROOT/candidates
 
