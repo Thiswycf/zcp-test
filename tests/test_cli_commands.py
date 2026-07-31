@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 import pandas as pd
 import torch
+import yaml
 
 import zcp_test.cli as cli
 from zcp_test.artifacts import read_jsonl
@@ -864,6 +865,68 @@ def test_cli_training_smoke_end_to_end_with_tiny_reference_space(
     assert result["last_epoch"] == 0
     assert (run / "training.jsonl").exists()
     assert (run / "checkpoints" / "last.pt").exists()
+
+
+def test_cli_full_batch_memory_smoke_preserves_configured_micro_batch(
+    monkeypatch, capsys, tmp_path
+):
+    space = _TinyReferenceSpace()
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: space)
+    config = tmp_path / "training.yaml"
+    config.write_text(
+        "space: tiny_reference\n"
+        "dataset: cifar10\n"
+        "input_size: 8\n"
+        "epochs: 1\n"
+        "optimizer: sgd\n"
+        "learning_rate: 0.01\n"
+        "weight_decay: 0.0\n"
+        "scheduler: none\n"
+        "batch_size: 6\n"
+        "formal_training_ready: true\n"
+        "protocol: test-full-batch-memory-smoke\n",
+        encoding="utf-8",
+    )
+    output = tmp_path / "training"
+
+    cli.main(
+        [
+            "train",
+            "--config",
+            str(config),
+            "--smoke",
+            "--full-batch-smoke",
+            "--device",
+            "cpu",
+            "--classes",
+            "3",
+            "--output",
+            str(output),
+        ]
+    )
+
+    run = Path(_output(capsys)["run"])
+    resolved = yaml.safe_load((run / "config.yaml").read_text(encoding="utf-8"))
+    assert resolved["training_mode"] == "synthetic_full_batch_memory_smoke"
+    assert resolved["per_device_batch_size"] == 6
+    assert resolved["full_batch_smoke"] is True
+
+
+def test_full_batch_memory_smoke_requires_smoke_mode(tmp_path):
+    config = tmp_path / "training.yaml"
+    config.write_text("space: darts\ndataset: cifar10\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="requires --smoke"):
+        cli.main(
+            [
+                "train",
+                "--config",
+                str(config),
+                "--full-batch-smoke",
+                "--device",
+                "cpu",
+            ]
+        )
 
 
 def test_cli_distributed_training_uses_shared_rank_zero_run(

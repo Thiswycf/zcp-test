@@ -154,6 +154,11 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
   explicitly versioned, and the project evolution controller is not a line-for-line upstream
   candidate controller. Formal AutoFormer search and candidate freezing remain incomplete; the
   historical failed ER search is retained.
+- Explicit `--full-batch-smoke` completed one synthetic epoch for a sampled reference AutoFormer at
+  the configured micro-batch 256. Peak allocated/reserved memory was `8920/10390 MiB`; see
+  `docs/evidence/autoformer_full_batch_memory_smoke.json`. This proves only the single-process memory
+  and training-step path, not ImageNet accuracy or the final frozen candidates. Another user's roughly
+  10 GiB process shared the physical GPU, reinforcing that project locks are not system-wide reservations.
 - Some upstream native assets lack pinned checksums. Path existence is not authenticity.
 - Bootstrap and index-0 adapter smokes do not establish full-record, all-budget/split or cross-machine
   coverage.

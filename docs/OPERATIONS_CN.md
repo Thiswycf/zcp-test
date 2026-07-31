@@ -704,6 +704,21 @@ PlainNet 和 Proxyless 只替换候选目录与启动器。启动器会验证 Im
 审计最近 run 的 manifest/checkpoint，再用 `ZCP_START_AT=2..6` 从尚未完成的任务恢复；不要重复已完成
 候选，也不要把 interrupted 记作 completed。
 
+在启动真实数据 1% 验收前，应先验证正式配置的单卡 micro-batch 显存。普通 `--smoke` 会主动缩小
+ImageNet batch，因此不能作为显存证据；使用下列显式模式执行一个 synthetic epoch，保留配置中的
+batch、模型、优化器和 AMP，但不读取真实数据，也不得报告为精度实验：
+
+```bash
+zcp-test train \
+  --config configs/training/autoformer_imagenet.yaml \
+  --smoke --full-batch-smoke --epochs 1 \
+  --gpu GPU-... --output runs/smoke/autoformer-full-batch-memory
+```
+
+输出的 `training_mode` 必须为 `synthetic_full_batch_memory_smoke`，并核对
+`per_device_batch_size`、峰值显存、是否 OOM 和 manifest。若失败，应先依据已发布 recipe 判断需要 DDP、
+梯度累积或配置语义修正；不得静默减小 batch 后继续称原协议已通过。
+
 通用启动器默认采用 `sequential_ddp`。若单卡显存 smoke 已证明该 profile 的原始 batch 可放入一张卡，
 可显式启用按候选并行：
 

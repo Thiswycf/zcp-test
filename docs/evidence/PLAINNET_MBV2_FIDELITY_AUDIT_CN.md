@@ -61,11 +61,30 @@ SuperConvK3BNRELU(3,8,2,1)SuperResIDWE6K3(8,32,2,8,1)SuperResIDWE6K3(32,48,2,32,
 是不同协议，未混入 150-epoch profile。搜索阶段按上游脚本使用 `use_se=false`，scratch retrain 才启用
 SE；结果 manifest 必须保留该协议差异。
 
+## 上游搜索控制器审计
+
+锁定 commit `5e6683a` 的 `ImageNet_MBV2/evolution_search_az.py` 并不是项目通用的
+population/generation controller：
+
+- 目标为 **100,000 个通过约束的有效候选**，被 FLOPs/layer 拒绝的 proposal 不计入 loop count；
+- 前 11 个候选从初始结构执行一次 block replacement，之后执行两次 replacement；
+- 候选未满 1023 时从全部历史候选抽 parent，之后从当前 log-rank 最高的 1023 个历史候选中均匀抽取；
+- 每加入一个候选，重新在全部已接受候选上计算四组件 rank 与 log-rank 总分；
+- random input batch 为 64，ImageNet 分辨率 224，搜索模型 `use_se=false`；
+- 450M/600M/1G 三档 `get_FLOPs()` 上限分别配合 max layers 14/14/16；
+- 上游控制器没有 crossover，`population_size=1024` 实际用于 parent pool，不等同每代固定种群。
+
+当前 `zcp-test search` 的通用 `EvolutionSearch` 使用固定 population、generation、elite、mutation/crossover，
+尚不等价于上述来源控制器。即使代理公式和模型 port 已通过，也不得使用通用 controller 的结果宣称
+复现 AZ-NAS PlainNet 正式搜索。后续必须实现独立、可恢复的 source-aligned controller，并分别记录
+三档资源约束；考虑 100k 候选成本，smoke 可以缩小候选数，但正式结果不得把 smoke 改名为 100k。
+
 ## 尚未解除的门禁
 
 1. 全数据至少 2 epoch 和固定 1% 数据完整 150 epoch 的三候选 GPU 验收；
 2. 8-rank 或等价可证明的 global batch 512 分布式 validation 归约；
 3. 中断后 optimizer、step scheduler、scaler、RNG 和 JSONL 的恢复一致性；
 4. 搜索 best、固定随机、资源匹配候选的最终对比报告。
+5. source-aligned 100k/1024 controller、block replacement、rank 重算和 450M/600M/1G 约束验收。
 
 完成前不得把 CPU golden、合成 smoke 或短程 preflight 写成论文精度复现。

@@ -2044,6 +2044,9 @@ def command_train(args: argparse.Namespace) -> None:
     config = load_config(args.config)
     acceptance_smoke = bool(getattr(args, "acceptance_smoke", False))
     real_data_preflight = bool(getattr(args, "real_data_preflight", False))
+    full_batch_smoke = bool(getattr(args, "full_batch_smoke", False))
+    if full_batch_smoke and not args.smoke:
+        raise ValueError("--full-batch-smoke requires --smoke")
     formal_training = not args.smoke and not acceptance_smoke and not real_data_preflight
     distributed_world_size = int(os.environ.get("WORLD_SIZE", "1"))
     distributed_rank = int(os.environ.get("RANK", "0"))
@@ -2092,6 +2095,8 @@ def command_train(args: argparse.Namespace) -> None:
         else space.canonicalize(_load_architecture_spec(args.architecture))
     )
     epochs = args.epochs if args.epochs is not None else int(config["epochs"])
+    if full_batch_smoke and epochs != 1:
+        raise ValueError("--full-batch-smoke requires exactly one epoch")
     acceptance_protocol = None
     if acceptance_smoke:
         acceptance_protocol = resolve_acceptance_protocol(
@@ -2213,11 +2218,14 @@ def command_train(args: argparse.Namespace) -> None:
             "epochs": epochs,
             "data_fraction": args.data_fraction,
             "smoke": args.smoke,
+            "full_batch_smoke": full_batch_smoke,
             "acceptance_smoke": acceptance_smoke,
             "real_data_preflight": real_data_preflight,
             "acceptance_protocol": acceptance_protocol,
             "training_mode": (
-                "synthetic_smoke"
+                "synthetic_full_batch_memory_smoke"
+                if full_batch_smoke
+                else "synthetic_smoke"
                 if args.smoke
                 else "acceptance_smoke"
                 if acceptance_smoke
@@ -2275,7 +2283,11 @@ def command_train(args: argparse.Namespace) -> None:
             distributed_rank,
         ) as run:
             batch = (
-                min(batch_size, 2 if dataset == "imagenet1k" else 4) if args.smoke else batch_size
+                batch_size
+                if full_batch_smoke
+                else min(batch_size, 2 if dataset == "imagenet1k" else 4)
+                if args.smoke
+                else batch_size
             )
             size = (
                 input_size
@@ -2323,7 +2335,9 @@ def command_train(args: argparse.Namespace) -> None:
                     "seed": args.seed,
                     "data_fraction": args.data_fraction,
                     "training_mode": (
-                        "synthetic_smoke"
+                        "synthetic_full_batch_memory_smoke"
+                        if full_batch_smoke
+                        else "synthetic_smoke"
                         if args.smoke
                         else "acceptance_smoke"
                         if acceptance_smoke
@@ -2958,6 +2972,11 @@ def build_parser() -> argparse.ArgumentParser:
     train.add_argument("--output", default="runs/training")
     training_mode = train.add_mutually_exclusive_group()
     training_mode.add_argument("--smoke", action="store_true")
+    train.add_argument(
+        "--full-batch-smoke",
+        action="store_true",
+        help="with --smoke, execute one synthetic epoch at the configured micro-batch for memory validation",
+    )
     training_mode.add_argument(
         "--acceptance-smoke",
         action="store_true",

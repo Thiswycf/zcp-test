@@ -645,3 +645,9 @@ The generic AutoFormer/PlainNet/Proxyless launcher follows the same rule. `seque
 four-lock set between candidate runs; `parallel_single_gpu` and `packed_single_gpu` release each lane
 independently. Lock-file deletion is not a recovery mechanism because an active lock remains attached
 to its old inode and deletion can create two independently locked files at the same pathname.
+
+Before a real-data 1% run, validate the configured per-device micro-batch with
+`train --smoke --full-batch-smoke --epochs 1`. Ordinary smoke intentionally caps ImageNet batches and
+is not memory evidence. Full-batch smoke keeps the configured model, optimizer, AMP, and micro-batch
+for one synthetic epoch, records `synthetic_full_batch_memory_smoke`, and must never be reported as an
+accuracy experiment. An OOM requires an explicit protocol/DDP decision; do not silently reduce batch.

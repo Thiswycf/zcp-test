@@ -165,6 +165,11 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   `docs/evidence/aznas_autoformer_rank_smoke.json`。数值稳定版对协方差负零误差执行 clamp，fidelity 为
   `paper_formula_port_stabilized`；项目 evolution controller 不是上游候选控制器的逐行复刻，因此正式
   AutoFormer 搜索和候选冻结仍未完成。
+- AutoFormer 新增显式 `--full-batch-smoke`。使用配置 micro-batch 256 的 sampled reference subnet
+  已完成一个 synthetic epoch，峰值 allocated/reserved 为 `8920/10390 MiB`，见
+  `docs/evidence/autoformer_full_batch_memory_smoke.json`。该结果只证明单进程显存和训练步链路，不是
+  ImageNet 精度证据，也不能替代冻结后三候选的真实数据/恢复验收；运行期间同卡存在其他用户约 10 GiB
+  进程，进一步证明项目锁不是系统级排他锁。
 - TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
   与完整 parameter-shape multiset 在七个任务均一致。已实现受控 Taskonomy manifest、七任务真实
   input/target loader、final5k 分类 mask 和确定性 Jigsaw。原始 105 MB 标准答案 SHA-256 为

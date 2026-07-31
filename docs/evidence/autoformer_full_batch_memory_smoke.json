@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-07-31T17:51:00+08:00",
+  "run_id": "be419a6f606e",
+  "run_path": "runs/smoke/autoformer-full-batch-memory/20260731T175042+0800_be419a6f606e",
+  "status": "completed",
+  "training_mode": "synthetic_full_batch_memory_smoke",
+  "search_space_id": "autoformer",
+  "architecture_id": "1cc4ac3695d47e702a32",
+  "architecture": {"depth": 14, "hidden_dim": 192},
+  "configured_micro_batch": 256,
+  "input_size": 224,
+  "train_optimizer_steps": 2,
+  "peak_allocated_memory_mb": 8920.0048828125,
+  "peak_reserved_memory_mb": 10390.0,
+  "gpu": {
+    "uuid": "GPU-1f28b951-29ca-1fe5-00ee-7acb72218b61",
+    "model": "NVIDIA GeForce RTX 4090",
+    "logical_device": "cuda:0"
+  },
+  "scientific_accuracy_evidence": false,
+  "result": "The configured AutoFormer micro-batch 256 completed forward, backward, optimizer, AMP, train, and validation steps without OOM.",
+  "limitations": [
+    "Synthetic inputs do not validate ImageNet transforms, data I/O, or accuracy.",
+    "This sampled architecture is a memory preflight, not the frozen ZCP-selected candidate.",
+    "Another user's process occupied about 10 GiB on the same physical GPU during the smoke; the zcp-test file lock is same-user coordination only.",
+    "The final three frozen candidates still require their own memory and checkpoint-resume smoke before real-data dual-one-percent training."
+  ]
+}
