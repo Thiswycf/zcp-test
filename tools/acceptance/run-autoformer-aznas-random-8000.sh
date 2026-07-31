@@ -117,6 +117,7 @@ lane_a() {
   local uuid=${gpu_array[0]} descriptor
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
+  touch "$OUTPUT_ROOT/lane-a.lock-acquired"
   run_search "$uuid" "${SEEDS[0]}" &
   local first=$!
   run_search "$uuid" "${SEEDS[1]}" &
@@ -129,6 +130,7 @@ lane_b() {
   local uuid=${gpu_array[1]} descriptor
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
+  touch "$OUTPUT_ROOT/lane-b.lock-acquired"
   run_search "$uuid" "${SEEDS[2]}"
 }
 
@@ -154,9 +156,15 @@ trap 'on_error $LINENO' ERR
 trap on_signal INT TERM
 
 write_status queued "waiting for per-GPU locks; launch is automatic and does not block the main workflow"
+rm -f "$OUTPUT_ROOT/lane-a.lock-acquired" "$OUTPUT_ROOT/lane-b.lock-acquired"
 lane_a & children+=("$!")
 lane_b & children+=("$!")
-write_status running "three 8000-candidate seeds assigned 2+1 across two GPUs"
+while [[ ! -e "$OUTPUT_ROOT/lane-a.lock-acquired" && ! -e "$OUTPUT_ROOT/lane-b.lock-acquired" ]]; do
+  kill -0 "${children[0]}" 2>/dev/null || break
+  kill -0 "${children[1]}" 2>/dev/null || break
+  sleep 1
+done
+write_status running "at least one GPU lane acquired; three 8000-candidate seeds are assigned 2+1 across two GPUs"
 for pid in "${children[@]}"; do
   wait "$pid"
 done
