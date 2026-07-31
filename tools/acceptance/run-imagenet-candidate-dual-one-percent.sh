@@ -115,13 +115,59 @@ if [[ -n "$CPU_AFFINITIES" ]]; then
   }
 fi
 mkdir -p "$LOCK_DIR" "$OUTPUT_ROOT/candidates"
-for index in "${!gpu_array[@]}"; do
-  uuid=${gpu_array[$index]}
+for uuid in "${gpu_array[@]}"; do
   [[ "$uuid" =~ ^GPU-[A-Fa-f0-9-]+$ ]] || { echo "Invalid GPU UUID: $uuid" >&2; exit 2; }
-  descriptor=$((201 + index))
-  eval "exec ${descriptor}>\"$LOCK_DIR/$uuid.lock\""
-  flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
 done
+
+with_gpu_lock() {
+  local uuid=$1
+  shift
+  local descriptor
+  exec {descriptor}>"$LOCK_DIR/$uuid.lock"
+  flock -n "$descriptor" || {
+    exec {descriptor}>&-
+    echo "GPU lock unavailable: $uuid" >&2
+    return 4
+  }
+  (
+    exec {descriptor}>&-
+    "$@"
+  )
+  local exit_code=$?
+  exec {descriptor}>&-
+  return "$exit_code"
+}
+
+with_all_gpu_locks() {
+  local -a descriptors=()
+  local uuid descriptor held
+  for uuid in "${gpu_array[@]}"; do
+    exec {descriptor}>"$LOCK_DIR/$uuid.lock"
+    if ! flock -n "$descriptor"; then
+      exec {descriptor}>&-
+      for held in "${descriptors[@]}"; do
+        descriptor=$held
+        exec {descriptor}>&-
+      done
+      echo "GPU lock unavailable: $uuid" >&2
+      return 4
+    fi
+    descriptors+=("$descriptor")
+  done
+  (
+    for held in "${descriptors[@]}"; do
+      descriptor=$held
+      exec {descriptor}>&-
+    done
+    "$@"
+  )
+  local exit_code=$?
+  for held in "${descriptors[@]}"; do
+    descriptor=$held
+    exec {descriptor}>&-
+  done
+  return "$exit_code"
+}
 
 for name in zcp_selected.json fixed_random.json params_flops_matched.json candidates-manifest.json; do
   source_path=$(realpath "$CANDIDATE_ROOT/$name")
@@ -287,14 +333,14 @@ PY
 
 full_protocol=full-data-${FULL_DATA_EPOCHS}epoch
 schedule_protocol=one-percent-data-${FORMAL_EPOCHS}epoch
-write_status running initializing "locks acquired; validated data/config/candidates; preparing six tasks"
+write_status running initializing "validated data/config/candidates; GPU locks are acquired only while each task lane is active"
 if [[ "$EXECUTION_STRATEGY" == sequential_ddp ]]; then
-  run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-  run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-  run_one 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-  run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-  run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-  run_one 6 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  with_all_gpu_locks run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+  with_all_gpu_locks run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+  with_all_gpu_locks run_one 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
+  with_all_gpu_locks run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  with_all_gpu_locks run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  with_all_gpu_locks run_one 6 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
 elif [[ "$EXECUTION_STRATEGY" == parallel_single_gpu ]]; then
   lane_zero() {
     run_one_single 1 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
@@ -305,21 +351,31 @@ elif [[ "$EXECUTION_STRATEGY" == parallel_single_gpu ]]; then
     run_one_single 6 1 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
   }
   write_status running parallel_tasks "four independent one-GPU lanes; each run retains its configured batch/LR protocol"
-  lane_zero & child_pids+=("$!")
-  lane_one & child_pids+=("$!")
-  run_one_single 3 2 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
-  run_one_single 4 3 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[0]}" lane_zero & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[1]}" lane_one & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[2]}" run_one_single 3 2 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[3]}" run_one_single 4 3 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
   for _ in "${child_pids[@]}"; do
     wait -n
   done
 else
+  packed_zero() {
+    local pids=()
+    run_one_single 1 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & pids+=("$!")
+    run_one_single 4 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & pids+=("$!")
+    wait "${pids[@]}"
+  }
+  packed_one() {
+    local pids=()
+    run_one_single 2 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & pids+=("$!")
+    run_one_single 5 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & pids+=("$!")
+    wait "${pids[@]}"
+  }
   write_status running packed_tasks "six independent runs packed onto four GPUs; batch/LR unchanged"
-  run_one_single 1 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
-  run_one_single 4 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
-  run_one_single 2 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
-  run_one_single 5 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
-  run_one_single 3 2 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
-  run_one_single 6 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[0]}" packed_zero & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[1]}" packed_one & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[2]}" run_one_single 3 2 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[3]}" run_one_single 6 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
   for _ in "${child_pids[@]}"; do
     wait -n
   done

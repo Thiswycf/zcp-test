@@ -58,6 +58,14 @@ eligible GPU while time remains. An explicit index, UUID or bus ID never changes
 under `~/.cache/zcp-test/gpu-locks/` coordinates only same-user processes following this protocol;
 it is not a system-wide reservation. `--device` bypasses physical GPU selection and locking.
 
+The presence of a lock file does not mean that its kernel `flock` is held. Never delete a lock based
+only on a filename or stale PID text. Python lock owners are cleared on normal release. Acceptance
+launchers scope locks to active GPU work: four-GPU DDP acquires the set for each task, while single-GPU
+execution owns one lock per lane and releases it as soon as that lane completes. A supervisor must not
+reserve idle GPUs during data validation, artifact work, or while waiting for another lane. The lock
+holder closes the task-side descriptors before launching pipelines, and Python fork children close
+inherited copies so `tee`, DataLoader workers, and orphan descendants cannot extend lock lifetime.
+
 ## Evaluation inputs and result types
 
 Dataset input is the default and requires `--data-root` or a valid `dataset_<name>` catalog asset.
@@ -613,3 +621,8 @@ Every run retains global batch 128 and the locked LR, while different candidate/
 concurrently. The three 250-epoch tasks start first on separate lanes; tasks 2 and 3 share the
 fourth lane. Each lane owns and releases only its own GPU lock, so a completed lane can be reused
 immediately instead of remaining locked until the slowest task exits.
+
+The generic AutoFormer/PlainNet/Proxyless launcher follows the same rule. `sequential_ddp` releases the
+four-lock set between candidate runs; `parallel_single_gpu` and `packed_single_gpu` release each lane
+independently. Lock-file deletion is not a recovery mechanism because an active lock remains attached
+to its old inode and deletion can create two independently locked files at the same pathname.

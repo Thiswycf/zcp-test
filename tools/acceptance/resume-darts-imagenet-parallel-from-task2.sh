@@ -153,7 +153,10 @@ with_gpu_lock() {
   local descriptor
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
-  "$@"
+  (
+    exec {descriptor}>&-
+    "$@"
+  )
 }
 
 short_lane() {

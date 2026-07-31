@@ -1,7 +1,7 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
   timeZone: "Asia/Shanghai",
-  updatedAt: "2026-07-31 17:11 Asia/Shanghai",
+  updatedAt: "2026-07-31 17:34 Asia/Shanghai",
   project: {
     name: "zcp-test",
     status: "active",
@@ -283,6 +283,15 @@ window.ZCP_PANEL_DATA = {
       evidence: ["EV-LIVE-DARTS-IMAGENET-PREFLIGHT", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-DARTS-OLD-78D8118-INTERRUPTED", "EV-RUNCONTEXT-FLUSH-ACCEPTANCE", "EV-DARTS-C0C7815-RUNNING", "EV-DARTS-ZCP-SELECTED-3EPOCH-COMPLETE", "EV-DARTS-TASK2-BEIJING-INTERRUPTED", "EV-DARTS-GPU-IDLE-RESTART-PREP", "EV-TIMEZONE-ASIA-SHANGHAI", "EV-LIVE-TRAINING-HEARTBEAT", "EV-FULL-GATE-468"], risks: ["R-LIVE-DARTS-IMAGENET-PREFLIGHT", "R-DARTS-IMAGENET-DATA", "R-TIMEZONE-CONSISTENCY", "R-LEGACY-TRAINING-NO-HEARTBEAT", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 16:58"
     },
     {
+      id: "J5", phase: "实时", priority: "P0", title: "GPU 锁生命周期治理",
+      content: "将验收 GPU 锁从 supervisor 整体持有改为与实际 DDP 任务或单卡 lane 生命周期绑定，清理释放后的 owner 元数据，并阻断 shell pipeline 与 DataLoader fork 子进程继承活动锁 FD。",
+      purpose: "避免旧 launcher 启动时一次锁四卡、已完成 lane 仍随 supervisor 占锁，以及 orphan pipeline/DataLoader 后代因继承 FD 继续持有 kernel flock，导致空闲 GPU 无法被后续验收安全调度。",
+      estimate: "1–2 小时", startedAt: "2026-07-31 16:52", finishedAt: "2026-07-31 17:34", status: "已完成", progress: 100,
+      detail: "根因确认：旧验收 launcher 在 supervisor 启动时一次获取四卡锁，单个 lane 完成后锁仍保留到 supervisor 退出；shell pipeline 与 fork 出的 DataLoader/Python 子进程还会继承锁 FD，孤儿后代可能在 supervisor 退出后继续持有 kernel flock。治理后 DDP 按每个任务、单卡按每条 lane 按需持锁并完成即释放；锁 holder 在任务子 shell 启动 Python/tee 前关闭 FD，Python 通过 os.register_at_fork 在 child 关闭活动锁副本，正常释放同步清空 owner。北京时间 2026-07-31 17:29 复核时，仅 GPU5/6 的 AutoFormer 任务保持活跃锁语义，6 个空闲锁元数据安全清空；专项证据见 docs/evidence/gpu_lock_scope_fix.json。",
+      acceptance: ["DDP 每个任务按需获取并在任务结束释放锁", "单卡每条 lane 按需获取并在 lane 完成释放锁", "任务子 shell 在启动 Python/tee 前关闭锁 FD", "fork child 通过 os.register_at_fork 关闭活动锁副本", "Python 释放锁后 owner 字段为空", "fork-child 锁继承回归测试通过", "活跃锁与实际 GPU 进程一一对应", "空闲锁元数据清空且可重新获取"],
+      evidence: ["EV-GPU-LOCK-LIFECYCLE-GOVERNANCE"], risks: ["R-GPU-LOCK-LIFECYCLE"], updatedAt: "2026-07-31 17:34"
+    },
+    {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
       content: "审查敏感信息、大文件、数据、缓存和本机路径，分阶段整理提交。",
       purpose: "保证发布仓库可复现且不泄露本地资产。",
@@ -315,6 +324,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-LEGACY-TRAINING-NO-HEARTBEAT", severity: "中", status: "关闭", title: "旧训练无 heartbeat 已通过中断隔离", description: "旧 commit 78d8118 run 不具备可靠 heartbeat，运行 3 小时无完成 epoch且 run.log 为 0 字节；SIGTERM 后 supervisor status 与 manifest 均为 interrupted，不再作为当前运行。", mitigation: "新 run 固定 commit c0c7815，并以同步 flush 的 events.jsonl/run.log 与 tools/acceptance 四卡脚本监控；保留旧 interrupted 证据，不回写 completed。", taskIds: ["D1", "H2", "H3", "J4"] },
     { id: "R-DDP-RANK-RNG", severity: "高", status: "开放", title: "DDP rank-local RNG 恢复尚未专项审计", description: "DDP checkpoint 可能只保存 rank-0 RNG；多 rank 恢复后各 rank RNG 独立性尚未专项审计，属于未验证风险，不代表已观察到异常。", mitigation: "专项审计 checkpoint 中各 rank RNG state 的保存与恢复，并验证多 rank 恢复后的 RNG 独立性；完成前保持风险开放。", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "R-LAUNCHER-EXIT-CODE", severity: "中", status: "关闭", title: "旧 supervisor 继承锁已释放", description: "DARTS task6 完成后旧锁已释放，AutoFormer systemd 服务已自动启动；commit 4fc2c3d 为后续 workflow 提供 longest-first + per-lane lock release。", mitigation: "后续继续验证逐 lane 释放与自动衔接，不回写旧 run。", taskIds: ["D1", "H2", "H3", "J4"] },
+    { id: "R-GPU-LOCK-LIFECYCLE", severity: "高", status: "关闭", title: "旧 launcher 与 fork 后代过度持有 GPU 锁", description: "旧验收 launcher 在 supervisor 启动时一次锁定四卡，即使部分 lane 已完成也不会释放；shell pipeline 和 DataLoader/Python fork child 还可能继承锁 FD，使 orphan descendant 在 supervisor 退出后继续持有 kernel flock。现已改为 DDP 每任务、单卡每 lane 按需持锁并完成即释放，任务子 shell 与 fork child 均关闭继承 FD，Python 正常释放同时清空 owner。", mitigation: "保留 tests/test_gpu.py 的 fork-child 锁继承回归和 tests/test_workflow.py 的 launcher scope 契约；继续以实际进程、非阻塞 flock 与 owner 元数据三方核对，禁止删除活动锁路径。当前只允许 GPU5/6 AutoFormer 保持活跃锁，空闲锁必须 owner 为空且可重新获取。", taskIds: ["J5", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
     { id: "R-NB101-SYNFLOW-OVERFLOW", severity: "中", status: "关闭", title: "NB101 旧 SynFlow/TE-NAS float32 溢出已隔离", description: "旧 SynFlow v1 与 TE-NAS portable-v1 的非有限失败按版本保留；NB101 scoped 正式结果使用修复版本完成 22 代理 seed 2026 与核心三 seed，均无缺失调用。", mitigation: "继续保留版本字段和旧失败证据，不覆盖历史；后续 benchmark 仍执行深模型有限值回归。", taskIds: ["E1", "H1"] },
     { id: "R-LIVE-SEARCH-RESUME", severity: "中", status: "关闭", title: "Search resume 集成验收完成", description: "恢复状态、协议身份、历史连续性、原子状态文件和 OFA 候选输入身份均已集成。", mitigation: "保留 uninterrupted/resume 等价、身份漂移拒绝和 OFA 分辨率恢复回归测试。", taskIds: ["J1"] },
@@ -323,6 +333,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-LIVE-DARTS-IMAGENET-PREFLIGHT", severity: "高", status: "关闭", title: "DARTS ImageNet artifact/checkpoint 恢复闭环完成", description: "四卡零增量 resume audit 已 completed，resumed_training_rows=1，training JSONL SHA-256 与旧 failed run 完全一致；旧原始 manifest 保持 failed，未被篡改。", mitigation: "保留脱敏 run、两个修复 commit 和 SHA 一致性证据；六项正式验收由 R-DARTS-IMAGENET-DATA 继续跟踪。", taskIds: ["J4", "D1", "H2"] }
   ],
   evidence: [
+    { id: "EV-GPU-LOCK-LIFECYCLE-GOVERNANCE", time: "2026-07-31 17:29", title: "GPU 锁按任务、lane 与 fork 边界治理", result: "根因包括旧验收 launcher 在 supervisor 启动时一次获取四卡锁、完成 lane 仍随 supervisor 持锁、Python owner 在正常释放后残留，以及 shell pipeline/DataLoader fork child 继承锁 FD 后可能由 orphan descendant 继续持有 kernel flock。治理后 DDP launcher 每个任务、单卡 launcher 每条 lane 按需持锁并完成即释放；shell lock holder 在任务子 shell 启动 Python/tee 前关闭 descriptor，Python os.register_at_fork 在 child 关闭活动锁副本，正常 unlock 前清空 owner。tests/test_gpu.py 新增 fork-child 锁继承回归，tests/test_workflow.py 固定 launcher scope；运行时审计只保留 GPU5/6 两个 AutoFormer 活跃锁，6 个空闲锁元数据安全清空，科学协议未改变。", command: "docs/evidence/gpu_lock_scope_fix.json；bash -n tools/acceptance/*.sh；pytest -q tests/test_gpu.py tests/test_workflow.py；ruff check .；git diff --check", taskIds: ["J5", "H2", "H3"] },
     { id: "EV-PANEL-LIVE-STATUS-SOURCE", time: "2026-07-31 17:11", title: "真实运行状态源与前端实时卡验收", result: "live-status.py 已从 acceptance 状态与各 seed 最新 search state 生成 Asia/Shanghai live.json，并以临时文件、fsync、os.replace 原子发布；nvidia-smi 可用时加入 GPU 采样。app.js 在现有刷新周期并行 cache-bust 获取 live.json，实时卡展示 status、evaluations/8000、rate/ETA、GPU、更新时间和陈旧警告；live.json 缺失时静态看板继续工作。", command: "python panel/live-status.py --once；python -m json.tool panel/live.json；node --check panel/data.js panel/app.js panel/check-data.js；node panel/check-data.js；git diff --check", taskIds: ["F5"] },
     { id: "EV-TIMEZONE-ASIA-SHANGHAI", time: "2026-07-31 14:24", title: "项目新时间戳统一为北京时间", result: "commit de92f36 将 RunContext、manifest/events、bootstrap quarantine、acceptance status、Conda TZ 与文档统一为 Asia/Shanghai；历史 Z 结果只读不改写。", command: "pytest -q && ruff check . && python -m compileall -q src tests && pip check", taskIds: ["D1", "F4", "H2", "H3", "J4"] },
     { id: "EV-DARTS-ZCP-SELECTED-3EPOCH-COMPLETE", time: "2026-07-31 14:24", title: "DARTS ImageNet 首项 3 epoch 完成", result: "full-data-3epoch/zcp-selected 完成 3/3 epoch；验证 top-1 依次为 21.980、33.224、39.528，manifest completed，best.pt 与 last.pt 均存在。", command: "审计 full-data-3epoch-zcp-selected 的 manifest.json、training.jsonl、best.pt 与 last.pt", taskIds: ["D1", "H2", "H3", "J4"] },

@@ -1,9 +1,13 @@
 import json
+import os
+import signal
+import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
 
+from zcp_test import cli
 from zcp_test.gpu import (
     GPULockError,
     NoGPUError,
@@ -12,7 +16,6 @@ from zcp_test.gpu import (
     gpu_lock,
     select_gpu,
 )
-from zcp_test import cli
 
 
 NVIDIA_SMI_OUTPUT = """\
@@ -116,8 +119,33 @@ def test_gpu_lock_is_exclusive_and_released(tmp_path):
             with gpu_lock(selection, cache_dir=tmp_path, timeout=0):
                 pass
 
+    assert path.read_text(encoding="utf-8") == ""
     with gpu_lock(selection, cache_dir=tmp_path, timeout=0) as reacquired:
         assert reacquired == path
+
+
+@pytest.mark.skipif(not hasattr(os, "fork"), reason="requires POSIX fork")
+def test_gpu_lock_fd_is_not_retained_by_fork_child(tmp_path):
+    selection = select_gpu(runner=MockRunner())
+    read_descriptor, write_descriptor = os.pipe()
+
+    with gpu_lock(selection, cache_dir=tmp_path, timeout=0):
+        child_pid = os.fork()
+        if child_pid == 0:
+            os.close(read_descriptor)
+            os.write(write_descriptor, b"ready")
+            time.sleep(5)
+            os._exit(0)
+        os.close(write_descriptor)
+        assert os.read(read_descriptor, 5) == b"ready"
+        os.close(read_descriptor)
+
+    try:
+        with gpu_lock(selection, cache_dir=tmp_path, timeout=0):
+            pass
+    finally:
+        os.kill(child_pid, signal.SIGTERM)
+        os.waitpid(child_pid, 0)
 
 
 def test_auto_device_selection_skips_a_locked_best_gpu(monkeypatch):

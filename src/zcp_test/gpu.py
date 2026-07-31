@@ -19,6 +19,20 @@ NVIDIA_SMI_FIELDS = (
     "memory.free",
     "utilization.gpu",
 )
+_ACTIVE_GPU_LOCK_FDS: set[int] = set()
+
+
+def _close_inherited_gpu_lock_fds() -> None:
+    for descriptor in tuple(_ACTIVE_GPU_LOCK_FDS):
+        try:
+            os.close(descriptor)
+        except OSError:
+            pass
+    _ACTIVE_GPU_LOCK_FDS.clear()
+
+
+if hasattr(os, "register_at_fork"):
+    os.register_at_fork(after_in_child=_close_inherited_gpu_lock_fds)
 
 
 class GPUError(RuntimeError):
@@ -250,10 +264,13 @@ def gpu_lock(
     path.parent.mkdir(parents=True, exist_ok=True)
     handle = path.open("a+", encoding="utf-8")
     deadline = None if timeout is None else time.monotonic() + timeout
+    acquired = False
     try:
         while True:
             try:
                 fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+                acquired = True
+                _ACTIVE_GPU_LOCK_FDS.add(handle.fileno())
                 break
             except BlockingIOError as error:
                 if deadline is not None and time.monotonic() >= deadline:
@@ -266,6 +283,11 @@ def gpu_lock(
         yield path
     finally:
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+            if acquired:
+                _ACTIVE_GPU_LOCK_FDS.discard(handle.fileno())
+                handle.seek(0)
+                handle.truncate()
+                handle.flush()
+                fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
         finally:
             handle.close()

@@ -41,6 +41,13 @@ YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 换卡。锁只协调同一用户下遵循本协议的进程，不是系统级 GPU 预留；`--device` 会绕过物理卡选择
 和锁。
 
+锁文件存在不代表锁仍被持有，判定必须以操作系统 `flock` 为准，禁止仅凭文件名或旧 PID 文本删除
+锁文件。Python 锁会在正常释放时清空 owner 文本；验收 launcher 只在实际 GPU 任务期间持锁：
+四卡 DDP 每个任务单独获取并释放四锁，单卡并行按 lane 获取并在 lane 完成时立即释放。supervisor
+做数据校验、候选复制、报告整理或等待其他 lane 时不得预占空闲 GPU。锁 holder 在启动训练子进程前
+关闭任务侧继承的锁 FD；Python `fork` 子进程也会关闭继承副本，避免 `tee`、DataLoader worker 或
+孤儿后代在 GPU 工作结束后继续持锁。
+
 ## 数据输入与结果类型
 
 `evaluate` 和 `search` 默认 `--input-source dataset`，必须提供 `--data-root` 或有效的
@@ -669,8 +676,9 @@ setsid -f env ZCP_START_AT=1 \
 ```
 
 PlainNet 和 Proxyless 只替换候选目录与启动器。启动器会验证 ImageNet 的 1000 类、1,281,167 个训练
-文件和 50,000 个验证文件，校验 config 的 space/epoch，使用 GPU UUID 文件锁，并在工作树不干净时
-拒绝启动。状态位于 `runs/acceptance/<space>-imagenet/status.json`，所有新时间使用北京时间。中断后先
+文件和 50,000 个验证文件，校验 config 的 space/epoch，使用按任务/lane 持有的 GPU UUID 文件锁，
+并在工作树不干净时拒绝启动。完成的 lane 会立即释放 GPU；supervisor 不会为了尚未开始或已经完成的
+任务继续占锁。状态位于 `runs/acceptance/<space>-imagenet/status.json`，所有新时间使用北京时间。中断后先
 审计最近 run 的 manifest/checkpoint，再用 `ZCP_START_AT=2..6` 从尚未完成的任务恢复；不要重复已完成
 候选，也不要把 interrupted 记作 completed。
 

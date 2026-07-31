@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-07-31T17:29:00+08:00",
+  "issue": "A supervisor could hold four GPU locks while completed or not-yet-started lanes were idle.",
+  "root_cause": [
+    "The generic ImageNet acceptance launcher acquired all four locks before validation and retained them for the full six-task supervisor lifetime.",
+    "The legacy DARTS DDP launcher used the same process-wide lock scope.",
+    "Python lock files retained an owner PID after normal unlock, which could be mistaken for an active lock.",
+    "Shell pipelines and forked Python workers inherited the lock descriptor, so an orphan descendant could retain the kernel lock after its supervisor exited."
+  ],
+  "remediation": [
+    "Sequential DDP acquires the four-lock set for one active task and releases it before the next task.",
+    "Parallel and packed single-GPU execution acquires one lock per active lane and releases completed lanes independently.",
+    "Python gpu_lock clears owner metadata before unlocking.",
+    "The shell lock-holder closes its descriptor in the task subshell before launching Python or tee, and Python closes active lock descriptors in fork children.",
+    "Recovery checks kernel flock state and never deletes an active lock pathname."
+  ],
+  "runtime_audit": {
+    "free_lock_metadata_cleared_safely": 6,
+    "active_locks_left_untouched": 2,
+    "active_lock_workload": "AutoFormer AZ-NAS 8000-candidate cohort",
+    "active_gpu_indices": [5, 6]
+  },
+  "scientific_protocol_changed": false,
+  "validation": [
+    "bash -n tools/acceptance/*.sh",
+    "pytest -q tests/test_gpu.py tests/test_workflow.py",
+    "fork-child lock inheritance regression test",
+    "full pytest suite passed after the inheritance fix",
+    "ruff check .",
+    "python -m compileall -q src tests panel",
+    "pip check",
+    "node panel/check-data.js: 31 tasks / 29 risks / 143 evidence",
+    "git diff --check"
+  ],
+  "limitations": [
+    "The lock protocol coordinates only same-user zcp-test processes.",
+    "A lock file may exist while unlocked; only a non-blocking flock probe determines ownership.",
+    "Processes that bypass the protocol can still use the same physical GPU.",
+    "The already-running AutoFormer cohort started before this patch and was not restarted; both held locks currently correspond to active GPU work and the systemd control group contains its descendants. New launches use the corrected inheritance behavior."
+  ]
+}

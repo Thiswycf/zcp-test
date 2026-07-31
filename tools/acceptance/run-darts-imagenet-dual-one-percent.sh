@@ -34,13 +34,40 @@ val_files=$(find "$DATA_ROOT/val" -type f | wc -l)
 IFS=',' read -r -a gpu_array <<< "$GPU_UUIDS"
 [[ ${#gpu_array[@]} == 4 ]] || { echo "Exactly four GPU UUIDs are required" >&2; exit 2; }
 mkdir -p "$LOCK_DIR" "$OUTPUT_ROOT/candidates"
-for index in "${!gpu_array[@]}"; do
-  uuid=${gpu_array[$index]}
+for uuid in "${gpu_array[@]}"; do
   [[ "$uuid" =~ ^GPU-[A-Fa-f0-9-]+$ ]] || { echo "Invalid GPU UUID: $uuid" >&2; exit 2; }
-  descriptor=$((201 + index))
-  eval "exec ${descriptor}>\"$LOCK_DIR/$uuid.lock\""
-  flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
 done
+
+with_all_gpu_locks() {
+  local -a descriptors=()
+  local uuid descriptor held
+  for uuid in "${gpu_array[@]}"; do
+    exec {descriptor}>"$LOCK_DIR/$uuid.lock"
+    if ! flock -n "$descriptor"; then
+      exec {descriptor}>&-
+      for held in "${descriptors[@]}"; do
+        descriptor=$held
+        exec {descriptor}>&-
+      done
+      echo "GPU lock unavailable: $uuid" >&2
+      return 4
+    fi
+    descriptors+=("$descriptor")
+  done
+  (
+    for held in "${descriptors[@]}"; do
+      descriptor=$held
+      exec {descriptor}>&-
+    done
+    "$@"
+  )
+  local exit_code=$?
+  for held in "${descriptors[@]}"; do
+    descriptor=$held
+    exec {descriptor}>&-
+  done
+  return "$exit_code"
+}
 
 for name in zcp_selected.json fixed_random.json params_matched_random_pool.json; do
   source_path=$(realpath "$CANDIDATE_ROOT/$name")
@@ -155,12 +182,12 @@ print(f"validated {path.parent.name}: completed")
 PY
 }
 
-write_status running initializing "locks acquired; validated fast data root; preparing six tasks"
-run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" full-data-3epoch 3 1.0
-run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" full-data-3epoch 3 1.0
-run_one 3 params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" full-data-3epoch 3 1.0
-run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" one-percent-data-250epoch 250 0.01
-run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" one-percent-data-250epoch 250 0.01
-run_one 6 params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" one-percent-data-250epoch 250 0.01
+write_status running initializing "validated fast data root; four GPU locks are held only while each DDP task is active"
+with_all_gpu_locks run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" full-data-3epoch 3 1.0
+with_all_gpu_locks run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" full-data-3epoch 3 1.0
+with_all_gpu_locks run_one 3 params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" full-data-3epoch 3 1.0
+with_all_gpu_locks run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" one-percent-data-250epoch 250 0.01
+with_all_gpu_locks run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" one-percent-data-250epoch 250 0.01
+with_all_gpu_locks run_one 6 params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" one-percent-data-250epoch 250 0.01
 current_task=all
 write_status completed all "all six DARTS ImageNet acceptance runs completed"

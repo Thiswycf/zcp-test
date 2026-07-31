@@ -57,6 +57,12 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
     assert "ZoneInfo(\"Asia/Shanghai\")" in common_source
     assert "Project worktree must be clean" in common_source
     assert 'flock -n "$descriptor"' in common_source
+    assert "with_all_gpu_locks run_one 1" in common_source
+    assert 'with_gpu_lock "${gpu_array[0]}" lane_zero' in common_source
+    assert 'with_gpu_lock "${gpu_array[0]}" packed_zero' in common_source
+    assert "GPU locks are acquired only while each task lane is active" in common_source
+    assert 'eval "exec ${descriptor}' not in common_source
+    assert common_source.count("exec {descriptor}>&-") >= 4
 
     for name, (space, formal_epochs, full_epochs) in scripts.items():
         source = (acceptance / name).read_text(encoding="utf-8")
@@ -83,6 +89,16 @@ def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
         assert f"run_single {task_index} " in source
 
 
+def test_legacy_darts_ddp_launcher_locks_only_active_task():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "tools" / "acceptance" / "run-darts-imagenet-dual-one-percent.sh"
+    subprocess.run(["bash", "-n", str(script)], check=True)
+    source = script.read_text(encoding="utf-8")
+    assert "with_all_gpu_locks run_one 1" in source
+    assert "GPU locks are held only while each DDP task is active" in source
+    assert 'eval "exec ${descriptor}' not in source
+
+
 def test_autoformer_aznas_acceptance_launcher_is_resumable_and_packed():
     root = Path(__file__).resolve().parents[1]
     script = root / "tools" / "acceptance" / "run-autoformer-aznas-random-8000.sh"
@@ -95,6 +111,7 @@ def test_autoformer_aznas_acceptance_launcher_is_resumable_and_packed():
     assert '--resume "$state"' in source
     assert 'flock -w "$LOCK_TIMEOUT"' in source
     assert 'CUDA_VISIBLE_DEVICES="$uuid"' in source
+    assert source.count("exec {descriptor}>&-") == 2
     assert "architecture-hash-v1" in source
     assert 'ZoneInfo("Asia/Shanghai")' in source
 

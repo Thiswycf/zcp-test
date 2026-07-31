@@ -118,12 +118,15 @@ lane_a() {
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
   touch "$OUTPUT_ROOT/lane-a.lock-acquired"
-  run_search "$uuid" "${SEEDS[0]}" &
-  local first=$!
-  run_search "$uuid" "${SEEDS[1]}" &
-  local second=$!
-  wait "$first"
-  wait "$second"
+  (
+    exec {descriptor}>&-
+    run_search "$uuid" "${SEEDS[0]}" &
+    local first=$!
+    run_search "$uuid" "${SEEDS[1]}" &
+    local second=$!
+    wait "$first"
+    wait "$second"
+  )
 }
 
 lane_b() {
@@ -131,7 +134,10 @@ lane_b() {
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
   touch "$OUTPUT_ROOT/lane-b.lock-acquired"
-  run_search "$uuid" "${SEEDS[2]}"
+  (
+    exec {descriptor}>&-
+    run_search "$uuid" "${SEEDS[2]}"
+  )
 }
 
 children=()
