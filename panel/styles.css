@@ -107,6 +107,26 @@ main { display: grid; gap: 18px; padding-bottom: 56px; }
 .legend-item { display: inline-flex; align-items: center; gap: 7px; color: var(--muted); font-size: .82rem; }
 .legend-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--dot); }
 
+.live-panel { border-top: 4px solid var(--accent); }
+.live-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-top: 16px; }
+.live-run, .live-seed, .live-gpu, .live-empty { border: 1px solid var(--line); border-radius: 14px; background: var(--surface-strong); padding: 14px; }
+.live-run { display: grid; gap: 12px; }
+.live-run-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.live-run-heading h3 { margin: 0; font-size: 1rem; }
+.live-status { border-radius: 999px; padding: 4px 8px; color: var(--accent); background: var(--accent-soft); font-size: .75rem; font-weight: 800; }
+.live-status.status-running { color: var(--warning); }
+.live-status.status-completed { color: var(--success); }
+.live-seeds, .live-gpus { display: grid; gap: 8px; }
+.live-seed, .live-gpu { padding: 10px; }
+.live-seed-line, .live-gpu-line { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }
+.live-seed small, .live-gpu small, .live-run-meta, .live-empty { color: var(--muted); }
+.live-progress { height: 7px; margin: 8px 0 5px; overflow: hidden; border-radius: 999px; background: var(--line); }
+.live-progress span { display: block; height: 100%; background: var(--accent); border-radius: inherit; }
+.live-warning { min-height: 1.3em; margin: 10px 0 0; color: var(--warning); }
+.live-warning.is-stale { color: var(--danger); font-weight: 700; }
+.live-facts { display: flex; flex-wrap: wrap; gap: 7px; }
+.live-fact { border-radius: 8px; padding: 5px 7px; background: var(--accent-soft); color: var(--muted); font-size: .75rem; }
+
 .controls { display: grid; grid-template-columns: minmax(220px, 2fr) repeat(4, minmax(120px, 1fr)) auto; gap: 12px; align-items: end; }
 label span { display: block; margin-bottom: 6px; color: var(--muted); font-size: .8rem; }
 input, select, .button, .icon-button {

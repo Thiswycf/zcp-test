@@ -91,6 +91,20 @@
       <div id="status-legend" class="legend" aria-label="状态数量"></div>
     </section>
 
+    <section class="panel live-panel" aria-labelledby="live-status-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">LIVE RUNS</p>
+          <h2 id="live-status-title">实时运行</h2>
+        </div>
+        <span id="live-freshness" class="count-pill" role="status">等待 live.json</span>
+      </div>
+      <p id="live-warning" class="live-warning" role="status" aria-live="polite"></p>
+      <div id="live-status-content" class="live-status-grid">
+        <div class="live-empty">实时状态源尚未加载；静态任务看板仍可正常使用。</div>
+      </div>
+    </section>
+
     <section class="panel controls-panel" aria-labelledby="filters-title">
       <div class="section-heading compact-heading">
         <div>

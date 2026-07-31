@@ -9,6 +9,8 @@ const appPath = path.join(__dirname, "app.js");
 const indexPath = path.join(__dirname, "index.html");
 const stylesPath = path.join(__dirname, "styles.css");
 const readmePath = path.join(__dirname, "README.md");
+const liveStatusPath = path.join(__dirname, "live-status.py");
+const gitignorePath = path.join(__dirname, "..", ".gitignore");
 const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), context, { filename: dataPath });
 const data = context.window.ZCP_PANEL_DATA;
@@ -16,6 +18,8 @@ const appSource = fs.readFileSync(appPath, "utf8");
 const indexSource = fs.readFileSync(indexPath, "utf8");
 const stylesSource = fs.readFileSync(stylesPath, "utf8");
 const readmeSource = fs.readFileSync(readmePath, "utf8");
+const liveStatusSource = fs.readFileSync(liveStatusPath, "utf8");
+const gitignoreSource = fs.readFileSync(gitignorePath, "utf8");
 const errors = [];
 
 function assert(condition, message) {
@@ -122,7 +126,23 @@ assert(appSource.includes("saveReloadState()"), "页面级刷新回退未保存�
 assert(appSource.includes("restoreReloadState()"), "页面级刷新回退未恢复筛选状态");
 assert(indexSource.includes("若浏览器阻止动态脚本，则保留筛选状态并自动重载页面"), "file:// 回退提示不完整");
 assert(appSource.includes("可点击“立即刷新”重试"), "刷新失败未提示重试");
+for (const id of ["live-status-title", "live-freshness", "live-warning", "live-status-content"]) {
+  assert(indexSource.includes(`id="${id}"`), `实时运行卡缺少 #${id}`);
+}
+assert(indexSource.includes("实时运行"), "页面缺少实时运行卡标题");
+assert(stylesSource.includes(".live-status-grid") && stylesSource.includes(".live-warning.is-stale"), "实时运行卡或陈旧警告样式缺失");
+assert(appSource.includes('new URL("live.json", window.location.href)'), "实时刷新未请求 live.json");
+assert(appSource.includes('fetch(url.href, { cache: "no-store"'), "live.json 未使用 no-store fetch");
+assert(appSource.includes('url.searchParams.set("refresh"'), "live.json 刷新缺少 cache-busting");
+assert(appSource.includes("Promise.allSettled([loadFreshDataScript(), loadFreshLiveStatus()])"), "静态与实时状态未在同一刷新周期获取");
+assert(appSource.includes("静态看板不受影响") && appSource.includes("继续显示静态任务、风险与证据"), "live.json 缺失降级文案不完整");
+assert(appSource.includes("stale_after_seconds") && appSource.includes("live.json 已"), "live.json 陈旧判断或警告缺失");
+assert(appSource.includes("rate_per_second") && appSource.includes("eta_seconds"), "实时卡缺少速率或 ETA 展示");
+assert(appSource.includes("utilization_percent") && appSource.includes("memory_used_mib"), "实时卡缺少 GPU 利用率或显存展示");
 assert(readmeSource.includes("python -m http.server 8768 --directory panel"), "README 缺少静态服务器命令");
+assert(readmeSource.includes("python panel/live-status.py --once"), "README 缺少 live-status --once 命令");
+assert(readmeSource.includes("python panel/live-status.py --watch --interval 15"), "README 缺少 live-status watch 命令");
+assert(readmeSource.includes("systemd-run --user --unit=zcp-test-panel-live"), "README 缺少 live-status systemd-run 示例");
 assert(readmeSource.includes("file://"), "README 缺少 file:// 限制说明");
 assert(readmeSource.includes("无需手动按 F5"), "README 未说明 file:// 页面重载回退");
 assert(appSource.includes('$("#status-filter").value = state.status'), "刷新后未恢复状态筛选");
@@ -131,8 +151,25 @@ assert(appSource.includes('$("#priority-filter").value = state.priority'), "刷�
 assert(appSource.includes('status.setAttribute("aria-busy", "true")'), "刷新开始时未设置 aria-busy");
 assert(appSource.includes('status.removeAttribute("aria-busy")'), "刷新结束时未清除 aria-busy");
 assert(appSource.includes("setRefreshInterval"), "缺少可选自动刷新间隔");
-assert(!/\bfetch\s*\(/.test(appSource), "看板刷新不应依赖 fetch（file:// 不兼容）");
+assert((appSource.match(/\bfetch\s*\(/g) || []).length === 1, "看板只应使用一次 fetch 获取可降级的 live.json");
 assert(!/window\.location\.reload\s*\(/.test(appSource), "页面回退应使用 cache-busting URL，而不是普通 reload");
+
+for (const phrase of [
+  "runs/acceptance/darts-imagenet-parallel/status.json",
+  "runs/acceptance/autoformer-aznas-random-8000",
+  "search-state.json",
+  "Asia/Shanghai",
+  "nvidia-smi",
+  "os.replace",
+  "--once",
+  "--watch",
+  "--interval"
+]) {
+  assert(liveStatusSource.includes(phrase), `live-status.py 缺少结构：${phrase}`);
+}
+assert(liveStatusSource.includes("with temporary.open") && liveStatusSource.includes("os.fsync"), "live.json 缺少临时文件落盘流程");
+assert(liveStatusSource.includes("except (OSError, json.JSONDecodeError)"), "live-status.py 未容忍暂缺或不完整 JSON");
+assert(gitignoreSource.split(/\r?\n/).includes("/panel/live.json"), ".gitignore 未忽略 panel/live.json");
 
 if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isArray(data.evidence)) {
   const now = Date.now();

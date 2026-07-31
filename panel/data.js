@@ -1,7 +1,7 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
   timeZone: "Asia/Shanghai",
-  updatedAt: "2026-07-31 16:58 Asia/Shanghai",
+  updatedAt: "2026-07-31 17:11 Asia/Shanghai",
   project: {
     name: "zcp-test",
     status: "active",
@@ -193,6 +193,15 @@ window.ZCP_PANEL_DATA = {
       evidence: ["EV-TIMEZONE-ASIA-SHANGHAI", "EV-PANEL-REFRESH-RELIABILITY", "EV-PANEL", "EV-PANEL-REFRESH", "EV-PANEL-REFRESH-CONTROLS", "EV-PANEL-AUTO-REFRESH-NODE", "EV-PANEL-HTTP-REFRESH-AUDIT", "EV-PANEL-REFRESH-COMPLETE-AUDIT", "EV-PANEL-NOF5-NOSTORE-AUDIT", "EV-PANEL-LIVE-REFRESH-V2", "EV-PANEL-HTTP-FILE-GUARD"], risks: ["R-TIMEZONE-CONSISTENCY"], updatedAt: "2026-07-31 14:24"
     },
     {
+      id: "F5", phase: "报告", priority: "P0", title: "真实运行状态源与实时卡",
+      content: "从 acceptance 状态、各 seed search state 与 GPU 采样原子生成 live.json，并随看板自动刷新展示。",
+      purpose: "让静态计划看板同时呈现可降级、可判断陈旧的真实运行进度。",
+      estimate: "1–2 小时", startedAt: "2026-07-31 17:00", finishedAt: "2026-07-31 17:11", status: "已完成", progress: 100,
+      detail: "panel/live-status.py 支持 --once 与 --watch --interval 15，按 Asia/Shanghai 原子写入忽略提交的 live.json；读取 DARTS/AutoFormer status、各 seed 最新 search-state，并在可用时采样 nvidia-smi。前端每次静态自动刷新并行 cache-bust fetch live.json，展示状态、evaluations/8000、速率、ETA、GPU 利用率、更新时间与陈旧警告；实时源缺失不影响静态看板。",
+      acceptance: ["live.json 临时文件 + os.replace", "状态暂缺或不完整时继续 watch", "自动刷新并行获取 data.js 与 live.json", "每 seed 进度、速率与 ETA", "GPU 利用率与陈旧警告", "live.json 缺失时静态看板降级可用", "README 与 systemd-run 示例", "Node/Python/JSON/diff 校验通过"],
+      evidence: ["EV-PANEL-LIVE-STATUS-SOURCE"], risks: [], updatedAt: "2026-07-31 17:11"
+    },
+    {
       id: "G1", phase: "验收", priority: "P0", title: "新增代码全量质量 gate",
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
@@ -314,6 +323,7 @@ window.ZCP_PANEL_DATA = {
     { id: "R-LIVE-DARTS-IMAGENET-PREFLIGHT", severity: "高", status: "关闭", title: "DARTS ImageNet artifact/checkpoint 恢复闭环完成", description: "四卡零增量 resume audit 已 completed，resumed_training_rows=1，training JSONL SHA-256 与旧 failed run 完全一致；旧原始 manifest 保持 failed，未被篡改。", mitigation: "保留脱敏 run、两个修复 commit 和 SHA 一致性证据；六项正式验收由 R-DARTS-IMAGENET-DATA 继续跟踪。", taskIds: ["J4", "D1", "H2"] }
   ],
   evidence: [
+    { id: "EV-PANEL-LIVE-STATUS-SOURCE", time: "2026-07-31 17:11", title: "真实运行状态源与前端实时卡验收", result: "live-status.py 已从 acceptance 状态与各 seed 最新 search state 生成 Asia/Shanghai live.json，并以临时文件、fsync、os.replace 原子发布；nvidia-smi 可用时加入 GPU 采样。app.js 在现有刷新周期并行 cache-bust 获取 live.json，实时卡展示 status、evaluations/8000、rate/ETA、GPU、更新时间和陈旧警告；live.json 缺失时静态看板继续工作。", command: "python panel/live-status.py --once；python -m json.tool panel/live.json；node --check panel/data.js panel/app.js panel/check-data.js；node panel/check-data.js；git diff --check", taskIds: ["F5"] },
     { id: "EV-TIMEZONE-ASIA-SHANGHAI", time: "2026-07-31 14:24", title: "项目新时间戳统一为北京时间", result: "commit de92f36 将 RunContext、manifest/events、bootstrap quarantine、acceptance status、Conda TZ 与文档统一为 Asia/Shanghai；历史 Z 结果只读不改写。", command: "pytest -q && ruff check . && python -m compileall -q src tests && pip check", taskIds: ["D1", "F4", "H2", "H3", "J4"] },
     { id: "EV-DARTS-ZCP-SELECTED-3EPOCH-COMPLETE", time: "2026-07-31 14:24", title: "DARTS ImageNet 首项 3 epoch 完成", result: "full-data-3epoch/zcp-selected 完成 3/3 epoch；验证 top-1 依次为 21.980、33.224、39.528，manifest completed，best.pt 与 last.pt 均存在。", command: "审计 full-data-3epoch-zcp-selected 的 manifest.json、training.jsonl、best.pt 与 last.pt", taskIds: ["D1", "H2", "H3", "J4"] },
     { id: "EV-DARTS-TASK2-BEIJING-INTERRUPTED", time: "2026-07-31 14:24", title: "task2 因时区切换主动中断", result: "full-data-3epoch/fixed-random 在科学 epoch 完成前为统一时间戳主动停止；supervisor status 与 task2 manifest 均为 interrupted，不记作科学失败或完成。", command: "审计 status.json 与 task2 manifest.json 的 interrupted 状态", taskIds: ["D1", "H2", "H3", "J4"] },

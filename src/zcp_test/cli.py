@@ -1841,21 +1841,38 @@ def command_search(args: argparse.Namespace) -> None:
                 "pass --allow-approximation only for an explicitly exploratory search"
             )
         component_aggregator = None
+        az_nas_components = {
+            "az_nas_autoformer": ("expressivity", "trainability", "complexity"),
+            "az_nas_plainnet": (
+                "expressivity",
+                "progressivity",
+                "trainability",
+                "complexity",
+            ),
+        }
+        az_nas_spaces = {
+            "az_nas_autoformer": "autoformer",
+            "az_nas_plainnet": "zennas_plainnet_mbv2",
+        }
         if args.aggregator == "az_nas_log_rank":
-            if args.proxy != "az_nas_autoformer":
+            if args.proxy not in az_nas_components:
                 raise ValueError(
-                    "az_nas_log_rank currently requires --proxy az_nas_autoformer"
+                    "az_nas_log_rank requires --proxy az_nas_autoformer or az_nas_plainnet"
                 )
             from zcp_test.proxies.az_nas import log_rank_aggregate
 
             def component_aggregator(rows: Any) -> list[float]:
-                return log_rank_aggregate(
-                    rows, ("expressivity", "trainability", "complexity")
-                )
-        elif args.proxy == "az_nas_autoformer":
+                return log_rank_aggregate(rows, az_nas_components[args.proxy])
+        elif args.proxy in az_nas_components:
             raise ValueError(
-                "az_nas_autoformer requires --aggregator az_nas_log_rank; "
+                f"{args.proxy} requires --aggregator az_nas_log_rank; "
                 "expressivity alone is not the AZ-NAS search score"
+            )
+        expected_az_nas_space = az_nas_spaces.get(args.proxy)
+        if expected_az_nas_space and space.search_space_id != expected_az_nas_space:
+            raise ValueError(
+                f"{args.proxy} requires --space {expected_az_nas_space}; "
+                f"it is not defined for {space.search_space_id}"
             )
         search_input_fingerprint = (
             "per_candidate_input_size" if fixed_batch is None else fixed_batch.fingerprint

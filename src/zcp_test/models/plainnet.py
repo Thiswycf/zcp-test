@@ -11,6 +11,7 @@ from torch import Tensor, nn
 
 AZNAS_COMMIT = "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
 ZENNAS_COMMIT = "d1d617e0352733d39890fb64ea758f9c85b28c1a"
+OFFICIAL_COMPLEXITY_VERSION = "aznas-5e6683-plainnet-get-flops-v1"
 INITIAL_STRUCTURE = (
     "SuperConvK3BNRELU(3,8,2,1)"
     "SuperResIDWE6K3(8,32,2,8,1)"
@@ -289,6 +290,16 @@ class AZPlainNetMobileNetV2(nn.Module):
                 modules.append(_PlainNetResidualBlock(spec, self.use_se, self.bn_momentum))
         self.blocks = nn.ModuleList(modules)
         self.classifier = nn.Linear(self.block_specs[-1].out_channels, num_classes)
+        feature_relus: list[nn.ReLU] = []
+        for spec, block in zip(self.block_specs, self.blocks, strict=True):
+            if spec.kind == "conv":
+                feature_relus.extend(layer[-1] for layer in block)
+            else:
+                for unit in block:
+                    feature_relus.extend(
+                        (unit.branch[0][-1], unit.branch[1][-1], unit.activation)
+                    )
+        self._feature_relus = tuple(feature_relus)
         self.init_parameters(initialization)
 
     def init_parameters(self, method: str = "kaiming") -> None:
@@ -335,12 +346,110 @@ class AZPlainNetMobileNetV2(nn.Module):
     def forward(self, inputs: Tensor) -> Tensor:
         return self.classifier(self.forward_features(inputs))
 
+    def extract_layer_features_and_logit(self, inputs: Tensor) -> tuple[list[Tensor], Tensor]:
+        features: list[Tensor] = []
+
+        def capture_feature(_module: nn.Module, _inputs: tuple[Tensor, ...], output: Tensor) -> None:
+            if output.requires_grad:
+                output.retain_grad()
+            features.append(output)
+
+        handles = [module.register_forward_hook(capture_feature) for module in self._feature_relus]
+        try:
+            logits = self(inputs)
+        finally:
+            for handle in handles:
+                handle.remove()
+        return features, logits
+
+    def official_complexity_ops(self, input_resolution: int = 224) -> float:
+        if isinstance(input_resolution, bool) or not isinstance(input_resolution, int):
+            raise TypeError("PlainNet input resolution must be an integer")
+        if input_resolution <= 0:
+            raise ValueError("PlainNet input resolution must be positive")
+
+        resolution = input_resolution
+        operations = 0.0
+        for spec in self.block_specs:
+            if spec.kind == "conv":
+                channels_in = spec.in_channels
+                stride = spec.stride
+                for _ in range(spec.sub_layers):
+                    operations += (
+                        channels_in
+                        * spec.out_channels
+                        * spec.kernel_size**2
+                        * resolution**2
+                        // stride**2
+                    )
+                    resolution //= stride
+                    operations += resolution**2 * spec.out_channels
+                    channels_in = spec.out_channels
+                    stride = 1
+                continue
+
+            assert spec.expansion is not None and spec.bottleneck_channels is not None
+            channels_in = spec.in_channels
+            stride = spec.stride
+            for sub_layer in range(spec.sub_layers):
+                hidden_channels = _round_channels(
+                    spec.bottleneck_channels * spec.expansion
+                )
+                operations += _official_conv_bn_ops(
+                    channels_in, hidden_channels, 1, 1, resolution
+                )
+                operations += _official_depthwise_bn_ops(
+                    hidden_channels, spec.kernel_size, stride, resolution
+                )
+                resolution //= stride
+                if self.use_se:
+                    operations += _official_se_ops(hidden_channels, resolution)
+                operations += _official_conv_bn_ops(
+                    hidden_channels, spec.bottleneck_channels, 1, 1, resolution
+                )
+                if (
+                    sub_layer == 0
+                    or stride > 1
+                    or channels_in != spec.bottleneck_channels
+                ):
+                    projected_resolution = resolution / stride
+                    operations += (
+                        channels_in
+                        * spec.bottleneck_channels
+                        * projected_resolution**2
+                        + projected_resolution**2 * spec.bottleneck_channels
+                    )
+
+                hidden_channels = _round_channels(spec.out_channels * spec.expansion)
+                operations += _official_conv_bn_ops(
+                    spec.bottleneck_channels, hidden_channels, 1, 1, resolution
+                )
+                operations += _official_depthwise_bn_ops(
+                    hidden_channels, spec.kernel_size, 1, resolution
+                )
+                if self.use_se:
+                    operations += _official_se_ops(hidden_channels, resolution)
+                operations += _official_conv_bn_ops(
+                    hidden_channels, spec.out_channels, 1, 1, resolution
+                )
+                if spec.bottleneck_channels != spec.out_channels:
+                    operations += (
+                        spec.bottleneck_channels * spec.out_channels * resolution**2
+                        + resolution**2 * spec.out_channels
+                    )
+                channels_in = spec.out_channels
+                stride = 1
+
+        operations += self.classifier.in_features * self.classifier.out_features
+        return float(operations)
+
     def reference_metadata(self) -> dict[str, Any]:
         return {
             "family": "aznas_zennas_plainnet_mbv2",
             "model_fidelity": self.model_fidelity,
             "implementation_source": "https://github.com/cvlab-yonsei/AZ-NAS",
             "implementation_commit": AZNAS_COMMIT,
+            "official_complexity_version": OFFICIAL_COMPLEXITY_VERSION,
             "search_space_source": "https://github.com/idstcv/ZenNAS",
             "search_space_commit": ZENNAS_COMMIT,
             "structure": self.structure,
@@ -362,10 +471,47 @@ def reconnect_plainnet_blocks(
     return tuple(connected)
 
 
+def _official_conv_bn_ops(
+    channels_in: int,
+    channels_out: int,
+    kernel_size: int,
+    stride: int,
+    input_resolution: int,
+) -> int:
+    output_resolution = input_resolution // stride
+    convolution = (
+        channels_in
+        * channels_out
+        * kernel_size**2
+        * input_resolution**2
+        // stride**2
+    )
+    return convolution + output_resolution**2 * channels_out
+
+
+def _official_depthwise_bn_ops(
+    channels: int, kernel_size: int, stride: int, input_resolution: int
+) -> int:
+    output_resolution = input_resolution // stride
+    convolution = channels * kernel_size**2 * input_resolution**2 // stride**2
+    return convolution + output_resolution**2 * channels
+
+
+def _official_se_ops(channels: int, input_resolution: int) -> int:
+    se_channels = max(1, round(channels * 0.25))
+    return (
+        channels * se_channels
+        + se_channels * channels
+        + channels
+        + channels * input_resolution**2
+    )
+
+
 __all__ = [
     "AZNAS_COMMIT",
     "AZPlainNetMobileNetV2",
     "INITIAL_STRUCTURE",
+    "OFFICIAL_COMPLEXITY_VERSION",
     "PlainNetBlockSpec",
     "ZENNAS_COMMIT",
     "canonical_plainnet_structure",

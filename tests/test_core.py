@@ -244,6 +244,10 @@ def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
         if "cnn" not in capability.model_families:
             assert result.status.value == "unsupported"
             continue
+        if proxy_id == "az_nas_plainnet":
+            assert result.status.value == "unsupported"
+            assert "AZPlainNetMobileNetV2" in (result.error_message or "")
+            continue
         assert result.status.value == "ok", (proxy_id, result.error_message)
         assert result.score is not None and math.isfinite(result.score)
         assert result.implementation_fidelity != "unverified"

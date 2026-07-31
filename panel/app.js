@@ -13,6 +13,8 @@
   };
   let dialogOpener = null;
   let refreshPromise = null;
+  let liveData = null;
+  let liveError = "live.json 尚未加载";
   let refreshRequestId = 0;
   let refreshInitialized = false;
   let autoRefreshEnabled = true;
@@ -21,6 +23,7 @@
   let nextRefreshAt = null;
   let refreshIntervalMs = 30_000;
   const dataScriptTimeoutMs = 10_000;
+  const liveFetchTimeoutMs = 8_000;
   const refreshIntervalStorageKey = "zcp-panel-refresh-interval";
   const reloadStateStorageKey = "zcp-panel-reload-state";
   const panelDateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -432,6 +435,78 @@
     return `${panelClockFormatter.format(date)}（北京时间）`;
   }
 
+  function formatDuration(seconds) {
+    if (!Number.isFinite(seconds) || seconds < 0) return "—";
+    const rounded = Math.round(seconds);
+    const hours = Math.floor(rounded / 3600);
+    const minutes = Math.floor((rounded % 3600) / 60);
+    if (hours > 0) return `${hours}小时${minutes}分`;
+    return `${minutes}分${rounded % 60}秒`;
+  }
+
+  function formatLiveTimestamp(value) {
+    const date = new Date(value);
+    return Number.isFinite(date.getTime()) ? `${panelDateTimeFormatter.format(date)}（北京时间）` : "—";
+  }
+
+  function renderLiveStatus() {
+    const content = $("#live-status-content");
+    const freshness = $("#live-freshness");
+    const warning = $("#live-warning");
+    if (!liveData) {
+      freshness.textContent = "实时源不可用";
+      warning.className = "live-warning is-stale";
+      warning.textContent = `${liveError}；静态看板不受影响。`;
+      content.innerHTML = '<div class="live-empty">未取得 live.json，继续显示静态任务、风险与证据。</div>';
+      return;
+    }
+
+    const generatedAt = new Date(liveData.generated_at);
+    const ageSeconds = Number.isFinite(generatedAt.getTime()) ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : Infinity;
+    const staleAfter = Number(liveData.stale_after_seconds) || 45;
+    const staleSeeds = liveData.autoformer?.seeds?.filter((seed) => seed.stale) || [];
+    const isStale = ageSeconds > staleAfter;
+    freshness.textContent = `更新 ${formatLiveTimestamp(liveData.generated_at)}`;
+    warning.className = `live-warning${isStale || liveError ? " is-stale" : ""}`;
+    const warnings = [...(liveData.warnings || [])];
+    if (liveError) warnings.unshift(liveError);
+    if (isStale) warnings.unshift(`live.json 已 ${ageSeconds} 秒未更新`);
+    if (staleSeeds.length) warnings.push(`${staleSeeds.length} 个 seed 的 partial state 较旧`);
+    warning.textContent = warnings.length ? `数据提示：${warnings.join("；")}` : "实时状态源正常。";
+
+    const autoformer = liveData.autoformer || {};
+    const seeds = Array.isArray(autoformer.seeds) ? autoformer.seeds : [];
+    const targetUuids = new Set(autoformer.gpu_uuids || []);
+    const gpus = (liveData.gpus || []).filter((gpu) => !targetUuids.size || targetUuids.has(gpu.uuid));
+    const seedMarkup = seeds.length ? seeds.map((seed) => {
+      const percent = Math.min(100, Math.max(0, seed.total ? seed.evaluations / seed.total * 100 : 0));
+      const rate = Number.isFinite(seed.rate_per_second) ? `${seed.rate_per_second.toFixed(2)} eval/s` : "速率 —";
+      return `<div class="live-seed">
+        <div class="live-seed-line"><strong>seed ${escapeHtml(seed.seed)}</strong><span>${escapeHtml(seed.evaluations)}/${escapeHtml(seed.total)}</span></div>
+        <div class="live-progress" aria-hidden="true"><span style="width:${percent.toFixed(2)}%"></span></div>
+        <small>${escapeHtml(rate)} · ETA ${escapeHtml(formatDuration(seed.eta_seconds))} · ${escapeHtml(formatLiveTimestamp(seed.updated_at))}</small>
+      </div>`;
+    }).join("") : '<div class="live-empty">search-state.json 暂缺，等待下一次原子保存。</div>';
+    const gpuMarkup = gpus.length ? gpus.map((gpu) => `
+      <div class="live-gpu">
+        <div class="live-gpu-line"><strong>GPU ${escapeHtml(gpu.index)}</strong><span>SM ${escapeHtml(gpu.utilization_percent)}%</span></div>
+        <small>显存 ${escapeHtml(gpu.memory_used_mib)} / ${escapeHtml(gpu.memory_total_mib)} MiB</small>
+      </div>`).join("") : '<div class="live-empty">GPU 采样暂不可用。</div>';
+
+    content.innerHTML = `
+      <article class="live-run">
+        <div class="live-run-heading"><h3>DARTS ImageNet 六项</h3><span class="live-status status-${escapeHtml(liveData.darts?.status || "unknown")}">${escapeHtml(liveData.darts?.status || "unknown")}</span></div>
+        <p class="live-run-meta">${escapeHtml(liveData.darts?.detail || "状态详情暂缺")}</p>
+        <div class="live-facts"><span class="live-fact">状态更新时间 ${escapeHtml(formatLiveTimestamp(liveData.darts?.updated_at))}</span></div>
+      </article>
+      <article class="live-run">
+        <div class="live-run-heading"><h3>AutoFormer AZ-NAS 3×8,000</h3><span class="live-status status-${escapeHtml(autoformer.status || "unknown")}">${escapeHtml(autoformer.status || "unknown")}</span></div>
+        <p class="live-run-meta">总进度 ${escapeHtml(autoformer.evaluations_total || 0)}/${escapeHtml(autoformer.target_total || 24_000)}</p>
+        <div class="live-seeds">${seedMarkup}</div>
+        <div class="live-gpus">${gpuMarkup}</div>
+      </article>`;
+  }
+
   function setTheme(theme, persist = false) {
     document.documentElement.dataset.theme = theme;
     const dark = theme === "dark";
@@ -488,6 +563,27 @@
     });
   }
 
+  async function loadFreshLiveStatus() {
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), liveFetchTimeoutMs);
+    const url = new URL("live.json", window.location.href);
+    url.searchParams.set("refresh", `${Date.now()}-${++refreshRequestId}`);
+    try {
+      const response = await fetch(url.href, { cache: "no-store", signal: controller.signal });
+      if (!response.ok) throw new Error(`live.json HTTP ${response.status}`);
+      const candidate = await response.json();
+      if (!candidate || candidate.schema_version !== 1 || candidate.time_zone !== "Asia/Shanghai") {
+        throw new Error("live.json schema 无效");
+      }
+      return candidate;
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("加载 live.json 超时");
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+    }
+  }
+
   function saveReloadState() {
     const reloadState = {
       state,
@@ -530,6 +626,7 @@
     renderRisks();
     renderEvidence();
     renderAllTaskViews();
+    renderLiveStatus();
   }
 
   function updateRefreshCountdown() {
@@ -617,7 +714,15 @@
       status.setAttribute("aria-busy", "true");
       status.textContent = "正在检查更新…";
       try {
-        const candidate = validateData(await loadFreshDataScript());
+        const [dataResult, liveResult] = await Promise.allSettled([loadFreshDataScript(), loadFreshLiveStatus()]);
+        if (liveResult.status === "fulfilled") {
+          liveData = liveResult.value;
+          liveError = "";
+        } else {
+          liveError = liveResult.reason?.message || "无法取得 live.json";
+        }
+        if (dataResult.status === "rejected") throw dataResult.reason;
+        const candidate = validateData(dataResult.value);
         data = candidate;
         window.ZCP_PANEL_DATA = candidate;
         renderCurrentData();
@@ -691,6 +796,14 @@
     } else {
       setAutoRefresh(true);
     }
+    loadFreshLiveStatus().then((candidate) => {
+      liveData = candidate;
+      liveError = "";
+      renderLiveStatus();
+    }).catch((error) => {
+      liveError = error.message;
+      renderLiveStatus();
+    });
   }
 
   $("#project-status").textContent = `项目状态：${data.project.status}`;
@@ -701,6 +814,7 @@
   bindControls();
   restoreReloadState();
   initializeRefresh();
+  renderLiveStatus();
   renderRisks();
   renderEvidence();
   renderAllTaskViews();

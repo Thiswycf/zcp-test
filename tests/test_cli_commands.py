@@ -700,7 +700,8 @@ def test_cli_search_rejects_approximate_proxy_without_explicit_override(
     ("proxy", "aggregator", "message"),
     [
         ("az_nas_autoformer", "primary", "expressivity alone"),
-        ("params", "az_nas_log_rank", "requires --proxy az_nas_autoformer"),
+        ("az_nas_plainnet", "primary", "expressivity alone"),
+        ("params", "az_nas_log_rank", "requires --proxy az_nas_autoformer or az_nas_plainnet"),
     ],
 )
 def test_cli_search_rejects_invalid_proxy_aggregator_pairs_before_run_creation(
@@ -715,6 +716,38 @@ def test_cli_search_rejects_invalid_proxy_aggregator_pairs_before_run_creation(
             "--space", "tiny_reference",
             "--proxy", proxy,
             "--aggregator", aggregator,
+            "--population", "2",
+            "--generations", "0",
+            "--device", "cpu",
+            "--input-source", "random",
+            "--batch-size", "2",
+            "--input-size", "8",
+            "--classes", "3",
+            "--output", str(output),
+        ])
+
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("space_name", "proxy", "expected_space"),
+    [
+        ("tiny_reference", "az_nas_autoformer", "autoformer"),
+        ("tiny_reference", "az_nas_plainnet", "zennas_plainnet_mbv2"),
+    ],
+)
+def test_cli_search_rejects_aznas_proxy_space_mismatch_before_run_creation(
+    monkeypatch, tmp_path, space_name, proxy, expected_space
+):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+    output = tmp_path / "rejected-space-pair"
+
+    with pytest.raises(ValueError, match=expected_space):
+        cli.main([
+            "search",
+            "--space", space_name,
+            "--proxy", proxy,
+            "--aggregator", "az_nas_log_rank",
             "--population", "2",
             "--generations", "0",
             "--device", "cpu",

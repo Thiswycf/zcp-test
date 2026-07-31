@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 .panel-runtime/
+/panel/live.json
 .coverage
 build/
 dist/
