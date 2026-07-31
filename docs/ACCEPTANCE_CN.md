@@ -65,7 +65,14 @@ DARTS ImageNet 六项双重 1% 验收已于 2026-07-31 启动。锁定 `78d8118`
 `interrupted`，不构成完成证据。修复后的主仓 commit `c0c7815` 把事件同步 flush 到
 `events.jsonl` 和 `run.log`，新增可移植四卡 launcher，并改用经 1000/1,281,167/50,000 文件数核验的
 本机 NVMe 数据副本。新 run 的首分钟 rank-0 吞吐约 7.2 batches/s、首 epoch ETA 约 22 分钟；当前
-仍在首项运行且尚未通过。AutoFormer、PlainNet-MBV2、Proxyless-MBV2 的双重 1% 均未完成。
+六项 DARTS ImageNet 双重 1% 已于北京时间 2026-07-31 16:52 完成，共 759 个 epoch 记录，并生成
+CSV、PNG、SVG 与 HTML bundle。三个 full-data × 3 epoch 候选的最终 valid top-1 为
+`39.528/38.624/29.852`，三个 1%-data × 250 epoch 候选为 `9.6/10.6/5.0`（顺序均为
+ZCP-selected/fixed-random/params-matched）。首个 full-data run 使用 4-GPU DDP、其余使用单 GPU，
+普通 BatchNorm 的每设备统计粒度不同，因此六项通过的是实现/恢复验收，不是严格同拓扑搜索收益结论。
+吞吐、装箱、断点与六项结果摘要见
+[`evidence/gpu_throughput_optimization.json`](evidence/gpu_throughput_optimization.json)。
+AutoFormer、PlainNet-MBV2、Proxyless-MBV2 的双重 1% 仍未完成。
 
 另有历史合成 smoke run 执行：
 
@@ -190,8 +197,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 以下工作明确为 **未验收**，不得写成已完成：
 
 1. DARTS CIFAR-10/CIFAR-100 的 600 epoch **全数据精度复现**与多 seed 搜索收益验证仍未完成；
-   已完成的是上述双重 1% 限定协议。DARTS ImageNet 双重 1% 已在修复日志与高速数据根后重新
-   运行，但六项尚未完成；250 epoch 全数据正式训练不在本次双重 1% 验收范围内且尚未执行。
+   已完成的是上述双重 1% 限定协议。DARTS ImageNet 六项双重 1% 已完成，但首项 DDP 与其余单卡
+   存在 BatchNorm 粒度差异；250 epoch 全数据正式训练不在本次限定验收范围内且尚未执行。
 2. AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 的双重 1% 均未完成；AutoFormer 500 epoch 与
    Proxyless-MBV2 150 epoch 正式训练协议尚未放行。AutoFormer 的 sampler、LR、静态 fixture 和
    真实图片夹具恢复机制已验收，但不能替代任一完整 ImageNet 双重 1% 协议。

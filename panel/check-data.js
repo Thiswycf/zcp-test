@@ -158,8 +158,11 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const highCostTask = data.tasks.find((entry) => entry.id === "H2");
   const longScheduleTask = data.tasks.find((entry) => entry.id === "H3");
   const dartsLiveTask = data.tasks.find((entry) => entry.id === "J4");
-  for (const task of [dartsTask, highCostTask, longScheduleTask, dartsLiveTask]) {
-    assert(task?.status === "进行中", `DARTS ImageNet 任务 ${task?.id || "?"} 未保持进行中`);
+  for (const task of [dartsTask, dartsLiveTask]) {
+    assert(task?.status === "已完成" && task?.progress === 100 && task?.finishedAt === "2026-07-31 16:52", `DARTS ImageNet 任务 ${task?.id || "?"} 未同步完成状态`);
+  }
+  for (const task of [highCostTask, longScheduleTask]) {
+    assert(task?.status === "进行中", `高成本任务 ${task?.id || "?"} 不应因 DARTS 子范围完成而整体完成`);
   }
   assert(dartsTask?.evidence.includes("EV-DARTS-IMAGENET-PREFLIGHT-FAILED"), "DARTS 任务未引用失败证据");
   assert(highCostTask?.evidence.includes("EV-DARTS-IMAGENET-PREFLIGHT-FAILED"), "高成本任务未引用失败证据");
@@ -217,20 +220,18 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(oldDdpDiagnosis?.result.includes("global batch 128") && oldDdpDiagnosis?.result.includes("每卡 32") && oldDdpDiagnosis?.result.includes("约 1.8 GiB"), "旧 DDP batch 或显存诊断缺失");
   assert(oldDdpDiagnosis?.result.includes("supervisor 已退出") && oldDdpDiagnosis?.result.includes("孤立 ranks") && oldDdpDiagnosis?.result.includes("task2 已明确 interrupted"), "旧 DDP 衔接或中断结论缺失");
   const parallelRun = data.evidence.find((entry) => entry.id === "EV-DARTS-PARALLEL-1449");
-  assert(parallelRun?.result.includes("task6 params-matched 1%-data") && parallelRun?.result.includes("GPU4 running"), "单卡 parallel workflow 身份或状态缺失");
-  assert(parallelRun?.result.includes("fixed-random full-data 3/3") && parallelRun?.result.includes("final valid top1=38.624"), "full-data fixed-random 完成指标缺失");
-  assert(parallelRun?.result.includes("params-matched full-data 3/3") && parallelRun?.result.includes("final valid top1=29.852"), "full-data params-matched 完成指标缺失");
-  assert(parallelRun?.result.includes("fixed-random 1%-data 250/250") && parallelRun?.result.includes("final valid top1=10.6") && parallelRun?.result.includes("zcp-selected 1%-data 250/250") && parallelRun?.result.includes("final valid top1=9.6"), "已完成 1%-data 指标缺失");
-  assert(parallelRun?.result.includes("最新约 219/250") && parallelRun?.result.includes("总体仍为 5/6") && parallelRun?.result.includes("GPU4 running") && parallelRun?.result.includes("不得标六项 completed"), "DARTS 5/6 运行边界缺失");
+  assert(parallelRun?.result.includes("task6 params-matched 1%-data 已完成 250/250") && parallelRun?.result.includes("manifest=completed"), "DARTS task6 完成状态缺失");
+  assert(parallelRun?.result.includes("2026-07-31 16:52+08:00 全部完成") && parallelRun?.result.includes("759 training rows"), "DARTS 六项完成时间或 training rows 缺失");
+  assert(parallelRun?.result.includes("CSV/PNG/SVG/HTML"), "DARTS report bundle 格式缺失");
+  assert(parallelRun?.result.includes("full-data zcp/fixed/params=39.528/38.624/29.852") && parallelRun?.result.includes("1%-data=9.6/10.6/5.0"), "DARTS 六项 final valid top1 缺失");
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${oldDdpDiagnosis?.result || ""} ${parallelRun?.result || ""}`), "DARTS 并行证据不得泄露绝对路径或 PID");
-  assert(dartsLiveTask?.detail.includes("zcp-selected、fixed-random、params-matched 三项 full-data 均 3/3"), "DARTS 实时任务未同步首项与 full-data 完成状态");
-  assert(dartsLiveTask?.detail.includes("task6 params-matched 1%-data") && dartsLiveTask?.detail.includes("GPU4 running"), "DARTS 实时任务未同步 parallel workflow");
-  assert(dartsLiveTask?.detail.includes("三项 full-data 均 3/3") && dartsLiveTask?.detail.includes("38.624/29.852") && dartsLiveTask?.detail.includes("10.6/9.6"), "DARTS 实时任务未同步五项完成指标");
-  assert(dartsLiveTask?.detail.includes("最新约 219/250") && dartsLiveTask?.detail.includes("GPU5–7 虽已空闲但暂不能复用"), "DARTS 实时任务未同步最后一项运行状态");
-  assert(dartsLiveTask?.detail.includes("六项当前 5/6 完成") && dartsLiveTask?.detail.includes("不得标六项 completed"), "DARTS 实时任务未保持六项未完成边界");
+  assert(dartsLiveTask?.detail.includes("task6 已完成 250/250") && dartsLiveTask?.detail.includes("manifest=completed"), "DARTS 实时任务未同步 task6 完成");
+  assert(dartsLiveTask?.detail.includes("2026-07-31 16:52+08:00 全部完成") && dartsLiveTask?.detail.includes("759 training rows") && dartsLiveTask?.detail.includes("CSV/PNG/SVG/HTML"), "DARTS 实时任务未同步六项完成产物");
+  assert(dartsLiveTask?.detail.includes("39.528/38.624/29.852") && dartsLiveTask?.detail.includes("9.6/10.6/5.0"), "DARTS 实时任务未同步 final valid top1");
+  assert(dartsLiveTask?.detail.includes("4-GPU DDP") && dartsLiveTask?.detail.includes("单 GPU") && dartsLiveTask?.detail.includes("BatchNorm 统计粒度风险"), "DARTS 实时任务未保留 BatchNorm 粒度风险");
   const dartsRisk = data.risks.find((entry) => entry.id === "R-DARTS-IMAGENET-DATA");
-  assert(dartsRisk?.status === "开放" && dartsRisk?.description.includes("总体 5/6") && dartsRisk?.description.includes("约 219/250") && dartsRisk?.description.includes("GPU4 running"), "DARTS 六项风险状态不准确");
-  assert(dartsRisk?.mitigation.includes("达到 250/250") && dartsRisk?.mitigation.includes("不得标六项 completed"), "DARTS 六项风险边界缺失");
+  assert(dartsRisk?.status === "监控" && dartsRisk?.description.includes("六项已全部完成") && dartsRisk?.description.includes("4-GPU DDP") && dartsRisk?.description.includes("单 GPU") && dartsRisk?.description.includes("BatchNorm 统计粒度不同"), "DARTS BatchNorm 粒度风险状态不准确");
+  assert(dartsRisk?.mitigation.includes("执行拓扑") && dartsRisk?.mitigation.includes("相同 GPU 拓扑复跑"), "DARTS BatchNorm 风险缓解措施缺失");
   const launcherEvidence = data.evidence.find((entry) => entry.id === "EV-ACCEPTANCE-FREEZE-PARALLEL-LAUNCHERS");
   assert(launcherEvidence?.result.includes("commit 11dcc88") && launcherEvidence?.result.includes("freeze-candidates") && launcherEvidence?.result.includes("completed/versioned search identity") && launcherEvidence?.result.includes("search JSONL") && launcherEvidence?.result.includes("checksum") && launcherEvidence?.result.includes("三候选和 manifest"), "候选冻结协议证据缺失");
   assert(launcherEvidence?.result.includes("commit ebc9799") && launcherEvidence?.result.includes("parallel_single_gpu") && launcherEvidence?.result.includes("AutoFormer、PlainNet、Proxyless") && launcherEvidence?.result.includes("全仓门禁通过"), "通用单卡并行启动器或门禁证据缺失");
@@ -245,12 +246,12 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(numaEvidence?.command.includes("只读审计") && numaEvidence?.command.includes("training.jsonl 行数"), "DARTS training.jsonl 只读审计指引缺失");
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${numaEvidence?.result || ""} ${numaEvidence?.command || ""}`), "DARTS NUMA 证据不得泄露绝对路径或 PID");
   assert(![numaEvidence?.result, dartsTask?.detail, dartsLiveTask?.detail, dartsRisk?.description].some((value) => String(value || "").includes("完整NUMA亲和性观察中") || String(value || "").includes("已提速") || String(value || "").includes("已优化")), "DARTS NUMA 文案不得保留仍在观察或正向收益表述");
-  assert(highCostTask?.detail.includes("fixed-random 3/3") && highCostTask?.detail.includes("38.624") && highCostTask?.detail.includes("params-matched 3/3") && highCostTask?.detail.includes("29.852"), "H2 未同步 DARTS full-data 完成指标");
-  assert(longScheduleTask?.detail.includes("250/250") && longScheduleTask?.detail.includes("10.6") && longScheduleTask?.detail.includes("9.6") && longScheduleTask?.detail.includes("约 219/250") && longScheduleTask?.detail.includes("5/6"), "H3 未同步 DARTS 1%-data 最新状态");
+  assert(highCostTask?.detail.includes("39.528/38.624/29.852") && highCostTask?.detail.includes("DARTS 六项 report bundle 已生成"), "H2 未同步 DARTS full-data 完成指标");
+  assert(longScheduleTask?.detail.includes("三个 1%-data 任务均已完成 250/250") && longScheduleTask?.detail.includes("9.6/10.6/5.0") && longScheduleTask?.detail.includes("DARTS 六项已完成"), "H3 未同步 DARTS 1%-data 完成状态");
   const laneLockEvidence = data.evidence.find((entry) => entry.id === "EV-DARTS-LANE-LOCK-4FC2C3D");
-  assert(laneLockEvidence?.result.includes("全局锁被训练子进程继承") && laneLockEvidence?.result.includes("GPU5–7 不能复用"), "DARTS 旧 supervisor 继承锁证据缺失");
+  assert(laneLockEvidence?.result.includes("task6 完成后继承锁自然释放") && laneLockEvidence?.result.includes("AutoFormer systemd 服务随即自动启动"), "DARTS 锁释放与自动衔接证据缺失");
   assert(laneLockEvidence?.result.includes("commit 4fc2c3d") && laneLockEvidence?.result.includes("longest-first + per-lane lock release"), "DARTS lane 锁修复证据缺失");
-  assert(laneLockEvidence?.result.includes("当前旧 run 不注入强制解锁") && laneLockEvidence?.result.includes("避免扰动 GPU4 上的 task6"), "DARTS 旧 run 不强制解锁边界缺失");
+  assert(laneLockEvidence?.result.includes("旧 run 未注入强制解锁"), "DARTS 旧 run 不强制解锁边界缺失");
   const httpRecoveryEvidence = data.evidence.find((entry) => entry.id === "EV-PANEL-HTTP-8768-8769-RECOVERY");
   assert(httpRecoveryEvidence?.result.includes("8768/8769") && httpRecoveryEvidence?.result.includes("监听状态但 curl 超时") && httpRecoveryEvidence?.result.includes("服务重启"), "看板 HTTP 服务故障与恢复证据缺失");
   assert(httpRecoveryEvidence?.result.includes("index、data.js 与 monitor 根目录") && httpRecoveryEvidence?.result.includes("均可通过 HTTP 访问"), "看板 HTTP 可访问性验证缺失");
@@ -329,7 +330,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const autoFormerTask = data.tasks.find((entry) => entry.id === "C1");
   const autoFormerEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY");
   assert(autoFormerTask?.detail.includes("source-pinned commit 5e6683a") && autoFormerTask?.detail.includes("aznas-5e6683-autoformer-stable-v1") && autoFormerTask?.detail.includes("paper_formula_port_stabilized"), "AutoFormer AZ-NAS 代理身份缺失");
-  assert(autoFormerTask?.detail.includes("不是正式搜索") && autoFormerTask?.detail.includes("不是上游控制器逐行复现") && autoFormerTask?.detail.includes("候选冻结仍 pending"), "AutoFormer AZ-NAS 任务边界缺失");
+  assert(autoFormerTask?.detail.includes("status=running") && autoFormerTask?.detail.includes("不再 queued") && autoFormerTask?.detail.includes("100/100/200"), "AutoFormer AZ-NAS 任务运行状态缺失");
+  assert(autoFormerTask?.detail.includes("尚未完成") && autoFormerTask?.detail.includes("候选未冻结") && autoFormerTask?.detail.includes("不是上游控制器逐行复现"), "AutoFormer AZ-NAS 任务边界缺失");
   assert(autoFormerEvidence?.result.includes("133 项专项相关测试通过"), "AutoFormer 专项测试计数缺失");
   assert(autoFormerEvidence?.result.includes("不是全仓测试总数"), "AutoFormer 专项测试范围未明确");
   const azNasEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-AZNAS-STABLE-SMOKE");
@@ -337,21 +339,25 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(azNasEvidence?.result.includes("attention/MLP residual features") && azNasEvidence?.result.includes("expressivity、trainability、official complexity") && azNasEvidence?.result.includes("az_nas_log_rank"), "AutoFormer AZ-NAS feature 或 score 证据缺失");
   assert(azNasEvidence?.result.includes("旧 az_nas portable") && azNasEvidence?.result.includes("正式 search 默认拒绝"), "AutoFormer 旧 portable 正式搜索拒绝边界缺失");
   assert(azNasEvidence?.result.includes("两个独立同 seed GPU smoke") && azNasEvidence?.result.includes("2 candidates + 1 summary") && azNasEvidence?.result.includes("architecture-hash-v1") && azNasEvidence?.result.includes("去除耗时字段后逐行一致"), "AutoFormer AZ-NAS 确定性 smoke 证据缺失");
-  assert(azNasEvidence?.result.includes("不是正式搜索") && azNasEvidence?.result.includes("不是上游控制器逐行复现") && azNasEvidence?.result.includes("候选冻结仍 pending") && azNasEvidence?.result.includes("全仓门禁通过"), "AutoFormer AZ-NAS 验收边界或门禁缺失");
-  assert(azNasEvidence?.result.includes("3 seeds × 8,000 随机候选") && azNasEvidence?.result.includes("zcp-test-autoformer-aznas-8000.service") && azNasEvidence?.result.includes("status=queued") && azNasEvidence?.result.includes("目标 GPU5/6") && azNasEvidence?.result.includes("装箱 2+1"), "AutoFormer AZ-NAS 队列身份或装箱缺失");
+  assert(azNasEvidence?.result.includes("AutoFormer 尚未完成") && azNasEvidence?.result.includes("候选未冻结") && azNasEvidence?.result.includes("不是上游控制器逐行复现"), "AutoFormer AZ-NAS 验收边界缺失");
+  assert(azNasEvidence?.result.includes("3 seeds × 8,000 随机候选") && azNasEvidence?.result.includes("zcp-test-autoformer-aznas-8000.service") && azNasEvidence?.result.includes("status=running") && azNasEvidence?.result.includes("不再 queued"), "AutoFormer AZ-NAS 运行身份缺失");
   assert(azNasEvidence?.result.includes("每 100 candidates 原子保存 partial state"), "AutoFormer AZ-NAS partial state 协议缺失");
   assert(azNasEvidence?.result.includes("双进程峰值显存 2,105 MiB") && azNasEvidence?.result.includes("峰值利用率 99%"), "AutoFormer packed smoke 资源证据缺失");
-  assert(azNasEvidence?.result.includes("GPU 累计、epoch 末同步") && azNasEvidence?.result.includes("尚待下一运行吞吐 A/B"), "AutoFormer trainer 指标或 A/B 边界缺失");
-  assert(azNasEvidence?.result.includes("不得写为 running 或 complete"), "AutoFormer queued 状态边界缺失");
+  assert(azNasEvidence?.result.includes("GPU 累计、epoch 末同步"), "AutoFormer trainer 指标累计方式缺失");
+  assert(azNasEvidence?.result.includes("首批 partial state 为 100/100/200"), "AutoFormer 首批 partial state 进度缺失");
+  assert(azNasEvidence?.result.includes("GPU5 双进程平均 SM 81.07%") && azNasEvidence?.result.includes("p50 88%") && azNasEvidence?.result.includes("max 99%") && azNasEvidence?.result.includes("GPU6 单进程平均 SM 44.25%"), "AutoFormer 30 秒 GPU 吞吐实测缺失");
   assert(azNasEvidence?.command.includes("docs/evidence/aznas_autoformer_rank_smoke.json"), "AutoFormer AZ-NAS 仓库相对证据文档缺失");
+  assert(azNasEvidence?.command.includes("docs/evidence/gpu_throughput_optimization.json"), "AutoFormer GPU 吞吐证据文档缺失");
   const autoFormerRisk = data.risks.find((entry) => entry.id === "R-AUTOFORMER");
-  assert(autoFormerRisk?.status === "开放" && autoFormerRisk?.description.includes("不是正式搜索") && autoFormerRisk?.description.includes("不是上游控制器逐行复现") && autoFormerRisk?.description.includes("候选冻结仍 pending"), "AutoFormer 风险未保持候选冻结边界");
+  assert(autoFormerRisk?.status === "开放" && autoFormerRisk?.description.includes("status=running") && autoFormerRisk?.description.includes("100/100/200") && autoFormerRisk?.description.includes("尚未完成") && autoFormerRisk?.description.includes("候选仍未冻结"), "AutoFormer 风险未保持运行与候选冻结边界");
   const budgetRisk = data.risks.find((entry) => entry.id === "R-BUDGET");
   assert(budgetRisk?.description.includes("允许增加高成本验收时间预算"), "高成本验收追加时间预算授权缺失");
-  for (const riskId of ["R-DARTS-IMAGENET-DATA", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"]) {
+  for (const riskId of ["R-DDP-RANK-RNG"]) {
     const risk = data.risks.find((entry) => entry.id === riskId);
     assert(risk && ["开放", "受阻"].includes(risk.status), `关键风险 ${riskId} 未保持开放或受阻`);
   }
+  assert(data.risks.find((entry) => entry.id === "R-DARTS-IMAGENET-DATA")?.status === "监控", "DARTS 完成后 BatchNorm 粒度风险应保持监控");
+  assert(data.risks.find((entry) => entry.id === "R-LAUNCHER-EXIT-CODE")?.status === "关闭", "旧 supervisor 继承锁风险未关闭");
   for (const taskId of ["H2", "H3"]) {
     const task = data.tasks.find((entry) => entry.id === taskId);
     assert(task?.status !== "已完成", `任务 ${taskId} 不应标记为全部完成`);

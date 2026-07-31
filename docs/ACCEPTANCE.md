@@ -83,7 +83,15 @@ and the `/public` spinning disk; after three hours it had no completed epoch, an
 left `run.log` empty. It is now explicitly `interrupted`, not accepted. Commit `c0c7815` mirrors
 events to both `events.jsonl` and `run.log`, adds a portable four-GPU launcher, and restarts from a
 verified local NVMe copy. The new run reached about 7.2 rank-zero batches/s with a roughly 22-minute
-first-epoch ETA in its first minute. It remains running, not passed. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual
+first-epoch ETA in its first minute. All six scoped DARTS ImageNet runs completed at 2026-07-31
+16:52 Asia/Shanghai, producing 759 epoch rows and a CSV/PNG/SVG/HTML bundle. Final valid top-1 for
+the three full-data × 3-epoch candidates is `39.528/38.624/29.852`, and for the three 1%-data ×
+250-epoch candidates is `9.6/10.6/5.0` (ZCP-selected/fixed-random/params-matched in both cases).
+The first full-data run used four-GPU DDP while the remaining runs used one GPU, so ordinary
+BatchNorm sees different per-device batch statistics. This accepts implementation and recovery,
+not a topology-identical search-gain conclusion. The throughput, packing, checkpoint, and six-run
+summary is in [`evidence/gpu_throughput_optimization.json`](evidence/gpu_throughput_optimization.json).
+AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual
 one-percent acceptance remains incomplete.
 
 The retained historical synthetic smoke run executed:
@@ -190,9 +198,9 @@ The following work is explicitly **not accepted** and must not be reported as co
 
 1. DARTS CIFAR-10/CIFAR-100 600-epoch **full-data accuracy reproduction** and multi-seed search-gain
    validation remain incomplete; only the scoped dual one-percent protocol above is accepted. The
-   DARTS ImageNet dual one-percent has restarted with fixed logging and a verified fast data root,
-   but its six runs are incomplete. Full-data 250-epoch training is outside this scoped acceptance
-   and has not run.
+   six scoped DARTS ImageNet dual one-percent runs are complete, with the documented DDP-versus-
+   single-GPU BatchNorm caveat. Full-data 250-epoch training is outside this scoped acceptance and
+   has not run.
 2. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains incomplete.
    AutoFormer sampler/LR/static fixtures and fixture-level recovery do not substitute for either
    full ImageNet acceptance protocol.

@@ -1,0 +1,72 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-07-31T16:54:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "darts_imagenet": {
+    "status": "completed",
+    "completed_at": "2026-07-31T16:52:29+08:00",
+    "run_count": 6,
+    "training_rows": 759,
+    "final_valid_top1": {
+      "full_data_3epoch_zcp_selected": 39.528,
+      "full_data_3epoch_fixed_random": 38.624,
+      "full_data_3epoch_params_matched": 29.852,
+      "one_percent_data_250epoch_zcp_selected": 9.6,
+      "one_percent_data_250epoch_fixed_random": 10.6,
+      "one_percent_data_250epoch_params_matched": 5.0
+    },
+    "report_artifacts": [
+      "training.csv",
+      "training.png",
+      "training.svg",
+      "index.html"
+    ],
+    "comparability_warning": "The first full-data run used four-GPU DDP; the other runs used one GPU, so ordinary BatchNorm had different per-device batch statistics."
+  },
+  "autoformer_aznas": {
+    "service": "zcp-test-autoformer-aznas-8000.service",
+    "project_commit": "df049e53704bcd217a6961897a6e4ba9425756af",
+    "protocol": "aznas-upstream-8000-random-candidates-project-sampler-v1",
+    "seeds": [
+      20260731,
+      20260732,
+      20260733
+    ],
+    "population_per_seed": 8000,
+    "execution_strategy": "packed_2_plus_1_on_two_gpus",
+    "partial_checkpoint_interval_evaluations": 100,
+    "packed_memory_smoke": {
+      "process_count": 2,
+      "peak_memory_mib": 2105,
+      "peak_sm_utilization_percent": 99
+    },
+    "thirty_second_sample": {
+      "gpu_5_two_processes": {
+        "samples": 28,
+        "mean_sm_utilization_percent": 81.07142857142857,
+        "median_sm_utilization_percent": 88,
+        "max_sm_utilization_percent": 99
+      },
+      "gpu_6_one_process": {
+        "samples": 28,
+        "mean_sm_utilization_percent": 44.25,
+        "median_sm_utilization_percent": 45,
+        "max_sm_utilization_percent": 89
+      }
+    },
+    "first_partial_checkpoints": {
+      "20260731": 100,
+      "20260732": 100,
+      "20260733": 200
+    },
+    "status_at_recording": "running"
+  },
+  "implemented_controls": [
+    "longest tasks start first",
+    "each lane releases only its own GPU lock",
+    "two independent searches can share one GPU after a measured memory smoke",
+    "training metrics stay on GPU until epoch-end reduction",
+    "training and validation DataLoader worker counts are independent",
+    "high-cost search saves a partial initial-population state every 100 evaluations"
+  ]
+}
