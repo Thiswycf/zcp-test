@@ -43,7 +43,7 @@ from zcp_test.gpu import (
     gpu_lock,
     select_gpu,
 )
-from zcp_test.inputs import make_dataset_batch_stream, make_input_batch
+from zcp_test.inputs import CandidateInputResolver, make_dataset_batch_stream
 from zcp_test.legacy import import_pickle
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.evaluator import evaluate_proxy
@@ -75,7 +75,12 @@ from zcp_test.reporting.benchmark_studies import (
     vit_architecture_study,
 )
 from zcp_test.reporting.monitor import refresh_once
-from zcp_test.search import EvolutionSearch, load_search_state, validate_search_state_identity
+from zcp_test.search import (
+    EvolutionSearch,
+    cache_key,
+    load_search_state,
+    validate_search_state_identity,
+)
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
 from zcp_test.types import MetricSpec, ModelFidelity
@@ -87,8 +92,7 @@ def _json(value: Any) -> None:
 
 def _evaluation_status_summary(statuses: list[str]) -> dict[str, int]:
     counts = {
-        status: statuses.count(status)
-        for status in ("ok", "failed", "unsupported", "skipped")
+        status: statuses.count(status) for status in ("ok", "failed", "unsupported", "skipped")
     }
     return {
         "succeeded": counts["ok"],
@@ -107,11 +111,27 @@ def _args_config(args: argparse.Namespace) -> dict[str, Any]:
     }
 
 
+def _argument_was_explicit(args: argparse.Namespace, name: str) -> bool:
+    return name in getattr(args, "_explicit_options", ())
+
+
+def _candidate_input_resolver(args: argparse.Namespace, device: Any) -> CandidateInputResolver:
+    return CandidateInputResolver(
+        source=args.input_source,
+        dataset=args.dataset,
+        batch_size=args.batch_size,
+        requested_input_size=args.input_size,
+        classes=args.classes,
+        seed=args.seed,
+        device=device,
+        data_root=_resolve_data_root(args, args.dataset),
+        explicit_input_size=_argument_was_explicit(args, "input_size"),
+    )
+
+
 def _space_provenance(space: Any) -> dict[str, Any]:
     return {
-        "model_fidelity": getattr(
-            space, "model_fidelity", ModelFidelity.PROXY_APPROXIMATION.value
-        ),
+        "model_fidelity": getattr(space, "model_fidelity", ModelFidelity.PROXY_APPROXIMATION.value),
         "implementation_source": getattr(space, "implementation_source", None),
         "implementation_commit": getattr(space, "implementation_commit", None),
         "model_profile": getattr(space, "model_profile", None),
@@ -182,9 +202,7 @@ def _prepare_model_weights(args: argparse.Namespace, space: Any) -> tuple[Any, d
     if weight_mode == "independent_scratch":
         return None, {"weight_mode": weight_mode}
     if weight_mode != "ofa_inherited" or space.search_space_id != "ofa_proxyless_mbv2":
-        raise ValueError(
-            "ofa_inherited weight mode is supported only for ofa_proxyless_mbv2"
-        )
+        raise ValueError("ofa_inherited weight mode is supported only for ofa_proxyless_mbv2")
     checkpoint = getattr(args, "model_checkpoint", None)
     if checkpoint is None:
         try:
@@ -210,7 +228,13 @@ def _prepare_model_weights(args: argparse.Namespace, space: Any) -> tuple[Any, d
     }
 
 
-def _prepare_bn_recalibration(args: argparse.Namespace, device: Any, weight_loader: Any) -> Any:
+def _prepare_bn_recalibration(
+    args: argparse.Namespace,
+    device: Any,
+    weight_loader: Any,
+    *,
+    input_size: int | None = None,
+) -> Any:
     batches = int(getattr(args, "bn_recalibration_batches", 0))
     if batches == 0:
         return None
@@ -218,17 +242,13 @@ def _prepare_bn_recalibration(args: argparse.Namespace, device: Any, weight_load
         raise ValueError("BN recalibration is available only with --weight-mode ofa_inherited")
     data_root = _resolve_data_root(args, args.dataset)
     if not data_root:
-        raise ValueError(
-            "BN recalibration requires a registered dataset or explicit --data-root"
-        )
-    batch_size = int(
-        getattr(args, "bn_recalibration_batch_size", None) or args.batch_size
-    )
+        raise ValueError("BN recalibration requires a registered dataset or explicit --data-root")
+    batch_size = int(getattr(args, "bn_recalibration_batch_size", None) or args.batch_size)
     return make_dataset_batch_stream(
         args.dataset,
         data_root,
         batch_size,
-        args.input_size,
+        args.input_size if input_size is None else input_size,
         args.seed + 10_000,
         batches,
         device,
@@ -236,9 +256,7 @@ def _prepare_bn_recalibration(args: argparse.Namespace, device: Any, weight_load
     )
 
 
-def _transnas_unsupported_reason(
-    benchmark_id: str | None, task: str, proxy_id: str
-) -> str | None:
+def _transnas_unsupported_reason(benchmark_id: str | None, task: str, proxy_id: str) -> str | None:
     if benchmark_id != "transnasbench101":
         return None
     load_builtin_proxies()
@@ -318,9 +336,7 @@ def _resolve_benchmark_path(args: argparse.Namespace) -> str:
     suffix = asset_id.rpartition("_")[2]
     asset_index = int(suffix) if suffix.isdigit() else 0
     try:
-        expected_version, expected_protocol = runtime_catalog_contract(
-            args.benchmark, asset_index
-        )
+        expected_version, expected_protocol = runtime_catalog_contract(args.benchmark, asset_index)
         asset = DataRegistry(args.catalog).get_verified(
             asset_id,
             expected_version=expected_version,
@@ -373,9 +389,7 @@ def _selected_device(args: argparse.Namespace):
     candidates = [selection]
     auto_selection = str(getattr(args, "gpu", "auto")).casefold() == "auto"
     if auto_selection:
-        remaining = [
-            gpu for gpu in enumerate_gpus() if str(gpu["uuid"]) != str(selection["uuid"])
-        ]
+        remaining = [gpu for gpu in enumerate_gpus() if str(gpu["uuid"]) != str(selection["uuid"])]
         while remaining:
             try:
                 alternative = select_gpu(
@@ -387,9 +401,7 @@ def _selected_device(args: argparse.Namespace):
             except NoGPUError:
                 break
             candidates.append(alternative)
-            remaining = [
-                gpu for gpu in remaining if str(gpu["uuid"]) != str(alternative["uuid"])
-            ]
+            remaining = [gpu for gpu in remaining if str(gpu["uuid"]) != str(alternative["uuid"])]
     lock_timeout = getattr(args, "gpu_lock_timeout", 0.0)
     if lock_timeout is not None and lock_timeout < 0:
         raise ValueError("gpu_lock_timeout must be non-negative or None")
@@ -416,14 +428,10 @@ def _selected_device(args: argparse.Namespace):
             deadline = None if lock_timeout is None else time.monotonic() + lock_timeout
             round_start = 1 % len(candidates)
             while acquired_stack is None:
-                remaining_timeout = (
-                    None if deadline is None else deadline - time.monotonic()
-                )
+                remaining_timeout = None if deadline is None else deadline - time.monotonic()
                 if remaining_timeout is not None and remaining_timeout <= 0:
                     break
-                time.sleep(
-                    0.1 if remaining_timeout is None else min(0.1, remaining_timeout)
-                )
+                time.sleep(0.1 if remaining_timeout is None else min(0.1, remaining_timeout))
                 for offset in range(len(candidates)):
                     candidate = candidates[(round_start + offset) % len(candidates)]
                     acquired_stack, last_error = try_lock(candidate, 0.0)
@@ -617,7 +625,10 @@ def _add_gpu_arguments(parser: argparse.ArgumentParser) -> None:
 def _synthetic_loader(batch_size: int, input_size: int, classes: int, batches: int = 2) -> Any:
     import torch
 
-    dataset = torch.utils.data.TensorDataset(torch.randn(batch_size * batches, 3, input_size, input_size), torch.randint(classes, (batch_size * batches,)))
+    dataset = torch.utils.data.TensorDataset(
+        torch.randn(batch_size * batches, 3, input_size, input_size),
+        torch.randint(classes, (batch_size * batches,)),
+    )
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
 
@@ -678,9 +689,7 @@ def _real_loaders(
                     transforms.RandomHorizontalFlip(),
                     transforms.ColorJitter(0.4, 0.4, 0.4, 0.2),
                     transforms.ToTensor(),
-                    transforms.Normalize(
-                        (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-                    ),
+                    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
                 ]
             )
         valid_transform = transforms.Compose(
@@ -688,14 +697,14 @@ def _real_loaders(
                 transforms.Resize(round(input_size / 0.875)),
                 transforms.CenterCrop(input_size),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-                ),
+                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
         root_path = Path(root)
         train_set = datasets.ImageFolder(root_path / "train", train_transform)
-        validation_directory = root_path / "val" if (root_path / "val").exists() else root_path / "test"
+        validation_directory = (
+            root_path / "val" if (root_path / "val").exists() else root_path / "test"
+        )
         valid_set = datasets.ImageFolder(validation_directory, valid_transform)
     train_set = _stratified_subset(train_set, fraction, seed)
     valid_set = _stratified_subset(valid_set, fraction, seed + 1)
@@ -704,7 +713,12 @@ def _real_loaders(
     if not 0 <= distributed_rank < distributed_world_size:
         raise ValueError("distributed_rank must be within distributed_world_size")
     generator = torch.Generator().manual_seed(seed)
-    common = {"batch_size": batch_size, "num_workers": workers, "pin_memory": True, "persistent_workers": workers > 0}
+    common = {
+        "batch_size": batch_size,
+        "num_workers": workers,
+        "pin_memory": True,
+        "persistent_workers": workers > 0,
+    }
     train_sampler = None
     if bool(config.get("repeated_augmentation", False)):
         from timm.data.distributed_sampler import RepeatAugSampler
@@ -817,7 +831,11 @@ class Cutout:
         center_y = int(torch.randint(height, (1,)).item())
         center_x = int(torch.randint(width, (1,)).item())
         half = self.length // 2
-        image[:, max(0, center_y - half) : min(height, center_y + half), max(0, center_x - half) : min(width, center_x + half)] = 0
+        image[
+            :,
+            max(0, center_y - half) : min(height, center_y + half),
+            max(0, center_x - half) : min(width, center_x + half),
+        ] = 0
         return image
 
 
@@ -829,7 +847,11 @@ def command_doctor(args: argparse.Namespace) -> None:
 
 
 def command_gpu(args: argparse.Namespace) -> None:
-    visible = [value.strip() for value in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",") if value.strip()]
+    visible = [
+        value.strip()
+        for value in os.environ.get("CUDA_VISIBLE_DEVICES", "").split(",")
+        if value.strip()
+    ]
     rows = enumerate_gpus()
     for pci_order, row in enumerate(rows):
         row["pci_order"] = pci_order
@@ -872,9 +894,9 @@ def _scaffold_proxy(name: str) -> None:
         "from zcp_test.proxies.builtin import FunctionProxy\n"
         "from zcp_test.types import ProxyCapability\n\n\n"
         f"def compute_{name}(model: Any, inputs: Any, labels: Any, loss_fn: Any) -> float:\n"
-        "    raise NotImplementedError(\"implement the proxy formula\")\n\n\n"
-        f"CAPABILITY = ProxyCapability(\"{name}\", version=\"custom-v1\")\n"
-        f"PROXIES.register(\"{name}\", lambda: FunctionProxy(CAPABILITY, compute_{name}))\n",
+        '    raise NotImplementedError("implement the proxy formula")\n\n\n'
+        f'CAPABILITY = ProxyCapability("{name}", version="custom-v1")\n'
+        f'PROXIES.register("{name}", lambda: FunctionProxy(CAPABILITY, compute_{name}))\n',
         encoding="utf-8",
     )
     test.write_text(
@@ -882,8 +904,8 @@ def _scaffold_proxy(name: str) -> None:
         "from zcp_test.proxies.evaluator import evaluate_proxy\n\n\n"
         f"def test_{name}_contract():\n"
         "    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(12, 2))\n"
-        f"    result = evaluate_proxy(\"{name}\", model, torch.randn(2, 3, 2, 2))\n"
-        "    assert result.status.value == \"ok\"\n",
+        f'    result = evaluate_proxy("{name}", model, torch.randn(2, 3, 2, 2))\n'
+        '    assert result.status.value == "ok"\n',
         encoding="utf-8",
     )
     _json({"module": str(module), "test": str(test), "next": f"zcp-test proxy validate {name}"})
@@ -983,7 +1005,10 @@ def command_registry(args: argparse.Namespace, registry: str) -> None:
         return
     kwargs: dict[str, Any] = {}
     if registry == "benchmark":
-        if args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
+        if (
+            args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"}
+            and not args.trusted
+        ):
             raise PermissionError(
                 f"{args.name} uses a native serialized format; pass --trusted only for a verified source"
             )
@@ -1049,13 +1074,23 @@ def command_registry(args: argparse.Namespace, registry: str) -> None:
     elif registry == "proxy":
         _json(instance.capability.__dict__)
     else:
-        _json({"search_space_id": instance.search_space_id, "model_family": instance.model_family, "model_fidelity": getattr(instance, "model_fidelity", "unspecified"), "sample": instance.sample(args.seed).to_dict()})
+        _json(
+            {
+                "search_space_id": instance.search_space_id,
+                "model_family": instance.model_family,
+                "model_fidelity": getattr(instance, "model_fidelity", "unspecified"),
+                "sample": instance.sample(args.seed).to_dict(),
+            }
+        )
 
 
 def command_benchmark_sample(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     load_builtin_benchmarks()
-    if args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
+    if (
+        args.name in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"}
+        and not args.trusted
+    ):
         raise PermissionError(
             f"{args.name} uses a native serialized format; pass --trusted only for a verified source"
         )
@@ -1240,7 +1275,18 @@ def command_data(args: argparse.Namespace) -> None:
     if args.action == "list":
         _json([asset.__dict__ for asset in registry.list()])
     elif args.action == "register":
-        registry.register(DataAsset(args.asset_id, str(Path(args.path).expanduser().resolve()), args.version, args.sha256, args.source_url, args.protocol, args.trusted), replace=args.replace)
+        registry.register(
+            DataAsset(
+                args.asset_id,
+                str(Path(args.path).expanduser().resolve()),
+                args.version,
+                args.sha256,
+                args.source_url,
+                args.protocol,
+                args.trusted,
+            ),
+            replace=args.replace,
+        )
         _json(registry.get(args.asset_id).__dict__)
     elif args.action == "verify":
         if args.all:
@@ -1253,7 +1299,13 @@ def command_data(args: argparse.Namespace) -> None:
     elif args.action == "fetch":
         _json({"path": str(registry.fetch(args.asset_id, args.destination))})
     elif args.action == "convert-vit":
-        path = convert_vitbench101(args.source, args.output, slice_id=args.slice_id, parser=vitbench101_release_parser, trusted=args.trusted)
+        path = convert_vitbench101(
+            args.source,
+            args.output,
+            slice_id=args.slice_id,
+            parser=vitbench101_release_parser,
+            trusted=args.trusted,
+        )
         _json({"path": str(path), "slice_id": args.slice_id})
 
 
@@ -1275,7 +1327,10 @@ def command_evaluate(args: argparse.Namespace) -> None:
         "vitbench101": "auto-prox-90ed458",
     }.get(args.benchmark)
     if args.benchmark:
-        if args.benchmark in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"} and not args.trusted:
+        if (
+            args.benchmark in {"nasbench201", "nats_tss", "nats_sss", "nasbench301_surrogate"}
+            and not args.trusted
+        ):
             raise PermissionError(
                 f"{args.benchmark} uses a native serialized format; pass --trusted only for a verified source"
             )
@@ -1325,6 +1380,8 @@ def command_evaluate(args: argparse.Namespace) -> None:
     else:
         space = SPACES.create(args.space)
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
+    if not architectures:
+        raise ValueError("evaluate requires at least one architecture")
     model_provenance = _require_research_model(
         space, args.allow_approximation, adapter
     )
@@ -1361,28 +1418,36 @@ def command_evaluate(args: argparse.Namespace) -> None:
     with _selected_device(args) as (device, selection):
         import torch
 
-        batch = make_input_batch(
-            args.input_source,
-            args.dataset,
-            args.batch_size,
-            args.input_size,
-            args.classes,
-            args.seed,
-            device,
-            _resolve_data_root(args, args.dataset),
-        )
-        bn_recalibration = _prepare_bn_recalibration(args, device, weight_loader)
-        if bn_recalibration is not None:
+        input_resolver = _candidate_input_resolver(args, device)
+        resolved_batches = {
+            architecture.architecture_id: input_resolver.resolve(architecture)
+            for architecture in architectures
+        }
+        if space.search_space_id == "ofa_proxyless_mbv2":
+            input_protocol = {
+                **input_resolver.protocol_summary(space.search_space_id),
+                "resolved_input_sizes": sorted(
+                    {batch.protocol["input_size"] for batch in resolved_batches.values()}
+                ),
+                "input_fingerprints_by_size": {
+                    str(batch.protocol["input_size"]): batch.fingerprint
+                    for batch in resolved_batches.values()
+                },
+            }
+        else:
+            input_protocol = next(iter(resolved_batches.values())).protocol
+        bn_recalibration_streams: dict[int, Any] = {}
+        if args.bn_recalibration_batches:
             weight_provenance = {
                 **weight_provenance,
                 "bn_recalibration_required": False,
                 "bn_recalibrated_batches": args.bn_recalibration_batches,
-                "bn_recalibration_fingerprint": bn_recalibration.fingerprint,
+                "bn_recalibration_fingerprint": "per_candidate_input_size",
                 "bn_recalibration_protocol_fidelity": "project_deterministic",
             }
         run_config = {
             **_args_config(args),
-            "input_protocol": batch.protocol,
+            "input_protocol": input_protocol,
             "sample_protocol": (
                 {
                     "strategy": sample_manifest["strategy"],
@@ -1398,13 +1463,20 @@ def command_evaluate(args: argparse.Namespace) -> None:
             **model_provenance,
             **weight_provenance,
             "bn_recalibration_protocol": (
-                bn_recalibration.protocol if bn_recalibration is not None else None
+                "per_candidate_input_size" if args.bn_recalibration_batches else None
             ),
             "bn_recalibration_fingerprint": (
-                bn_recalibration.fingerprint if bn_recalibration is not None else None
+                "per_candidate_input_size" if args.bn_recalibration_batches else None
             ),
         }
-        runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
+        runtime = {
+            "gpu_selection": selection,
+            "input_fingerprint": (
+                next(iter(resolved_batches.values())).fingerprint
+                if space.search_space_id != "ofa_proxyless_mbv2"
+                else "per_candidate_input_size"
+            ),
+        }
         with RunContext(args.output, sys.argv, run_config, runtime=runtime) as run:
             writer = JsonlWriter(run.directory / "scores.jsonl", fsync_every=1)
             loss_fn = torch.nn.CrossEntropyLoss()
@@ -1412,6 +1484,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
             statuses: list[str] = []
             primary_components: dict[str, str] = {}
             for architecture in architectures:
+                batch = resolved_batches[architecture.architecture_id]
+                input_metadata = input_resolver.metadata(architecture, batch)
+                actual_input_size = int(input_metadata["actual_input_size"])
                 model = (
                     adapter.build_model(architecture, args.dataset)
                     if adapter
@@ -1420,13 +1495,20 @@ def command_evaluate(args: argparse.Namespace) -> None:
                 architecture_weight_provenance = (
                     weight_loader.export(model) if weight_loader is not None else weight_provenance
                 )
+                input_resolver.validate_model(architecture, model, batch)
                 model = model.to(device)
-                if bn_recalibration is not None:
+                if args.bn_recalibration_batches:
                     from zcp_test.models.mobile import recalibrate_batch_norm
 
-                    calibrated = recalibrate_batch_norm(
-                        model, bn_recalibration, device=device
-                    )
+                    if actual_input_size not in bn_recalibration_streams:
+                        bn_recalibration_streams[actual_input_size] = _prepare_bn_recalibration(
+                            args,
+                            device,
+                            weight_loader,
+                            input_size=actual_input_size,
+                        )
+                    bn_recalibration = bn_recalibration_streams[actual_input_size]
+                    calibrated = recalibrate_batch_norm(model, bn_recalibration, device=device)
                     architecture_weight_provenance = {
                         **architecture_weight_provenance,
                         "bn_recalibration_required": False,
@@ -1512,8 +1594,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "duration_seconds": result.duration_seconds,
                             "peak_memory_mb": result.peak_memory_mb,
                             "input_source": args.input_source,
-                            "input_fingerprint": batch.fingerprint,
-                            "input_protocol": batch.protocol,
+                            **input_metadata,
                         }
                     )
                 del model
@@ -1603,30 +1684,37 @@ def command_search(args: argparse.Namespace) -> None:
     space = SPACES.create(args.space)
     model_provenance = _require_research_model(space, args.allow_approximation)
     weight_loader, weight_provenance = _prepare_model_weights(args, space)
+    if space.search_space_id == "ofa_proxyless_mbv2" and _argument_was_explicit(args, "input_size"):
+        raise ValueError(
+            "OFA search input_size is controlled by each candidate resolution; "
+            "remove the explicit input_size setting"
+        )
     with _selected_device(args) as (device, selection):
         import torch
 
-        batch = make_input_batch(
-            args.input_source,
-            args.dataset,
-            args.batch_size,
-            args.input_size,
-            args.classes,
-            args.seed,
-            device,
-            _resolve_data_root(args, args.dataset),
+        input_resolver = _candidate_input_resolver(args, device)
+        fixed_batch = (
+            input_resolver.resolve_input_size(args.input_size)
+            if space.search_space_id != "ofa_proxyless_mbv2"
+            else None
         )
-        bn_recalibration = _prepare_bn_recalibration(args, device, weight_loader)
-        if bn_recalibration is not None:
+        bn_recalibration_streams: dict[int, Any] = {}
+        if args.bn_recalibration_batches:
             weight_provenance = {
                 **weight_provenance,
                 "bn_recalibration_required": False,
                 "bn_recalibrated_batches": args.bn_recalibration_batches,
-                "bn_recalibration_fingerprint": bn_recalibration.fingerprint,
+                "bn_recalibration_fingerprint": "per_candidate_input_size",
                 "bn_recalibration_protocol_fidelity": "project_deterministic",
             }
         load_builtin_proxies()
         proxy_capability = PROXIES.create(args.proxy).capability
+        search_input_fingerprint = (
+            "per_candidate_input_size" if fixed_batch is None else fixed_batch.fingerprint
+        )
+        search_input_size: int | str = (
+            "candidate_resolution" if fixed_batch is None else args.input_size
+        )
         search_identity = {
             "search_space_id": space.search_space_id,
             "model_fidelity": model_provenance["model_fidelity"],
@@ -1637,12 +1725,12 @@ def command_search(args: argparse.Namespace) -> None:
             "proxy_direction": proxy_capability.direction.value,
             "dataset": args.dataset,
             "input_source": args.input_source,
-            "input_fingerprint": batch.fingerprint,
+            "input_fingerprint": search_input_fingerprint,
             "seed": args.seed,
             "population_size": args.population,
             "elite_ratio": args.elite_ratio,
             "batch_size": args.batch_size,
-            "input_size": args.input_size,
+            "input_size": search_input_size,
             "classes": args.classes,
             "weight_mode": weight_provenance["weight_mode"],
             "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
@@ -1666,29 +1754,66 @@ def command_search(args: argparse.Namespace) -> None:
             ),
         }
         loss_fn = torch.nn.CrossEntropyLoss()
-        runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
+        runtime = {
+            "gpu_selection": selection,
+            "input_fingerprint": search_input_fingerprint,
+        }
         config = {
             **_args_config(args),
-            "input_protocol": batch.protocol,
+            "input_protocol": (
+                input_resolver.protocol_summary(space.search_space_id)
+                if fixed_batch is None
+                else fixed_batch.protocol
+            ),
             **model_provenance,
             **weight_provenance,
             "search_identity": search_identity,
             "bn_recalibration_protocol": (
-                bn_recalibration.protocol if bn_recalibration is not None else None
+                "per_candidate_input_size" if args.bn_recalibration_batches else None
             ),
             "bn_recalibration_fingerprint": (
-                bn_recalibration.fingerprint if bn_recalibration is not None else None
+                "per_candidate_input_size" if args.bn_recalibration_batches else None
             ),
         }
         with RunContext(args.output, sys.argv, config, runtime=runtime) as run:
+
+            def candidate_input(architecture: Any) -> tuple[Any, dict[str, Any]]:
+                batch = input_resolver.resolve(architecture)
+                return batch, input_resolver.metadata(architecture, batch)
+
+            def evaluation_identity(
+                architecture: Any,
+            ) -> tuple[str, dict[str, Any]]:
+                batch, metadata = candidate_input(architecture)
+                identity = cache_key(
+                    architecture,
+                    args.proxy,
+                    args.dataset,
+                    args.seed,
+                    batch.fingerprint,
+                    proxy_capability.version,
+                )
+                return identity, {**metadata, "evaluation_cache_key": identity}
+
             def evaluator(architecture: Any) -> float:
+                batch, input_metadata = candidate_input(architecture)
+                actual_input_size = int(input_metadata["actual_input_size"])
                 model = space.build_model(architecture, args.classes)
                 if weight_loader is not None:
                     weight_loader.export(model)
+                input_resolver.validate_model(architecture, model, batch)
                 model = model.to(device)
-                if bn_recalibration is not None:
+                if args.bn_recalibration_batches:
                     from zcp_test.models.mobile import recalibrate_batch_norm
 
+                    if actual_input_size not in bn_recalibration_streams:
+                        bn_recalibration_streams[actual_input_size] = _prepare_bn_recalibration(
+                            args,
+                            device,
+                            weight_loader,
+                            input_size=actual_input_size,
+                        )
+                    bn_recalibration = bn_recalibration_streams[actual_input_size]
                     recalibrate_batch_norm(model, bn_recalibration, device=device)
                 result = evaluate_proxy(
                     args.proxy,
@@ -1699,7 +1824,9 @@ def command_search(args: argparse.Namespace) -> None:
                     space.model_family,
                 )
                 if result.status.value != "ok" or result.score is None:
-                    raise RuntimeError(result.error_message or "proxy did not return a primary score")
+                    raise RuntimeError(
+                        result.error_message or "proxy did not return a primary score"
+                    )
                 return result.score if result.direction.value == "maximize" else -result.score
 
             search = EvolutionSearch(
@@ -1710,6 +1837,7 @@ def command_search(args: argparse.Namespace) -> None:
                 args.elite_ratio,
                 args.seed,
                 record_metadata=record_metadata,
+                evaluation_identity=evaluation_identity,
                 state_path=run.directory / "search-state.json",
                 resume_state=resume_state,
                 state_identity=search_identity,
@@ -1797,9 +1925,7 @@ def command_train(args: argparse.Namespace) -> None:
             args.data_fraction,
         )
     if real_data_preflight and (epochs != 1 or args.data_fraction != 1.0):
-        raise ValueError(
-            "Real-data preflight requires exactly one epoch over the complete dataset"
-        )
+        raise ValueError("Real-data preflight requires exactly one epoch over the complete dataset")
     dataset = str(config["dataset"])
     classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
     configured_batch_size = int(config.get("batch_size", 8))
@@ -1861,9 +1987,7 @@ def command_train(args: argparse.Namespace) -> None:
         mixup_mode=str(config.get("mixup_mode", "batch")),
         gradient_accumulation_steps=gradient_accumulation_steps,
         schedule_epochs=(
-            int(config["epochs"])
-            if acceptance_smoke or real_data_preflight
-            else epochs
+            int(config["epochs"]) if acceptance_smoke or real_data_preflight else epochs
         ),
     )
     data_root = None if args.smoke else _resolve_data_root(args, dataset)
@@ -1954,8 +2078,16 @@ def command_train(args: argparse.Namespace) -> None:
             distributed_world_size,
             distributed_rank,
         ) as run:
-            batch = min(batch_size, 2 if dataset == "imagenet1k" else 4) if args.smoke else batch_size
-            size = input_size if dataset == "imagenet1k" else min(input_size, 64) if args.smoke else input_size
+            batch = (
+                min(batch_size, 2 if dataset == "imagenet1k" else 4) if args.smoke else batch_size
+            )
+            size = (
+                input_size
+                if dataset == "imagenet1k"
+                else min(input_size, 64)
+                if args.smoke
+                else input_size
+            )
             if args.smoke:
                 train_loader = _synthetic_loader(batch, size, classes, 2)
                 valid_loader = _synthetic_loader(batch, size, classes, 1)
@@ -2026,12 +2158,15 @@ def _load_architecture_spec(value: str) -> dict[str, Any]:
     return specification
 
 
-def _build_training_model(space: Any, architecture: Any, classes: int, config: dict[str, Any]) -> Any:
+def _build_training_model(
+    space: Any, architecture: Any, classes: int, config: dict[str, Any]
+) -> Any:
     if space.search_space_id == "darts":
         return space.build_model(architecture, classes, profile=config.get("model_profile"))
     if hasattr(space, "build_training_model"):
         return space.build_training_model(architecture, classes, config)
     return space.build_model(architecture, classes)
+
 
 def command_report(args: argparse.Namespace) -> None:
     if args.action == "bundle":
@@ -2057,8 +2192,7 @@ def _report_bundle(
     for run in runs:
         path = Path(run)
         if path.is_dir() and not any(
-            (path / name).exists()
-            for name in ("scores.jsonl", "search.jsonl", "training.jsonl")
+            (path / name).exists() for name in ("scores.jsonl", "search.jsonl", "training.jsonl")
         ):
             expanded_runs.extend(
                 str(candidate)
@@ -2081,7 +2215,9 @@ def _report_bundle(
     scores = (
         pd.concat(frames, ignore_index=True)
         if len(frames) > 1
-        else frames[0] if frames else pd.DataFrame()
+        else frames[0]
+        if frames
+        else pd.DataFrame()
     )
     search_files = [
         Path(run) if Path(run).is_file() else Path(run) / "search.jsonl"
@@ -2392,7 +2528,9 @@ def build_parser() -> argparse.ArgumentParser:
     convert_vit = data_actions.add_parser("convert-vit")
     convert_vit.add_argument("--source", required=True)
     convert_vit.add_argument("--output", required=True)
-    convert_vit.add_argument("--slice-id", choices=("autoformer_main", "autoformer_ext", "pit"), required=True)
+    convert_vit.add_argument(
+        "--slice-id", choices=("autoformer_main", "autoformer_ext", "pit"), required=True
+    )
     convert_vit.add_argument("--trusted", action="store_true")
     convert_vit.add_argument("--catalog", default=data_default)
     convert_vit.set_defaults(function=command_data)
@@ -2493,9 +2631,7 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--target-split", default="valid")
     evaluate.add_argument("--epoch-budget", type=int)
     evaluate.add_argument("--metric-seed", type=int)
-    evaluate.add_argument(
-        "--metric-seed-reduction", choices=("mean", "min", "max"), default="mean"
-    )
+    evaluate.add_argument("--metric-seed-reduction", choices=("mean", "min", "max"), default="mean")
     evaluate.add_argument(
         "--target-direction", choices=("auto", "maximize", "minimize"), default="auto"
     )
@@ -2516,7 +2652,9 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--batch-size", type=int, default=4)
     evaluate.add_argument("--input-size", type=int, default=32)
     evaluate.add_argument("--classes", type=int, default=10)
-    evaluate.add_argument("--input-source", choices=("dataset", "random", "noise"), default="dataset")
+    evaluate.add_argument(
+        "--input-source", choices=("dataset", "random", "noise"), default="dataset"
+    )
     evaluate.add_argument("--data-root")
     evaluate.add_argument("--catalog", default=data_default)
     evaluate.add_argument("--output", default="runs/evaluate")
@@ -2678,7 +2816,9 @@ def build_parser() -> argparse.ArgumentParser:
     benchmark_analysis.add_argument("--study-split", default="valid")
     benchmark_analysis.add_argument("--study-metric", default="final_accuracy")
     benchmark_analysis.add_argument("--repeat-index", type=int)
-    benchmark_analysis.add_argument("--seed-reduction", choices=("mean", "min", "max"), default="mean")
+    benchmark_analysis.add_argument(
+        "--seed-reduction", choices=("mean", "min", "max"), default="mean"
+    )
     benchmark_analysis.add_argument(
         "--study-target-direction", choices=("maximize", "minimize"), default="maximize"
     )
@@ -2703,17 +2843,18 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> None:
     raw_arguments = list(sys.argv[1:] if argv is None else argv)
     args = build_parser().parse_args(raw_arguments)
+    explicitly_set = {
+        argument[2:].split("=", 1)[0].replace("-", "_")
+        for argument in raw_arguments
+        if argument.startswith("--")
+    }
+    configured_options: set[str] = set()
     config_path = getattr(args, "config", None)
     if config_path:
         loaded = load_config(config_path)
         values = loaded.get(args.command, loaded)
         if not isinstance(values, dict):
             raise ValueError(f"Config section {args.command!r} must be a mapping")
-        explicitly_set = {
-            argument[2:].split("=", 1)[0].replace("-", "_")
-            for argument in raw_arguments
-            if argument.startswith("--")
-        }
         if args.command != "train":
             unknown = sorted(key for key in values if not hasattr(args, key))
             if unknown:
@@ -2723,9 +2864,13 @@ def main(argv: list[str] | None = None) -> None:
                 )
         for key, value in values.items():
             if key == "trusted" and value and key not in explicitly_set:
-                raise PermissionError("trusted execution must be acknowledged explicitly on the CLI")
+                raise PermissionError(
+                    "trusted execution must be acknowledged explicitly on the CLI"
+                )
             if key not in explicitly_set and hasattr(args, key):
                 setattr(args, key, value)
+                configured_options.add(key)
+    args._explicit_options = frozenset(explicitly_set | configured_options)
     args.function(args)
 
 

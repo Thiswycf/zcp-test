@@ -17,6 +17,107 @@ class InputBatch:
 
 
 @dataclass
+class CandidateInputResolver:
+    source: str
+    dataset: str
+    batch_size: int
+    requested_input_size: int
+    classes: int
+    seed: int
+    device: Any
+    data_root: str | None = None
+    explicit_input_size: bool = False
+
+    def __post_init__(self) -> None:
+        self._batches: dict[int, InputBatch] = {}
+
+    def input_size(self, architecture: Any) -> int:
+        if architecture.search_space_id != "ofa_proxyless_mbv2":
+            return self.requested_input_size
+        resolution = architecture.spec.get("resolution")
+        if not isinstance(resolution, int):
+            raise ValueError("OFA Proxyless architecture requires an integer resolution")
+        if self.explicit_input_size and self.requested_input_size != resolution:
+            raise ValueError(
+                "Explicit input_size conflicts with the OFA candidate resolution: "
+                f"input_size={self.requested_input_size}, resolution={resolution}"
+            )
+        return resolution
+
+    def resolve(self, architecture: Any) -> InputBatch:
+        input_size = self.input_size(architecture)
+        return self.resolve_input_size(input_size)
+
+    def resolve_input_size(self, input_size: int) -> InputBatch:
+        if input_size not in self._batches:
+            self._batches[input_size] = make_input_batch(
+                self.source,
+                self.dataset,
+                self.batch_size,
+                input_size,
+                self.classes,
+                self.seed,
+                self.device,
+                self.data_root,
+            )
+        batch = self._batches[input_size]
+        expected_shape = (input_size, input_size)
+        if tuple(batch.inputs.shape[-2:]) != expected_shape:
+            raise ValueError(
+                "Resolved input tensor does not match the candidate input size: "
+                f"expected={expected_shape}, actual={tuple(batch.inputs.shape[-2:])}"
+            )
+        return batch
+
+    def validate_model(self, architecture: Any, model: Any, batch: InputBatch) -> None:
+        actual_input_size = self.input_size(architecture)
+        if architecture.search_space_id != "ofa_proxyless_mbv2":
+            return
+        model_input_size = getattr(model, "image_size", None)
+        if model_input_size != actual_input_size:
+            raise ValueError(
+                "OFA model input size does not match its candidate resolution: "
+                f"model={model_input_size}, resolution={actual_input_size}"
+            )
+        if tuple(batch.inputs.shape[-2:]) != (actual_input_size, actual_input_size):
+            raise ValueError("OFA input batch does not match its candidate resolution")
+
+    def metadata(self, architecture: Any, batch: InputBatch) -> dict[str, Any]:
+        actual_input_size = self.input_size(architecture)
+        candidate_resolution = (
+            int(architecture.spec["resolution"])
+            if architecture.search_space_id == "ofa_proxyless_mbv2"
+            else None
+        )
+        return {
+            "input_size_policy": (
+                "architecture_resolution"
+                if candidate_resolution is not None
+                else "fixed_input_size"
+            ),
+            "requested_input_size": self.requested_input_size,
+            "candidate_resolution": candidate_resolution,
+            "actual_input_size": actual_input_size,
+            "input_fingerprint": batch.fingerprint,
+            "input_protocol": batch.protocol,
+        }
+
+    def protocol_summary(self, search_space_id: str) -> dict[str, Any]:
+        architecture_driven = search_space_id == "ofa_proxyless_mbv2"
+        return {
+            "source": self.source,
+            "dataset": self.dataset if self.source == "dataset" else None,
+            "size_policy": (
+                "architecture_resolution" if architecture_driven else "fixed_input_size"
+            ),
+            "requested_input_size": self.requested_input_size,
+            "requested_input_size_explicit": self.explicit_input_size,
+            "batch_size": self.batch_size,
+            "seed": self.seed,
+        }
+
+
+@dataclass
 class DatasetBatchStream:
     table: Any
     sample_ids: tuple[tuple[int, ...], ...]
@@ -31,9 +132,9 @@ class DatasetBatchStream:
             samples = [self.table[index] for index in identifiers]
             yield (
                 torch.stack([sample[0] for sample in samples]).to(self.device),
-                torch.tensor(
-                    [int(sample[1]) for sample in samples], dtype=torch.long
-                ).to(self.device),
+                torch.tensor([int(sample[1]) for sample in samples], dtype=torch.long).to(
+                    self.device
+                ),
             )
 
 
@@ -77,7 +178,9 @@ def make_input_batch(
         }
     elif source == "dataset":
         if not data_root:
-            raise ValueError("--input-source dataset requires --data-root or a configured dataset asset")
+            raise ValueError(
+                "--input-source dataset requires --data-root or a configured dataset asset"
+            )
         from zcp_test.data.transnas_inputs import (
             is_transnas_task,
             load_transnas_input_batch,
@@ -145,7 +248,9 @@ def _dataset_table(dataset: str, root: Path, input_size: int) -> tuple[Any, str]
                 transforms.Normalize(mean, standard_deviation),
             ]
         )
-        dataset_type = datasets.CIFAR10 if dataset in {"cifar10", "cifar10-valid"} else datasets.CIFAR100
+        dataset_type = (
+            datasets.CIFAR10 if dataset in {"cifar10", "cifar10-valid"} else datasets.CIFAR100
+        )
         table = dataset_type(root, train=True, transform=transform, download=False)
         transform_name = f"resize-{input_size}+tensor+{dataset}-normalize"
     elif dataset in {"imagenet1k", "imagenet"}:
@@ -155,9 +260,7 @@ def _dataset_table(dataset: str, root: Path, input_size: int) -> tuple[Any, str]
                 transforms.Resize(256),
                 transforms.CenterCrop(input_size),
                 transforms.ToTensor(),
-                transforms.Normalize(
-                    (0.485, 0.456, 0.406), (0.229, 0.224, 0.225)
-                ),
+                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
             ]
         )
         table = datasets.ImageFolder(train_root, transform=transform)
@@ -198,9 +301,7 @@ def make_dataset_batch_stream(
     table, transform_name = _dataset_table(dataset, root, input_size)
     sample_count = batch_size * batches
     if len(table) < sample_count:
-        raise ValueError(
-            f"Dataset has {len(table)} samples, fewer than required {sample_count}"
-        )
+        raise ValueError(f"Dataset has {len(table)} samples, fewer than required {sample_count}")
     selected = random.Random(seed).sample(range(len(table)), sample_count)
     sample_ids = tuple(
         tuple(selected[offset : offset + batch_size])
@@ -220,7 +321,5 @@ def make_dataset_batch_stream(
         "input_size": input_size,
         "data_root": str(root),
     }
-    fingerprint = hashlib.sha256(
-        json.dumps(protocol, sort_keys=True).encode()
-    ).hexdigest()
+    fingerprint = hashlib.sha256(json.dumps(protocol, sort_keys=True).encode()).hexdigest()
     return DatasetBatchStream(table, sample_ids, device, protocol, fingerprint)
