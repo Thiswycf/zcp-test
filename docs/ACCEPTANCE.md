@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-31 tree: **467 tests passed** across 31 test files | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction, training heartbeat and workflow contracts; not high-cost scientific validation |
+| Unit/integration baseline | Current 2026-07-31 tree: **468 tests passed** across 31 test files | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction, training heartbeat, run logging and workflow contracts; not high-cost scientific validation |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
 | Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
@@ -18,7 +18,7 @@ reproduction or formal benchmark accuracy.
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
 | Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
 
-The 467-test run across 31 test files, first-party source coverage of 87%, CLI coverage of 82%, and
+The 468-test run across 31 test files, first-party source coverage of 87%, CLI coverage of 82%, and
 passing Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` form the
 current low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
 NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
@@ -78,11 +78,12 @@ This is not a 600-epoch full-data accuracy reproduction or a multi-seed search-g
 training uses seed `20260731`, and candidate selection uses one fixed CIFAR-10 batch and one
 initialization seed. The protocols test different questions, rank candidates differently, and must
 not be averaged. The ImageNet-1k asset now passes a 1,000-class, 1,281,167/50,000-image structural
-audit and a real-loader decode check. The six DARTS ImageNet dual one-percent runs were launched on
-2026-07-31 and remain in the first ZCP-selected/full-data/3-epoch item with no completed epoch yet.
-The status is `running`, not passed. That detached run is pinned to integration commit `78d8118`,
-so it predates batch heartbeat support and must be judged from supervisor state, processes, I/O,
-GPU activity and eventual epoch artifacts. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual
+audit and a real-loader decode check. The first detached DARTS ImageNet run used commit `78d8118`
+and the `/public` spinning disk; after three hours it had no completed epoch, and its unused logger
+left `run.log` empty. It is now explicitly `interrupted`, not accepted. Commit `c0c7815` mirrors
+events to both `events.jsonl` and `run.log`, adds a portable four-GPU launcher, and restarts from a
+verified local NVMe copy. The new run reached about 7.2 rank-zero batches/s with a roughly 22-minute
+first-epoch ETA in its first minute. It remains running, not passed. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual
 one-percent acceptance remains incomplete.
 
 The retained historical synthetic smoke run executed:
@@ -183,8 +184,9 @@ The following work is explicitly **not accepted** and must not be reported as co
 
 1. DARTS CIFAR-10/CIFAR-100 600-epoch **full-data accuracy reproduction** and multi-seed search-gain
    validation remain incomplete; only the scoped dual one-percent protocol above is accepted. The
-   ImageNet-1k asset is ready, but DARTS ImageNet dual one-percent and 250-epoch formal training have
-   not yet run.
+   DARTS ImageNet dual one-percent has restarted with fixed logging and a verified fast data root,
+   but its six runs are incomplete. Full-data 250-epoch training is outside this scoped acceptance
+   and has not run.
 2. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains incomplete.
    AutoFormer sampler/LR/static fixtures and fixture-level recovery do not substitute for either
    full ImageNet acceptance protocol.
