@@ -125,6 +125,27 @@ optimizer、scheduler、AMP scaler 与 RNG。`--trusted` 只确认操作者信�
 事件；`training.jsonl` 只在 epoch 完成后追加一行，仍是训练曲线的唯一规范来源。heartbeat 中的
 `rank_local_samples` 仅表示 rank 0 本地 DataLoader 进度，不可当作全局样本计数或精确全局吞吐。
 在该机制加入前创建的旧 run 不会自动产生 heartbeat。
+`run.log` 是同一事件流的人类可读镜像：`run_started`、batch heartbeat、epoch 完成和
+`run_finished` 都会立即 flush 到日志。若新 run 的 `events.jsonl` 在增长而 `run.log` 仍为 0 字节，
+应视为日志回归并停止正式验收；旧版本创建的 run 不会自动补写日志。
+
+ImageNet 的 128 万个小文件容易使机械盘或共享盘成为瓶颈。正式启动前应使用 `findmnt -T`、`df -hT`
+和一个完整 epoch preflight 确认实际挂载与吞吐，并通过 `--data-root` 显式选择本机高速 SSD/NVMe
+副本，例如 `/fast/local/data/ImageNet1k`。项目不硬编码 `/home` 或 `/public`，也不会自动复制或
+静默切换数据根；切换前必须核对 1000 个训练类别、1,281,167 个训练文件和 50,000 个验证文件。
+四卡 DARTS ImageNet 双重 1% 可使用仓库脚本；它会再次校验上述文件数、锁定四个 UUID、复制三份
+候选身份到 run 根并把结果直接保存在项目 `runs/acceptance`：
+
+```bash
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export ZCP_IMAGENET_ROOT=/fast/local/data/ImageNet1k
+export ZCP_DARTS_CANDIDATES=/path/to/frozen-darts-candidates
+export ZCP_GPU_UUIDS=GPU-aaa,GPU-bbb,GPU-ccc,GPU-ddd
+bash tools/acceptance/run-darts-imagenet-dual-one-percent.sh
+```
+
+中断后如前若干任务已有独立验收证据，可设置 `ZCP_START_AT=2` 至 `6` 跳过它们；操作者必须先核验
+被跳过 run 的 completed manifest，脚本不会把“存在目录”自动视为完成。
 每个 epoch 还记录 train/validation 耗时、样本吞吐、CUDA 峰值 allocated/reserved 显存；CPU 运行的
 显存字段为 `null`。训练图将 accuracy、loss、LR/drop-path 与 epoch 耗时/峰值显存分面展示，避免
 把量纲不同的优化指标混在同一纵轴。

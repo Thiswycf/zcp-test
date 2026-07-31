@@ -71,6 +71,10 @@ zcp-test monitor "$RUN" --interval 5
 `training_epoch_completed`。`training.jsonl` 仍严格保持每个完成 epoch 一行，训练曲线只从该文件重建。
 事件中的 `rank_local_samples` 是 rank 0 的本地计数，不是分布式全局精确样本数。旧 run 不会补写
 heartbeat；若其 epoch 尚未结束，monitor 只能显示已有 artifact。
+同一事件还会写入并即时 flush 到人类可读的 `run.log`；新 run 不应再出现“`events.jsonl` 有事件而
+`run.log` 长期为 0 字节”。大型图像训练应把 `--data-root` 指向调用者已核验的本机高速盘副本，
+不要根据目录名猜测介质速度；先用 `findmnt -T /path/to/imagenet1k` 确认挂载，再核对类别和文件数。
+CLI 不会硬编码或自动改写数据根。
 
 当前 `search` 尚无 `--resume`：`search.jsonl` 是可审计记录，不是 population/RNG/cache checkpoint。
 中断后必须新建 run；不得把向旧文件追加记录称为恢复。训练恢复则使用同一架构、配置和协议身份，

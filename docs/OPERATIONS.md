@@ -100,7 +100,15 @@ recognizable run; pass the exact `RUN` when multiple runs exist. During training
 last batch, plus `training_epoch_completed` at epoch completion. `training.jsonl` remains one row
 per completed epoch and is the canonical curve source. `rank_local_samples` is rank 0 local
 progress, not an exact distributed sample count. Runs created before heartbeat support are not
-backfilled.
+backfilled. The same events are flushed to human-readable `run.log`; for a newly created run,
+non-empty `events.jsonl` with a persistently empty `run.log` is a logging regression. For ImageNet's
+1.28 million small files, inspect the actual mount with `findmnt -T`, run a full-epoch preflight and
+point `--data-root` to a verified local SSD/NVMe copy when available. The CLI never hard-codes,
+copies or silently switches between `/home`, `/public` or other machine-specific roots.
+The four-GPU DARTS ImageNet acceptance launcher is
+`tools/acceptance/run-darts-imagenet-dual-one-percent.sh`. It requires explicit
+`ZCP_IMAGENET_ROOT`, `ZCP_DARTS_CANDIDATES` and four UUIDs in `ZCP_GPU_UUIDS`, validates the
+1,000/1,281,167/50,000 layout, and writes under project-local `runs/acceptance` by default.
 
 ## Range partitioning and merge
 

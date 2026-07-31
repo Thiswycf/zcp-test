@@ -157,8 +157,10 @@ DARTS CIFAR-10/100 已对 ER 搜索候选、固定随机候选和参数匹配随
 也**不是**多 seed 搜索收益证明。全部训练只使用 seed `20260731`，候选选择也只使用一个固定输入
 batch 和一个初始化 seed。两套协议分别衡量早期全数据学习与小数据完整 schedule，候选排序不同，
 不得对两套结果求平均后宣称 ER 稳定优于基线。本机 ImageNet-1k 已完成结构审计（1000 类、
-1,281,167 张训练图、50,000 张验证图）和真实 loader 解码检查；DARTS ImageNet 双重 1% 尚未
-执行，因此状态是“资产可用、验收待运行”，不是“数据缺失”。AutoFormer、PlainNet-MBV2 和
+1,281,167 张训练图、50,000 张验证图）和真实 loader 解码检查；DARTS ImageNet 六项双重 1%
+已启动但尚未完成，因此状态是“运行中”，不是“已通过”。首轮发现低速盘小文件 I/O 与旧版空
+`run.log` 问题；当前实现会把事件同时 flush 到 `events.jsonl` 和 `run.log`，重启时应通过
+`--data-root` 显式选择经 `findmnt` 核验的高速本地副本。AutoFormer、PlainNet-MBV2 和
 Proxyless-MBV2 的双重 1% 验收均未完成。
 
 `--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且至少
@@ -183,7 +185,8 @@ catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、ver
   冒充。见 [TransNAS 预检证据](docs/evidence/TRANSNAS_PREFLIGHT_CN.md)。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
 - DARTS 正式 profile 已放行，且 CIFAR-10/100 双重 1% 限定验收已完成；这不等于 600 epoch
-  全数据精度复现。ImageNet-1k 已通过结构与 loader 预检，但 DARTS ImageNet 双重 1% 仍待执行。
+  全数据精度复现。ImageNet-1k 已通过结构与 loader 预检，DARTS ImageNet 双重 1% 正在执行但
+  尚未通过。大型图像训练应显式选择已核验的本机高速 `--data-root`，项目不硬编码机器路径。
   AutoFormer、PlainNet-MBV2 与
   Proxyless-MBV2 配置仍是可审计的候选 recipe，其双重 1% 均未完成，不得把
   `--smoke` 写成正式训练验收。`torchrun` 必须显式提供按 UUID 排列的 `CUDA_VISIBLE_DEVICES`；

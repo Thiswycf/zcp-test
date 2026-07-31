@@ -281,8 +281,10 @@ Each run creates `YYYYMMDDTHHMMSSZ_<run-id>/` with `manifest.json`, resolved `co
   600-epoch full-data accuracy reproduction or a multi-seed search-gain result. The protocols rank
   candidates differently and must not be averaged. The local ImageNet-1k asset now passes a structural
   audit (1,000 classes, 1,281,167 training images, and 50,000 validation images) plus a real-loader
-  decode check. DARTS ImageNet therefore moves from “dataset unavailable” to “asset ready, acceptance
-  not yet run”; AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains
+  decode check. The six DARTS ImageNet acceptance runs have started but are not complete. The first
+  attempt exposed slow-disk small-file I/O and an empty legacy `run.log`; current runs mirror events
+  to both `events.jsonl` and `run.log`, and operators should explicitly select a verified fast local
+  `--data-root` after checking its mount. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains
   incomplete.
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
   OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-

@@ -3,7 +3,7 @@ import torch
 import math
 from pathlib import Path
 
-from zcp_test.artifacts import JsonlWriter, merge_jsonl, read_jsonl
+from zcp_test.artifacts import JsonlWriter, RunContext, merge_jsonl, read_jsonl
 from zcp_test.artifacts.run import _package_versions
 from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
@@ -45,6 +45,19 @@ def test_runtime_package_versions_skip_uninstalled_packages(monkeypatch):
     monkeypatch.setattr("zcp_test.artifacts.run.metadata.version", version)
 
     assert _package_versions(("present", "missing")) == {"present": "1.2.3"}
+
+
+def test_run_context_logs_structured_events(tmp_path):
+    with RunContext(tmp_path, ["zcp-test", "train"], {"dataset": "fixture"}) as run:
+        run.event("training_batch_progress", epoch=0, batch=3, batch_count=10)
+
+    log = (run.directory / "run.log").read_text(encoding="utf-8")
+    assert "run_started {}" in log
+    assert "training_batch_progress" in log
+    assert '"batch": 3' in log
+    assert '"batch_count": 10' in log
+    assert "run_finished" in log
+    assert '"status": "completed"' in log
 
 
 def test_spaces_and_cache_keys():

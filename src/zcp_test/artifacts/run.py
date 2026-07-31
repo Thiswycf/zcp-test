@@ -130,7 +130,13 @@ class RunContext(AbstractContextManager["RunContext"]):
         temporary.replace(self.manifest_path)
 
     def event(self, kind: str, **fields: Any) -> None:
-        self.events.append({"run_id": self.run_id, "timestamp": utc_now(), "kind": kind, **fields})
+        event = {"run_id": self.run_id, "timestamp": utc_now(), "kind": kind, **fields}
+        self.events.append(event)
+        self.logger.info(
+            "%s %s",
+            kind,
+            json.dumps(fields, ensure_ascii=False, sort_keys=True, default=str),
+        )
 
     def close(self, status: str, error: str | None = None) -> None:
         self.manifest.update(status=status, ended_at=utc_now(), error=error)
