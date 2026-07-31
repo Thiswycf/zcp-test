@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
@@ -196,6 +197,26 @@ def _seed_training(
         "matmul_allow_tf32": bool(torch.backends.cuda.matmul.allow_tf32),
         "cudnn_allow_tf32": bool(torch.backends.cudnn.allow_tf32),
     }
+
+
+def _search_model_seed(seed: int, architecture_id: str) -> int:
+    payload = f"zcp-test-search-model-v1:{int(seed)}:{architecture_id}".encode()
+    return int.from_bytes(hashlib.sha256(payload).digest()[:4], "big")
+
+
+def _seed_search_model(seed: int, architecture_id: str) -> int:
+    import random
+
+    import numpy as np
+    import torch
+
+    model_seed = _search_model_seed(seed, architecture_id)
+    random.seed(model_seed)
+    np.random.seed(model_seed)
+    torch.manual_seed(model_seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(model_seed)
+    return model_seed
 
 
 def _require_research_model(
@@ -1550,6 +1571,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
             "bn_recalibration_fingerprint": (
                 "per_candidate_input_size" if args.bn_recalibration_batches else None
             ),
+            "model_initialization_protocol": "architecture-hash-v1",
         }
         runtime = {
             "gpu_selection": selection,
@@ -1567,7 +1589,14 @@ def command_evaluate(args: argparse.Namespace) -> None:
             primary_components: dict[str, str] = {}
             for architecture in architectures:
                 batch = resolved_batches[architecture.architecture_id]
-                input_metadata = input_resolver.metadata(architecture, batch)
+                model_initialization_seed = _seed_search_model(
+                    args.seed, architecture.architecture_id
+                )
+                input_metadata = {
+                    **input_resolver.metadata(architecture, batch),
+                    "model_initialization_seed": model_initialization_seed,
+                    "model_initialization_protocol": "architecture-hash-v1",
+                }
                 actual_input_size = int(input_metadata["actual_input_size"])
                 model = (
                     adapter.build_model(architecture, args.dataset)
@@ -1785,6 +1814,31 @@ def command_search(args: argparse.Namespace) -> None:
             }
         load_builtin_proxies()
         proxy_capability = PROXIES.create(args.proxy).capability
+        if (
+            "approximation" in proxy_capability.implementation_fidelity
+            and not args.allow_approximation
+        ):
+            raise ValueError(
+                f"Proxy {args.proxy!r} is {proxy_capability.implementation_fidelity!r}; "
+                "pass --allow-approximation only for an explicitly exploratory search"
+            )
+        component_aggregator = None
+        if args.aggregator == "az_nas_log_rank":
+            if args.proxy != "az_nas_autoformer":
+                raise ValueError(
+                    "az_nas_log_rank currently requires --proxy az_nas_autoformer"
+                )
+            from zcp_test.proxies.az_nas import log_rank_aggregate
+
+            def component_aggregator(rows: Any) -> list[float]:
+                return log_rank_aggregate(
+                    rows, ("expressivity", "trainability", "complexity")
+                )
+        elif args.proxy == "az_nas_autoformer":
+            raise ValueError(
+                "az_nas_autoformer requires --aggregator az_nas_log_rank; "
+                "expressivity alone is not the AZ-NAS search score"
+            )
         search_input_fingerprint = (
             "per_candidate_input_size" if fixed_batch is None else fixed_batch.fingerprint
         )
@@ -1799,6 +1853,8 @@ def command_search(args: argparse.Namespace) -> None:
             "proxy_id": args.proxy,
             "proxy_version": proxy_capability.version,
             "proxy_direction": proxy_capability.direction.value,
+            "aggregator": args.aggregator,
+            "model_initialization_protocol": "architecture-hash-v1",
             "dataset": args.dataset,
             "input_source": args.input_source,
             "input_fingerprint": search_input_fingerprint,
@@ -1853,7 +1909,13 @@ def command_search(args: argparse.Namespace) -> None:
 
             def candidate_input(architecture: Any) -> tuple[Any, dict[str, Any]]:
                 batch = input_resolver.resolve(architecture)
-                return batch, input_resolver.metadata(architecture, batch)
+                return batch, {
+                    **input_resolver.metadata(architecture, batch),
+                    "model_initialization_seed": _search_model_seed(
+                        args.seed, architecture.architecture_id
+                    ),
+                    "model_initialization_protocol": "architecture-hash-v1",
+                }
 
             def evaluation_identity(
                 architecture: Any,
@@ -1869,9 +1931,10 @@ def command_search(args: argparse.Namespace) -> None:
                 )
                 return identity, {**metadata, "evaluation_cache_key": identity}
 
-            def evaluator(architecture: Any) -> float:
+            def evaluator(architecture: Any) -> float | dict[str, float]:
                 batch, input_metadata = candidate_input(architecture)
                 actual_input_size = int(input_metadata["actual_input_size"])
+                _seed_search_model(args.seed, architecture.architecture_id)
                 model = space.build_model(architecture, args.classes)
                 if weight_loader is not None:
                     weight_loader.export(model)
@@ -1901,6 +1964,8 @@ def command_search(args: argparse.Namespace) -> None:
                     raise RuntimeError(
                         result.error_message or "proxy did not return a primary score"
                     )
+                if args.aggregator == "az_nas_log_rank":
+                    return result.components
                 return result.score if result.direction.value == "maximize" else -result.score
 
             search = EvolutionSearch(
@@ -1912,6 +1977,7 @@ def command_search(args: argparse.Namespace) -> None:
                 args.seed,
                 record_metadata=record_metadata,
                 evaluation_identity=evaluation_identity,
+                component_aggregator=component_aggregator,
                 state_path=run.directory / "search-state.json",
                 resume_state=resume_state,
                 state_identity=search_identity,
@@ -2791,6 +2857,11 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--config")
     search.add_argument("--space", required=True)
     search.add_argument("--proxy", default="er")
+    search.add_argument(
+        "--aggregator",
+        choices=("primary", "az_nas_log_rank"),
+        default="primary",
+    )
     search.add_argument("--population", type=int, default=10)
     search.add_argument("--generations", type=int, default=3)
     search.add_argument("--elite-ratio", type=float, default=0.2)

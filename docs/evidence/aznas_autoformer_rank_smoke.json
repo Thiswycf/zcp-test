@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "status": "completed_smoke",
+  "timestamp": "2026-07-31T16:20:27+08:00",
+  "search_space_id": "autoformer",
+  "model_fidelity": "reference_model",
+  "model_profile": "aznas-scratch-5e6683",
+  "implementation_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
+  "proxy_id": "az_nas_autoformer",
+  "proxy_version": "aznas-5e6683-autoformer-stable-v1",
+  "proxy_implementation_fidelity": "paper_formula_port_stabilized",
+  "aggregator": "az_nas_log_rank",
+  "input_protocol": {
+    "source": "random",
+    "dataset_label": "imagenet1k",
+    "batch_size": 2,
+    "input_size": 224,
+    "seed": 20260731
+  },
+  "model_initialization_protocol": "architecture-hash-v1",
+  "independent_repeat_count": 2,
+  "scientific_rows_identical_across_repeats": true,
+  "population": 2,
+  "generations": 0,
+  "expected_jsonl_rows": 3,
+  "observed_jsonl_rows": 3,
+  "candidates": [
+    {
+      "architecture_id": "4474403d774bd211cb30",
+      "components": {
+        "expressivity": 136.86296319961548,
+        "trainability": -1.3234687028107819,
+        "complexity": 1851320592.0
+      },
+      "score": -0.6931471805599453
+    },
+    {
+      "architecture_id": "c109d21bb6cbc8e3e583",
+      "components": {
+        "expressivity": 127.20643901824951,
+        "trainability": -1.3395069313049317,
+        "complexity": 1774484910.0
+      },
+      "score": -1.3862943611198906
+    }
+  ],
+  "limitations": [
+    "This is a two-candidate GPU execution and artifact-contract smoke, not a scientific search result.",
+    "The project evolution controller is not a line-for-line port of the upstream AutoFormer candidate controller.",
+    "Random input is explicit and follows the upstream trainloader=None path; it must not be merged with real-data protocols."
+  ]
+}

@@ -161,8 +161,15 @@ class AutoFormerBlock(nn.Module):
         self.drop_path = DropPath(drop_path_probability)
 
     def forward(self, inputs: Tensor) -> Tensor:
-        inputs = inputs + self.drop_path(self.attention(self.attention_norm(inputs)))
-        return inputs + self.drop_path(self.mlp(self.mlp_norm(inputs)))
+        _, outputs = self.extract_res_features(inputs)
+        return outputs
+
+    def extract_res_features(self, inputs: Tensor) -> tuple[Tensor, Tensor]:
+        attention_outputs = inputs + self.drop_path(
+            self.attention(self.attention_norm(inputs))
+        )
+        outputs = attention_outputs + self.drop_path(self.mlp(self.mlp_norm(attention_outputs)))
+        return attention_outputs, outputs
 
 
 class StaticAutoFormer(nn.Module):
@@ -410,6 +417,25 @@ class StaticAutoFormer(nn.Module):
             tokens = block(tokens)
         tokens = self.norm(tokens)
         return tokens[:, 1:].mean(1) if self.global_pool else tokens[:, 0]
+
+    def extract_res_features(self, inputs: Tensor) -> list[Tensor]:
+        if self.profile != AZNAS_SCRATCH_PROFILE:
+            raise NotImplementedError(
+                "AZ-NAS residual features are only defined for the AZ-NAS scratch profile"
+            )
+        if inputs.ndim != 4 or inputs.shape[1] != 3:
+            raise ValueError("AutoFormer inputs must have shape [batch, 3, height, width]")
+        if inputs.shape[-2:] != (self.image_size, self.image_size):
+            raise ValueError(f"AutoFormer inputs must be {self.image_size}x{self.image_size}")
+        tokens = self.patch_embed(inputs).flatten(2).transpose(1, 2)
+        class_token = self.class_token.expand(inputs.shape[0], -1, -1)
+        tokens = torch.cat((class_token, tokens), dim=1)
+        tokens = self.position_dropout(tokens + self.position_embedding)
+        residual_features = []
+        for block in self.blocks:
+            attention_outputs, tokens = block.extract_res_features(tokens)
+            residual_features.extend((attention_outputs, tokens))
+        return residual_features
 
     def forward(self, inputs: Tensor) -> Tensor:
         return self.head(self.forward_features(inputs))

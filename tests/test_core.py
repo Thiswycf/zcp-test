@@ -233,6 +233,7 @@ def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
     inputs = torch.randn(4, 3, 8, 8)
     labels = torch.tensor([0, 1, 2, 0])
     for proxy_id in PROXIES.names():
+        capability = PROXIES.create(proxy_id).capability
         result = evaluate_proxy(
             proxy_id,
             model,
@@ -240,9 +241,58 @@ def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
             labels,
             torch.nn.CrossEntropyLoss(),
         )
+        if "cnn" not in capability.model_families:
+            assert result.status.value == "unsupported"
+            continue
         assert result.status.value == "ok", (proxy_id, result.error_message)
         assert result.score is not None and math.isfinite(result.score)
         assert result.implementation_fidelity != "unverified"
+
+
+def test_aznas_autoformer_residual_features_components_and_rank_aggregation():
+    from zcp_test.models.autoformer import AZNAS_SCRATCH_PROFILE, StaticAutoFormer
+    from zcp_test.proxies.az_nas import autoformer_components, log_rank_aggregate
+
+    torch.manual_seed(17)
+    model = StaticAutoFormer(
+        profile=AZNAS_SCRATCH_PROFILE,
+        image_size=32,
+        patch_size=16,
+        num_classes=3,
+        embed_dim=24,
+        depth=2,
+        num_heads=[2, 2],
+        mlp_ratio=[2.0, 2.0],
+        super_depth=14,
+    ).eval()
+    inputs = torch.randn(2, 3, 32, 32)
+
+    residual_features = model.extract_res_features(inputs)
+    torch.manual_seed(23)
+    components = autoformer_components(model, inputs)
+    torch.manual_seed(23)
+    result = evaluate_proxy(
+        "az_nas_autoformer",
+        model,
+        inputs,
+        model_family="transformer",
+    )
+
+    assert len(residual_features) == 4
+    assert all(feature.shape == (2, 5, 24) for feature in residual_features)
+    assert torch.allclose(model(inputs), model.head(model.forward_features(inputs)))
+    assert set(components) == {"expressivity", "trainability", "complexity"}
+    assert components["complexity"] == model.official_complexity_ops()
+    assert all(math.isfinite(value) for value in components.values())
+    assert result.status.value == "ok"
+    assert result.proxy_version == "aznas-5e6683-autoformer-stable-v1"
+    assert result.components == pytest.approx(components)
+    assert log_rank_aggregate(
+        [{"left": 1.0, "right": 3.0}, {"left": 2.0, "right": 2.0}, {"left": 3.0, "right": 1.0}],
+        ("left", "right"),
+    ) == pytest.approx(
+        [math.log(1 / 3), 2 * math.log(2 / 3), math.log(1 / 3)]
+    )
 
 
 def test_declared_transformer_proxies_execute_on_transformer_model():
@@ -303,6 +353,63 @@ def test_statistics_and_search(tmp_path):
     assert all(
         row["weight_mode"] == "inherited_supernet" for row in read_jsonl(tmp_path / "search.jsonl")
     )
+
+
+def test_rank_aggregated_evolution_records_components_and_resumes(tmp_path):
+    from zcp_test.proxies.az_nas import log_rank_aggregate
+
+    load_builtin_spaces()
+    space = SPACES.create("darts")
+
+    def evaluator(architecture):
+        value = int(architecture.architecture_id[:8], 16)
+        return {
+            "expressivity": float(value % 101 + 1),
+            "trainability": float(value % 97 + 1),
+            "complexity": float(value % 89 + 1),
+        }
+
+    def aggregator(rows):
+        return log_rank_aggregate(
+            rows, ("expressivity", "trainability", "complexity")
+        )
+
+    identity = {"proxy_id": "az_nas_fixture", "aggregator": "az_nas_log_rank"}
+    state_path = tmp_path / "rank-state.json"
+    first = EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(tmp_path / "rank-first.jsonl", 1),
+        4,
+        seed=31,
+        state_path=state_path,
+        state_identity=identity,
+        component_aggregator=aggregator,
+    )
+    first.run(1)
+    rows = list(read_jsonl(tmp_path / "rank-first.jsonl"))
+    candidate_rows = [row for row in rows if row["record_kind"] == "candidate"]
+
+    assert candidate_rows
+    assert all(set(row["components"]) == {"expressivity", "trainability", "complexity"} for row in candidate_rows)
+    assert all(math.isfinite(row["score"]) for row in candidate_rows)
+
+    resumed = EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(tmp_path / "rank-resumed.jsonl", 1),
+        4,
+        seed=31,
+        state_path=tmp_path / "rank-state-resumed.json",
+        state_identity=identity,
+        resume_state=load_search_state(state_path),
+        component_aggregator=aggregator,
+    )
+    best = resumed.run(2)
+
+    assert best.components is not None
+    assert math.isfinite(best.score)
+    assert list(read_jsonl(tmp_path / "rank-resumed.jsonl"))[: len(rows)] == rows
 
 
 def test_evolution_search_resume_restores_population_rng_cache_and_history(tmp_path):
@@ -387,6 +494,77 @@ def test_evolution_search_resume_restores_population_rng_cache_and_history(tmp_p
             resume_state=load_search_state(state_path),
             state_identity=mismatched,
         )
+
+
+def test_evolution_search_resumes_partial_initial_population(tmp_path):
+    load_builtin_spaces()
+    space = SPACES.create("darts")
+    state_path = tmp_path / "partial-state.json"
+    calls = 0
+
+    def interrupted_evaluator(architecture):
+        nonlocal calls
+        calls += 1
+        if calls == 4:
+            raise RuntimeError("simulated interruption")
+        return float(int(architecture.architecture_id[:8], 16))
+
+    with pytest.raises(RuntimeError, match="simulated interruption"):
+        EvolutionSearch(
+            space,
+            interrupted_evaluator,
+            JsonlWriter(tmp_path / "partial-first.jsonl", 1),
+            6,
+            seed=23,
+            state_path=state_path,
+            state_identity={"protocol": "partial-fixture"},
+            initial_checkpoint_interval=1,
+        ).run(0)
+
+    partial = load_search_state(state_path)
+    assert partial["completed_generation"] == -1
+    assert len(partial["population"]) == 3
+    assert partial["history"] == []
+
+    def evaluator(architecture):
+        return float(int(architecture.architecture_id[:8], 16))
+
+    resumed_log = tmp_path / "partial-resumed.jsonl"
+    resumed = EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(resumed_log, 1),
+        6,
+        seed=23,
+        state_path=tmp_path / "partial-complete-state.json",
+        state_identity={"protocol": "partial-fixture"},
+        resume_state=partial,
+        initial_checkpoint_interval=1,
+    ).run(1)
+    uninterrupted_log = tmp_path / "partial-uninterrupted.jsonl"
+    uninterrupted = EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(uninterrupted_log, 1),
+        6,
+        seed=23,
+    ).run(1)
+
+    def trace(path):
+        return [
+            (
+                row["record_kind"],
+                row["generation"],
+                row.get("architecture_id"),
+                row.get("score"),
+                row["cumulative_evaluations"],
+                row["cumulative_cache_hits"],
+            )
+            for row in read_jsonl(path)
+        ]
+
+    assert resumed.architecture.architecture_id == uninterrupted.architecture.architecture_id
+    assert trace(resumed_log) == trace(uninterrupted_log)
 
 
 def test_training_artifacts(tmp_path):

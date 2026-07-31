@@ -14,7 +14,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | DARTS CIFAR 双重 1% | CIFAR-10/100 三候选：全数据 × 6 epoch 共 6 runs；1% 数据 × 600 epoch 共 6 runs；确定性预检、两次恢复审计和报告完成 | **限定协议通过** | 关闭工程与限定协议验收；不是 600 epoch 全数据精度复现或多 seed 搜索收益，两个协议不得平均 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
-| Search smoke | `runs/search/` 保留一次失败和一次完成的 AutoFormer ER 搜索 | 部分证据 | 只证明当时的搜索流程；旧 manifest 不能独立重建当前模型 fidelity，失败记录不能隐藏 |
+| Search smoke | AutoFormer AZ-NAS 两候选 GPU rank smoke，组件、聚合分数和恢复 state 完整 | 部分通过 | 证明公式端口与 artifact 合同，不是正式 population/generation 搜索结论；旧 ER 失败记录仍保留 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
 468 tests（31 个测试文件）、第一方 source coverage 87%、CLI coverage 82%，以及已通过的 Ruff、
@@ -151,6 +151,13 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   [`docs/evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) 与
   [`docs/evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
+- AutoFormer 新增 `az_nas_autoformer`：固定 AZ-NAS commit `5e6683a`，保存每个 block 的 attention/MLP
+  残差特征，计算 expressivity/trainability/官方 complexity，并按三个组件的 log-rank 聚合。两候选
+  ImageNet-224 GPU smoke 生成 2 条候选和 1 条 summary，组件缓存可恢复；模型初始化按架构哈希固定，
+  两次独立同 seed GPU run 去除耗时后逐行一致。精简证据见
+  `docs/evidence/aznas_autoformer_rank_smoke.json`。数值稳定版对协方差负零误差执行 clamp，fidelity 为
+  `paper_formula_port_stabilized`；项目 evolution controller 不是上游候选控制器的逐行复刻，因此正式
+  AutoFormer 搜索和候选冻结仍未完成。
 - TransNAS 七任务 head 已按上游 commit `6d4231b` 分离；同一 micro fixture 的官方/本项目参数量
   与完整 parameter-shape multiset 在七个任务均一致。已实现受控 Taskonomy manifest、七任务真实
   input/target loader、final5k 分类 mask 和确定性 Jigsaw。原始 105 MB 标准答案 SHA-256 为

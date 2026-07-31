@@ -28,6 +28,15 @@ def test_evaluation_summary_does_not_count_unsupported_as_failed():
     }
 
 
+def test_search_model_seed_is_architecture_stable_and_seed_sensitive():
+    first = cli._search_model_seed(17, "architecture-a")
+
+    assert first == cli._search_model_seed(17, "architecture-a")
+    assert first != cli._search_model_seed(18, "architecture-a")
+    assert first != cli._search_model_seed(17, "architecture-b")
+    assert 0 <= first < 2**32
+
+
 def test_imagenet_tf_color_distortion_matches_proxyless_protocol():
     from torchvision import transforms
 
@@ -597,6 +606,41 @@ def test_cli_search_resume_end_to_end_with_tiny_reference_space(monkeypatch, cap
     assert resumed_rows[: len(original_rows)] == original_rows
 
 
+def test_cli_evaluate_model_initialization_is_architecture_seeded(
+    monkeypatch, capsys, tmp_path
+):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+
+    def evaluate(output):
+        cli.main([
+            "evaluate",
+            "--space", "tiny_reference",
+            "--proxies", "naswot",
+            "--count", "2",
+            "--seed", "20260731",
+            "--device", "cpu",
+            "--input-source", "random",
+            "--batch-size", "2",
+            "--input-size", "8",
+            "--classes", "3",
+            "--dataset", "cifar10",
+            "--output", str(output),
+        ])
+        run = Path(_output(capsys)["run"])
+        return list(read_jsonl(run / "scores.jsonl"))
+
+    first = evaluate(tmp_path / "evaluate-a")
+    second = evaluate(tmp_path / "evaluate-b")
+
+    assert len(first) == len(second) == 2
+    for left, right in zip(first, second, strict=True):
+        assert left["architecture_id"] == right["architecture_id"]
+        assert left["model_initialization_protocol"] == "architecture-hash-v1"
+        assert left["model_initialization_seed"] == right["model_initialization_seed"]
+        assert left["score"] == pytest.approx(right["score"], rel=0, abs=0)
+    assert first[0]["model_initialization_seed"] != first[1]["model_initialization_seed"]
+
+
 def test_cli_search_resume_rejects_identity_mismatch(monkeypatch, capsys, tmp_path):
     monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
     output = tmp_path / "first-search"
@@ -627,6 +671,61 @@ def test_cli_search_resume_rejects_identity_mismatch(monkeypatch, capsys, tmp_pa
         ])
 
     assert not mismatched_output.exists()
+
+
+def test_cli_search_rejects_approximate_proxy_without_explicit_override(
+    monkeypatch, tmp_path
+):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+
+    with pytest.raises(ValueError, match="explicitly exploratory search"):
+        cli.main([
+            "search",
+            "--space", "tiny_reference",
+            "--proxy", "az_nas",
+            "--population", "2",
+            "--generations", "0",
+            "--device", "cpu",
+            "--input-source", "random",
+            "--batch-size", "2",
+            "--input-size", "8",
+            "--classes", "3",
+            "--output", str(tmp_path / "rejected"),
+        ])
+
+    assert not (tmp_path / "rejected").exists()
+
+
+@pytest.mark.parametrize(
+    ("proxy", "aggregator", "message"),
+    [
+        ("az_nas_autoformer", "primary", "expressivity alone"),
+        ("params", "az_nas_log_rank", "requires --proxy az_nas_autoformer"),
+    ],
+)
+def test_cli_search_rejects_invalid_proxy_aggregator_pairs_before_run_creation(
+    monkeypatch, tmp_path, proxy, aggregator, message
+):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+    output = tmp_path / "rejected-aggregator"
+
+    with pytest.raises(ValueError, match=message):
+        cli.main([
+            "search",
+            "--space", "tiny_reference",
+            "--proxy", proxy,
+            "--aggregator", aggregator,
+            "--population", "2",
+            "--generations", "0",
+            "--device", "cpu",
+            "--input-source", "random",
+            "--batch-size", "2",
+            "--input-size", "8",
+            "--classes", "3",
+            "--output", str(output),
+        ])
+
+    assert not output.exists()
 
 
 def test_config_does_not_override_equals_form_cli_option(monkeypatch, tmp_path):

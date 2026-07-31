@@ -16,7 +16,7 @@ reproduction or formal benchmark accuracy.
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
 | DARTS CIFAR dual one-percent | Three candidates on CIFAR-10/100: six full-data × 6-epoch runs and six 1%-data × 600-epoch runs; deterministic preflight, two recovery audits, and reporting complete | Scoped protocol passed | Engineering/scoped acceptance only; not 600-epoch full-data accuracy reproduction or multi-seed search gain, and the protocols must not be averaged |
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
-| Search smoke | One failed and one completed AutoFormer ER search under `runs/search/` | Partial evidence | Historical search plumbing only; the old manifest cannot reconstruct current model fidelity, and the failed run must not be hidden |
+| Search smoke | Two-candidate AutoFormer AZ-NAS GPU rank smoke with components, aggregate scores, and resumable state | Partial pass | Formula/artifact contract only, not a scientific population/generation result; the historical failed ER run remains visible |
 
 The 468-test run across 31 test files, first-party source coverage of 87%, CLI coverage of 82%, and
 passing Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` form the
@@ -138,8 +138,14 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
   schema rather than the current one-row-plus-components layout.
 - Only the registry count, not the dedicated 22-proxy sweep artifact, is independently reproducible
   from the current tree.
-- The completed AutoFormer search validates mechanics, not scientific fidelity; one failed search is
-  also retained.
+- The source-pinned `az_nas_autoformer` port captures attention/MLP residual features and computes
+  expressivity, trainability, official complexity, and three-component log-rank aggregation. Its
+  two-candidate ImageNet-224 GPU smoke writes two candidates plus one summary and resumable component
+  cache. Architecture-hash initialization makes two independent same-seed GPU runs identical after
+  timing fields are removed; see `docs/evidence/aznas_autoformer_rank_smoke.json`. The stabilized covariance clamp is
+  explicitly versioned, and the project evolution controller is not a line-for-line upstream
+  candidate controller. Formal AutoFormer search and candidate freezing remain incomplete; the
+  historical failed ER search is retained.
 - Some upstream native assets lack pinned checksums. Path existence is not authenticity.
 - Bootstrap and index-0 adapter smokes do not establish full-record, all-budget/split or cross-machine
   coverage.

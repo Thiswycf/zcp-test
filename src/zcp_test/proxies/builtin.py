@@ -269,6 +269,12 @@ def _az_nas(model: Any, inputs: Any, labels: Any, loss_fn: Any) -> dict[str, flo
     return {"expressivity": _naswot(model, inputs), "trainability": _gradnorm(model, inputs, labels, loss_fn), "complexity": math.log1p(_params(model))}
 
 
+def _az_nas_autoformer(model: Any, inputs: Any, *_: Any) -> dict[str, float]:
+    from zcp_test.proxies.az_nas import autoformer_components
+
+    return autoformer_components(model, inputs)
+
+
 def _topology_er(mode: str) -> Callable[..., float]:
     def compute(model: Any, inputs: Any, *_: Any) -> float:
         import inspect
@@ -384,6 +390,7 @@ _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
     "zico": (_zico, ProxyCapability("zico", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True)),
     "te_nas": (_te_nas, ProxyCapability("te_nas", version="portable-v2", model_families=("cnn", "transformer"), requires_labels=True, components=("synflow", "naswot", "gradnorm"), primary_component="synflow")),
     "az_nas": (_az_nas, ProxyCapability("az_nas", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
+    "az_nas_autoformer": (_az_nas_autoformer, ProxyCapability("az_nas_autoformer", version="aznas-5e6683-autoformer-stable-v1", model_families=("transformer",), components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
     "er_pr": (_topology_er("pr"), ProxyCapability("er_pr", version="fx-v1", model_families=("cnn",))),
     "er_conn": (_topology_er("conn"), ProxyCapability("er_conn", version="fx-v1", model_families=("cnn",))),
     "er_deg": (_topology_er("deg"), ProxyCapability("er_deg", version="fx-v1", model_families=("cnn",))),
@@ -402,6 +409,7 @@ _SOURCES = {
     "zico": "https://openreview.net/forum?id=rwo-ls5GqGn",
     "te_nas": "https://arxiv.org/abs/2102.11535",
     "az_nas": "https://arxiv.org/abs/2403.19232",
+    "az_nas_autoformer": "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer",
 }
 for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.items()):
     if _proxy_name in {"params", "flops"}:
@@ -410,6 +418,8 @@ for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.
         _fidelity = "alias"
     elif _proxy_name in {"te_nas", "az_nas"}:
         _fidelity = "portable_composite_approximation"
+    elif _proxy_name == "az_nas_autoformer":
+        _fidelity = "paper_formula_port_stabilized"
     elif _proxy_name == "er" or _proxy_name.startswith("er_"):
         _fidelity = "project_extension"
     else:

@@ -450,6 +450,32 @@ ViT-Bench 与开放 AutoFormer 搜索必须分开：前者查询发布 GT，不�
 真值，使用 validation-only 搜索并对选中候选做 scratch training。公开 ViT-Bench 的 AutoFormer
 main、来源说明不足的 extension 与 PiT 永不合并，vanilla、KD、ImageNet inherited 也永不合并。
 
+开放 AutoFormer 的 AZ-NAS 搜索必须使用独立的论文组件端口和群体聚合器：
+
+```bash
+zcp-test search --space autoformer \
+  --proxy az_nas_autoformer --aggregator az_nas_log_rank \
+  --population 32 --generations 20 --elite-ratio 0.25 \
+  --dataset imagenet1k --input-source random --batch-size 2 --input-size 224 \
+  --classes 1000 --seed 20260731 --gpu auto \
+  --output /path/to/runs/search/autoformer-aznas
+```
+
+`az_nas_autoformer` 固定上游 AZ-NAS commit `5e6683a`：每个 block 保存 attention 残差后和 MLP
+残差后的 `[B,N,C]` token，计算谱熵 expressivity、相邻残差 Jacobian trainability，以及 Cream
+`official_complexity_ops`。协方差仅对浮点误差产生的负特征值执行 `clamp_min(0)`，因此版本为
+`aznas-5e6683-autoformer-stable-v1`，fidelity 为 `paper_formula_port_stabilized`，不是逐位一致声明。
+聚合器对三个组件分别执行 `rankdata/n`、取 log 后求和；不允许把 `expressivity` 单独冒充 AZ-NAS
+最终分数。旧 `az_nas portable-v1` 是 NASWOT/GradNorm/参数量近似，正式 search 默认拒绝；仅显式
+`--allow-approximation` 可做探索性消融。
+
+本项目保留自己的 mutation/crossover/elite 控制器，并在每代按全部已评估组件缓存重新排名；这复现
+AZ-NAS 组件与 log-rank 组合，但不是上游 AutoFormer 候选控制器的逐行复刻。`search.jsonl` 每个候选
+同时保存 `components` 和聚合 `score`，`search-state.json` 保存原始组件缓存并支持恢复。generation 0
+行数为 `population + 1 summary`；后续每代新增 `population - elite_count` 个候选和一条 summary。模型
+初始化与代理随机向量使用 `architecture-hash-v1`，由 search seed 和 canonical architecture ID 派生；
+同 seed 的两次独立 GPU smoke 在去除耗时字段后逐行一致。
+
 首次机器初始化：
 
 ```bash
@@ -512,7 +538,8 @@ zcp-test evaluate --benchmark vitbench101 --slice-id autoformer_main \
   --output "$AUDIT/runs/vitbench-autoformer-main-preacceptance"
 ```
 
-预期 5×22=`110` 行：当前支持矩阵为 80 `ok`、30 `unsupported`、0 `failed`。CLI 分别打印
+预期核心 22 个迁移代理产生 5×22=`110` 行：`az_nas_autoformer` 是开放 AutoFormer 专用的第 23 个
+显式代理，不纳入旧 22-proxy 兼容 sweep。当前支持矩阵为 80 `ok`、30 `unsupported`、0 `failed`。CLI 分别打印
 `succeeded/failed/unsupported/skipped/non_ok`。切换 extension 时目标使用 `accuracy_kd`；PiT 可用
 `accuracy_vanilla` 或 `accuracy_kd`，不能查询 ImageNet inherited。
 

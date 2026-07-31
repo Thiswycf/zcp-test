@@ -412,6 +412,36 @@ instead describes 500 AutoFormer and 500 PiT candidates with a disjoint 60/40 pr
 split; the public files do not identify that split. Therefore the current run is a
 `partial_release_slice_preacceptance`, not formal paper-level H1 acceptance.
 
+Open AutoFormer AZ-NAS search uses the source-pinned component port and an explicit cohort
+aggregator:
+
+```bash
+zcp-test search --space autoformer \
+  --proxy az_nas_autoformer --aggregator az_nas_log_rank \
+  --population 32 --generations 20 --elite-ratio 0.25 \
+  --dataset imagenet1k --input-source random --batch-size 2 --input-size 224 \
+  --classes 1000 --seed 20260731 --gpu auto \
+  --output /path/to/runs/search/autoformer-aznas
+```
+
+`az_nas_autoformer` pins AZ-NAS commit `5e6683a`. It captures the attention and MLP residual outputs
+of each block as `[B,N,C]`, computes spectral-entropy expressivity, adjacent-residual Jacobian
+trainability, and Cream `official_complexity_ops`. Covariance eigenvalues are clamped only at zero
+to remove floating-point negative noise, hence version `aznas-5e6683-autoformer-stable-v1` and
+fidelity `paper_formula_port_stabilized`, not bitwise parity. The aggregator sums
+`log(rankdata(component)/n)` across all three components; expressivity alone is rejected as an
+AZ-NAS score. Legacy `az_nas portable-v1` is a NASWOT/GradNorm/parameter-count approximation and
+formal search rejects it unless `--allow-approximation` is supplied.
+
+The project retains its mutation/crossover/elite controller and reranks against the complete
+evaluated component cache each generation. This ports the paper components and log-rank formula but
+is not a line-for-line reproduction of the upstream candidate controller. Candidate rows store both
+`components` and aggregate `score`; resumable state stores the component cache. Generation zero
+writes `population + 1 summary` rows; each later generation adds `population - elite_count`
+candidate rows plus one summary. Model initialization and proxy random vectors use
+`architecture-hash-v1`, derived from the search seed and canonical architecture ID. Two independent
+same-seed GPU smokes are identical after removing timing fields.
+
 ```bash
 CATALOG=~/.config/zcp-test/data.json
 DATA=/path/to/data
@@ -423,7 +453,9 @@ zcp-test benchmark inspect vitbench101 --catalog "$CATALOG" \
 ```
 
 Generate a deterministic minimum-five manifest per public slice, then evaluate with a real registered
-dataset. Five architectures × 22 proxies must produce 110 rows; the current Transformer capability
+dataset. Five architectures × the 22 migrated compatibility proxies must produce 110 rows.
+`az_nas_autoformer` is a 23rd open-AutoFormer-specific proxy and is not part of that legacy sweep.
+The current Transformer capability
 matrix yields 80 `ok`, 30 `unsupported`, and zero `failed` rows. A five-candidate correlation only
 validates the execution path and must not be reported as a stable scientific result.
 
