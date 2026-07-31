@@ -16,6 +16,8 @@ from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint
 from zcp_test.training.trainer import (
     _collect_checkpoint_rng,
     _cosine_learning_rate,
+    _normalized_checkpoint_config,
+    _normalized_checkpoint_identity,
     _optimizer_parameter_groups,
     _restore_checkpoint_rng,
     _restore_training_log,
@@ -452,6 +454,78 @@ def test_training_keeps_label_smoothing_without_mixup(tmp_path, monkeypatch):
 
     assert observed
     assert set(observed) == {0.2}
+
+
+def test_checkpoint_config_normalization_accepts_missing_default_fields():
+    current = TrainingConfig(1, "sgd", 0.1, 0.0)
+    legacy = dict(current.__dict__)
+    for key in (
+        "warmup_learning_rate",
+        "minimum_learning_rate",
+        "validation_label_smoothing",
+        "exclude_bias_norm_from_weight_decay",
+    ):
+        legacy.pop(key)
+
+    assert _normalized_checkpoint_config(legacy) == current.__dict__
+
+    legacy["minimum_learning_rate"] = 1e-5
+    assert _normalized_checkpoint_config(legacy) != current.__dict__
+
+
+@pytest.mark.parametrize(
+    ("training_mode", "acceptance_protocol", "expected_fraction"),
+    [
+        ("real_data_preflight", None, 1.0),
+        ("acceptance_smoke", "one_percent_data_protocol", 0.01),
+        ("acceptance_smoke", "one_percent_epochs_protocol", 1.0),
+    ],
+)
+def test_checkpoint_identity_normalizes_only_known_legacy_fraction_protocols(
+    training_mode, acceptance_protocol, expected_fraction
+):
+    identity = {
+        "training_mode": training_mode,
+        "acceptance_protocol": acceptance_protocol,
+    }
+
+    assert _normalized_checkpoint_identity(identity)["data_fraction"] == expected_fraction
+
+    unknown = {"training_mode": "formal", "acceptance_protocol": None}
+    assert "data_fraction" not in _normalized_checkpoint_identity(unknown)
+
+
+def test_completed_checkpoint_does_not_require_rng_restore(tmp_path, monkeypatch):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    data = torch.utils.data.TensorDataset(
+        torch.randn(4, 3, 4, 4), torch.randint(2, (4,))
+    )
+    loader = torch.utils.data.DataLoader(data, batch_size=2)
+    config = TrainingConfig(1, "sgd", 0.01, 0.0, scheduler="none", nesterov=False)
+    source = tmp_path / "source"
+    train_model(model, loader, loader, config, source, torch.device("cpu"))
+    checkpoint_path = source / "checkpoints" / "last.pt"
+    checkpoint = load_checkpoint(checkpoint_path, trusted=True)
+    checkpoint.pop("rng_by_rank", None)
+    atomic_torch_save(checkpoint, checkpoint_path)
+    monkeypatch.setattr(
+        "zcp_test.training.trainer._restore_checkpoint_rng",
+        lambda *args, **kwargs: pytest.fail("RNG restore should not run after the final epoch"),
+    )
+
+    result = train_model(
+        model,
+        loader,
+        loader,
+        config,
+        tmp_path / "resumed",
+        torch.device("cpu"),
+        checkpoint_path,
+        resume_trusted=True,
+    )
+
+    assert result["last_epoch"] == 0
+    assert result["resumed_training_rows"] == 1
 
 
 def test_training_scheduler_dispatch_and_resume_identity(tmp_path):

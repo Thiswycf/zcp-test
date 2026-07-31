@@ -43,6 +43,33 @@ class TrainingConfig:
     exclude_bias_norm_from_weight_decay: bool = False
 
 
+def _normalized_checkpoint_config(payload: Any) -> dict[str, Any]:
+    if not isinstance(payload, dict):
+        raise ValueError("Checkpoint training config must be a mapping")
+    try:
+        return TrainingConfig(**payload).__dict__
+    except TypeError as error:
+        raise ValueError("Checkpoint training config has unsupported fields") from error
+
+
+def _normalized_checkpoint_identity(payload: Any) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    if not isinstance(payload, dict):
+        raise ValueError("Checkpoint run identity must be a mapping")
+    identity = dict(payload)
+    if "data_fraction" not in identity:
+        training_mode = identity.get("training_mode")
+        acceptance_protocol = identity.get("acceptance_protocol")
+        if training_mode == "real_data_preflight":
+            identity["data_fraction"] = 1.0
+        elif acceptance_protocol == "one_percent_data_protocol":
+            identity["data_fraction"] = 0.01
+        elif acceptance_protocol == "one_percent_epochs_protocol":
+            identity["data_fraction"] = 1.0
+    return identity
+
+
 def _optimizer_parameter_groups(
     model: Any, weight_decay: float, exclude_bias_norm: bool
 ) -> Any:
@@ -259,16 +286,17 @@ def train_model(
     resumed_training_rows = 0
     if resume:
         checkpoint = load_checkpoint(resume, trusted=resume_trusted)
-        if checkpoint.get("config") != config.__dict__:
+        if _normalized_checkpoint_config(checkpoint.get("config")) != config.__dict__:
             raise ValueError("Checkpoint training config does not match the requested config")
-        if checkpoint.get("run_identity") != run_identity:
+        if _normalized_checkpoint_identity(checkpoint.get("run_identity")) != run_identity:
             raise ValueError("Checkpoint architecture or protocol identity does not match this run")
         getattr(model, "module", model).load_state_dict(checkpoint["model"])
         optimizer.load_state_dict(checkpoint["optimizer"])
         scheduler.load_state_dict(checkpoint["scheduler"])
         scaler.load_state_dict(checkpoint["scaler"])
-        _restore_checkpoint_rng(checkpoint, distributed, distributed_rank)
         start_epoch, best_accuracy = checkpoint["epoch"] + 1, checkpoint["best_accuracy"]
+        if start_epoch < config.epochs:
+            _restore_checkpoint_rng(checkpoint, distributed, distributed_rank)
         resumed_training_rows = _restore_training_log(
             writer,
             checkpoint.get("training_log"),
