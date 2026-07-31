@@ -770,7 +770,11 @@ def _stratified_subset(dataset: Any, fraction: float, seed: int) -> Any:
     for index, target in enumerate(targets):
         groups.setdefault(int(target), []).append(index)
     rng = random.Random(seed)
-    target_size = max(1, round(len(targets) * fraction))
+    if len(targets) != len(dataset):
+        raise ValueError("dataset class targets must match dataset length")
+    target_size = round(len(targets) * fraction)
+    if target_size == 0:
+        raise ValueError("data fraction rounds to an empty subset")
     class_order = list(groups)
     rng.shuffle(class_order)
     quotas: dict[int, int] = {}
@@ -797,6 +801,8 @@ def _stratified_subset(dataset: Any, fraction: float, seed: int) -> Any:
     for class_id, indices in groups.items():
         rng.shuffle(indices)
         selected.extend(indices[: quotas[class_id]])
+    if len(selected) != target_size:
+        raise RuntimeError("stratified subset size does not match its global target")
     return torch.utils.data.Subset(dataset, sorted(selected))
 
 
@@ -1984,6 +1990,7 @@ def command_train(args: argparse.Namespace) -> None:
                     "input_size": input_size,
                     "model_fidelity": model_fidelity,
                     "seed": args.seed,
+                    "data_fraction": args.data_fraction,
                     "training_mode": (
                         "synthetic_smoke"
                         if args.smoke

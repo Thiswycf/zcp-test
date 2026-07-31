@@ -4,6 +4,8 @@ import math
 from collections.abc import Mapping
 from typing import Any
 
+ONE_PERCENT_DATA_FRACTION = 0.01
+
 
 FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
     "darts-original-cifar10": {
@@ -260,7 +262,7 @@ def resolve_acceptance_protocol(
     minimum_full_data_epochs = max(1, math.ceil(formal_epochs * 0.01))
     if data_fraction == 1.0 and minimum_full_data_epochs <= epochs <= formal_epochs:
         return "full_data_one_percent_epochs"
-    if data_fraction == 0.01 and epochs == formal_epochs:
+    if data_fraction == ONE_PERCENT_DATA_FRACTION and epochs == formal_epochs:
         return "one_percent_data_protocol"
     raise ValueError(
         "Acceptance training must use either full data with at least 1% epochs or "

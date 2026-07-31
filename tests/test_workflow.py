@@ -1,4 +1,5 @@
 import json
+from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
@@ -167,9 +168,27 @@ def test_explicit_missing_benchmark_path_does_not_fall_back_to_catalog(tmp_path)
         )
 
 
-def test_one_percent_subset_is_deterministic_and_stratified():
+@pytest.mark.parametrize(
+    ("dataset_name", "split", "sample_count", "class_count", "expected_size", "counts"),
+    [
+        ("cifar10", "train", 50_000, 10, 500, {50}),
+        ("cifar10", "valid", 10_000, 10, 100, {10}),
+        ("cifar100", "train", 50_000, 100, 500, {5}),
+        ("cifar100", "valid", 10_000, 100, 100, {1}),
+        ("imagenet1k", "train", 1_281_167, 1000, 12_812, {12, 13}),
+        ("imagenet1k", "valid", 50_000, 1000, 500, {1}),
+    ],
+)
+def test_one_percent_subset_matches_canonical_split_sizes_and_distribution(
+    dataset_name,
+    split,
+    sample_count,
+    class_count,
+    expected_size,
+    counts,
+):
     class Dataset(torch.utils.data.Dataset):
-        targets = [class_index for class_index in range(4) for _ in range(100)]
+        targets = [index % class_count for index in range(sample_count)]
 
         def __len__(self):
             return len(self.targets)
@@ -177,16 +196,21 @@ def test_one_percent_subset_is_deterministic_and_stratified():
         def __getitem__(self, index):
             return index, self.targets[index]
 
-    first = _stratified_subset(Dataset(), 0.01, 7)
-    second = _stratified_subset(Dataset(), 0.01, 7)
+    dataset = Dataset()
+    first = _stratified_subset(dataset, 0.01, 2026)
+    second = _stratified_subset(dataset, 0.01, 2026)
+    selected_counts = Counter(dataset.targets[index] for index in first.indices)
+
+    assert len(first) == expected_size, (dataset_name, split)
     assert first.indices == second.indices
-    assert len(first) == 4
-    assert {Dataset.targets[index] for index in first.indices} == {0, 1, 2, 3}
+    assert set(selected_counts.values()) == counts
+    if expected_size < class_count:
+        assert len(selected_counts) == expected_size
 
 
-def test_one_percent_subset_uses_exact_global_target_for_many_small_classes():
+def test_stratified_subset_fails_closed_when_global_target_is_empty():
     class Dataset(torch.utils.data.Dataset):
-        targets = [class_index for class_index in range(1000) for _ in range(50)]
+        targets = [0] * 49
 
         def __len__(self):
             return len(self.targets)
@@ -194,11 +218,8 @@ def test_one_percent_subset_uses_exact_global_target_for_many_small_classes():
         def __getitem__(self, index):
             return index, self.targets[index]
 
-    first = _stratified_subset(Dataset(), 0.01, 2026)
-    second = _stratified_subset(Dataset(), 0.01, 2026)
-    assert len(first) == 500
-    assert first.indices == second.indices
-    assert len({Dataset.targets[index] for index in first.indices}) == 500
+    with pytest.raises(ValueError, match="empty subset"):
+        _stratified_subset(Dataset(), 0.01, 7)
 
 
 def test_config_cannot_enable_trusted_execution(tmp_path):
@@ -388,6 +409,15 @@ def test_darts_acceptance_minimum_full_data_epochs(config_path, minimum_epochs):
         resolve_acceptance_protocol(config, minimum_epochs - 1, 1.0)
 
 
+@pytest.mark.parametrize("data_fraction", [0.0100001, 0.010001, 0.0099999])
+def test_one_percent_acceptance_rejects_nearby_fractions(data_fraction):
+    config = yaml.safe_load(
+        Path("configs/training/darts_cifar10.yaml").read_text(encoding="utf-8")
+    )
+    with pytest.raises(ValueError, match="exactly 1% data"):
+        resolve_acceptance_protocol(config, 600, data_fraction)
+
+
 @pytest.mark.parametrize(
     ("mode", "epochs", "data_fraction", "expected_protocol", "expected_training_mode"),
     [
@@ -475,6 +505,7 @@ def test_darts_real_data_modes_resolve_config_identity_and_ddp_batch(
     assert captured["run_identity"]["acceptance_protocol"] == expected_protocol
     assert captured["run_identity"]["training_mode"] == expected_training_mode
     assert captured["run_identity"]["seed"] == 42
+    assert captured["run_identity"]["data_fraction"] == data_fraction
 
 
 def test_training_smoke_modes_are_mutually_exclusive():

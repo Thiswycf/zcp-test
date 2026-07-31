@@ -350,7 +350,12 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
         scheduler_gamma=0.5,
         nesterov=False,
     )
-    identity = {"architecture_id": "a", "protocol": "test"}
+    identity = {
+        "architecture_id": "a",
+        "protocol": "test",
+        "acceptance_protocol": "one_percent_data_protocol",
+        "data_fraction": 0.01,
+    }
     train_model(
         model,
         loader,
@@ -368,6 +373,8 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
     assert record["valid_samples_per_second"] > 0
     assert record["peak_memory_mb"] is None
     assert record["peak_reserved_memory_mb"] is None
+    checkpoint = load_checkpoint(tmp_path / "checkpoints" / "last.pt", trusted=True)
+    assert checkpoint["run_identity"] == identity
     resumed = tmp_path / "resumed"
     result = train_model(
         torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)),
@@ -392,7 +399,7 @@ def test_training_scheduler_dispatch_and_resume_identity(tmp_path):
             torch.device("cpu"),
             tmp_path / "checkpoints" / "last.pt",
             resume_trusted=True,
-            run_identity={"architecture_id": "different", "protocol": "test"},
+            run_identity={**identity, "data_fraction": 0.0100001},
         )
 
 
