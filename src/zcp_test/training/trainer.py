@@ -41,6 +41,7 @@ class TrainingConfig:
     gradient_accumulation_steps: int = 1
     schedule_epochs: int | None = None
     exclude_bias_norm_from_weight_decay: bool = False
+    exclude_norm_from_weight_decay: bool = False
 
 
 def _normalized_checkpoint_config(payload: Any) -> dict[str, Any]:
@@ -71,22 +72,46 @@ def _normalized_checkpoint_identity(payload: Any) -> dict[str, Any] | None:
 
 
 def _optimizer_parameter_groups(
-    model: Any, weight_decay: float, exclude_bias_norm: bool
+    model: Any,
+    weight_decay: float,
+    exclude_bias_norm: bool,
+    exclude_norm: bool = False,
 ) -> Any:
-    if not exclude_bias_norm:
+    if not exclude_bias_norm and not exclude_norm:
         return model.parameters()
+    import torch
+
     unwrapped = getattr(model, "module", model)
     declared = (
         set(unwrapped.no_weight_decay())
         if callable(getattr(unwrapped, "no_weight_decay", None))
         else set()
     )
+    normalization_ids = {
+        id(parameter)
+        for module in unwrapped.modules()
+        if isinstance(
+            module,
+            (
+                torch.nn.modules.batchnorm._BatchNorm,
+                torch.nn.LayerNorm,
+                torch.nn.GroupNorm,
+                torch.nn.InstanceNorm1d,
+                torch.nn.InstanceNorm2d,
+                torch.nn.InstanceNorm3d,
+            ),
+        )
+        for parameter in module.parameters(recurse=False)
+    }
     decay = []
     no_decay = []
     for name, parameter in unwrapped.named_parameters():
         if not parameter.requires_grad:
             continue
-        if parameter.ndim <= 1 or name.endswith(".bias") or name in declared:
+        excluded_by_autoformer_policy = exclude_bias_norm and (
+            parameter.ndim <= 1 or name.endswith(".bias") or name in declared
+        )
+        if excluded_by_autoformer_policy or (exclude_norm and id(parameter) in normalization_ids):
             no_decay.append(parameter)
         else:
             decay.append(parameter)
@@ -112,12 +137,8 @@ def _cosine_learning_rate(config: TrainingConfig, epoch: int, schedule_epochs: i
         if not 0 <= warmup <= base:
             raise ValueError("warmup_learning_rate must be between zero and learning_rate")
         return warmup + (base - warmup) * epoch / config.warmup_epochs
-    progress = (epoch - config.warmup_epochs) / max(
-        1, schedule_epochs - config.warmup_epochs
-    )
-    return minimum + 0.5 * (base - minimum) * (
-        1.0 + math.cos(math.pi * min(1.0, progress))
-    )
+    progress = (epoch - config.warmup_epochs) / max(1, schedule_epochs - config.warmup_epochs)
+    return minimum + 0.5 * (base - minimum) * (1.0 + math.cos(math.pi * min(1.0, progress)))
 
 
 def _restore_training_log(
@@ -173,9 +194,7 @@ def _restore_checkpoint_rng(
         restore_rng(checkpoint["rng"])
         return
     if not isinstance(states, list):
-        raise ValueError(
-            "Distributed resume requires a checkpoint with rank-local RNG states"
-        )
+        raise ValueError("Distributed resume requires a checkpoint with rank-local RNG states")
     world_size = torch.distributed.get_world_size()
     if len(states) != world_size:
         raise ValueError(
@@ -234,6 +253,7 @@ def train_model(
             model,
             config.weight_decay,
             config.exclude_bias_norm_from_weight_decay,
+            config.exclude_norm_from_weight_decay,
         )
         optimizer = torch.optim.AdamW(
             parameters,
@@ -241,8 +261,14 @@ def train_model(
             weight_decay=config.weight_decay,
         )
     elif config.optimizer.lower() == "sgd":
+        parameters = _optimizer_parameter_groups(
+            model,
+            config.weight_decay,
+            config.exclude_bias_norm_from_weight_decay,
+            config.exclude_norm_from_weight_decay,
+        )
         optimizer = torch.optim.SGD(
-            model.parameters(),
+            parameters,
             config.learning_rate,
             momentum=config.momentum,
             nesterov=config.nesterov,
@@ -254,9 +280,26 @@ def train_model(
     schedule_epochs = config.epochs if config.schedule_epochs is None else config.schedule_epochs
     if schedule_epochs < config.epochs:
         raise ValueError("schedule_epochs must be greater than or equal to epochs")
+    if config.gradient_accumulation_steps <= 0:
+        raise ValueError("gradient_accumulation_steps must be positive")
+    scheduler_steps_per_epoch = math.ceil(len(train_loader) / config.gradient_accumulation_steps)
+    scheduler_per_optimizer_step = scheduler_name == "cosine_step"
     if scheduler_name == "cosine":
+
         def learning_rate_multiplier(epoch: int) -> float:
             return _cosine_learning_rate(config, epoch, schedule_epochs) / config.learning_rate
+
+        scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, learning_rate_multiplier)
+    elif scheduler_name == "cosine_step":
+        if config.warmup_epochs or config.warmup_learning_rate is not None:
+            raise ValueError("cosine_step does not support warmup")
+        if config.minimum_learning_rate:
+            raise ValueError("cosine_step does not support minimum_learning_rate")
+        total_steps = schedule_epochs * scheduler_steps_per_epoch
+
+        def learning_rate_multiplier(step: int) -> float:
+            progress = min(1.0, step / max(1, total_steps))
+            return 0.5 * (1.0 + math.cos(math.pi * progress))
 
         scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, learning_rate_multiplier)
     elif scheduler_name == "step":
@@ -311,9 +354,7 @@ def train_model(
         epoch_learning_rate = float(optimizer.param_groups[0]["lr"])
         unwrapped_model = getattr(model, "module", model)
         if hasattr(unwrapped_model, "drop_path_prob"):
-            unwrapped_model.drop_path_prob = config.drop_path_prob * epoch / max(
-                1, schedule_epochs
-            )
+            unwrapped_model.drop_path_prob = config.drop_path_prob * epoch / max(1, schedule_epochs)
         if device.type == "cuda":
             torch.cuda.synchronize(device)
             torch.cuda.reset_peak_memory_stats(device)
@@ -328,6 +369,7 @@ def train_model(
             optimizer,
             scaler,
             mixup_fn,
+            scheduler if scheduler_per_optimizer_step else None,
         )
         if device.type == "cuda":
             torch.cuda.synchronize(device)
@@ -340,7 +382,7 @@ def train_model(
             torch.cuda.synchronize(device)
         valid_duration = time.perf_counter() - valid_started
         duration = time.perf_counter() - started
-        if optimizer_steps:
+        if optimizer_steps and not scheduler_per_optimizer_step:
             scheduler.step()
         train_accuracy = 100.0 * train_top1 / max(1, train_count)
         valid_accuracy = 100.0 * valid_top1 / max(1, valid_count)
@@ -378,7 +420,20 @@ def train_model(
         best_accuracy = max(best_accuracy, valid_accuracy)
         checkpoint_rng = _collect_checkpoint_rng(distributed, distributed_rank)
         if primary_process:
-            payload = {"epoch": epoch, "best_accuracy": best_accuracy, "model": unwrapped_model.state_dict(), "optimizer": optimizer.state_dict(), "scheduler": scheduler.state_dict(), "scaler": scaler.state_dict(), **checkpoint_rng, "config": config.__dict__, "run_identity": run_identity, "training_log": str(writer.path.resolve()), "training_history": list(read_jsonl(writer.path)), "run_directory": str(output.resolve())}
+            payload = {
+                "epoch": epoch,
+                "best_accuracy": best_accuracy,
+                "model": unwrapped_model.state_dict(),
+                "optimizer": optimizer.state_dict(),
+                "scheduler": scheduler.state_dict(),
+                "scaler": scaler.state_dict(),
+                **checkpoint_rng,
+                "config": config.__dict__,
+                "run_identity": run_identity,
+                "training_log": str(writer.path.resolve()),
+                "training_history": list(read_jsonl(writer.path)),
+                "run_directory": str(output.resolve()),
+            }
             atomic_torch_save(payload, output / "checkpoints" / "last.pt")
             if record["best"]:
                 atomic_torch_save(payload, output / "checkpoints" / "best.pt")
@@ -400,6 +455,7 @@ def _epoch(
     optimizer: Any | None = None,
     scaler: Any | None = None,
     mixup_fn: Any | None = None,
+    step_scheduler: Any | None = None,
 ) -> tuple[float, int, int, int, int]:
     import torch
 
@@ -430,7 +486,12 @@ def _epoch(
             else nullcontext()
         )
         with synchronization:
-            with torch.set_grad_enabled(training), torch.autocast(device_type=device.type, enabled=scaler is not None and scaler.is_enabled()):
+            with (
+                torch.set_grad_enabled(training),
+                torch.autocast(
+                    device_type=device.type, enabled=scaler is not None and scaler.is_enabled()
+                ),
+            ):
                 raw_output = (
                     model(inputs, return_auxiliary=True)
                     if training and supports_auxiliary and config.auxiliary_weight
@@ -464,7 +525,10 @@ def _epoch(
                 scale_before = scaler.get_scale()
                 scaler.step(optimizer)
                 scaler.update()
-                optimizer_steps += int(scaler.get_scale() >= scale_before)
+                step_succeeded = scaler.get_scale() >= scale_before
+                optimizer_steps += int(step_succeeded)
+                if step_succeeded and step_scheduler is not None:
+                    step_scheduler.step()
                 accumulated_batches = 0
         total_loss += float(loss.detach()) * labels.size(0)
         predictions = output.topk(min(5, output.shape[1]), dim=1).indices

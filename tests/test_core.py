@@ -49,16 +49,44 @@ def test_runtime_package_versions_skip_uninstalled_packages(monkeypatch):
 
 def test_spaces_and_cache_keys():
     load_builtin_spaces()
-    expected = {"nb201_topology", "nats_size", "nb101_dag", "nb101_toy_legacy", "darts", "darts_toy_legacy", "transnas_micro", "transnas_macro", "autoformer", "pit", "zennas_plainnet_mbv2", "ofa_proxyless_mbv2", "ofa_mbv3"}
+    expected = {
+        "nb201_topology",
+        "nats_size",
+        "nb101_dag",
+        "nb101_toy_legacy",
+        "darts",
+        "darts_toy_legacy",
+        "transnas_micro",
+        "transnas_macro",
+        "autoformer",
+        "pit",
+        "zennas_plainnet_mbv2",
+        "ofa_proxyless_mbv2",
+        "ofa_mbv3",
+    }
     assert expected == set(SPACES.names())
     architecture = SPACES.create("darts").sample(1)
-    assert cache_key(architecture, "er", "cifar10", 1, "x") != cache_key(architecture, "er", "cifar100", 1, "x")
+    assert cache_key(architecture, "er", "cifar10", 1, "x") != cache_key(
+        architecture, "er", "cifar100", 1, "x"
+    )
 
 
 def test_proxy_state_isolation():
-    model = torch.nn.Sequential(torch.nn.Conv2d(3, 4, 3, padding=1), torch.nn.ReLU(), torch.nn.AdaptiveAvgPool2d(1), torch.nn.Flatten(), torch.nn.Linear(4, 3))
+    model = torch.nn.Sequential(
+        torch.nn.Conv2d(3, 4, 3, padding=1),
+        torch.nn.ReLU(),
+        torch.nn.AdaptiveAvgPool2d(1),
+        torch.nn.Flatten(),
+        torch.nn.Linear(4, 3),
+    )
     before = {name: value.clone() for name, value in model.state_dict().items()}
-    result = evaluate_proxy("gradnorm", model, torch.randn(2, 3, 8, 8), torch.tensor([0, 1]), torch.nn.CrossEntropyLoss())
+    result = evaluate_proxy(
+        "gradnorm",
+        model,
+        torch.randn(2, 3, 8, 8),
+        torch.tensor([0, 1]),
+        torch.nn.CrossEntropyLoss(),
+    )
     assert result.status.value == "ok"
     assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
 
@@ -244,8 +272,7 @@ def test_statistics_and_search(tmp_path):
     )
     assert search.run(1).architecture.search_space_id == "darts"
     assert all(
-        row["weight_mode"] == "inherited_supernet"
-        for row in read_jsonl(tmp_path / "search.jsonl")
+        row["weight_mode"] == "inherited_supernet" for row in read_jsonl(tmp_path / "search.jsonl")
     )
 
 
@@ -337,7 +364,9 @@ def test_training_artifacts(tmp_path):
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 8 * 8, 2))
     data = torch.utils.data.TensorDataset(torch.randn(8, 3, 8, 8), torch.randint(2, (8,)))
     loader = torch.utils.data.DataLoader(data, batch_size=4)
-    train_model(model, loader, loader, TrainingConfig(1, "sgd", 0.01, 0), tmp_path, torch.device("cpu"))
+    train_model(
+        model, loader, loader, TrainingConfig(1, "sgd", 0.01, 0), tmp_path, torch.device("cpu")
+    )
     assert (tmp_path / "checkpoints" / "last.pt").exists()
 
 
@@ -370,6 +399,49 @@ def test_autoformer_optimizer_exempts_bias_norm_and_tokens_from_weight_decay():
     assert names["head.bias"] in no_decay_ids
     assert names["head.weight"] in decay_ids
     assert not decay_ids & no_decay_ids
+
+
+def test_proxyless_optimizer_exempts_only_normalization_from_weight_decay():
+    model = torch.nn.Sequential(
+        torch.nn.Conv2d(3, 4, 3, bias=True),
+        torch.nn.BatchNorm2d(4),
+        torch.nn.Flatten(),
+        torch.nn.Linear(16, 2, bias=True),
+    )
+    groups = _optimizer_parameter_groups(model, 4e-5, False, True)
+    decay_ids = {id(parameter) for parameter in groups[0]["params"]}
+    no_decay_ids = {id(parameter) for parameter in groups[1]["params"]}
+
+    assert id(model[1].weight) in no_decay_ids
+    assert id(model[1].bias) in no_decay_ids
+    assert id(model[0].bias) in decay_ids
+    assert id(model[3].bias) in decay_ids
+
+
+def test_cosine_step_scheduler_matches_proxyless_batch_schedule(tmp_path):
+    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
+    loader = torch.utils.data.DataLoader(
+        torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,))),
+        batch_size=2,
+        shuffle=False,
+    )
+    config = TrainingConfig(
+        1,
+        "sgd",
+        0.1,
+        0.0,
+        scheduler="cosine_step",
+        amp=False,
+        nesterov=False,
+    )
+
+    train_model(model, loader, loader, config, tmp_path, torch.device("cpu"))
+
+    record = next(read_jsonl(tmp_path / "training.jsonl"))
+    checkpoint = load_checkpoint(tmp_path / "checkpoints" / "last.pt", trusted=True)
+    assert record["learning_rate"] == pytest.approx(0.1)
+    assert record["next_learning_rate"] == pytest.approx(0.0)
+    assert checkpoint["scheduler"]["last_epoch"] == 2
 
 
 def test_autoformer_cosine_schedule_matches_aznas_warmup_and_floor():
@@ -433,9 +505,7 @@ def test_training_keeps_label_smoothing_without_mixup(tmp_path, monkeypatch):
     monkeypatch.setattr(torch.nn.functional, "cross_entropy", recording_cross_entropy)
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 3))
     loader = torch.utils.data.DataLoader(
-        torch.utils.data.TensorDataset(
-            torch.randn(4, 3, 4, 4), torch.tensor([0, 1, 2, 1])
-        ),
+        torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.tensor([0, 1, 2, 1])),
         batch_size=2,
         shuffle=False,
     )
@@ -497,9 +567,7 @@ def test_checkpoint_identity_normalizes_only_known_legacy_fraction_protocols(
 
 def test_completed_checkpoint_does_not_require_rng_restore(tmp_path, monkeypatch):
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
-    data = torch.utils.data.TensorDataset(
-        torch.randn(4, 3, 4, 4), torch.randint(2, (4,))
-    )
+    data = torch.utils.data.TensorDataset(torch.randn(4, 3, 4, 4), torch.randint(2, (4,)))
     loader = torch.utils.data.DataLoader(data, batch_size=2)
     config = TrainingConfig(1, "sgd", 0.01, 0.0, scheduler="none", nesterov=False)
     source = tmp_path / "source"
@@ -697,9 +765,7 @@ def test_training_gradient_accumulation_steps_and_no_sync(tmp_path):
     class AccumulationModel(torch.nn.Module):
         def __init__(self):
             super().__init__()
-            self.network = torch.nn.Sequential(
-                torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2)
-            )
+            self.network = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(3 * 4 * 4, 2))
             self.no_sync_calls = 0
 
         @contextmanager
@@ -762,9 +828,7 @@ def test_non_primary_distributed_rank_does_not_write_artifacts(monkeypatch, tmp_
 
 def test_distributed_checkpoint_collects_and_restores_rank_local_rng(monkeypatch):
     rank_one_state = {"rank": 1}
-    monkeypatch.setattr(
-        "zcp_test.training.trainer.rng_state", lambda: rank_one_state
-    )
+    monkeypatch.setattr("zcp_test.training.trainer.rng_state", lambda: rank_one_state)
     monkeypatch.setattr(torch.distributed, "get_world_size", lambda: 2)
 
     def gather(states, local_state):
@@ -788,6 +852,4 @@ def test_distributed_resume_rejects_legacy_or_wrong_world_size_rng(monkeypatch):
     with pytest.raises(ValueError, match="rank-local RNG"):
         _restore_checkpoint_rng({"rng": {"rank": 0}}, True, 1)
     with pytest.raises(ValueError, match="world size"):
-        _restore_checkpoint_rng(
-            {"rng": {"rank": 0}, "rng_by_rank": [{"rank": 0}]}, True, 1
-        )
+        _restore_checkpoint_rng({"rng": {"rank": 0}, "rng_by_rank": [{"rank": 0}]}, True, 1)

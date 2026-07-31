@@ -29,6 +29,7 @@ TRAIN_PROFILE_KEYS = frozenset(
         "dropout",
         "epochs",
         "exclude_bias_norm_from_weight_decay",
+        "exclude_norm_from_weight_decay",
         "formal_training_blockers",
         "formal_training_ready",
         "global_pool",
@@ -51,6 +52,7 @@ TRAIN_PROFILE_KEYS = frozenset(
         "mixup_probability",
         "mixup_switch_probability",
         "model_profile",
+        "model_init",
         "momentum",
         "nesterov",
         "optimizer",
@@ -97,9 +99,7 @@ def reject_unknown_config_keys(
 ) -> None:
     unknown = sorted(set(values) - set(allowed))
     if unknown:
-        raise ValueError(
-            f"Config section {section!r} contains unknown keys: " + ", ".join(unknown)
-        )
+        raise ValueError(f"Config section {section!r} contains unknown keys: " + ", ".join(unknown))
 
 
 def merge_config(base: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:

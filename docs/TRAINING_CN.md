@@ -10,7 +10,7 @@
 |---|---|---|---|
 | `darts` | `reference_model` | 已放行，尚未完成高成本精度验收 | CIFAR-10/100、原始 DARTS ImageNet、TE-NAS retrain 分 profile |
 | `autoformer` | `reference_model` | **阻断** | AZ-NAS Tiny/Small 500-epoch profile、no-decay、warmup/min-LR、plain validation CE 已锁定；双重 1% GPU 验收未完成 |
-| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 权重协议已分离；正式训练仍缺颜色扰动、MAC 与分布式验收 |
+| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 已分离；`he_fout`、batch-cosine、TF color jitter、BN no-decay/recalibration 已锁定，仍缺 MAC golden 与双重 1% GPU 验收 |
 | `zennas_plainnet_mbv2` | `proxy_approximation` | **禁止正式训练** | 当前固定 stage MBConv 编码不是 ZenNAS/AZ-NAS structure-string 搜索空间；必须完成真实 PlainNet port 后才能升级 |
 | `pit` | `reference_topology_pytorch_port` | **尚无正式配置** | Auto-Prox `90ed458` 三阶段拓扑、参数/MAC fixture 已核对；缺 checkpoint/逐层数值对照，ViT-Bench vanilla/KD 真值只用于查询 |
 | `ofa_mbv3` | `reference_model` | **尚无正式配置** | 官方五阶段/20-block 静态子网与 BN recalibration；尚未接入 inherited checkpoint/active weight export |
@@ -19,6 +19,8 @@
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)；
 AutoFormer optimizer、LR 与 validation 协议证据见
 [`evidence/AUTOFORMER_TRAINING_PROTOCOL_CN.md`](evidence/AUTOFORMER_TRAINING_PROTOCOL_CN.md)。
+OFA/Proxyless-MBV2 scratch 与 inherited 边界、逐 batch cosine 及 BN 协议见
+[`evidence/OFA_PROXYLESS_TRAINING_PROTOCOL_CN.md`](evidence/OFA_PROXYLESS_TRAINING_PROTOCOL_CN.md)。
 
 模型为 `reference_model` 不自动表示训练协议完备。非 smoke 训练同时要求配置
 `formal_training_ready: true`，并且 `protocol` 及关键超参数必须匹配当前版本代码内置的已验收

@@ -93,6 +93,30 @@ FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
 }
 
 CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
+    "proxylessnas-mbv2-scratch-b23018c9": {
+        "space": "ofa_proxyless_mbv2",
+        "dataset": "imagenet1k",
+        "input_size": 224,
+        "epochs": 150,
+        "optimizer": "sgd",
+        "learning_rate": 0.05,
+        "momentum": 0.9,
+        "nesterov": True,
+        "weight_decay": 0.00004,
+        "exclude_norm_from_weight_decay": True,
+        "scheduler": "cosine_step",
+        "warmup_epochs": 0,
+        "batch_size": 256,
+        "batch_size_semantics": "global",
+        "test_batch_size": 500,
+        "label_smoothing": 0.1,
+        "resize_scale": 0.08,
+        "color_distortion": "tf",
+        "model_init": "he_fout",
+        "amp": True,
+        "deterministic": True,
+        "implementation_commit": "b23018c9c369d22931f7422b71ca6a7eaa354c46",
+    },
     "aznas-autoformer-scratch": {
         "space": "autoformer",
         "dataset": "imagenet1k",
@@ -139,7 +163,7 @@ CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "global_pool": True,
         "implementation_source": "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer",
         "implementation_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
-    }
+    },
 }
 
 

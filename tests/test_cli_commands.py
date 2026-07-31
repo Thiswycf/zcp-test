@@ -28,6 +28,37 @@ def test_evaluation_summary_does_not_count_unsupported_as_failed():
     }
 
 
+def test_imagenet_tf_color_distortion_matches_proxyless_protocol():
+    from torchvision import transforms
+
+    train_transform, valid_transform = cli._imagenet_transforms(
+        224,
+        {"resize_scale": 0.08, "color_distortion": "tf"},
+    )
+    crop = next(
+        transform
+        for transform in train_transform.transforms
+        if isinstance(transform, transforms.RandomResizedCrop)
+    )
+    jitter = next(
+        transform
+        for transform in train_transform.transforms
+        if isinstance(transform, transforms.ColorJitter)
+    )
+    resize = next(
+        transform
+        for transform in valid_transform.transforms
+        if isinstance(transform, transforms.Resize)
+    )
+
+    assert crop.scale == pytest.approx((0.08, 1.0))
+    assert jitter.brightness == pytest.approx((1 - 32 / 255, 1 + 32 / 255))
+    assert jitter.saturation == pytest.approx((0.5, 1.5))
+    assert jitter.contrast is None
+    assert jitter.hue is None
+    assert resize.size == 256
+
+
 def test_json_output_does_not_fail_completed_work_on_broken_pipe(monkeypatch):
     class BrokenStream:
         def write(self, value):

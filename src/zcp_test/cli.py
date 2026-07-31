@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import signal
 import sys
@@ -636,6 +637,62 @@ def _synthetic_loader(batch_size: int, input_size: int, classes: int, batches: i
     return torch.utils.data.DataLoader(dataset, batch_size=batch_size)
 
 
+def _imagenet_transforms(input_size: int, config: dict[str, Any]) -> tuple[Any, Any]:
+    from torchvision import transforms
+
+    if config.get("auto_augment") or config.get("random_erase_probability"):
+        from timm.data import create_transform
+
+        train_transform = create_transform(
+            input_size=input_size,
+            is_training=True,
+            color_jitter=float(config.get("color_jitter", 0.4)),
+            auto_augment=config.get("auto_augment"),
+            interpolation=str(config.get("train_interpolation", "bicubic")),
+            re_prob=float(config.get("random_erase_probability", 0.0)),
+            re_mode=str(config.get("random_erase_mode", "pixel")),
+            re_count=int(config.get("random_erase_count", 1)),
+        )
+    else:
+        distortion = str(config.get("color_distortion", "torch")).casefold()
+        if distortion in {"tf", "tensorflow"}:
+            color_transform = transforms.ColorJitter(
+                brightness=32.0 / 255.0,
+                saturation=0.5,
+            )
+        elif distortion in {"torch", "strong"}:
+            color_transform = transforms.ColorJitter(0.4, 0.4, 0.4, 0.2)
+        elif distortion in {"none", "null", "false"}:
+            color_transform = None
+        else:
+            raise ValueError(f"Unsupported ImageNet color_distortion {distortion!r}")
+        train_steps: list[Any] = [
+            transforms.RandomResizedCrop(
+                input_size,
+                scale=(float(config.get("resize_scale", 0.08)), 1.0),
+            ),
+            transforms.RandomHorizontalFlip(),
+        ]
+        if color_transform is not None:
+            train_steps.append(color_transform)
+        train_steps.extend(
+            [
+                transforms.ToTensor(),
+                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+            ]
+        )
+        train_transform = transforms.Compose(train_steps)
+    valid_transform = transforms.Compose(
+        [
+            transforms.Resize(math.ceil(input_size / 0.875)),
+            transforms.CenterCrop(input_size),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
+        ]
+    )
+    return train_transform, valid_transform
+
+
 def _real_loaders(
     dataset: str,
     root: str,
@@ -673,37 +730,7 @@ def _real_loaders(
         train_set = dataset_type(root, train=True, transform=train_transform, download=False)
         valid_set = dataset_type(root, train=False, transform=valid_transform, download=False)
     else:
-        if config.get("auto_augment") or config.get("random_erase_probability"):
-            from timm.data import create_transform
-
-            train_transform = create_transform(
-                input_size=input_size,
-                is_training=True,
-                color_jitter=float(config.get("color_jitter", 0.4)),
-                auto_augment=config.get("auto_augment"),
-                interpolation=str(config.get("train_interpolation", "bicubic")),
-                re_prob=float(config.get("random_erase_probability", 0.0)),
-                re_mode=str(config.get("random_erase_mode", "pixel")),
-                re_count=int(config.get("random_erase_count", 1)),
-            )
-        else:
-            train_transform = transforms.Compose(
-                [
-                    transforms.RandomResizedCrop(input_size, scale=(0.08, 1.0)),
-                    transforms.RandomHorizontalFlip(),
-                    transforms.ColorJitter(0.4, 0.4, 0.4, 0.2),
-                    transforms.ToTensor(),
-                    transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-                ]
-            )
-        valid_transform = transforms.Compose(
-            [
-                transforms.Resize(round(input_size / 0.875)),
-                transforms.CenterCrop(input_size),
-                transforms.ToTensor(),
-                transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),
-            ]
-        )
+        train_transform, valid_transform = _imagenet_transforms(input_size, config)
         root_path = Path(root)
         train_set = datasets.ImageFolder(root_path / "train", train_transform)
         validation_directory = (
@@ -718,7 +745,6 @@ def _real_loaders(
         raise ValueError("distributed_rank must be within distributed_world_size")
     generator = torch.Generator().manual_seed(seed)
     common = {
-        "batch_size": batch_size,
         "num_workers": workers,
         "pin_memory": True,
         "persistent_workers": workers > 0,
@@ -759,12 +785,14 @@ def _real_loaders(
             shuffle=train_sampler is None,
             sampler=train_sampler,
             generator=generator,
+            batch_size=batch_size,
             **common,
         ),
         torch.utils.data.DataLoader(
             valid_set,
             shuffle=False,
             sampler=valid_sampler,
+            batch_size=int(config.get("test_batch_size", batch_size)),
             **common,
         ),
     )
@@ -934,7 +962,9 @@ def _validate_proxy(name: str) -> None:
     state = {key: value.clone() for key, value in model.state_dict().items()}
     modes = [module.training for module in model.modules()]
     gradient_flags = [parameter.requires_grad for parameter in model.parameters()]
-    hooks = sum(len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules())
+    hooks = sum(
+        len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules()
+    )
     python_rng = random.getstate()
     numpy_rng = np.random.get_state()
     torch_rng = torch.get_rng_state().clone()
@@ -950,7 +980,9 @@ def _validate_proxy(name: str) -> None:
     gradient_flags_unchanged = gradient_flags == [
         parameter.requires_grad for parameter in model.parameters()
     ]
-    hooks_after = sum(len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules())
+    hooks_after = sum(
+        len(module._forward_hooks) + len(module._backward_hooks) for module in model.modules()
+    )
     python_rng_unchanged = python_rng == random.getstate()
     numpy_after = np.random.get_state()
     numpy_rng_unchanged = (
@@ -1386,9 +1418,7 @@ def command_evaluate(args: argparse.Namespace) -> None:
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
     if not architectures:
         raise ValueError("evaluate requires at least one architecture")
-    model_provenance = _require_research_model(
-        space, args.allow_approximation, adapter
-    )
+    model_provenance = _require_research_model(space, args.allow_approximation, adapter)
     weight_loader, weight_provenance = _prepare_model_weights(args, space)
     target_epoch_budget = args.epoch_budget
     target_seed_reduction = args.metric_seed_reduction
@@ -1623,9 +1653,7 @@ def command_correlate(args: argparse.Namespace) -> None:
         if key in scores:
             raise ValueError(f"Duplicate score key in correlate input: {key}")
         scores[key] = (
-            score_component(row, args.component)
-            if args.component
-            else row.get(args.score_field),
+            score_component(row, args.component) if args.component else row.get(args.score_field),
             str(row.get("direction", "maximize")),
         )
     targets: dict[Any, Any] = {}
@@ -1646,9 +1674,7 @@ def command_correlate(args: argparse.Namespace) -> None:
         if architecture_id in targets and score is not None:
             if direction not in ("maximize", "minimize"):
                 raise ValueError(f"Unknown score direction {direction!r} for proxy {proxy_id!r}")
-            target_values, score_values, directions = groups.setdefault(
-                proxy_name, ([], [], set())
-            )
+            target_values, score_values, directions = groups.setdefault(proxy_name, ([], [], set()))
             target = float(targets[architecture_id])
             target_values.append(-target if args.target_direction == "minimize" else target)
             numeric_score = float(score)
@@ -1658,9 +1684,7 @@ def command_correlate(args: argparse.Namespace) -> None:
     records = []
     for proxy_id, (target_values, score_values, directions) in groups.items():
         if len(directions) != 1:
-            raise ValueError(
-                f"Mixed score directions for proxy {proxy_id!r}: {sorted(directions)}"
-            )
+            raise ValueError(f"Mixed score directions for proxy {proxy_id!r}: {sorted(directions)}")
         score_direction = next(iter(directions))
         paired_count = len(score_values)
         record = {
@@ -1738,9 +1762,7 @@ def command_search(args: argparse.Namespace) -> None:
             "classes": args.classes,
             "weight_mode": weight_provenance["weight_mode"],
             "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
-            "bn_recalibration_fingerprint": weight_provenance.get(
-                "bn_recalibration_fingerprint"
-            ),
+            "bn_recalibration_fingerprint": weight_provenance.get("bn_recalibration_fingerprint"),
         }
         resume_state = load_search_state(args.resume) if args.resume else None
         if resume_state is not None:
@@ -1983,9 +2005,7 @@ def command_train(args: argparse.Namespace) -> None:
         ),
         minimum_learning_rate=float(config.get("minimum_learning_rate", 0.0)),
         label_smoothing=float(config.get("label_smoothing", 0)),
-        validation_label_smoothing=float(
-            config.get("validation_label_smoothing", 0.0)
-        ),
+        validation_label_smoothing=float(config.get("validation_label_smoothing", 0.0)),
         amp=bool(config.get("amp", True)),
         momentum=float(config.get("momentum", 0.9)),
         nesterov=bool(config.get("nesterov", True)),
@@ -2001,6 +2021,7 @@ def command_train(args: argparse.Namespace) -> None:
         exclude_bias_norm_from_weight_decay=bool(
             config.get("exclude_bias_norm_from_weight_decay", False)
         ),
+        exclude_norm_from_weight_decay=bool(config.get("exclude_norm_from_weight_decay", False)),
         gradient_accumulation_steps=gradient_accumulation_steps,
         schedule_epochs=(
             int(config["epochs"]) if acceptance_smoke or real_data_preflight else epochs
@@ -2872,7 +2893,9 @@ def main(argv: list[str] | None = None) -> None:
         if not isinstance(values, dict):
             raise ValueError(f"Config section {args.command!r} must be a mapping")
         runtime_keys = {key for key in values if hasattr(args, key)}
-        allowed_keys = runtime_keys | (set(TRAIN_PROFILE_KEYS) if args.command == "train" else set())
+        allowed_keys = runtime_keys | (
+            set(TRAIN_PROFILE_KEYS) if args.command == "train" else set()
+        )
         reject_unknown_config_keys(values, allowed_keys, args.command)
         for key, value in values.items():
             if key == "trusted" and value and key not in explicitly_set:

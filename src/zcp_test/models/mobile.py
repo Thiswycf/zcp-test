@@ -14,6 +14,7 @@ No dynamic supernet, inherited weights, or predictor is implemented here.
 from __future__ import annotations
 
 import hashlib
+import math
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 from typing import Any
@@ -178,9 +179,7 @@ class MobileNetV3Block(nn.Module):
         super().__init__()
         hidden = int(round(channels_in * expand_ratio))
         self.inverted = (
-            MobileNetV3Conv(
-                channels_in, hidden, 1, activation=activation
-            )
+            MobileNetV3Conv(channels_in, hidden, 1, activation=activation)
             if expand_ratio != 1
             else nn.Identity()
         )
@@ -242,9 +241,7 @@ class StaticMobileNetV3(nn.Module):
         self.kernel_sizes = kernels
         self.expand_ratios = expansions
         self.first_conv = MobileNetV3Conv(3, widths[0], 3, stride=2, activation="h_swish")
-        self.first_block = MobileNetV3Block(
-            widths[0], widths[1], 3, 1, 1, "relu", False
-        )
+        self.first_block = MobileNetV3Block(widths[0], widths[1], 3, 1, 1, "relu", False)
 
         stage_strides = (2, 2, 2, 1, 2)
         stage_activations = ("relu", "relu", "h_swish", "h_swish", "h_swish")
@@ -278,9 +275,7 @@ class StaticMobileNetV3(nn.Module):
                 channels_in = channels_out
             stages.append(nn.Sequential(*blocks))
         self.stages = nn.ModuleList(stages)
-        self.final_expand = MobileNetV3Conv(
-            channels_in, final_expand, 1, activation="h_swish"
-        )
+        self.final_expand = MobileNetV3Conv(channels_in, final_expand, 1, activation="h_swish")
         self.feature_mix = MobileNetV3Conv(
             final_expand,
             last_channel,
@@ -330,11 +325,32 @@ def recalibrate_batch_norm(
         raise ValueError("model has no BatchNorm2d modules to recalibrate")
     training_states = {module: module.training for module in model.modules()}
     momenta = {module: module.momentum for module in batch_norms}
+    running_sums = {
+        module: [
+            torch.zeros_like(module.running_mean),
+            torch.zeros_like(module.running_var),
+            0,
+        ]
+        for module in batch_norms
+    }
+    hooks: list[torch.utils.hooks.RemovableHandle] = []
+
+    def accumulate_statistics(module: nn.Module, module_inputs: tuple[Tensor, ...]) -> None:
+        assert isinstance(module, nn.BatchNorm2d)
+        inputs = module_inputs[0].detach()
+        sample_count = inputs.shape[0]
+        channel_dims = (0, 2, 3)
+        sums = running_sums[module]
+        sums[0].add_(inputs.mean(channel_dims) * sample_count)
+        sums[1].add_(inputs.var(channel_dims, unbiased=False) * sample_count)
+        sums[2] += sample_count
+
     model.eval()
     for module in batch_norms:
         module.reset_running_stats()
         module.momentum = None
         module.train()
+        hooks.append(module.register_forward_pre_hook(accumulate_statistics))
 
     processed = 0
     try:
@@ -346,15 +362,40 @@ def recalibrate_batch_norm(
                 model(inputs.to(device))
                 processed += 1
     finally:
+        for hook in hooks:
+            hook.remove()
         for module, momentum in momenta.items():
             module.momentum = momentum
         for module, training in training_states.items():
             module.train(training)
     if processed == 0:
         raise ValueError("BatchNorm recalibration requires at least one batch")
+    with torch.no_grad():
+        for module, (mean_sum, variance_sum, sample_count) in running_sums.items():
+            if sample_count:
+                module.running_mean.copy_(mean_sum / sample_count)
+                module.running_var.copy_(variance_sum / sample_count)
     if hasattr(model, "bn_recalibrated_batches"):
         model.bn_recalibrated_batches = processed
     return processed
+
+
+def _initialize_he_fout(model: nn.Module) -> None:
+    with torch.no_grad():
+        for module in model.modules():
+            if isinstance(module, nn.Conv2d):
+                fan_out = module.kernel_size[0] * module.kernel_size[1] * module.out_channels
+                module.weight.normal_(0, math.sqrt(2.0 / fan_out))
+                if module.bias is not None:
+                    module.bias.zero_()
+            elif isinstance(module, nn.BatchNorm2d):
+                module.weight.fill_(1)
+                module.bias.zero_()
+            elif isinstance(module, nn.Linear):
+                bound = 1.0 / math.sqrt(module.weight.shape[1])
+                module.weight.uniform_(-bound, bound)
+                if module.bias is not None:
+                    module.bias.zero_()
 
 
 def _validate_architecture(
@@ -612,7 +653,9 @@ class OFAProxylessMobileNetV2(nn.Module):
         if len(depths) != 5 or any(value not in {2, 3, 4} for value in depths):
             raise ValueError("OFA Proxyless requires five searchable depths in {2, 3, 4}")
         if len(kernels) != 21 or len(expansions) != 21:
-            raise ValueError("OFA Proxyless positional encoding requires 21 kernel and expansion values")
+            raise ValueError(
+                "OFA Proxyless positional encoding requires 21 kernel and expansion values"
+            )
         if not set(kernels) <= {3, 5, 7} or not set(expansions) <= {3.0, 4.0, 6.0}:
             raise ValueError("OFA Proxyless kernel/expansion choices are k={3,5,7}, e={3,4,6}")
         if width_mult <= 0:
@@ -632,9 +675,7 @@ class OFAProxylessMobileNetV2(nn.Module):
         self.checkpoint_provenance: dict[str, Any] | None = None
         self.bn_recalibrated_batches = 0
         self.stem = ConvBnAct(3, widths[0], 3, stride=2, bn_eps=1e-3)
-        self.first_block = InvertedBottleneck(
-            widths[0], widths[1], 3, 1, 1, False, bn_eps=1e-3
-        )
+        self.first_block = InvertedBottleneck(widths[0], widths[1], 3, 1, 1, False, bn_eps=1e-3)
 
         stage_widths = widths[2:-1]
         stage_strides = (2, 2, 2, 1, 2, 1)
@@ -667,6 +708,7 @@ class OFAProxylessMobileNetV2(nn.Module):
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.dropout = nn.Dropout(dropout_rate)
         self.classifier = nn.Linear(widths[-1], num_classes)
+        _initialize_he_fout(self)
 
     def forward_features(self, inputs: Tensor) -> Tensor:
         if inputs.ndim != 4 or inputs.shape[1] != 3:
@@ -729,9 +771,7 @@ def _dynamic_depthwise_filter(
         cropped = weights[:, :, offset : offset + target_size, offset : offset + target_size]
         matrix = state[f"{prefix}.{current_size}to{target_size}_matrix"]
         flattened = cropped.contiguous().view(-1, target_size**2)
-        weights = F.linear(flattened, matrix).view(
-            channels, 1, target_size, target_size
-        )
+        weights = F.linear(flattened, matrix).view(channels, 1, target_size, target_size)
         current_size = target_size
     if current_size != kernel_size:
         raise ValueError(f"unsupported active OFA kernel size: {kernel_size}")
@@ -795,9 +835,7 @@ def _apply_ofa_proxyless_inherited_state(
             _copy_batch_norm_from_dynamic(
                 depthwise[1], state, f"{checkpoint_prefix}.depth_conv.bn.bn"
             )
-            _copy_conv(
-                pointwise[0], state[f"{checkpoint_prefix}.point_linear.conv.conv.weight"]
-            )
+            _copy_conv(pointwise[0], state[f"{checkpoint_prefix}.point_linear.conv.conv.weight"])
             _copy_batch_norm_from_dynamic(
                 pointwise[1], state, f"{checkpoint_prefix}.point_linear.bn.bn"
             )

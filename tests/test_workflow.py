@@ -293,6 +293,22 @@ def test_autoformer_candidate_training_protocol_is_locked():
         validate_candidate_training_protocol(config)
 
 
+def test_proxyless_candidate_training_protocol_is_locked():
+    config = yaml.safe_load(
+        Path("configs/training/ofa_proxyless_mbv2_imagenet.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    assert validate_candidate_training_protocol(config) == (
+        "proxylessnas-mbv2-scratch-b23018c9"
+    )
+    assert config["scheduler"] == "cosine_step"
+    assert config["color_distortion"] == "tf"
+    assert config["exclude_norm_from_weight_decay"] is True
+    assert config["formal_training_ready"] is False
+
+
 @pytest.mark.parametrize(
     "arguments",
     [

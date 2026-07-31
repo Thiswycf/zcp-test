@@ -5,18 +5,24 @@ epochs: 150
 optimizer: sgd
 learning_rate: 0.05
 weight_decay: 0.00004
-scheduler: cosine
+scheduler: cosine_step
 warmup_epochs: 0
 batch_size: 256
+batch_size_semantics: global
 test_batch_size: 500
+momentum: 0.9
+nesterov: true
 label_smoothing: 0.1
 resize_scale: 0.08
 color_distortion: tf
+model_init: he_fout
+exclude_norm_from_weight_decay: true
 amp: true
-protocol: ofa-proxyless-mbv2-scratch-partial
-implementation_source: https://github.com/mit-han-lab/once-for-all
+deterministic: true
+protocol: proxylessnas-mbv2-scratch-b23018c9
+implementation_source: https://github.com/mit-han-lab/ProxylessNAS/tree/b23018c9c369d22931f7422b71ca6a7eaa354c46
+implementation_commit: b23018c9c369d22931f7422b71ca6a7eaa354c46
 formal_training_ready: false
 formal_training_blockers:
-  - TensorFlow-style color distortion is not validated
   - official static-subnet MAC fixture is not accepted
-  - distributed global-batch behavior is not implemented
+  - dual one-percent GPU acceptance is not completed
