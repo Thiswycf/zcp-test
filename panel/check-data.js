@@ -59,6 +59,15 @@ const refreshDomIds = [
 for (const id of refreshDomIds) {
   assert(indexSource.includes(`id="${id}"`), `刷新控件缺少 #${id}`);
 }
+const reloadStateDomIds = [
+  "search", "status-filter", "phase-filter", "priority-filter", "sort-order"
+];
+for (const id of reloadStateDomIds) {
+  assert(indexSource.includes(`id="${id}"`), `页面重载状态恢复缺少 #${id}`);
+  assert(appSource.includes(`$("#${id}").value = state.`), `页面重载状态未恢复到 #${id}`);
+}
+assert(!appSource.includes('$("#search-input")'), "状态恢复仍引用不存在的 #search-input");
+assert(!appSource.includes('$("#sort-select")'), "状态恢复仍引用不存在的 #sort-select");
 assert(indexSource.includes('aria-live="polite"'), "刷新状态缺少 aria-live");
 assert(indexSource.includes('aria-atomic="true"'), "刷新状态缺少 aria-atomic");
 assert(indexSource.includes('aria-pressed="true"'), "自动刷新按钮缺少 aria-pressed");
@@ -81,6 +90,13 @@ assert(appSource.includes('url.searchParams.set("refresh"'), "刷新未对 data.
 assert(appSource.includes('document.head.append(script)'), "刷新未动态挂载最新 data.js 脚本");
 assert(appSource.includes('script.onload = () =>'), "刷新未处理 data.js 成功加载");
 assert(appSource.includes('script.onerror = () =>'), "刷新未处理 data.js 加载失败");
+assert(appSource.includes("const dataScriptTimeoutMs = 10_000"), "data.js 动态加载缺少明确超时");
+assert(appSource.includes("timeoutId = window.setTimeout(() =>"), "data.js 超时未启动计时器");
+assert(appSource.includes("window.clearTimeout(timeoutId)"), "data.js 加载结束后未清理超时计时器");
+assert(appSource.includes("if (settled) return"), "data.js 加载缺少成功/失败/超时竞态保护");
+assert(appSource.includes("script.onload = null"), "data.js 加载 cleanup 未释放 onload");
+assert(appSource.includes("script.onerror = null"), "data.js 加载 cleanup 未释放 onerror");
+assert(appSource.includes('new Error("加载 data.js 超时（10 秒）")'), "data.js 超时缺少明确失败信息");
 assert(appSource.includes('$("#refresh-data").addEventListener("click"'), "立即刷新按钮未绑定点击处理");
 assert(appSource.includes('refreshData(true).finally(scheduleAutoRefresh)'), "立即刷新未重新安排自动刷新");
 assert(appSource.includes('setAutoRefresh(!autoRefreshEnabled, true)'), "自动刷新开关未切换状态");

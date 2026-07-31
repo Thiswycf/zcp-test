@@ -21,9 +21,20 @@ zcp-test evaluate \
 `score` 是排序和默认相关性使用的规范值；`components` 保留完整研究数据。需要研究 ER sum 时使用：
 
 ```bash
-zcp-test correlate ... --component sum
+zcp-test correlate \
+  --scores RUN/scores.jsonl \
+  --targets /path/to/targets.jsonl \
+  --output RUN/correlations-sum.jsonl \
+  --target-field accuracy --target-direction maximize --component sum
 zcp-test analyze correlation --scores RUN/scores.jsonl --component sum --output REPORT
 ```
+
+兼容入口 `correlate` 的 target 文件至少需要一行一个
+`{"architecture_id":"...","accuracy":...}`；它按 canonical ID inner join、拒绝重复 ID，并把
+`direction=minimize` 的代理和 `--target-direction minimize` 的真值统一转换为“越大越优”后计算。
+输出每个实际有 join 的 proxy 一行，同时记录 paired count、score/target coverage 和方向。该入口不
+自动混合或推断 dataset/split/budget；多协议输入应先拆分，正式研究优先使用
+`analyze correlation` 的协议分组报告。
 
 显式随机消融：
 

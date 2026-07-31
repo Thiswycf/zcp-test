@@ -20,7 +20,7 @@ for SEED in 7 8; do
   zcp-test evaluate \
     --benchmark nasbench201 --trusted --catalog ~/.config/zcp-test/data.json \
     --start 0 --count 20 --seed "$SEED" \
-    --dataset cifar10-valid --target-metric valid-accuracy --target-split valid \
+    --dataset cifar10-valid --target-metric accuracy --target-split valid \
     --epoch-budget 200 --metric-seed-reduction mean --target-direction maximize \
     --proxies params,naswot,synflow --input-source dataset \
     --data-root /path/to/cifar10 --batch-size 2 --input-size 32 --classes 10 \

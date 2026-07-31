@@ -9,7 +9,7 @@ from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.builtin import FunctionProxy
 from zcp_test.reporting import correlation_summary
-from zcp_test.search import EvolutionSearch, cache_key
+from zcp_test.search import EvolutionSearch, cache_key, load_search_state
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
 from zcp_test.training.checkpoint import atomic_torch_save, load_checkpoint
@@ -243,6 +243,90 @@ def test_statistics_and_search(tmp_path):
         row["weight_mode"] == "inherited_supernet"
         for row in read_jsonl(tmp_path / "search.jsonl")
     )
+
+
+def test_evolution_search_resume_restores_population_rng_cache_and_history(tmp_path):
+    load_builtin_spaces()
+    space = SPACES.create("darts")
+
+    def evaluator(architecture):
+        return float(int(architecture.architecture_id[:8], 16))
+
+    identity = {
+        "search_space_id": "darts",
+        "proxy_id": "fixture",
+        "input_fingerprint": "batch-a",
+        "seed": 19,
+    }
+    first_log = tmp_path / "first.jsonl"
+    state_path = tmp_path / "search-state.json"
+    EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(first_log, 1),
+        6,
+        seed=19,
+        state_path=state_path,
+        state_identity=identity,
+    ).run(1)
+
+    resumed_log = tmp_path / "resumed.jsonl"
+    resumed_log.touch()
+    resumed = EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(resumed_log, 1),
+        6,
+        seed=19,
+        state_path=tmp_path / "resumed-state.json",
+        resume_state=load_search_state(state_path),
+        state_identity=identity,
+    ).run(3)
+    uninterrupted_log = tmp_path / "uninterrupted.jsonl"
+    uninterrupted = EvolutionSearch(
+        space,
+        evaluator,
+        JsonlWriter(uninterrupted_log, 1),
+        6,
+        seed=19,
+    ).run(3)
+
+    def scientific_trace(path):
+        return [
+            (
+                row["record_kind"],
+                row["generation"],
+                row.get("architecture_id"),
+                row.get("parents"),
+                row.get("operation"),
+                row.get("score"),
+                row["cumulative_evaluations"],
+                row["cumulative_cache_hits"],
+            )
+            for row in read_jsonl(path)
+        ]
+
+    assert resumed.architecture.architecture_id == uninterrupted.architecture.architecture_id
+    assert scientific_trace(resumed_log) == scientific_trace(uninterrupted_log)
+    summaries = [
+        row["generation"]
+        for row in read_jsonl(resumed_log)
+        if row["record_kind"] == "generation_summary"
+    ]
+    assert summaries == [0, 1, 2, 3]
+    assert not list(tmp_path.glob(".*search-state*.tmp"))
+
+    mismatched = dict(identity, input_fingerprint="batch-b")
+    with pytest.raises(ValueError, match="identity does not match"):
+        EvolutionSearch(
+            space,
+            evaluator,
+            JsonlWriter(tmp_path / "bad.jsonl", 1),
+            6,
+            seed=19,
+            resume_state=load_search_state(state_path),
+            state_identity=mismatched,
+        )
 
 
 def test_training_artifacts(tmp_path):

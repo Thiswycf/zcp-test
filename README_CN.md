@@ -33,6 +33,8 @@ zcp-test doctor --catalog configs/data.example.json
 - [ZCP 评估与结果行数](docs/EVALUATE_CN.md)
 - [新增代理](docs/ADD_PROXY_CN.md)
 - [分析与监控](docs/ANALYSIS_CN.md)
+- [训练协议、恢复与正式门禁](docs/TRAINING_CN.md)
+- [配置优先级、RUN 目录与运维边界](docs/OPERATIONS_CN.md)
 - [DARTS 搜索与训练](docs/DARTS_TRAINING_CN.md)
 - [1% Benchmark 相关性验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)
 
@@ -46,9 +48,15 @@ zcp-test proxy inspect er
 zcp-test gpu list
 zcp-test evaluate --space nb201_topology --proxies er,naswot,synflow --count 10 --data-root /path/to/data/cifar10
 zcp-test search --space darts --proxy er --population 20 --generations 5 --data-root /path/to/data/cifar10
-zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
-# 仅恢复已核验的本项目 checkpoint
-zcp-test train --config configs/training/darts_cifar10.yaml --resume /path/to/data/runs/training/checkpoints/last.pt --trusted
+ARCH=/path/to/darts-architecture.json
+OUTPUT=/path/to/data/runs/training
+zcp-test train --config configs/training/darts_cifar10.yaml --smoke \
+  --architecture "$ARCH" --output "$OUTPUT"
+# 从上一命令输出 JSON 复制准确的 timestamp run；仅恢复已核验的本项目 checkpoint。
+RUN="$OUTPUT/YYYYMMDDTHHMMSSZ_runid"
+zcp-test train --config configs/training/darts_cifar10.yaml --smoke \
+  --architecture "$ARCH" --output "$OUTPUT" \
+  --resume "$RUN/checkpoints/last.pt" --trusted
 ```
 
 ViT-Bench-101 的 AutoFormer 主切片、扩展切片与 PiT 分开转换和报告；vanilla、KD 与 inherited-supernet accuracy 不混合。NB301 默认使用 `with_noise=False`。
@@ -64,7 +72,7 @@ native benchmark 的外部 catalog 路径本身就是 raw/runtime 时会显示 `
 仍需执行 adapter smoke。
 
 ```bash
-# 1. 查看来源、大小、目标路径、断点文件和磁盘余量。
+# 1. 表格查看来源、大小、目标路径和断点文件；磁盘余量字段见 --json。
 zcp-test data checklist --root /path/to/data
 
 # 2. 只下载并转换实际需要的 benchmark。

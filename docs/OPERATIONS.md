@@ -31,10 +31,11 @@ evaluate:
 ```
 
 The effective order is parser defaults, then matching config values, then options explicitly present
-on the command line. Use the separated spelling `--count 20`, rather than `--count=20`, so the
-current explicit-option detector records the override. Config keys that are not parser attributes are
-ignored; inspect each run's resolved `config.yaml` before treating it as research evidence. In
-particular, `trusted: true` in YAML is rejected unless `--trusted` is also present on the CLI.
+on the command line. Both `--count 20` and standard argparse spelling `--count=20` are recognized as
+explicit overrides. Except for training-profile fields passed through to the model/trainer, unknown
+command config keys fail closed. Training configs remain subject to protocol validation; inspect each
+run's resolved `config.yaml` before treating it as research evidence. In particular, `trusted: true`
+in YAML is rejected unless `--trusted` is also present on the CLI.
 
 ## GPU selection and locking
 

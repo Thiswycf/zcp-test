@@ -8,6 +8,7 @@ import pandas as pd
 import torch
 
 import zcp_test.cli as cli
+from zcp_test.artifacts import read_jsonl
 from zcp_test.types import Architecture
 
 
@@ -34,24 +35,21 @@ class _TinyReferenceSpace:
     implementation_source = "test-fixture"
     implementation_commit = "fixture"
 
-    def __init__(self):
-        self.counter = 0
-
-    def _architecture(self):
-        self.counter += 1
-        return Architecture(self.search_space_id, f"a-{self.counter}", {"value": self.counter})
+    def _architecture(self, seed):
+        value = int(seed)
+        return Architecture(self.search_space_id, f"a-{value}", {"value": value})
 
     def sample(self, seed=None):
-        return self._architecture()
+        return self._architecture(seed)
 
     def canonicalize(self, specification):
-        return Architecture(self.search_space_id, "inline", dict(specification))
+        return self._architecture(specification["value"])
 
     def mutate(self, architecture, seed=None):
-        return self._architecture()
+        return self._architecture(seed)
 
     def crossover(self, left, right, seed=None):
-        return self._architecture()
+        return self._architecture(seed)
 
     def build_model(self, architecture, num_classes):
         return torch.nn.Sequential(
@@ -464,10 +462,10 @@ def test_inline_architecture_validation_errors(tmp_path):
         cli._load_architecture_spec(str(missing))
 
 
-def test_cli_search_end_to_end_with_tiny_reference_space(monkeypatch, capsys, tmp_path):
+def test_cli_search_resume_end_to_end_with_tiny_reference_space(monkeypatch, capsys, tmp_path):
     space = _TinyReferenceSpace()
     monkeypatch.setattr(cli.SPACES, "create", lambda name: space)
-    output = tmp_path / "search"
+    output = tmp_path / "first-search"
     cli.main([
         "search",
         "--space", "tiny_reference",
@@ -487,6 +485,67 @@ def test_cli_search_end_to_end_with_tiny_reference_space(monkeypatch, capsys, tm
     assert result["architecture"]["search_space_id"] == "tiny_reference"
     assert (run / "search.jsonl").exists()
     assert (run / "best_architecture.json").exists()
+    state = run / "search-state.json"
+
+    resumed_output = tmp_path / "resumed-search"
+    cli.main([
+        "search",
+        "--space", "tiny_reference",
+        "--proxy", "params",
+        "--population", "2",
+        "--generations", "3",
+        "--elite-ratio", "0.5",
+        "--resume", str(state),
+        "--device", "cpu",
+        "--input-source", "random",
+        "--batch-size", "2",
+        "--input-size", "8",
+        "--classes", "3",
+        "--output", str(resumed_output),
+    ])
+    resumed_result = _output(capsys)
+    resumed_run = Path(resumed_result["run"])
+    resumed_rows = list(read_jsonl(resumed_run / "search.jsonl"))
+    summaries = [
+        row["generation"]
+        for row in resumed_rows
+        if row["record_kind"] == "generation_summary"
+    ]
+    assert summaries == [0, 1, 2, 3]
+    original_rows = list(read_jsonl(run / "search.jsonl"))
+    assert resumed_rows[: len(original_rows)] == original_rows
+
+
+def test_cli_search_resume_rejects_identity_mismatch(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+    output = tmp_path / "first-search"
+    arguments = [
+        "search",
+        "--space", "tiny_reference",
+        "--proxy", "params",
+        "--population", "2",
+        "--generations", "0",
+        "--elite-ratio", "0.5",
+        "--device", "cpu",
+        "--input-source", "random",
+        "--batch-size", "2",
+        "--input-size", "8",
+        "--classes", "3",
+        "--output", str(output),
+    ]
+    cli.main(arguments)
+    state = Path(_output(capsys)["search_state"])
+    mismatched_output = tmp_path / "mismatched-search"
+
+    with pytest.raises(ValueError, match="identity does not match"):
+        cli.main([
+            *arguments[:-2],
+            "--seed", "43",
+            "--resume", str(state),
+            "--output", str(mismatched_output),
+        ])
+
+    assert not mismatched_output.exists()
 
 
 def test_config_does_not_override_equals_form_cli_option(monkeypatch, tmp_path):

@@ -324,6 +324,54 @@ def nats_size_study(
     result = {"architectures": features, "stages": stages, "summary": summary}
     research_fields = {"proxy_id", "component", "score", "target_value", "direction"}
     if research_fields.issubset(frame.columns):
+        coverage_groups = _study_group_fields(frame, ("proxy_id", "component"))
+        coverage_working = frame.assign(
+            status=(
+                frame["status"].fillna("failed").astype(str).str.casefold()
+                if "status" in frame
+                else "ok"
+            ),
+            finite_score=np.isfinite(pd.to_numeric(frame["score"], errors="coerce")),
+            finite_target=np.isfinite(
+                pd.to_numeric(frame["target_value"], errors="coerce")
+            ),
+        )
+        valid_statuses = {"ok", "failed", "unsupported", "skipped"}
+        invalid_statuses = sorted(set(coverage_working["status"]) - valid_statuses)
+        if invalid_statuses:
+            raise ValueError(
+                f"NATS-SSS size study has invalid statuses: {invalid_statuses}"
+            )
+        coverage_working = coverage_working.assign(
+            paired=lambda value: value["finite_score"] & value["finite_target"],
+            ok=lambda value: value["status"].eq("ok"),
+            failed=lambda value: value["status"].eq("failed"),
+            unsupported=lambda value: value["status"].eq("unsupported"),
+            skipped=lambda value: value["status"].eq("skipped"),
+        )
+        coverage = (
+            coverage_working.groupby(
+                list(coverage_groups), as_index=False, dropna=False
+            )
+            .agg(
+                total_calls=("architecture_id", "size"),
+                unique_architectures=("architecture_id", "nunique"),
+                ok_calls=("ok", "sum"),
+                failed_calls=("failed", "sum"),
+                unsupported_calls=("unsupported", "sum"),
+                skipped_calls=("skipped", "sum"),
+                finite_score_count=("finite_score", "sum"),
+                finite_target_count=("finite_target", "sum"),
+                paired_count=("paired", "sum"),
+            )
+        )
+        coverage["score_coverage"] = coverage["finite_score_count"] / coverage[
+            "total_calls"
+        ]
+        coverage["paired_coverage"] = coverage["paired_count"] / coverage[
+            "total_calls"
+        ]
+        result["score_coverage"] = coverage
         detailed = _nats_size_features(frame, architecture_column=architecture_column)
         feature_columns = [
             column

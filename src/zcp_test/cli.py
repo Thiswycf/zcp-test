@@ -75,7 +75,7 @@ from zcp_test.reporting.benchmark_studies import (
     vit_architecture_study,
 )
 from zcp_test.reporting.monitor import refresh_once
-from zcp_test.search import EvolutionSearch
+from zcp_test.search import EvolutionSearch, load_search_state, validate_search_state_identity
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
 from zcp_test.types import MetricSpec, ModelFidelity
@@ -114,7 +114,23 @@ def _space_provenance(space: Any) -> dict[str, Any]:
         ),
         "implementation_source": getattr(space, "implementation_source", None),
         "implementation_commit": getattr(space, "implementation_commit", None),
+        "model_profile": getattr(space, "model_profile", None),
     }
+
+
+def _research_model_provenance(space: Any, adapter: Any = None) -> dict[str, Any]:
+    provenance = _space_provenance(space)
+    if (
+        adapter is not None
+        and adapter.benchmark_id == "vitbench101"
+        and space.search_space_id == "autoformer"
+    ):
+        provenance.update(
+            implementation_source="https://github.com/lliai/Auto-Prox-AAAI24",
+            implementation_commit="90ed458eff6948a6f0d23e440a8d21bbec50d091",
+            model_profile="vitbench-autoprox-90ed458",
+        )
+    return provenance
 
 
 def _seed_training(seed: int, rank: int, deterministic: bool) -> dict[str, Any]:
@@ -144,8 +160,10 @@ def _seed_training(seed: int, rank: int, deterministic: bool) -> dict[str, Any]:
     }
 
 
-def _require_research_model(space: Any, allow_approximation: bool) -> dict[str, Any]:
-    provenance = _space_provenance(space)
+def _require_research_model(
+    space: Any, allow_approximation: bool, adapter: Any = None
+) -> dict[str, Any]:
+    provenance = _research_model_provenance(space, adapter)
     if (
         provenance["model_fidelity"]
         in {ModelFidelity.PROXY_APPROXIMATION.value, ModelFidelity.METRIC_ONLY.value}
@@ -1301,7 +1319,9 @@ def command_evaluate(args: argparse.Namespace) -> None:
     else:
         space = SPACES.create(args.space)
         architectures = [space.sample(args.seed + index) for index in range(args.count)]
-    model_provenance = _require_research_model(space, args.allow_approximation)
+    model_provenance = _require_research_model(
+        space, args.allow_approximation, adapter
+    )
     weight_loader, weight_provenance = _prepare_model_weights(args, space)
     target_epoch_budget = args.epoch_budget
     target_seed_reduction = args.metric_seed_reduction
@@ -1599,6 +1619,46 @@ def command_search(args: argparse.Namespace) -> None:
                 "bn_recalibration_fingerprint": bn_recalibration.fingerprint,
                 "bn_recalibration_protocol_fidelity": "project_deterministic",
             }
+        load_builtin_proxies()
+        proxy_capability = PROXIES.create(args.proxy).capability
+        search_identity = {
+            "search_space_id": space.search_space_id,
+            "model_fidelity": model_provenance["model_fidelity"],
+            "model_profile": model_provenance.get("model_profile"),
+            "implementation_commit": model_provenance.get("implementation_commit"),
+            "proxy_id": args.proxy,
+            "proxy_version": proxy_capability.version,
+            "proxy_direction": proxy_capability.direction.value,
+            "dataset": args.dataset,
+            "input_source": args.input_source,
+            "input_fingerprint": batch.fingerprint,
+            "seed": args.seed,
+            "population_size": args.population,
+            "elite_ratio": args.elite_ratio,
+            "batch_size": args.batch_size,
+            "input_size": args.input_size,
+            "classes": args.classes,
+            "weight_mode": weight_provenance["weight_mode"],
+            "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
+            "bn_recalibration_fingerprint": weight_provenance.get(
+                "bn_recalibration_fingerprint"
+            ),
+        }
+        resume_state = load_search_state(args.resume) if args.resume else None
+        if resume_state is not None:
+            validate_search_state_identity(resume_state, search_identity)
+        record_metadata = {
+            **model_provenance,
+            **weight_provenance,
+            **search_identity,
+            "proxy_implementation_fidelity": proxy_capability.implementation_fidelity,
+            "proxy_source": proxy_capability.source,
+            "resource_direction": (
+                proxy_capability.resource_direction.value
+                if proxy_capability.resource_direction is not None
+                else None
+            ),
+        }
         loss_fn = torch.nn.CrossEntropyLoss()
         runtime = {"gpu_selection": selection, "input_fingerprint": batch.fingerprint}
         config = {
@@ -1606,6 +1666,7 @@ def command_search(args: argparse.Namespace) -> None:
             "input_protocol": batch.protocol,
             **model_provenance,
             **weight_provenance,
+            "search_identity": search_identity,
             "bn_recalibration_protocol": (
                 bn_recalibration.protocol if bn_recalibration is not None else None
             ),
@@ -1642,7 +1703,10 @@ def command_search(args: argparse.Namespace) -> None:
                 args.population,
                 args.elite_ratio,
                 args.seed,
-                record_metadata={**model_provenance, **weight_provenance},
+                record_metadata=record_metadata,
+                state_path=run.directory / "search-state.json",
+                resume_state=resume_state,
+                state_identity=search_identity,
             )
             best = search.run(args.generations)
             (run.directory / "best_architecture.json").write_text(
@@ -1653,6 +1717,7 @@ def command_search(args: argparse.Namespace) -> None:
                     "run": str(run.directory),
                     "best_score": best.score,
                     "architecture": best.architecture.to_dict(),
+                    "search_state": str(run.directory / "search-state.json"),
                 }
             )
 
@@ -2216,6 +2281,8 @@ def command_analyze_benchmark(args: argparse.Namespace) -> None:
 
 
 def command_monitor(args: argparse.Namespace) -> None:
+    if args.interval <= 0:
+        raise ValueError("monitor interval must be positive")
     destination = args.output or str(Path(args.run) / "reports" / "monitor.html")
     offset = 0
     history: list[dict[str, Any]] = []
@@ -2227,13 +2294,20 @@ def command_monitor(args: argparse.Namespace) -> None:
                 offset=offset,
                 title=args.title,
                 history=history,
+                browser_refresh_seconds=args.interval,
             )
         except ValueError as error:
             if "offset must be between" not in str(error):
                 raise
             offset = 0
             history.clear()
-            result = refresh_once(args.run, destination, title=args.title, history=history)
+            result = refresh_once(
+                args.run,
+                destination,
+                title=args.title,
+                history=history,
+                browser_refresh_seconds=args.interval,
+            )
         history.extend(result["rows"])
         offset = result["next_offset"]
         _json({key: value for key, value in result.items() if key != "rows"})
@@ -2462,6 +2536,10 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--generations", type=int, default=3)
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--seed", type=int, default=42)
+    search.add_argument(
+        "--resume",
+        help="resume from search-state.json with an identical scientific protocol",
+    )
     search.add_argument("--allow-approximation", action="store_true")
     search.add_argument("--trusted", action="store_true")
     search.add_argument(

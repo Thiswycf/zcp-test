@@ -20,6 +20,7 @@
   let refreshCountdownTimer = null;
   let nextRefreshAt = null;
   let refreshIntervalMs = 30_000;
+  const dataScriptTimeoutMs = 10_000;
   const refreshIntervalStorageKey = "zcp-panel-refresh-interval";
   const reloadStateStorageKey = "zcp-panel-reload-state";
 
@@ -432,18 +433,33 @@
     return new Promise((resolve, reject) => {
       const script = document.createElement("script");
       const url = new URL("data.js", window.location.href);
+      let settled = false;
+      let timeoutId = null;
+      const cleanup = () => {
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+        script.onload = null;
+        script.onerror = null;
+        script.remove();
+      };
+      const settle = (callback, value) => {
+        if (settled) return;
+        settled = true;
+        cleanup();
+        callback(value);
+      };
       url.searchParams.set("refresh", `${Date.now()}-${++refreshRequestId}`);
       script.src = url.href;
       script.async = true;
       script.dataset.panelRefresh = "true";
       script.onload = () => {
-        script.remove();
-        resolve(window.ZCP_PANEL_DATA);
+        settle(resolve, window.ZCP_PANEL_DATA);
       };
       script.onerror = () => {
-        script.remove();
-        reject(new Error("无法取得最新 data.js"));
+        settle(reject, new Error("无法取得最新 data.js"));
       };
+      timeoutId = window.setTimeout(() => {
+        settle(reject, new Error("加载 data.js 超时（10 秒）"));
+      }, dataScriptTimeoutMs);
       document.head.append(script);
     });
   }
@@ -466,11 +482,11 @@
     } catch { /* Ignore unavailable or malformed session state. */ }
     if (!reloadState?.state) return;
     Object.assign(state, reloadState.state);
-    $("#search-input").value = state.query;
+    $("#search").value = state.query;
     $("#status-filter").value = state.status;
     $("#phase-filter").value = state.phase;
     $("#priority-filter").value = state.priority;
-    $("#sort-select").value = state.sort;
+    $("#sort-order").value = state.sort;
     window.setTimeout(() => window.scrollTo(reloadState.scrollX || 0, reloadState.scrollY || 0), 0);
   }
 

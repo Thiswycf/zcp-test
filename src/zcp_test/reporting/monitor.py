@@ -77,7 +77,13 @@ def read_jsonl_tolerant(
     return rows, next_offset, ignored_partial
 
 
-def _monitor_html(source: Path, rows: list[dict[str, Any]], partial: bool, title: str) -> str:
+def _monitor_html(
+    source: Path,
+    rows: list[dict[str, Any]],
+    partial: bool,
+    title: str,
+    browser_refresh_seconds: float,
+) -> str:
     fields = sorted(set().union(*(row.keys() for row in rows))) if rows else []
     body = [f"<h1>{html.escape(title)}</h1>"]
     body.append(
@@ -95,7 +101,8 @@ def _monitor_html(source: Path, rows: list[dict[str, Any]], partial: bool, title
         body.append("</tr>")
     body.append("</tbody></table>")
     style = "body{font:14px system-ui;margin:20px}table{border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px;vertical-align:top}pre{margin:0;white-space:pre-wrap}"
-    return f"<!doctype html><meta charset='utf-8'><meta http-equiv='refresh' content='5'><title>{html.escape(title)}</title><style>{style}</style>{''.join(body)}"
+    refresh_value = format(browser_refresh_seconds, "g")
+    return f"<!doctype html><meta charset='utf-8'><meta http-equiv='refresh' content='{refresh_value}'><title>{html.escape(title)}</title><style>{style}</style>{''.join(body)}"
 
 
 def _atomic_write(path: Path, content: str) -> None:
@@ -112,17 +119,25 @@ def refresh_once(
     offset: int = 0,
     title: str = "zcp-test monitor",
     history: list[dict[str, Any]] | None = None,
+    browser_refresh_seconds: float = 5.0,
 ) -> dict[str, Any]:
     """Read one stable snapshot and optionally atomically refresh a static HTML view."""
     path = _source_path(source)
     rows, next_offset, ignored_partial = read_jsonl_tolerant(path, offset=offset)
     snapshot = [*(history or []), *rows]
+    if browser_refresh_seconds <= 0:
+        raise ValueError("browser_refresh_seconds must be positive")
     output: Path | None = None
     if destination is not None:
         output = Path(destination)
         if output.suffix.lower() != ".html":
             output = output / "monitor.html"
-        _atomic_write(output, _monitor_html(path, snapshot, ignored_partial, title))
+        _atomic_write(
+            output,
+            _monitor_html(
+                path, snapshot, ignored_partial, title, browser_refresh_seconds
+            ),
+        )
     return {
         "source": str(path),
         "output": None if output is None else str(output),

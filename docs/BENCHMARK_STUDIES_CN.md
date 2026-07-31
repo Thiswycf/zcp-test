@@ -415,9 +415,10 @@ topology operation effect 与 matched-pair 报告均已生成。157 个共同 to
 
 NATS-SSS 已完成 CIFAR-10-valid/90-epoch 的 328 架构最低规模、22 代理单 seed 与核心三 seed。
 修复 shard grouping 后，size 视图以完整 n=328 生成 stage、总通道、stage sensitivity、
-size-controlled correlation 和 strata 表。详见
-[`evidence/NATS_SSS_ONE_PERCENT_CN.md`](evidence/NATS_SSS_ONE_PERCENT_CN.md)。跨 CIFAR-100 与
-ImageNet16-120 的 rank transfer 尚未完成，不能由当前结果外推。
+size-controlled correlation 和 strata 表。CIFAR-100 与 ImageNet16-120 的同一分层样本扩展也已
+完成；dataset-specific、固定源 score 的 target-only transfer 和代理排名稳定性必须分表解释，
+详见 [`evidence/NATS_SSS_ONE_PERCENT_CN.md`](evidence/NATS_SSS_ONE_PERCENT_CN.md) 与
+[`evidence/NATS_SSS_CROSS_DATASET_CN.md`](evidence/NATS_SSS_CROSS_DATASET_CN.md)。
 
 ## 11. 常见错误
 

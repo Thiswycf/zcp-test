@@ -203,6 +203,7 @@ class AutoFormerSpace(SearchSpace):
     model_fidelity = "reference_model"
     implementation_source = "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer"
     implementation_commit = "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
+    model_profile = "aznas-scratch-5e6683"
 
     def canonicalize(self, specification: Mapping[str, Any]) -> Architecture:
         hidden_dim, depth = int(specification["hidden_dim"]), int(specification["depth"])

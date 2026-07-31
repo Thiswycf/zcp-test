@@ -83,7 +83,7 @@ for SHARD in 0 1 2 3; do
   zcp-test evaluate --benchmark nasbench201 --trusted \
     --catalog ~/.config/zcp-test/data.json \
     --sample-manifest "$SAMPLE" --sample-shard "$SHARD" \
-    --dataset cifar10-valid --target-metric valid-accuracy --target-split valid \
+    --dataset cifar10-valid --target-metric accuracy --target-split valid \
     --epoch-budget 200 --metric-seed-reduction mean \
     --proxies az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico \
     --input-source dataset --data-root /path/to/cifar10 \

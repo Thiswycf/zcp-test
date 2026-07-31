@@ -96,14 +96,15 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 
 | Fidelity | Spaces | Acceptance consequence |
 |---|---|---|
-| `reference_model` | `darts`, `autoformer`, `pit`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
+| `reference_topology_pytorch_port` | `nb101_dag`, `nb201_topology`, `nats_size` | Topology is represented by a port; ZCP values are not automatically identical to the original training implementation |
+| `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; a safe Taskonomy contract provider exists, but the formal 24-building split/config is unpublished and licensed data is unavailable here |
+| `reference_topology_pytorch_port` | `pit` | Published topology port; it is not an official numerical reference or an accepted formal-training implementation |
+| `reference_model` | `darts`, `autoformer`, `ofa_proxyless_mbv2`, `ofa_mbv3` | Static model structure is implemented; formal training additionally requires `formal_training_ready: true` |
 | `proxy_approximation` | `zennas_plainnet_mbv2` | The current fixed-stage MBConv encoding is not the ZenNAS/AZ-NAS structure-string space and is blocked from formal evaluation, search, and training |
+| `proxy_approximation` | legacy toy spaces | Explicit opt-in method smoke only; formal training and reference conclusions are prohibited |
 
 The upstream comparison and reference-upgrade requirements are recorded in
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md).
-| `reference_topology_pytorch_port` | `nb101_dag`, `nb201_topology`, `nats_size` | Topology is represented by a port; ZCP values are not automatically identical to the original training implementation |
-| `reference_topology_pytorch_port` | `transnas_micro`, `transnas_macro` | Official encoder and seven task-head PyTorch ports; a safe Taskonomy contract provider exists, but the formal 24-building split/config is unpublished and licensed data is unavailable here |
-| `proxy_approximation` | legacy toy spaces | Explicit opt-in method smoke only; formal training and reference conclusions are prohibited |
 
 Static model fidelity does not grant formal-training readiness. Only DARTS profiles currently set
 `formal_training_ready: true`; AutoFormer and Proxyless-MBV2 are explicitly blocked, while PiT and
@@ -218,11 +219,12 @@ proves adapter-to-model-to-evaluator wiring only, not dataset-input or correlati
 
 ## ViT-Bench release-slice preacceptance
 
-The three pinned public files were bootstrapped, converted to safe JSONL, checksum-locked, queried,
-and exercised with deterministic real CIFAR-100 inputs. Each slice has 100 records. A fixed
-minimum-five manifest produces 110 rows for 22 proxies: 80 supported results, 30 explicit
-Transformer `unsupported` results, and zero failures. Correlation/report/architecture-study bundles
-were generated, but `n=5` is execution evidence only.
+The three pinned public files were bootstrapped, converted to safe JSONL, checksum-locked, and
+queried. Each slice has 100 records. The historical minimum-five × 22-proxy workflow produced the
+expected 110 rows, but its AutoFormer scores used a Cream/AZ-NAS-style static model rather than the
+pinned Auto-Prox static model. Those scores are retained only as legacy cross-implementation workflow
+evidence and must be recomputed with `vitbench-autoprox-90ed458`; see
+[`evidence/AUTOFORMER_FIDELITY_AUDIT_CN.md`](evidence/AUTOFORMER_FIDELITY_AUDIT_CN.md).
 
 This does not close formal ViT-Bench H1. The paper describes 500 candidates per AutoFormer/PiT space
 and a disjoint 60/40 development/test split; neither the complete candidates nor split identities are

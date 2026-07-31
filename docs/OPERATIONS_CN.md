@@ -28,9 +28,10 @@ evaluate:
   count: 10
 ```
 
-解析顺序为：CLI 默认值 → 匹配的配置值 → 命令行显式参数。当前版本应使用 `--count 20`，不要
-写成 `--count=20`，以确保显式覆盖检测生效。解析器不存在的配置键会被忽略；正式使用前必须检查
-run 目录中的 resolved `config.yaml`。YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
+解析顺序为：CLI 默认值 → 匹配的配置值 → 命令行显式参数。`--count 20` 与标准 argparse 写法
+`--count=20` 都会被识别为显式覆盖。除 `train` 的模型/训练 profile 透传字段外，配置中不存在的
+命令参数会 fail closed；训练配置仍须通过 protocol validator，并检查 run 目录中的 resolved
+`config.yaml`。YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 
 ## GPU 锁
 
@@ -62,7 +63,12 @@ zcp-test report bundle "$RUN" --output "$RUN/reports/bundle"
 zcp-test monitor "$RUN" --interval 5
 ```
 
-`report bundle` 和 `monitor` 都不会递归搜索父目录下的 timestamp run。
+`report bundle` 会把没有直接 artifact 的父目录展开一层，并处理其中全部可识别 timestamp run；
+`monitor` 仅在父目录恰好包含一个可识别 run 时自动进入。父目录有多个 run 时必须传入准确 `RUN`。
+
+当前 `search` 尚无 `--resume`：`search.jsonl` 是可审计记录，不是 population/RNG/cache checkpoint。
+中断后必须新建 run；不得把向旧文件追加记录称为恢复。训练恢复则使用同一架构、配置和协议身份，
+并显式传入可信 `last.pt`。
 
 ## 范围切分与合并
 
@@ -520,3 +526,19 @@ PiT 构模当前标记为 `reference_topology_pytorch_port`，不是 `reference_
 PyTorch 模型的训练结果。`benchmark inspect`/`evaluate` 从 catalog 解析运行资产时会校验文件 SHA、
 version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高级信任边界，不会借 catalog 替调用者
 证明来源，正式运行应优先使用已校验 catalog。
+
+## Artifact 行数与最小 schema
+
+所有 `--output` 均先视为父目录；会创建 run 的命令在其下生成
+`YYYYMMDDTHHMMSSZ_<run-id>/`。终端 JSON 的 `run` 才是后续命令应使用的路径。
+
+| 命令 | 规范 artifact | 预期行数 | 最小科学身份 |
+|---|---|---:|---|
+| `evaluate` | `scores.jsonl` | `架构数 × 代理数` | architecture/benchmark/space、proxy/version/component/direction、dataset/input fingerprint、fidelity、status |
+| `search` | `search.jsonl` | candidate：`population + generations × (population-elite_count)`；summary：`generations+1` | generation、candidate/parent/mutation、proxy、资源约束、累计预算、模型/输入协议 |
+| `train` | `training.jsonl` | 每个实际完成 epoch 一行 | epoch、train/valid loss 与 top-1/top-5、LR、耗时、最佳状态、训练协议 |
+| `correlate` | 用户指定 JSONL | 每个实际有 canonical-ID join 的 proxy 一行 | component、score/target direction、paired/coverage、统计量 |
+| `report bundle` | CSV/HTML/可选图表 | 由可用 artifact 和字段决定 | 源 run、协议分组和派生产物类型 |
+
+`search` 的 generation summary 与 candidate 是不同 `record_type`，不能把总行数误当候选数。
+报告只在输入满足统计或曲线要求时生成 PNG/SVG，不创建没有数据依据的空图。

@@ -20,7 +20,8 @@ NATS-SSS 的 size 专属实例见
 zcp-test report bundle RUN_A RUN_B --output reports/compare
 ```
 
-根据输入自动生成 CSV、PNG、SVG 和静态 `index.html`。原始 JSONL 始终是唯一真源。
+根据实际存在的 artifact 和统计字段生成 CSV、静态 `index.html`，并在数据足以绘图时生成
+PNG/SVG；例如没有 target 的纯 evaluate run 不会伪造相关性图。原始 JSONL 始终是唯一真源。
 
 ## 常用研究
 
@@ -28,7 +29,7 @@ zcp-test report bundle RUN_A RUN_B --output reports/compare
 # 相关性、bootstrap CI、scatter、rank、heatmap、top-k
 zcp-test analyze correlation --scores RUN/scores.jsonl --output reports/correlation
 
-# top-k overlap、验证集 rank aggregation、跨数据集相关性、耗时/显存 Pareto
+# top-k overlap、验证集 rank aggregation、按 dataset 协议分组的相关性汇总、耗时/显存 Pareto
 zcp-test analyze compare --scores RUN/scores.jsonl --output reports/compare
 
 # seed/batch/input/source 等敏感性和 sample-size convergence

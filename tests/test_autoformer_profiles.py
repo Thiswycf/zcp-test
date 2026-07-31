@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from zcp_test.benchmarks.model_builders import model_builder
+from zcp_test.cli import _research_model_provenance
 from zcp_test.models.autoformer import (
     AZNAS_SCRATCH_PROFILE,
     VITBENCH_AUTOPROX_PROFILE,
@@ -104,6 +105,26 @@ def test_vitbench_builder_routes_autoformer_to_autoprox_profile():
     assert scratch_model.profile == AZNAS_SCRATCH_PROFILE
     assert vitbench_model.blocks[0].attention.inner_dim == 240
     assert scratch_model.blocks[0].attention.inner_dim == 3 * 64
+
+
+def test_vitbench_and_open_search_record_distinct_model_provenance():
+    load_builtin_spaces()
+    space = SPACES.create("autoformer")
+
+    class VitBenchAdapter:
+        benchmark_id = "vitbench101"
+
+    scratch = _research_model_provenance(space)
+    vitbench = _research_model_provenance(space, VitBenchAdapter())
+
+    assert scratch["model_profile"] == AZNAS_SCRATCH_PROFILE
+    assert scratch["implementation_commit"] == (
+        "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47"
+    )
+    assert vitbench["model_profile"] == VITBENCH_AUTOPROX_PROFILE
+    assert vitbench["implementation_commit"] == (
+        "90ed458eff6948a6f0d23e440a8d21bbec50d091"
+    )
 
 
 def test_profiles_reject_cross_source_attention_options():

@@ -1,9 +1,17 @@
 # ViT-Bench-101 发布切片预验收
 
+> **2026-07-31 fidelity 更正：** 本文记录的旧 5×22 AutoFormer ZCP 是在 Cream/AZ-NAS 风格
+> 静态模型上计算，而发布 GT 的锁定 Auto-Prox `90ed458` 静态模型使用 QKV=`embed_dim`、无
+> relative position、`LayerNorm(eps=1e-6)`。因此旧分数只保留为跨实现工作流证据，不再作为
+> ViT-Bench 模型 fidelity 或正式相关性证据。修复后的 source profile 与重算要求见
+> [`AUTOFORMER_FIDELITY_AUDIT_CN.md`](AUTOFORMER_FIDELITY_AUDIT_CN.md)。PiT 证据不受该
+> AutoFormer 构模错误影响，但仍只是 `reference_topology_pytorch_port`。
+
 ## 结论
 
-当前实现已完成三份公开 GT 文件的安全自举、固定 SHA、JSONL 转换、严格切片隔离、真实模型构建、
-真实 CIFAR-100 输入的 22-ZCP 预验收，以及通用/专有报告生成。但它的科学状态仍是
+当前实现已完成三份公开 GT 文件的安全自举、固定 SHA、JSONL 转换和严格切片隔离。旧运行还完成
+真实 CIFAR-100 输入的 22-ZCP 工作流与通用/专有报告生成，但 AutoFormer 部分必须按更正后的
+Auto-Prox source profile 重算后才能重新验收。整体科学状态仍是
 **partial release-slice preacceptance**，不能写成论文完整 ViT-Bench-101 复现或正式 H1 通过。
 
 关键原因不是代码报错，而是上游公开证据不足：Auto-Prox 论文称每个数据集包含 500 个 ground truth，

@@ -91,7 +91,39 @@ def test_topology_and_size_studies_link_structure_to_scores_and_targets():
     assert set(size["stage_sensitivity"]["feature"]) == {
         f"stage_{index}_channel" for index in range(5)
     }
-    assert {"size_controlled_correlations", "size_strata"}.issubset(size)
+    assert {"size_controlled_correlations", "size_strata", "score_coverage"}.issubset(size)
+    assert size["score_coverage"].iloc[0]["paired_coverage"] == pytest.approx(1.0)
+
+
+def test_nats_size_study_reports_failed_and_unsupported_coverage():
+    rows = []
+    for architecture_id, score, status in (
+        ("a", 1.0, "ok"),
+        ("b", 2.0, "ok"),
+        ("c", None, "failed"),
+        ("d", None, "unsupported"),
+    ):
+        rows.append(
+            {
+                "architecture_id": architecture_id,
+                "architecture": {"architecture": "8:16:24:32:40"},
+                "proxy_id": "proxy",
+                "component": "score",
+                "score": score,
+                "target_value": 1.0,
+                "direction": "maximize",
+                "status": status,
+            }
+        )
+
+    coverage = nats_size_study(pd.DataFrame(rows))["score_coverage"].iloc[0]
+
+    assert coverage["total_calls"] == 4
+    assert coverage["ok_calls"] == 2
+    assert coverage["failed_calls"] == 1
+    assert coverage["unsupported_calls"] == 1
+    assert coverage["paired_count"] == 2
+    assert coverage["paired_coverage"] == pytest.approx(0.5)
 
 
 def test_benchmark_studies_merge_shards_but_keep_evaluation_seeds_separate():

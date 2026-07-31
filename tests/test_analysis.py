@@ -448,6 +448,22 @@ def test_monitor_retries_an_incomplete_trailing_record(tmp_path: Path) -> None:
     assert "Rows: 2" in monitor_html
 
 
+def test_monitor_html_uses_requested_browser_refresh_interval(tmp_path: Path) -> None:
+    source = tmp_path / "scores.jsonl"
+    source.write_text('{"architecture_id":"a"}\n', encoding="utf-8")
+
+    result = refresh_once(
+        source,
+        tmp_path / "view.html",
+        browser_refresh_seconds=30,
+    )
+
+    monitor_html = Path(result["output"]).read_text(encoding="utf-8")
+    assert "http-equiv='refresh' content='30'" in monitor_html
+    with pytest.raises(ValueError, match="must be positive"):
+        refresh_once(source, browser_refresh_seconds=0)
+
+
 def test_monitor_discovers_single_timestamped_run_and_rejects_ambiguous_root(tmp_path):
     first = tmp_path / "20260101T000000Z_first"
     first.mkdir()

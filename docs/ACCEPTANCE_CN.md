@@ -78,12 +78,13 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 |---|---|---|
 | `reference_topology_pytorch_port` | `nb101_dag`、`nb201_topology`、`nats_size` | 拓扑由 port 表示，ZCP 不自动等同 benchmark 原训练实现 |
 | `reference_topology_pytorch_port` | `transnas_micro`、`transnas_macro` | 官方 encoder 与七个 task head 的 PyTorch port；真实 Taskonomy contract provider 已实现，但正式 24-building split/config 未公开且本机无许可数据 |
-| `reference_model` | `darts`、`autoformer`、`pit`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
+| `reference_model` | `darts`、`autoformer`、`ofa_proxyless_mbv2`、`ofa_mbv3` | 静态模型结构已实现；正式训练仍须独立通过 `formal_training_ready` 门禁 |
+| `reference_topology_pytorch_port` | `pit` | 发布结构的 PyTorch port；不得冒充官方数值 reference 或正式训练实现 |
 | `proxy_approximation` | `zennas_plainnet_mbv2` | 当前固定 stage MBConv 编码不是 ZenNAS/AZ-NAS structure-string 搜索空间，禁止正式评估、搜索和训练 |
+| `proxy_approximation` | legacy toy | 只适合显式 opt-in 的方法学 smoke，不得参与正式训练或 reference 结论 |
 
 PlainNet-MBV2 的上游源码对照与恢复 reference 的门槛见
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)。
-| `proxy_approximation` | legacy toy | 只适合显式 opt-in 的方法学 smoke，不得参与正式训练或 reference 结论 |
 
 AutoFormer 与 Proxyless-MBV2 的仓库配置当前明确 `formal_training_ready: false`。AutoFormer 已有
 AZ-NAS repeated-augmentation sampler、`base_lr × global_batch / 512` 缩放规则，以及 Cream T/S/B
@@ -216,25 +217,30 @@ surrogate prediction，不是候选真实训练精度。AutoFormer extension 不
 `accuracy_vanilla` 会失败，必须显式使用 `accuracy_kd` 或 `accuracy_inherited`。
 
 本机已真实执行 ViT bootstrap：三份 raw 固定 SHA、三份 runtime JSONL SHA、严格 canonical
-architecture ID、load→query→build→224 forward 均通过。三个切片各抽 5 个候选并执行 22 ZCP，
-每切片严格得到 110 行、80 `ok`、30 `unsupported`、0 `failed`，同时生成 correlation、architecture
-study 和 bundle。由于论文声明 500 GT/数据集及无重叠 60/40，而公开 commit 未给出全集与划分身份，
-该证据状态保持 partial；详见 `docs/evidence/VITBENCH_PREFLIGHT_CN.md`。
+architecture ID 与查询均通过。旧三个切片各 5 个候选 × 22 ZCP 的行数和工作流完整，但 AutoFormer
+分数是在错误的跨实现静态模型上计算，现只保留为 legacy 工作流证据，必须用
+`vitbench-autoprox-90ed458` profile 重算；详见
+`docs/evidence/AUTOFORMER_FIDELITY_AUDIT_CN.md`。此外论文声明的 500 GT/数据集及无重叠 60/40
+身份仍未公开，因此重算后的公开 100 条切片也只能保持 partial。
 
 可移植复验模板：
 
 ```bash
-zcp-test data checklist --root /path/to/data --json
-zcp-test benchmark inspect nasbench101 --data-root /path/to/data \
+CATALOG=/path/to/data/catalog.json
+zcp-test data checklist --root /path/to/data --catalog "$CATALOG" --json
+zcp-test benchmark inspect nasbench101 --catalog "$CATALOG" \
   --dataset cifar10 --split valid --metric-name final_accuracy \
   --epoch-budget 108 --metric-seed-reduction mean
-zcp-test benchmark inspect nasbench201 --trusted --data-root /path/to/data \
+zcp-test benchmark inspect nasbench201 --trusted --catalog "$CATALOG" \
   --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
-zcp-test benchmark inspect nats_tss --trusted --data-root /path/to/data \
+zcp-test benchmark inspect nats_tss --trusted --catalog "$CATALOG" \
   --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 200
-zcp-test benchmark inspect nats_sss --trusted --data-root /path/to/data \
+zcp-test benchmark inspect nats_sss --trusted --catalog "$CATALOG" \
   --dataset cifar10-valid --split valid --metric-name accuracy --epoch-budget 90
 ```
+
+`benchmark inspect` 不会把 `--data-root` 当作 benchmark 自动发现路径；必须使用 bootstrap 写入的
+catalog，或逐项传入准确 `--path`。
 
 同一轮还对上述十个 benchmark/切片执行了真实 index-0 `build_model → params proxy`。所有调用均为
 `succeeded=1, failed=0, score_rows=1`；参数量依次为 NB101 `8,555,530`、NB201/NATS-TSS
