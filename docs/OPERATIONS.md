@@ -446,3 +446,35 @@ parameter-count, and MAC fixtures, but no official checkpoint or layerwise numer
 available. Use it for ZCP structure studies; do not describe it as official numerical reproduction.
 Catalog-backed benchmark opening re-checks SHA-256, version, and protocol. Explicit
 `--benchmark-path` is a caller-managed trust boundary.
+
+## AutoFormer and MobileNetV2 dual-one-percent acceptance
+
+AutoFormer scratch, ZenNAS PlainNet-MBV2, and Proxyless-MBV2 scratch use separate candidate and
+training identities. Their launchers are respectively
+`run-autoformer-imagenet-dual-one-percent.sh`,
+`run-plainnet-mbv2-imagenet-dual-one-percent.sh`, and
+`run-proxyless-mbv2-imagenet-dual-one-percent.sh`. Full-data minimum schedules are 5/500, 2/150,
+and 2/150 epochs; the companion protocol runs the complete 500/150/150 schedule on an exact,
+deterministic 1% data subset.
+
+Each candidate directory must contain `zcp_selected.json`, `fixed_random.json`, and
+`params_flops_matched.json`. Those labels require, respectively, a provenance-recorded ZCP search,
+a fixed-seed sample, and an independently sampled candidate matched on both parameters and FLOPs.
+Do not relabel published, hand-picked, or parameter-only candidates.
+
+```bash
+export TZ=Asia/Shanghai
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export ZCP_IMAGENET_ROOT=/path/to/imagenet1k
+export ZCP_TRAINING_CANDIDATES=/path/to/frozen-candidates/autoformer
+export ZCP_GPU_UUIDS=GPU-...,GPU-...,GPU-...,GPU-...
+setsid -f env ZCP_START_AT=1 \
+  bash tools/acceptance/run-autoformer-imagenet-dual-one-percent.sh
+```
+
+The common launcher verifies the canonical ImageNet file counts, the config space/schedule, four
+GPU UUID locks, candidate staging, and a clean Git worktree. New workflow times use
+`Asia/Shanghai`. After interruption, audit the latest manifest/checkpoint and resume at the first
+unfinished task with `ZCP_START_AT=2..6`; never relabel `interrupted` as `completed`. A passing dual
+1% run validates the implementation and recovery protocol, not full-data/full-schedule paper
+accuracy reproduction.

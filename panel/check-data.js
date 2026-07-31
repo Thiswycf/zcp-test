@@ -213,12 +213,21 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     assert(task?.evidence.includes("EV-DARTS-C0C7815-RUNNING"), `任务 ${task?.id || "?"} 未引用新 run 证据`);
     assert(task?.risks.includes("R-LEGACY-TRAINING-NO-HEARTBEAT"), `任务 ${task?.id || "?"} 未引用旧运行 heartbeat 风险`);
   }
-  assert(dartsLiveTask?.detail.includes("zcp-selected 已于北京时间完成 3/3 epoch"), "DARTS 实时任务未同步首项完成");
-  assert(dartsLiveTask?.detail.includes("task2") && dartsLiveTask?.detail.includes("主动 interrupted"), "DARTS 实时任务未同步 task2 中断");
+  const task2Restart = data.evidence.find((entry) => entry.id === "EV-DARTS-TASK2-RESTARTED-1433");
+  assert(task2Restart?.result.includes("commit 9b7c035") && task2Restart?.result.includes("候选同文件复制"), "task2 重启修复 commit 缺失");
+  assert(task2Restart?.result.includes("北京时间 2026-07-31 14:33") && task2Restart?.result.includes("status=running"), "task2 重启时间或状态缺失");
+  assert(task2Restart?.result.includes("20260731T143343+0800_248be13c9b77"), "task2 run 目录名缺失");
+  assert(task2Restart?.result.includes("快速 ImageNet 根与四卡 UUID 沿用"), "task2 数据根或 GPU 身份边界缺失");
+  assert(task2Restart?.result.includes("约 8.4 batch/s") && task2Restart?.result.includes("run.log 正常增长"), "task2 heartbeat 或日志状态缺失");
+  assert(task2Restart?.result.includes("http://127.0.0.1:8769/monitor.html") && task2Restart?.result.includes("自动刷新"), "task2 monitor URL 或自动刷新缺失");
+  assert(task2Restart?.result.includes("六项仍未完成") && task2Restart?.result.includes("不得标 completed"), "task2 重启未完成边界缺失");
+  assert(!/\/public\/|\/home\/|\bPID\b/.test(task2Restart?.result || ""), "task2 重启证据不得泄露绝对路径或 PID");
+  assert(dartsLiveTask?.detail.includes("zcp-selected 已完成 3/3 epoch"), "DARTS 实时任务未同步首项完成");
+  assert(dartsLiveTask?.detail.includes("task2 于北京时间 2026-07-31 14:33 重启") && dartsLiveTask?.detail.includes("status=running"), "DARTS 实时任务未同步 task2 重启");
   assert(dartsLiveTask?.detail.includes("总体六项仍进行中") && dartsLiveTask?.detail.includes("不得标 completed"), "DARTS 实时任务未保持六项未完成边界");
   const dartsRisk = data.risks.find((entry) => entry.id === "R-DARTS-IMAGENET-DATA");
-  assert(dartsRisk?.status === "开放" && dartsRisk?.description.includes("zcp-selected 已完成 3/3 epoch") && dartsRisk?.description.includes("当前无 zcp-test GPU 任务"), "DARTS 六项风险状态不准确");
-  assert(dartsRisk?.mitigation.includes("从 task2 启动") && dartsRisk?.mitigation.includes("不得外推六项全部完成"), "DARTS 六项风险边界缺失");
+  assert(dartsRisk?.status === "开放" && dartsRisk?.description.includes("zcp-selected 已完成 3/3") && dartsRisk?.description.includes("task2 已于北京时间 2026-07-31 14:33 重启并处于 running"), "DARTS 六项风险状态不准确");
+  assert(dartsRisk?.mitigation.includes("持续监控 task2") && dartsRisk?.mitigation.includes("不得外推六项全部完成"), "DARTS 六项风险边界缺失");
   const fullGate468 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-468");
   assert(fullGate468?.result.includes("commit c0c7815") && fullGate468?.result.includes("468 tests 全部通过"), "当前主仓 468 pytest 结果缺失");
   assert(fullGate468?.result.includes("Ruff") && fullGate468?.result.includes("compileall") && fullGate468?.result.includes("pip check"), "当前主仓 468 静态门禁缺失");

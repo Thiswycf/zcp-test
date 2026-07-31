@@ -1,4 +1,5 @@
 import json
+import subprocess
 from collections import Counter
 from contextlib import contextmanager
 from pathlib import Path
@@ -16,6 +17,45 @@ from zcp_test.training.protocols import (
     resolve_acceptance_protocol,
     validate_candidate_training_protocol,
 )
+
+
+def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
+    root = Path(__file__).resolve().parents[1]
+    acceptance = root / "tools" / "acceptance"
+    scripts = {
+        "run-autoformer-imagenet-dual-one-percent.sh": ("autoformer", "500", "5"),
+        "run-plainnet-mbv2-imagenet-dual-one-percent.sh": (
+            "zennas_plainnet_mbv2",
+            "150",
+            "2",
+        ),
+        "run-proxyless-mbv2-imagenet-dual-one-percent.sh": (
+            "ofa_proxyless_mbv2",
+            "150",
+            "2",
+        ),
+    }
+    common = acceptance / "run-imagenet-candidate-dual-one-percent.sh"
+    for path in [common, *(acceptance / name for name in scripts)]:
+        subprocess.run(["bash", "-n", str(path)], check=True)
+
+    common_source = common.read_text(encoding="utf-8")
+    for candidate in (
+        "zcp_selected.json",
+        "fixed_random.json",
+        "params_flops_matched.json",
+    ):
+        assert candidate in common_source
+    assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in common_source
+    assert "ZoneInfo(\"Asia/Shanghai\")" in common_source
+    assert "Project worktree must be clean" in common_source
+    assert 'flock -n "$descriptor"' in common_source
+
+    for name, (space, formal_epochs, full_epochs) in scripts.items():
+        source = (acceptance / name).read_text(encoding="utf-8")
+        assert f"ZCP_ACCEPTANCE_SPACE={space}" in source
+        assert f"ZCP_FORMAL_EPOCHS={formal_epochs}" in source
+        assert f"ZCP_FULL_DATA_EPOCHS={full_epochs}" in source
 
 
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):

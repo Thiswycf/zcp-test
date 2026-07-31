@@ -553,3 +553,40 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 
 `search` 的 generation summary 与 candidate 是不同 `record_type`，不能把总行数误当候选数。
 报告只在输入满足统计或曲线要求时生成 PNG/SVG，不创建没有数据依据的空图。
+
+## AutoFormer 与两类 MobileNetV2 双重 1% 验收
+
+三个空间使用独立配置、候选目录和结果目录，不能互换 architecture ID 或训练 recipe：
+
+| 空间 | 启动器 | 全数据协议 | 1% 数据协议 |
+|---|---|---:|---:|
+| AutoFormer scratch | `run-autoformer-imagenet-dual-one-percent.sh` | 5/500 epoch | 500 epoch |
+| ZenNAS PlainNet-MBV2 | `run-plainnet-mbv2-imagenet-dual-one-percent.sh` | 2/150 epoch | 150 epoch |
+| Proxyless-MBV2 scratch | `run-proxyless-mbv2-imagenet-dual-one-percent.sh` | 2/150 epoch | 150 epoch |
+
+每个候选目录必须先冻结三个结构化 JSON 文件：`zcp_selected.json`、`fixed_random.json` 和
+`params_flops_matched.json`。第一个必须来自记录完整输入协议和代理版本的 ZCP 搜索；第二个使用固定
+seed；第三个从独立随机池中同时匹配参数量与 FLOPs。不得把官方发布 architecture、手选 architecture
+或只匹配参数量的候选标成 `zcp_selected`/`params_flops_matched`。
+
+四卡后台启动示例：
+
+```bash
+export TZ=Asia/Shanghai
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export ZCP_IMAGENET_ROOT=/path/to/imagenet1k
+export ZCP_TRAINING_CANDIDATES=/path/to/frozen-candidates/autoformer
+export ZCP_GPU_UUIDS=GPU-...,GPU-...,GPU-...,GPU-...
+setsid -f env ZCP_START_AT=1 \
+  bash tools/acceptance/run-autoformer-imagenet-dual-one-percent.sh
+```
+
+PlainNet 和 Proxyless 只替换候选目录与启动器。启动器会验证 ImageNet 的 1000 类、1,281,167 个训练
+文件和 50,000 个验证文件，校验 config 的 space/epoch，使用 GPU UUID 文件锁，并在工作树不干净时
+拒绝启动。状态位于 `runs/acceptance/<space>-imagenet/status.json`，所有新时间使用北京时间。中断后先
+审计最近 run 的 manifest/checkpoint，再用 `ZCP_START_AT=2..6` 从尚未完成的任务恢复；不要重复已完成
+候选，也不要把 interrupted 记作 completed。
+
+六项顺序固定为三个候选的全数据最少 1% epoch，再运行三个候选的 1% 数据完整 schedule。每个 run
+必须有持续增长的 `run.log`/`events.jsonl`、每 epoch 的 `training.jsonl`、`last.pt`、`best.pt` 与最终
+manifest。该验收用于放行训练实现，不等于论文完整数据完整 schedule 精度复现。
