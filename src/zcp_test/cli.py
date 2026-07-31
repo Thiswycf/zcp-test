@@ -87,7 +87,11 @@ from zcp_test.types import MetricSpec, ModelFidelity
 
 
 def _json(value: Any) -> None:
-    print(json.dumps(value, ensure_ascii=False, indent=2, default=str))
+    payload = json.dumps(value, ensure_ascii=False, indent=2, default=str)
+    try:
+        print(payload, flush=True)
+    except BrokenPipeError:
+        sys.stdout = open(os.devnull, "w", encoding="utf-8")
 
 
 def _evaluation_status_summary(statuses: list[str]) -> dict[str, int]:

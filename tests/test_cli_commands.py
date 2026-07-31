@@ -28,6 +28,24 @@ def test_evaluation_summary_does_not_count_unsupported_as_failed():
     }
 
 
+def test_json_output_does_not_fail_completed_work_on_broken_pipe(monkeypatch):
+    class BrokenStream:
+        def write(self, value):
+            del value
+            raise BrokenPipeError(32, "Broken pipe")
+
+        def flush(self):
+            raise BrokenPipeError(32, "Broken pipe")
+
+    monkeypatch.setattr(cli.sys, "stdout", BrokenStream())
+
+    cli._json({"status": "completed"})
+
+    replacement = cli.sys.stdout
+    assert replacement.writable()
+    replacement.close()
+
+
 class _TinyReferenceSpace:
     search_space_id = "tiny_reference"
     model_family = "cnn"
