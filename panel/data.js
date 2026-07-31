@@ -1,6 +1,6 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
-  updatedAt: "2026-07-31 11:35 CST",
+  updatedAt: "2026-07-31 12:10 CST",
   project: {
     name: "zcp-test",
     status: "active",
@@ -25,9 +25,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "audit/next 最新全仓门禁 465 tests passed，pytest 退出码 0；第一方 source coverage 87%、CLI coverage 82%，Ruff、compileall 与 pip check 全部通过。该结果来自新开发 worktree，不改变 integration HEAD 78d8118；456、448 及更早门禁保留为历史口径。",
+      detail: "主仓 commit 0e3ad8e 后已重新完整运行 coverage pytest：collected 467 tests 且全部通过，第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall 与 pip check 全部通过。465、456、448 及更早门禁保留为历史口径。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-FULL-GATE-465", "EV-FULL-GATE-456-COLLECT", "EV-FULL-GATE-448-COLLECT", "EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 11:35"
+      evidence: ["EV-FULL-GATE-467", "EV-FULL-GATE-465", "EV-FULL-GATE-456-COLLECT", "EV-FULL-GATE-448-COLLECT", "EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL", "EV-LIVE-TRAINING-HEARTBEAT"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 12:10"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -106,18 +106,18 @@ window.ZCP_PANEL_DATA = {
       content: "实现 ViT-Bench PiT reference，并评估含 SE/h-swish 的 OFA-MBV3 静态网络。",
       purpose: "补足条件性空间，同时控制非必要实现范围。",
       estimate: "8–16 小时", startedAt: "2026-07-30 15:42", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "PiT 已对齐 QKV、LayerNorm epsilon 与 drop-path，并增加参数量/MAC fixture；真实 GT load→build→224 forward 通过。由于没有官方 checkpoint 或逐层数值对照，fidelity 明确降为 reference_topology_pytorch_port，不标为完整 reference。OFA-MBV3 已按官方五阶段/20-block 编码实现 SE、h-swish、静态子网和 BN recalibration，官方参数量与 shape multiset 对齐；其 inherited 路径仍未单独验收。",
+      detail: "PiT 已对齐 QKV、LayerNorm epsilon 与 drop-path；锁定 Auto-Prox 90ed458 上游 PiT 与项目 port 对同一 base_dim=16 / depth=[2,8,4] / heads=[2,4,4] / mlp=6 / classes=100 / input=224 规格分别运行 THOP，均得到 159,665,472 MAC，sum parameters 均为 893,828 且 shape multiset 一致，参数/MAC golden 已完成。真实 GT load→build→224 forward 通过。由于仍没有官方 checkpoint 或逐层数值对照，fidelity 保持 reference_topology_pytorch_port，不标为完整 reference。OFA-MBV3 已按官方五阶段/20-block 编码实现 SE、h-swish、静态子网和 BN recalibration，官方参数量与 shape multiset 对齐；其 inherited 路径仍未单独验收。",
       acceptance: ["三阶段字段进入 PiT 模型", "真实 gt_pit load→build→224 forward", "PiT 官方参数 fixture", "OFA-MBV3 官方静态结构与 BN recalibration", "MAC fixture 与 inherited 边界"],
-      evidence: ["EV-PIT-REFERENCE", "EV-PIT-TOPOLOGY-PORT", "EV-MBV3-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-PIT", "R-OFA"], updatedAt: "2026-07-31 02:55"
+      evidence: ["EV-PIT-REFERENCE", "EV-PIT-TOPOLOGY-PORT", "EV-MBV3-REFERENCE", "EV-OFA-INHERITED"], risks: ["R-PIT", "R-OFA"], updatedAt: "2026-07-31 11:46"
     },
     {
       id: "D1", phase: "训练", priority: "P0", title: "拆分 DARTS original 与 TE-NAS",
       content: "分离 optimizer、scheduler、drop-path 和 provenance 不同的训练 profile。",
       purpose: "修复原始 DARTS 与 TE-NAS retrain recipe 混用。",
       estimate: "2–4 小时", startedAt: "2026-07-30 12:40", finishedAt: "—", status: "进行中", progress: 97,
-      detail: "DARTS 四卡零增量恢复闭环已完成，旧原始 run manifest 仍保持 failed。六项 DARTS ImageNet 验收已于 2026-07-31 10:12:06 +08 启动，当前 running 子项为 full-data-3epoch/zcp-selected，项目 commit 78d8118，四个 UUID 锁已获取。执行采用 detached + persistent supervisor/per-run logs，用户已允许追加时间预算；当前不得标 completed。",
+      detail: "DARTS 四卡零增量恢复闭环已完成，旧原始 run manifest 仍保持 failed。六项 DARTS ImageNet 验收已于 2026-07-31 10:12:06 +08 启动，当前 running 子项为 full-data-3epoch/zcp-selected，项目 commit 78d8118，四个 UUID 锁已获取。主仓 commit 0e3ad8e 已为新训练 run 增加 events.jsonl 心跳，但当前 78d8118 旧运行不会获得 heartbeat，仍按状态文件、持久日志与每完成 epoch 一行的 training.jsonl 监控；当前不得标 completed。",
       acceptance: ["original/TE-NAS 名称分离", "step/cosine 行为测试", "恢复训练 LR 连续", "正式 DARTS profile acceptance-smoke", "global batch 96/2=48 且语义不漂移"],
-      evidence: ["EV-TRAINING", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS", "EV-IMAGENET1K-ASSET-PREFLIGHT", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED"], risks: ["R-DARTS-HIGH-COST-NOT-RUN", "R-DARTS-IMAGENET-DATA", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 10:13"
+      evidence: ["EV-TRAINING", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS", "EV-IMAGENET1K-ASSET-PREFLIGHT", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-LIVE-TRAINING-HEARTBEAT"], risks: ["R-DARTS-HIGH-COST-NOT-RUN", "R-DARTS-IMAGENET-DATA", "R-LEGACY-TRAINING-NO-HEARTBEAT", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 12:03"
     },
     {
       id: "D2", phase: "训练", priority: "P1", title: "scheduler、恢复身份与 1% 数据",
@@ -196,9 +196,9 @@ window.ZCP_PANEL_DATA = {
       content: "执行全量测试、静态检查、覆盖率和关键模块回归。",
       purpose: "确认并发修复合并后无回归。",
       estimate: "2–4 小时", startedAt: "2026-07-30 14:50", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "audit/next 最新全仓门禁 465 tests passed，pytest 退出码 0；第一方 source coverage 87%、CLI coverage 82%，Ruff、compileall 与 pip check 全部通过。该门禁验证新开发 worktree，不改变 integration HEAD 78d8118；456、448 及更早门禁作为历史 gate 保留。",
+      detail: "主仓 commit 0e3ad8e 后已重新完整运行 coverage pytest：collected 467 tests 且全部通过，第一方 source coverage 87%、CLI coverage 82%；Ruff、compileall 与 pip check 全部通过。465、456、448 及更早门禁作为历史 gate 保留。",
       acceptance: ["全量 pytest", "Ruff 通过", "source coverage ≥85%", "关键模块 ≥80%"],
-      evidence: ["EV-FULL-GATE-465", "EV-FULL-GATE-456-COLLECT", "EV-FULL-GATE-448-COLLECT", "EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 11:35"
+      evidence: ["EV-FULL-GATE-467", "EV-FULL-GATE-465", "EV-FULL-GATE-456-COLLECT", "EV-FULL-GATE-448-COLLECT", "EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-LIVE-TRAINING-HEARTBEAT"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-07-31 12:10"
     },
     {
       id: "G2", phase: "验收", priority: "P0", title: "全 Benchmark 真实 smoke",
@@ -223,18 +223,18 @@ window.ZCP_PANEL_DATA = {
       content: "在全训练数据上执行约 1% 正式 epoch，并验证曲线与恢复。",
       purpose: "验收 reference 模型、优化器、数据增强和 checkpoint。",
       estimate: "12–24 小时，可追加验收时间", startedAt: "2026-07-31 04:10", finishedAt: "—", status: "进行中", progress: 55,
-      detail: "六项 DARTS ImageNet 验收已于 2026-07-31 10:12:06 +08 启动。当前 running full-data-3epoch/zcp-selected，项目 commit 78d8118，四个 UUID 锁已获取；状态文件为 <audit-root>/training/darts-imagenet-extended.status.json。执行模式为 detached + persistent supervisor/per-run logs，用户已允许追加时间预算；尚未完成。",
+      detail: "六项 DARTS ImageNet 验收已于 2026-07-31 10:12:06 +08 启动。当前 running full-data-3epoch/zcp-selected，项目 commit 78d8118，四个 UUID 锁已获取；状态文件为 <audit-root>/training/darts-imagenet-extended.status.json。主仓 commit 0e3ad8e 的 events.jsonl 心跳只适用于新运行，当前 78d8118 后台训练不会获得 heartbeat；仍以状态文件、持久日志及每完成 epoch 一行的 training.jsonl 判定，尚未完成。",
       acceptance: ["真实全数据", "CIFAR-10/100 至少 6 epoch", "ImageNet 至少 3 epoch", "恢复结果连续", "协议 metadata 完整"],
-      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA", "R-MBV2-REMAINING", "R-DARTS-IMAGENET-DATA", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 10:13"
+      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-FINAL-2RANK-ACCEPTANCE", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-LIVE-TRAINING-HEARTBEAT", "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA", "R-MBV2-REMAINING", "R-DARTS-IMAGENET-DATA", "R-LEGACY-TRAINING-NO-HEARTBEAT", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 12:03"
     },
     {
       id: "H3", phase: "高成本", priority: "P2", title: "1% 数据 × 完整 schedule",
       content: "使用确定性 1% 数据跑完整 scheduler 和 checkpoint 生命周期。",
       purpose: "验证长期调度和监控，不作为正式精度结论。",
       estimate: "24–48 小时，可追加验收时间", startedAt: "2026-07-31 04:10", finishedAt: "—", status: "进行中", progress: 55,
-      detail: "用户已允许增加高成本验收时间预算。六项 DARTS ImageNet 验收已于 2026-07-31 10:12:06 +08 以 detached + persistent supervisor/per-run logs 模式启动；当前 running full-data-3epoch/zcp-selected，四个 UUID 锁已获取。后续 one-percent-data 项尚未完成，不能标 completed。",
+      detail: "用户已允许增加高成本验收时间预算。六项 DARTS ImageNet 验收已于 2026-07-31 10:12:06 +08 启动；当前 running full-data-3epoch/zcp-selected，项目 commit 78d8118。主仓 commit 0e3ad8e 已为新训练 run 增加约 30 秒 rank-0 events.jsonl 心跳，但不会回填当前旧运行；后续 one-percent-data 项尚未完成，不能标 completed。",
       acceptance: ["严格 fraction=0.01", "精确全局分层样本数", "完整 schedule", "监控产物持续写入", "按延长预算和阶段复核停止", "报告不声称正式精度"],
-      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-STRATIFIED-EXACT-ONE-PERCENT", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA", "R-MBV2-REMAINING", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 10:13"
+      evidence: ["EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DARTS-ACCEPTANCE-PROTOCOL", "EV-STRATIFIED-EXACT-ONE-PERCENT", "EV-DARTS-ACCEPTANCE-TESTS-103", "EV-DARTS-CIFAR-12-RUNS", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-LIVE-TRAINING-HEARTBEAT", "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY"], risks: ["R-BUDGET", "R-AUTOFORMER", "R-OFA", "R-MBV2-REMAINING", "R-DARTS-IMAGENET-DATA", "R-LEGACY-TRAINING-NO-HEARTBEAT", "R-DDP-RANK-RNG", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 12:03"
     },
     {
       id: "J1", phase: "实时", priority: "P1", title: "Search resume 严格恢复",
@@ -268,9 +268,9 @@ window.ZCP_PANEL_DATA = {
       content: "在完整 ImageNet-1k 上运行 DARTS 四卡 real-data preflight。",
       purpose: "在启动正式双重 1% 训练前验证真实数据、DDP、吞吐、显存和训练产物链路。",
       estimate: "以状态文件持续更新为准", startedAt: "2026-07-31 05:52", finishedAt: "—", status: "进行中", progress: 90,
-      detail: "恢复闭环完成后，六项验收于 2026-07-31 10:12:06 +08 启动。状态文件 <audit-root>/training/darts-imagenet-extended.status.json 当前记录 running full-data-3epoch/zcp-selected；项目 commit 78d8118，四个 UUID 锁已获取。执行为 detached + persistent supervisor/per-run logs；不跟踪本机监督器 PID，当前不得标 completed。",
+      detail: "恢复闭环完成后，六项验收于 2026-07-31 10:12:06 +08 启动。状态文件 <audit-root>/training/darts-imagenet-extended.status.json 当前记录 running full-data-3epoch/zcp-selected；项目 commit 78d8118，四个 UUID 锁已获取。主仓 commit 0e3ad8e 已让新训练 run 的 rank 0 默认约每 30 秒写 training_batch_progress，并在 epoch 完成时写 training_epoch_completed 到 events.jsonl；monitor 对训练 run 优先 events.jsonl，training.jsonl 仍每完成 epoch 一行，rank_local_samples 仅表示 rank 0 本地样本。该提交已重新完整运行 coverage pytest，467 tests 全部通过，当前第一方 source coverage 87%、CLI coverage 82%。当前 78d8118 旧运行不会获得 heartbeat，仍保持 running，不得标 completed。",
       acceptance: ["manifest 最终状态明确", "真实 ImageNet batch 完成训练", "DDP 各 rank 正常退出", "training.jsonl 与 checkpoint 完整", "运行结束并审计后再判断"],
-      evidence: ["EV-LIVE-DARTS-IMAGENET-PREFLIGHT", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED"], risks: ["R-LIVE-DARTS-IMAGENET-PREFLIGHT", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 10:13"
+      evidence: ["EV-LIVE-DARTS-IMAGENET-PREFLIGHT", "EV-DARTS-IMAGENET-PREFLIGHT-FAILED", "EV-DARTS-CLI-STDOUT-FIX", "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", "EV-DARTS-IMAGENET-NEXT-SIX", "EV-DARTS-IMAGENET-SIX-LAUNCHED", "EV-LIVE-TRAINING-HEARTBEAT", "EV-FULL-GATE-467"], risks: ["R-LIVE-DARTS-IMAGENET-PREFLIGHT", "R-DARTS-IMAGENET-DATA", "R-LEGACY-TRAINING-NO-HEARTBEAT", "R-LAUNCHER-EXIT-CODE"], updatedAt: "2026-07-31 12:10"
     },
     {
       id: "I1", phase: "发布", priority: "P1", title: "清理、提交与发布",
@@ -300,7 +300,8 @@ window.ZCP_PANEL_DATA = {
     { id: "R-NATS-SSS-CROSS-SEED", severity: "中", status: "监控", title: "NATS-SSS 跨数据集当前只完成单 seed", description: "CIFAR100 与 ImageNet16-120 的 328×22 运行均全成功，三数据集四类分析表已生成；当前完成判定仅覆盖 1% 单 seed 子项，不代表跨数据集核心代理三 seed。", mitigation: "报告持续标注 single-seed scope；若后续执行核心代理多 seed，单独记录 manifest、有效行数与跨 seed 稳定性，不回写现有证据。", taskIds: ["B1", "E3", "F2", "H1", "I1"] },
     { id: "R-BUDGET", severity: "中", status: "监控", title: "高成本任务预算可追加", description: "用户已允许增加高成本验收时间预算；原 48 小时上限不再作为本轮验收的固定硬停止条件。", mitigation: "继续记录 GPU 数量、运行时长与阶段复核点；追加预算不降低成功判定、产物完整性或失败诊断要求。", taskIds: ["H1", "H2", "H3"] },
     { id: "R-DARTS-HIGH-COST-NOT-RUN", severity: "中", status: "监控", title: "DARTS 高成本验收仅完成 CIFAR 范围", description: "CIFAR-10/100 三候选的 full-data 与 one-percent-data 共 12 runs 已完成；该结论不覆盖 DARTS ImageNet，也不代表 AutoFormer、PlainNet-MBV2 或 Proxyless-MBV2 的双重 1%。", mitigation: "按模型与数据集分别报告范围；其余训练完成前项目保持 active。", taskIds: ["D1", "H2", "H3"] },
-    { id: "R-DARTS-IMAGENET-DATA", severity: "高", status: "开放", title: "六项 DARTS ImageNet 验收运行中", description: "六项验收已于 2026-07-31 10:12:06 +08 启动；状态文件当前为 running full-data-3epoch/zcp-selected，项目 commit 78d8118，四个 UUID 锁已获取。执行采用 detached + persistent supervisor/per-run logs，旧原始 preflight manifest 仍为 failed。", mitigation: "按追加时间预算持续监控脱敏状态文件和持久日志；六项正式结果全部验收前保持开放且不得标 completed。", taskIds: ["D1", "H2", "H3", "J4"] },
+    { id: "R-DARTS-IMAGENET-DATA", severity: "高", status: "开放", title: "六项 DARTS ImageNet 验收运行中", description: "六项验收已于 2026-07-31 10:12:06 +08 启动；状态文件当前为 running full-data-3epoch/zcp-selected，项目 commit 78d8118，四个 UUID 锁已获取。该旧运行不会获得主仓 0e3ad8e 新增的 events.jsonl heartbeat，旧原始 preflight manifest 仍为 failed。", mitigation: "持续监控脱敏状态文件、持久日志和每完成 epoch 一行的 training.jsonl；不能因新代码已有 heartbeat 就把 78d8118 后台运行标 completed。", taskIds: ["D1", "H2", "H3", "J4"] },
+    { id: "R-LEGACY-TRAINING-NO-HEARTBEAT", severity: "中", status: "监控", title: "旧训练运行无 events.jsonl heartbeat", description: "commit 0e3ad8e 的 training_batch_progress 与 training_epoch_completed 只由新训练 run 写入；当前 DARTS 六项固定在 78d8118，不会被回填 heartbeat。", mitigation: "monitor 对新训练 run 优先 events.jsonl；旧运行继续结合状态文件、持久日志、manifest、checkpoint 与每完成 epoch 一行的 training.jsonl 判断，不把静默间隔解释为完成。", taskIds: ["D1", "H2", "H3", "J4"] },
     { id: "R-DDP-RANK-RNG", severity: "高", status: "开放", title: "DDP rank-local RNG 恢复尚未专项审计", description: "DDP checkpoint 可能只保存 rank-0 RNG；多 rank 恢复后各 rank RNG 独立性尚未专项审计，属于未验证风险，不代表已观察到异常。", mitigation: "专项审计 checkpoint 中各 rank RNG state 的保存与恢复，并验证多 rank 恢复后的 RNG 独立性；完成前保持风险开放。", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "R-LAUNCHER-EXIT-CODE", severity: "高", status: "开放", title: "launcher exit-code 异常", description: "launcher 的退出码传播仍存在异常风险，子进程失败可能无法被上层可靠识别。", mitigation: "增加失败注入与退出码传播验收；修复前以 run manifest、日志和产物完整性共同判定。", taskIds: ["D1", "D2", "H2", "H3"] },
     { id: "R-GPU-LOCK-DELAY", severity: "中", status: "关闭", title: "auto GPU 非零锁超时启动延迟已修复", description: "旧实现先等待最佳卡再探测其他卡，导致约 120 秒启动延迟；旧四个 NB101 进程随后均正常占用四卡，未形成数据失败。", mitigation: "auto 选择现先以零超时探测全部候选，再在一个全局 timeout 内轮询；tests/test_gpu.py 15 passed 且 Ruff 通过，保留回归测试。", taskIds: ["H1"] },
@@ -311,8 +312,10 @@ window.ZCP_PANEL_DATA = {
     { id: "R-LIVE-DARTS-IMAGENET-PREFLIGHT", severity: "高", status: "关闭", title: "DARTS ImageNet artifact/checkpoint 恢复闭环完成", description: "四卡零增量 resume audit 已 completed，resumed_training_rows=1，training JSONL SHA-256 与旧 failed run 完全一致；旧原始 manifest 保持 failed，未被篡改。", mitigation: "保留脱敏 run、两个修复 commit 和 SHA 一致性证据；六项正式验收由 R-DARTS-IMAGENET-DATA 继续跟踪。", taskIds: ["J4", "D1", "H2"] }
   ],
   evidence: [
+    { id: "EV-LIVE-TRAINING-HEARTBEAT", time: "2026-07-31 12:03", title: "主仓训练心跳事件与旧运行边界", result: "主仓 commit 0e3ad8e Add live training heartbeat events：新训练 run 由 rank 0 默认约每 30 秒向 events.jsonl 写 training_batch_progress，并在 epoch 完成时写 training_epoch_completed；monitor 对训练 run 优先读取 events.jsonl，training.jsonl 仍只在每个 epoch 完成后写一行。rank_local_samples 仅表示 rank 0 本地样本数，不是全局样本数。旧运行不会回填 heartbeat；当前六项 DARTS ImageNet 使用 commit 78d8118，仍为 running，不能据新功能标 completed。", command: "git show --stat --oneline 0e3ad8e; training heartbeat and monitor targeted tests", taskIds: ["D1", "G1", "H2", "H3", "J4"] },
+    { id: "EV-FULL-GATE-467", time: "2026-07-31 12:10", title: "当前主仓全仓 coverage 质量门禁 467", result: "主仓 commit 0e3ad8e 后已重新完整运行 coverage pytest，collected 467 tests 且全部通过；当前第一方 source coverage 87%、CLI coverage 82%，Ruff、compileall 与 pip check 全部通过。", command: "coverage run -m pytest; coverage report; Ruff; compileall; pip check", taskIds: ["A1", "G1", "J4"] },
     { id: "EV-PROXYLESS-MBV2-TRAINING-PROTOCOL-FIDELITY", time: "2026-07-31 10:38", title: "Proxyless-MBV2 MAC golden 完成", result: "新开发 worktree audit/next commit c5234b8 完成 Proxyless MAC golden，精确 265,526,256 MAC；OFA float32 profile 为 265,526,240。formal_training_ready 仍为 false，双重 1% / distributed validation / reporting 仍待验收。", command: "audit/next commit c5234b8；Proxyless MAC golden 与 float32 profile 对照", taskIds: ["C3", "H2", "H3"] },
-    { id: "EV-FULL-GATE-465", time: "2026-07-31 11:35", title: "最新全仓质量门禁 465", result: "audit/next 最新全仓门禁 465 tests passed，pytest 退出码 0；第一方 source coverage 87%、CLI coverage 82%，Ruff、compileall 与 pip check 全部通过。该证据验证新开发 worktree，不表示 integration HEAD 已改变。", command: "full pytest; coverage; Ruff; compileall; pip check", taskIds: ["A1", "C2", "G1"] },
+    { id: "EV-FULL-GATE-465", time: "2026-07-31 11:35", title: "历史全仓质量门禁 465", result: "历史口径：audit/next 全仓 465 tests passed，pytest 退出码 0；第一方 source coverage 87%、CLI coverage 82%，Ruff、compileall 与 pip check 全部通过。该证据已由主仓 EV-FULL-GATE-467 取代；PlainNet 结构与候选协议仍以本门禁为完成证据。", command: "full pytest; coverage; Ruff; compileall; pip check", taskIds: ["A1", "C2", "G1"] },
     { id: "EV-FULL-GATE-456-COLLECT", time: "2026-07-31 10:38", title: "历史全仓质量门禁 456 collect", result: "历史口径：audit/next commit af71f2d 共 collected 456 tests，完整 pytest 退出码 0；第一方 source coverage 87%、CLI coverage 82%，Ruff、compileall、pip check 与 panel checks 全部通过。该证据已由 EV-FULL-GATE-465 取代。", command: "pytest collect + full pytest; coverage; Ruff; compileall; pip check; panel checks", taskIds: ["A1", "C3", "G1"] },
     { id: "EV-DARTS-IMAGENET-ZERO-INCREMENT-RESUME", time: "2026-07-31 10:05", title: "DARTS ImageNet 四卡零增量恢复审计完成", result: "脱敏 run <audit-root>/training/darts-imagenet-preflight-resume-audit/20260731T020100Z_735cd5d3c551 manifest=completed，resumed_training_rows=1；恢复 run 的 training JSONL SHA-256 与旧 failed run 完全一致，证明 artifact/checkpoint 恢复闭环。旧原始 run manifest 仍保持 failed，未回写或篡改。", command: "审计 resume manifest、resumed_training_rows、training JSONL SHA-256 与旧 failed manifest", taskIds: ["D1", "H2", "H3", "J4"] },
     { id: "EV-DARTS-IMAGENET-NEXT-SIX", time: "2026-07-31 10:05", title: "六项 DARTS ImageNet 验收启动前计划", result: "历史启动前计划：采用延长预算、持久日志和 detached 模式；该计划已于 2026-07-31 10:12:06 +08 转为 running，当前状态以 EV-DARTS-IMAGENET-SIX-LAUNCHED 为准。", command: "延长预算；持久日志；detached 模式启动计划", taskIds: ["D1", "H2", "H3", "J4"] },
@@ -411,7 +414,7 @@ window.ZCP_PANEL_DATA = {
     { id: "EV-MBV2-FIXTURE-START", time: "2026-07-30 16:32", title: "OFA-Proxyless MBV2 官方 fixture 主任务启动", result: "当前主任务已切换为官方 positional encoding/reference fixture 对齐并标记进行中；现阶段仅记录任务边界，尚无 params/MAC fixture 通过结论。", command: "任务交接：OFA-Proxyless MBV2 official positional encoding/reference fixture", taskIds: ["C2"] },
     { id: "EV-REAL-BENCHMARKS", time: "2026-07-30 16:28", title: "全 Benchmark 真实 index-0 smoke", result: "NB101、NB201、NATS-TSS/SSS、TNB micro/macro、deterministic NB301、ViT main/extension/PiT 的 query→build→params proxy 全部 succeeded=1、failed=0；未用 synthetic benchmark 或伪造真值。", command: "zcp-test benchmark inspect ...; zcp-test evaluate --benchmark ... --proxies params --count 1 --input-source random --device cpu", taskIds: ["B1", "B2", "B3", "G2"] },
     { id: "EV-GIT-CHECKPOINT", time: "2026-07-30 16:15", title: "低成本审计阶段提交", result: "216-test/86%-coverage、PiT/OFA-MBV3 reference、训练协议白名单、文档和动态看板已提交为 9e939b8；数据、runs 和 checkpoint 未进入 Git。远端推送等待 GitHub 登录。", command: "git commit -m 'Complete low-cost audit and reference model pass'", taskIds: ["A1", "A2", "C4", "F1", "G1", "I1"] },
-    { id: "EV-PIT-REFERENCE", time: "2026-07-30 16:13", title: "PiT reference 官方结构对照", result: "真实 gt_pit 规格完成 load→build→224 forward；与 Auto-Prox 90ed458 同为 893,828 参数且参数 shape multiset 一致。MAC golden 尚未完成。", command: "PYTHONPATH=/tmp/Auto-Prox-AAAI24 conda run -n zcp-test python /tmp/check_upstream_pit_isolated.py", taskIds: ["C4"] },
+    { id: "EV-PIT-REFERENCE", time: "2026-07-31 11:46", title: "PiT reference 参数与 MAC golden 完成", result: "锁定 Auto-Prox commit 90ed458eff6948a6f0d23e440a8d21bbec50d091 上游 PiT 与项目 port 对同一 base_dim=16 / depth=[2,8,4] / heads=[2,4,4] / mlp=6 / classes=100 / input=224 规格分别运行 THOP，均得到 159,665,472 MAC；sum parameters 均为 893,828，参数 shape multiset 一致，MAC golden 已完成。由于仍缺官方 checkpoint 与逐层数值对照，fidelity 保持 reference_topology_pytorch_port。", command: "上游: https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458eff6948a6f0d23e440a8d21bbec50d091；仓库证据: docs/evidence/VITBENCH_PREFLIGHT_CN.md", taskIds: ["C4"] },
     { id: "EV-MBV3-REFERENCE", time: "2026-07-30 16:13", title: "OFA-MBV3 静态 reference 对照", result: "按官方五阶段/20-block 编码实现 SE、h-swish、width rounding 与 BN recalibration；全 3×3/e3/d2/w1.0 子网双方均为 3,410,792 参数且 shape multiset 一致。", command: "PYTHONPATH=/tmp/once-for-all conda run -n zcp-test python /tmp/check_ofa_mbv3.py", taskIds: ["C4"] },
     { id: "EV-PROTOCOL-GATE", time: "2026-07-30 16:13", title: "正式训练协议不可由 YAML 自授权", result: "新增代码内 DARTS 协议白名单与关键字段校验；拒绝未知协议、篡改 recipe、batch/input override，并在缺数据时构模前失败。", command: "pytest -q tests/test_workflow.py -k 'approved_formal or non_reference_space'", taskIds: ["A2", "D1", "D2"] },
     { id: "EV-COVERAGE-85", time: "2026-07-30 16:13", title: "第一方与关键模块覆盖率达标", result: "全量 216 项测试通过；第一方 coverage 86%，CLI 80%，benchmark_report 96%，reports 100%。", command: "python -m coverage run -m pytest -q && python -m coverage report -m", taskIds: ["A1", "G1"] },

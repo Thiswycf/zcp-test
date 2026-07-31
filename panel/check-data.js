@@ -182,11 +182,42 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(dartsSixLaunched?.result.includes("detached + persistent supervisor/per-run logs"), "DARTS detached 持久日志模式缺失");
   assert(dartsSixLaunched?.result.includes("允许追加时间预算") && dartsSixLaunched?.result.includes("不得标 completed"), "DARTS 延长预算或未完成边界缺失");
   assert(!/supervisor PID/i.test(dartsSixLaunched?.result || ""), "DARTS 看板不应跟踪本机监督器 PID");
+  const heartbeatEvidence = data.evidence.find((entry) => entry.id === "EV-LIVE-TRAINING-HEARTBEAT");
+  assert(heartbeatEvidence?.result.includes("commit 0e3ad8e Add live training heartbeat events"), "训练 heartbeat commit 缺失");
+  assert(heartbeatEvidence?.result.includes("rank 0 默认约每 30 秒") && heartbeatEvidence?.result.includes("events.jsonl"), "训练 heartbeat 周期或事件文件缺失");
+  assert(heartbeatEvidence?.result.includes("training_batch_progress") && heartbeatEvidence?.result.includes("training_epoch_completed"), "训练 heartbeat 事件类型缺失");
+  assert(heartbeatEvidence?.result.includes("monitor 对训练 run 优先读取 events.jsonl"), "训练 monitor 事件优先级缺失");
+  assert(heartbeatEvidence?.result.includes("training.jsonl 仍只在每个 epoch 完成后写一行"), "training.jsonl epoch 行语义缺失");
+  assert(heartbeatEvidence?.result.includes("rank_local_samples 仅表示 rank 0 本地样本数，不是全局样本数"), "rank_local_samples 作用域缺失");
+  assert(heartbeatEvidence?.result.includes("当前六项 DARTS ImageNet 使用 commit 78d8118") && heartbeatEvidence?.result.includes("不会回填 heartbeat"), "旧 DARTS 运行 heartbeat 边界缺失");
+  assert(heartbeatEvidence?.result.includes("仍为 running") && heartbeatEvidence?.result.includes("不能据新功能标 completed"), "后台训练未完成边界缺失");
+  const legacyHeartbeatRisk = data.risks.find((entry) => entry.id === "R-LEGACY-TRAINING-NO-HEARTBEAT");
+  assert(legacyHeartbeatRisk?.status === "监控" && legacyHeartbeatRisk?.description.includes("78d8118"), "旧训练无 heartbeat 风险缺失");
+  assert(legacyHeartbeatRisk?.mitigation.includes("状态文件") && legacyHeartbeatRisk?.mitigation.includes("training.jsonl") && legacyHeartbeatRisk?.mitigation.includes("不把静默间隔解释为完成"), "旧训练监控缓解措施缺失");
+  for (const task of [dartsTask, highCostTask, longScheduleTask, dartsLiveTask]) {
+    assert(task?.evidence.includes("EV-LIVE-TRAINING-HEARTBEAT"), `任务 ${task?.id || "?"} 未引用 heartbeat 证据`);
+    assert(task?.risks.includes("R-LEGACY-TRAINING-NO-HEARTBEAT"), `任务 ${task?.id || "?"} 未引用旧运行 heartbeat 风险`);
+  }
+  assert(dartsLiveTask?.detail.includes("monitor 对训练 run 优先 events.jsonl"), "DARTS 实时任务未记录 monitor 事件优先级");
+  assert(dartsLiveTask?.detail.includes("rank_local_samples 仅表示 rank 0 本地样本"), "DARTS 实时任务未记录 rank_local_samples 作用域");
+  assert(dartsLiveTask?.detail.includes("78d8118 旧运行不会获得 heartbeat") && dartsLiveTask?.detail.includes("不得标 completed"), "DARTS 实时任务未保持旧运行未完成边界");
+  const fullGate467 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-467");
+  assert(fullGate467?.result.includes("已重新完整运行 coverage pytest") && fullGate467?.result.includes("collected 467 tests 且全部通过"), "当前主仓 467 coverage pytest 结果缺失");
+  assert(fullGate467?.result.includes("source coverage 87%") && fullGate467?.result.includes("CLI coverage 82%"), "当前主仓 467 coverage 缺失");
+  assert(fullGate467?.result.includes("Ruff") && fullGate467?.result.includes("compileall") && fullGate467?.result.includes("pip check"), "当前主仓静态门禁缺失");
+  assert(fullGate467?.command.includes("coverage run -m pytest") && fullGate467?.command.includes("coverage report"), "当前主仓 coverage 命令缺失");
+  const baselineTask = data.tasks.find((entry) => entry.id === "A1");
+  const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
+  for (const task of [baselineTask, qualityGateTask, dartsLiveTask]) {
+    assert(task?.detail.includes("重新完整运行 coverage pytest"), `任务 ${task?.id || "?"} 未记录本次 coverage pytest`);
+    assert(task?.detail.includes("467 tests") && task?.detail.includes("source coverage 87%") && task?.detail.includes("CLI coverage 82%"), `任务 ${task?.id || "?"} 缺少 467 coverage 结果`);
+    assert(!task?.detail.includes("沿用最近一次 coverage gate"), `任务 ${task?.id || "?"} 不应沿用历史 coverage`);
+  }
   const fullGate465 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-465");
-  assert(fullGate465?.result.includes("465 tests passed") && fullGate465?.result.includes("pytest 退出码 0"), "最新全仓 465 tests 或 pytest 结果缺失");
-  assert(fullGate465?.result.includes("source coverage 87%") && fullGate465?.result.includes("CLI coverage 82%"), "最新全仓 coverage 缺失");
-  assert(fullGate465?.result.includes("Ruff") && fullGate465?.result.includes("compileall") && fullGate465?.result.includes("pip check"), "最新全仓静态门禁缺失");
-  assert(fullGate465?.result.includes("不表示 integration HEAD 已改变"), "新 worktree 门禁与 integration HEAD 边界缺失");
+  assert(fullGate465?.result.includes("465 tests passed") && fullGate465?.result.includes("pytest 退出码 0"), "历史全仓 465 tests 或 pytest 结果缺失");
+  assert(fullGate465?.result.includes("source coverage 87%") && fullGate465?.result.includes("CLI coverage 82%"), "历史 465 coverage 缺失");
+  assert(fullGate465?.result.includes("Ruff") && fullGate465?.result.includes("compileall") && fullGate465?.result.includes("pip check"), "历史 465 静态门禁缺失");
+  assert(fullGate465?.result.includes("已由主仓 EV-FULL-GATE-467 取代"), "历史 465 门禁未标记为被 467 取代");
   const fullGate456 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-456-COLLECT");
   assert(fullGate456?.result.includes("已由 EV-FULL-GATE-465 取代"), "历史 456 门禁未标记为被 465 取代");
   const plainnetTask = data.tasks.find((entry) => entry.id === "C2");
@@ -216,6 +247,22 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ofaEvidence?.result.includes("c5234b8"), "OFA 证据缺少 MAC golden commit");
   assert(ofaEvidence?.result.includes("265,526,256") && ofaEvidence?.result.includes("265,526,240"), "OFA 证据缺少 MAC 数值");
   assert(ofaEvidence?.result.includes("双重 1% / distributed validation / reporting"), "OFA 证据缺少训练阻断边界");
+  const pitTask = data.tasks.find((entry) => entry.id === "C4");
+  const pitEvidence = data.evidence.find((entry) => entry.id === "EV-PIT-REFERENCE");
+  const pitRisk = data.risks.find((entry) => entry.id === "R-PIT");
+  for (const phrase of ["base_dim=16", "depth=[2,8,4]", "heads=[2,4,4]", "mlp=6", "classes=100", "input=224"]) {
+    assert(pitEvidence?.result.includes(phrase), `PiT 证据缺少规格 ${phrase}`);
+  }
+  assert(pitEvidence?.result.includes("90ed458eff6948a6f0d23e440a8d21bbec50d091"), "PiT 锁定上游 commit 缺失");
+  assert(pitEvidence?.result.includes("分别运行 THOP") && pitEvidence?.result.includes("159,665,472 MAC"), "PiT THOP MAC golden 缺失");
+  assert(pitEvidence?.result.includes("sum parameters 均为 893,828") && pitEvidence?.result.includes("shape multiset 一致"), "PiT 参数量或 shape multiset 对照缺失");
+  assert(pitEvidence?.result.includes("MAC golden 已完成"), "PiT MAC golden 完成状态缺失");
+  assert(pitEvidence?.command.includes("https://github.com/lliai/Auto-Prox-AAAI24/tree/90ed458eff6948a6f0d23e440a8d21bbec50d091"), "PiT 可信 GitHub commit URL 缺失");
+  assert(pitEvidence?.command.includes("docs/evidence/VITBENCH_PREFLIGHT_CN.md"), "PiT 仓库相对证据文档缺失");
+  assert(!pitEvidence?.command.includes("/tmp") && !pitEvidence?.command.includes("PYTHONPATH="), "PiT 公共操作指引不得保留本机临时路径");
+  assert(pitTask?.detail.includes("159,665,472 MAC") && pitTask?.detail.includes("893,828") && pitTask?.detail.includes("参数/MAC golden 已完成"), "PiT 任务详情未同步 MAC golden");
+  assert(pitEvidence?.result.includes("reference_topology_pytorch_port") && pitEvidence?.result.includes("缺官方 checkpoint 与逐层数值对照"), "PiT fidelity 边界缺失");
+  assert(pitRisk?.description.includes("缺少官方 checkpoint 和逐层数值对照") && pitRisk?.mitigation.includes("reference_topology_pytorch_port"), "PiT 风险未保持 topology port 边界");
   const autoFormerTask = data.tasks.find((entry) => entry.id === "C1");
   const autoFormerEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY");
   assert(autoFormerTask?.detail.includes("integration commit 74ee153 完成"), "AutoFormer protocol fidelity 完成状态缺失");
