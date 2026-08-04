@@ -3,7 +3,8 @@ search:
   space: zennas_plainnet_mbv2
   proxy: az_nas_plainnet
   aggregator: az_nas_log_rank
-  valid_candidates: 100000
+  valid_candidates: 1000
+  source_budget_protocol: one_percent_acceptance
   population: 1024
   generations: 0
   flops_target: 450m

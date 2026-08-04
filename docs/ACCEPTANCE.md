@@ -126,15 +126,16 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 
 The upstream comparison and reference-upgrade requirements are recorded in
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md).
-The formal controller now locks the pinned upstream 100k run, population 1,024, batch 64, 1/2 block
+The upstream reference controller locks the pinned 100k run, population 1,024, batch 64, 1/2 block
 replacement, top-1,023 parent pool, no crossover, and per-insertion full-history four-component
 log-rank. The official launch script overrides the parser's default 512 with 1,024; pinned source
 hashes are recorded in `evidence/plainnet_source_protocol_20260804.json`. The host-specific
 conservative cumulative CPU rerank estimate is 15,165.56 seconds (about 4.21 hours). The GPU
-batch64/224 preflight is complete. Formal 450M/600M/1G 100k runs started at 2026-08-04 13:50+08
-from commit `0d86588` on three independent 4090D GPUs; all remain `running` with
-`formal_search_completed=false`, so search acceptance is not yet granted. See
-`evidence/plainnet_source_aligned_100k_launch_20260804.json`.
+batch64/224 preflight is complete. The 450M/600M/1G 100k runs started at 2026-08-04 13:50+08 and
+were interrupted by user decision at 14:13+08 with 2,613/2,439/2,055 accepted candidates. Engineering
+acceptance now uses 1,000 valid candidates per target with `one_percent_acceptance`, budget fraction
+0.01, and truncated fidelity. It is not a full AZ-NAS 100k reproduction. See
+`evidence/plainnet_search_budget_one_percent_intervention_20260804.json`.
 
 Static model fidelity does not grant formal-training readiness. DARTS profiles and the accepted
 AutoFormer AZ-NAS scratch profile set `formal_training_ready: true`; PlainNet-MBV2 and Proxyless-MBV2

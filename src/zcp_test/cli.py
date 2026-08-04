@@ -1932,12 +1932,23 @@ def command_search(args: argparse.Namespace) -> None:
                 "PlainNet source-aligned controller protocol mismatch: "
                 f"{mismatched}"
             )
+        source_budget_protocols = {
+            "upstream_full_100k": (100_000, "source_aligned_control_flow_port", 1.0),
+            "one_percent_acceptance": (
+                1_000,
+                "source_aligned_control_flow_port_truncated_one_percent_budget",
+                0.01,
+            ),
+        }
+        expected_candidates, controller_fidelity, budget_fraction = (
+            source_budget_protocols[args.source_budget_protocol]
+        )
         if args.valid_candidates is None:
-            args.valid_candidates = 100_000
-        if args.valid_candidates != 100_000:
+            args.valid_candidates = expected_candidates
+        if args.valid_candidates != expected_candidates:
             raise ValueError(
-                "PlainNet source-aligned production search requires exactly "
-                "100000 valid candidates"
+                f"PlainNet {args.source_budget_protocol} search requires exactly "
+                f"{expected_candidates} valid candidates"
             )
         if args.model_checkpoint or args.allow_approximation:
             raise ValueError(
@@ -2076,7 +2087,9 @@ def command_search(args: argparse.Namespace) -> None:
             search_identity.update(
                 {
                     "controller_id": "plainnet_source_aligned",
-                    "controller_fidelity": "source_aligned_control_flow_port",
+                    "controller_fidelity": controller_fidelity,
+                    "search_budget_protocol": args.source_budget_protocol,
+                    "search_budget_fraction": budget_fraction,
                     "valid_candidates": args.valid_candidates,
                     "flops_target": source_target.target_id,
                     "flops_budget": source_target.flops_budget,
@@ -2246,6 +2259,9 @@ def command_search(args: argparse.Namespace) -> None:
                     valid_candidates=args.valid_candidates,
                     parent_pool=args.population,
                     classes=args.classes,
+                    controller_fidelity=controller_fidelity,
+                    search_budget_protocol=args.source_budget_protocol,
+                    search_budget_fraction=budget_fraction,
                     record_metadata=record_metadata,
                     state_identity=search_identity,
                     resume_state=resume_state,
@@ -3203,6 +3219,15 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--generations", type=int, default=3)
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--valid-candidates", type=int)
+    search.add_argument(
+        "--source-budget-protocol",
+        choices=("upstream_full_100k", "one_percent_acceptance"),
+        default="upstream_full_100k",
+        help=(
+            "PlainNet source-controller budget identity; one_percent_acceptance "
+            "requires exactly 1,000 valid candidates and is not a full AZ-NAS reproduction"
+        ),
+    )
     search.add_argument("--flops-target", choices=("450m", "600m", "1g"))
     search.add_argument(
         "--max-parameters",

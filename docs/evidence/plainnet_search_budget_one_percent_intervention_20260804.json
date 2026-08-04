@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T14:13:43+08:00",
+  "timezone": "Asia/Shanghai",
+  "decision": "replace_full_100k_search_acceptance_with_one_percent_budget",
+  "old_protocol": {
+    "valid_candidates_per_target": 100000,
+    "status": "interrupted",
+    "terminal_counts": {"450m": 2613, "600m": 2439, "1g": 2055},
+    "artifact_policy": "retained_read_only_not_accepted"
+  },
+  "new_protocol": {
+    "search_budget_protocol": "one_percent_acceptance",
+    "valid_candidates_per_target": 1000,
+    "search_budget_fraction": 0.01,
+    "controller_fidelity": "source_aligned_control_flow_port_truncated_one_percent_budget",
+    "targets": ["450m", "600m", "1g"],
+    "proxy": "az_nas_plainnet",
+    "aggregator": "az_nas_log_rank"
+  },
+  "scientific_boundary": "Engineering acceptance only; not completion or reproduction of the upstream 100000-candidate AZ-NAS search."
+}

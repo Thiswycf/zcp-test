@@ -102,15 +102,15 @@ zcp-test train --config configs/training/darts_cifar10.yaml --epochs 1 --smoke
 
 PlainNet-MBV2 的 structure-string port、golden 与训练门禁见
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)。
-正式搜索控制器已锁定上游 100k、population 1024、batch 64、1/2 block replacement、top-1023
+上游参考控制器已锁定 100k、population 1024、batch 64、1/2 block replacement、top-1023
 parent、无 crossover 与逐插入全历史四组件 log-rank；1024 来自固定 commit 的官方启动脚本覆盖值，
 不是 Python parser 的默认 512，来源 SHA 见
 [`evidence/plainnet_source_protocol_20260804.json`](evidence/plainnet_source_protocol_20260804.json)。
 CPU rerank 的本机保守累计估计为 15,165.56 秒（约 4.21 小时）；GPU batch64/224 preflight 已完成。
-450M/600M/1G 三档正式 100k 搜索于北京时间 2026-08-04 13:50 从 commit `0d86588` 在三张独立
-4090D 上启动，当前均为 `running` 且 `formal_search_completed=false`，因此仍不能称搜索验收通过。
-启动身份与早期 state 见
-[`evidence/plainnet_source_aligned_100k_launch_20260804.json`](evidence/plainnet_source_aligned_100k_launch_20260804.json)。
+450M/600M/1G 三档 100k 搜索于北京时间 2026-08-04 13:50 启动，后按用户决定于 14:13 中断；终止
+计数分别为 2,613、2,439、2,055，历史结果不冒充完成。工程验收现改为每档 1,000 个有效候选，记录
+`one_percent_acceptance`、`search_budget_fraction=0.01` 和截断 fidelity；它不能作为完整 AZ-NAS 100k
+复现。见 [`evidence/plainnet_search_budget_one_percent_intervention_20260804.json`](evidence/plainnet_search_budget_one_percent_intervention_20260804.json)。
 
 AutoFormer 仓库配置已在单候选双重 1% 终态核验后置为 `formal_training_ready: true`；PlainNet-MBV2
 与 Proxyless-MBV2 仍为 false。AutoFormer 已有

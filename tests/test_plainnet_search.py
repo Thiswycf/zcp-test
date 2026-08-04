@@ -97,7 +97,9 @@ def test_source_profiles_and_default_protocol_config() -> None:
 
     config = load_config("configs/search/plainnet_mbv2_source_aligned.yaml")["search"]
     assert config["controller"] == "plainnet_source_aligned"
-    assert config["valid_candidates"] == SOURCE_VALID_CANDIDATES
+    assert SOURCE_VALID_CANDIDATES == 100_000
+    assert config["valid_candidates"] == 1_000
+    assert config["source_budget_protocol"] == "one_percent_acceptance"
     assert config["population"] == SOURCE_PARENT_POOL
     assert config["batch_size"] == 64
     assert config["input_size"] == 224
@@ -382,4 +384,22 @@ def test_search_config_can_supply_space_without_duplicate_cli_argument(
 
     assert captured["space"] == "zennas_plainnet_mbv2"
     assert captured["controller"] == "plainnet_source_aligned"
-    assert captured["valid_candidates"] == 100_000
+    assert captured["valid_candidates"] == 1_000
+    assert captured["source_budget_protocol"] == "one_percent_acceptance"
+
+
+def test_source_controller_one_percent_budget_is_explicit() -> None:
+    args = build_parser().parse_args(
+        [
+            "search",
+            "--controller",
+            "plainnet_source_aligned",
+            "--source-budget-protocol",
+            "one_percent_acceptance",
+            "--valid-candidates",
+            "1000",
+        ]
+    )
+
+    assert args.source_budget_protocol == "one_percent_acceptance"
+    assert args.valid_candidates == 1_000

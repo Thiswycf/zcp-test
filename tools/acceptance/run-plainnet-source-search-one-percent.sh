@@ -5,7 +5,7 @@ PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && 
 PYTHON=${ZCP_PYTHON:-python}
 GPU_UUID=${ZCP_PLAINNET_SEARCH_GPU_UUID:?Set ZCP_PLAINNET_SEARCH_GPU_UUID to one GPU UUID}
 FLOPS_TARGET=${ZCP_PLAINNET_FLOPS_TARGET:?Set ZCP_PLAINNET_FLOPS_TARGET to 450m, 600m, or 1g}
-OUTPUT_ROOT=${ZCP_PLAINNET_SEARCH_ROOT:-$PROJECT_ROOT/runs/acceptance/plainnet-source-aligned-100k/$FLOPS_TARGET}
+OUTPUT_ROOT=${ZCP_PLAINNET_SEARCH_ROOT:-$PROJECT_ROOT/runs/acceptance/plainnet-source-aligned-one-percent/$FLOPS_TARGET}
 LOCK_TIMEOUT=${ZCP_GPU_LOCK_TIMEOUT_SECONDS:-21600}
 STATUS=$OUTPUT_ROOT/status.json
 LAUNCHER_LOG=$OUTPUT_ROOT/launcher.log
@@ -44,7 +44,9 @@ payload = {
     "project_commit": sys.argv[4],
     "gpu_uuid": sys.argv[5],
     "flops_target": sys.argv[6],
-    "valid_candidates": 100000,
+    "valid_candidates": 1000,
+    "search_budget_protocol": "one_percent_acceptance",
+    "search_budget_fraction": 0.01,
     "controller": "plainnet_source_aligned",
     "formal_search_completed": sys.argv[2] == "completed",
     "pid": os.getppid(),
@@ -88,7 +90,7 @@ if [[ -n "$state" ]]; then
   resume_args=(--resume "$state")
 fi
 
-write_status running "formal 100k source-aligned search"
+write_status running "one-percent (1,000-candidate) source-aligned acceptance search"
 printf '[%s] target=%s gpu=%s resume=%s commit=%s\n' \
   "$(date -Is)" "$FLOPS_TARGET" "$GPU_UUID" "${state:-none}" "$commit" | tee -a "$LAUNCHER_LOG"
 
@@ -104,7 +106,7 @@ exit_code=${PIPESTATUS[0]}
 set -e
 
 if [[ $exit_code -eq 0 ]]; then
-  write_status completed "formal 100k source-aligned search completed"
+  write_status completed "one-percent (1,000-candidate) source-aligned acceptance search completed"
 elif [[ $exit_code -eq 130 || $exit_code -eq 143 ]]; then
   write_status interrupted "launcher received a termination signal"
 else

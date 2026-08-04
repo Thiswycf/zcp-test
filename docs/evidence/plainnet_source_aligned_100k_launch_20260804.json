@@ -2,7 +2,7 @@
   "schema_version": "1.0",
   "recorded_at": "2026-08-04T13:52:06+08:00",
   "timezone": "Asia/Shanghai",
-  "status": "running_not_accepted",
+  "status": "interrupted_not_accepted",
   "project_commit": "0d8658864078983fa103f4d96805086c8de0a162",
   "controller": "plainnet_source_aligned",
   "controller_fidelity": "source_aligned_control_flow_port",
@@ -44,7 +44,13 @@
     "preflight_state_reused": false,
     "launcher": "tools/acceptance/run-plainnet-source-search-100k.sh"
   },
+  "terminal_interruption": {
+    "ended_at": "2026-08-04T14:13:43+08:00",
+    "reason": "user_reduced_search_budget_to_one_percent",
+    "accepted_counts": {"450m": 2613, "600m": 2439, "1g": 2055},
+    "gpu_locks_released": true
+  },
   "resume_boundary": "Only a state produced by the same formal CLI identity and its source journal may resume. The three-candidate preflight state was intentionally not reused because it lacks the complete formal CLI identity.",
-  "acceptance_boundary": "Early rows and held locks prove active execution only. Each target remains unaccepted until its manifest and launcher status are terminal completed, search.jsonl has exactly 100000 candidate rows plus one summary, state counters and journal SHA agree, and the best architecture/report artifacts validate.",
+  "acceptance_boundary": "These historical 100k runs were interrupted and remain unaccepted. Their partial artifacts are retained read-only and must not resume into the one-percent protocol.",
   "scientific_boundary": "The controller is a source-aligned control-flow port with a stabilized proxy implementation, not a bitwise reproduction. Cross-target runtime comparisons use the same 4090D model family but are not accuracy results."
 }

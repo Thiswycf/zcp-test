@@ -32,6 +32,9 @@ from zcp_test.types import Architecture
 CONTROLLER_ID = "plainnet_source_aligned"
 CONTROLLER_VERSION = "aznas-5e6683-plainnet-controller-v1"
 CONTROLLER_FIDELITY = "source_aligned_control_flow_port"
+ONE_PERCENT_CONTROLLER_FIDELITY = (
+    "source_aligned_control_flow_port_truncated_one_percent_budget"
+)
 SOURCE_URL = (
     "https://github.com/cvlab-yonsei/AZ-NAS/blob/"
     f"{AZNAS_COMMIT}/ImageNet_MBV2/evolution_search_az.py"
@@ -411,6 +414,9 @@ class PlainNetSourceAlignedSearch:
         valid_candidates: int = SOURCE_VALID_CANDIDATES,
         parent_pool: int = SOURCE_PARENT_POOL,
         classes: int = 1_000,
+        controller_fidelity: str = CONTROLLER_FIDELITY,
+        search_budget_protocol: str = "upstream_full_100k",
+        search_budget_fraction: float = 1.0,
         record_metadata: Mapping[str, Any] | None = None,
         state_identity: Mapping[str, Any] | None = None,
         resume_state: Mapping[str, Any] | None = None,
@@ -443,6 +449,9 @@ class PlainNetSourceAlignedSearch:
         self.valid_candidates = int(valid_candidates)
         self.parent_pool = int(parent_pool)
         self.classes = int(classes)
+        self.controller_fidelity = str(controller_fidelity)
+        self.search_budget_protocol = str(search_budget_protocol)
+        self.search_budget_fraction = float(search_budget_fraction)
         self.record_metadata = dict(record_metadata or {})
         self.resource_evaluator = resource_evaluator or (
             lambda architecture: plainnet_official_flops(
@@ -459,7 +468,9 @@ class PlainNetSourceAlignedSearch:
         fixed_identity = {
             "controller_id": CONTROLLER_ID,
             "controller_version": CONTROLLER_VERSION,
-            "controller_fidelity": CONTROLLER_FIDELITY,
+            "controller_fidelity": self.controller_fidelity,
+            "search_budget_protocol": self.search_budget_protocol,
+            "search_budget_fraction": self.search_budget_fraction,
             "implementation_source": SOURCE_URL,
             "implementation_commit": AZNAS_COMMIT,
             "search_space_id": self.space.search_space_id,
@@ -716,7 +727,9 @@ class PlainNetSourceAlignedSearch:
             "record_kind": "candidate",
             "controller_id": CONTROLLER_ID,
             "controller_version": CONTROLLER_VERSION,
-            "controller_fidelity": CONTROLLER_FIDELITY,
+            "controller_fidelity": self.controller_fidelity,
+            "search_budget_protocol": self.search_budget_protocol,
+            "search_budget_fraction": self.search_budget_fraction,
             "source_url": SOURCE_URL,
             "implementation_commit": AZNAS_COMMIT,
             "accepted_index": len(self.history) - 1,
@@ -775,7 +788,9 @@ class PlainNetSourceAlignedSearch:
             "record_kind": "search_summary",
             "controller_id": CONTROLLER_ID,
             "controller_version": CONTROLLER_VERSION,
-            "controller_fidelity": CONTROLLER_FIDELITY,
+            "controller_fidelity": self.controller_fidelity,
+            "search_budget_protocol": self.search_budget_protocol,
+            "search_budget_fraction": self.search_budget_fraction,
             "source_url": SOURCE_URL,
             "implementation_commit": AZNAS_COMMIT,
             "valid_candidates": len(self.history),
@@ -860,6 +875,7 @@ class PlainNetSourceAlignedSearch:
 
 __all__ = [
     "CONTROLLER_FIDELITY",
+    "ONE_PERCENT_CONTROLLER_FIDELITY",
     "CONTROLLER_ID",
     "CONTROLLER_VERSION",
     "PlainNetSearchCandidate",

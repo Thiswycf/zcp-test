@@ -684,7 +684,7 @@ Catalog-backed benchmark opening re-checks SHA-256, version, and protocol. Expli
 
 `az_nas_plainnet` is defined only for `zennas_plainnet_mbv2`; it is not an OFA/Proxyless proxy.
 It ports the pinned MBV2 formula's expressivity, progressivity, trainability, and upstream
-`MasterNet.get_FLOPs()` complexity. The source-aligned entry point fixes 100,000 valid candidates,
+`MasterNet.get_FLOPs()` complexity. The upstream full protocol fixes 100,000 valid candidates,
 parent parameter 1,024, one block replacement for the first 11 candidates, two replacements
 thereafter, no crossover, and a full-history four-component log-rank after every insertion:
 Although the pinned Python parser defaults to 512, the official 450M/600M/1G launch scripts
@@ -697,10 +697,11 @@ zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
   --output /path/to/runs/search/plainnet-aznas-450m
 ```
 
-`--flops-target` also accepts `600m` and `1g`. The CLI locks the formal candidate count, batch 64,
-resolution 224, ImageNet-1k random input, four-component aggregation, and independent scratch
-initialization. A smaller candidate count must not be reported as the formal search. Run the GPU
-memory/throughput preflight and CPU rerank planning benchmark first:
+`--flops-target` also accepts `600m` and `1g`. The project default now explicitly uses
+`source_budget_protocol=one_percent_acceptance`: 1,000 valid candidates per target (1% of upstream
+100k), batch 64, resolution 224, ImageNet-1k random input, four-component aggregation, and
+independent scratch initialization. Artifacts record `search_budget_fraction=0.01` and truncated
+fidelity; they must not be reported as a full AZ-NAS search reproduction.
 
 ```bash
 python tools/acceptance/benchmark-plainnet-rerank.py \
@@ -709,16 +710,16 @@ export ZCP_PLAINNET_PREFLIGHT_GPU_UUID=GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 bash tools/acceptance/run-plainnet-throughput-preflight.sh
 ```
 
-The GPU preflight preserves the formal `valid_candidates=100000` controller identity and pauses
+The historical GPU preflight preserves the full `valid_candidates=100000` controller identity and pauses
 through the API after three accepted candidates. Its state must remain `running`, it must not write
 a `search_summary`, and it records `formal_search_completed=false`. Batch 64/224 estimates memory
 and per-candidate time, not search quality.
 The CPU benchmark excludes model/proxy work, mutation, rejected candidates, and JSONL I/O. On this
 host, the 2026-08-04 conservative cumulative rerank estimate was about 15,166 seconds. Combine it
-with measured GPU time before committing to the 48-hour budget; an over-budget run remains
-`incomplete_budget` rather than silently changing controllers.
+with measured GPU time when planning a full reproduction. It is not completion evidence for the
+1,000-candidate acceptance run.
 
-Use the one-target immutable launcher for a formal background run. Assign one UUID per target;
+Use the one-target immutable launcher for a one-percent background acceptance run. Assign one UUID per target;
 450M/600M/1G may run independently on three GPUs:
 
 ```bash
@@ -726,14 +727,14 @@ export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export ZCP_PYTHON=/path/to/conda/envs/zcp-test/bin/python
 export ZCP_PLAINNET_SEARCH_GPU_UUID=GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
 export ZCP_PLAINNET_FLOPS_TARGET=450m  # or 600m / 1g
-bash tools/acceptance/run-plainnet-source-search-100k.sh
+bash tools/acceptance/run-plainnet-source-search-one-percent.sh
 ```
 
-The default root is `runs/acceptance/plainnet-source-aligned-100k/<target>/`. `status.json` sets
-`formal_search_completed=true` only after a terminal CLI run. Existing completed runs are skipped;
+The default root is `runs/acceptance/plainnet-source-aligned-one-percent/<target>/`. `status.json`
+records 1,000 candidates, the one-percent protocol, and its fraction. Existing completed runs are skipped;
 an interrupted formal run resumes into a new run from its latest state with full identity/journal
-validation. A preflight state lacks the complete formal CLI identity and must not be passed off as a
-formal resume; production starts in a separate clean run.
+validation. Old 100k and preflight states have different identities and cannot resume the
+one-percent protocol; the truncated acceptance search starts in a separate clean run.
 
 The CLI rejects primary-component-only ranking and any mismatched search space. The stabilized port
 clamps covariance eigenvalue noise and keeps degenerate singular-value calculations finite, so it
