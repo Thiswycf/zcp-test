@@ -357,6 +357,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const proxylessRefrozenEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-ONE-PERCENT-SELECTED-REFROZEN-20260804");
   const proxylessMemorySmokeEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-FULL-BATCH-SYNTHETIC-MEMORY-SMOKE-LAUNCHED-20260804");
   const proxylessMemorySmokeCompleteEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-FULL-BATCH-SYNTHETIC-MEMORY-SMOKE-COMPLETE-20260804");
+  const proxylessDualOnePercentRunningEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-SINGLE-ZCP-DUAL-ONE-PERCENT-RUNNING-20260804");
   const ofaDirectSearchRisk = data.risks.find((entry) => entry.id === "R-OFA-DIRECT-SEARCH-FIDELITY");
   assert(plainnetTask?.status === "已完成" && plainnetTask?.progress === 100, "PlainNet 结构与候选协议任务未标记完成");
   assert(plainnetTask?.title.includes("PlainNet 真实 structure-string 与候选协议"), "PlainNet 任务标题未更新");
@@ -407,14 +408,17 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     assert(proxylessMemorySmokeCompleteEvidence?.result.includes(marker), `Proxyless synthetic memory smoke 完成证据缺少 ${marker}`);
   }
   assert(proxylessMemorySmokeCompleteEvidence?.result.includes("不是真实训练或科学结果") && proxylessMemorySmokeCompleteEvidence?.result.includes("真实双重 1% 训练尚未启动"), "Proxyless smoke 与真实训练终态边界缺失");
+  for (const marker of ["2026-08-04 15:35:59 Asia/Shanghai", "supervisor PID 3408995", "scope=single_zcp_dual_one_percent", "run_id=e491fa421df4", "full-data 2/150 epoch", "run_id=25688b2db921", "exact 1%-data 150/150 epoch", "两项均为 running", "GPU 利用率采样均为 97%", "不得写成 completed"]) {
+    assert(proxylessDualOnePercentRunningEvidence?.result.includes(marker), `Proxyless 单候选双重 1% 运行证据缺少 ${marker}`);
+  }
   assert(ofaEvidence?.result.includes("c5234b8"), "OFA 证据缺少 MAC golden commit");
   assert(ofaEvidence?.result.includes("265,526,256") && ofaEvidence?.result.includes("265,526,240"), "OFA 证据缺少 MAC 数值");
   assert(ofaEvidence?.result.includes("双重 1% / distributed validation / reporting"), "OFA 证据缺少训练阻断边界");
   assert(ofaProtocolCorrection?.result.includes("commit f03b267") && ofaProtocolCorrection?.result.includes("20-block/5-stage") && ofaProtocolCorrection?.result.includes("resolution={160,176,192,208,224}") && ofaProtocolCorrection?.result.includes("OFA-MBV3"), "OFA-MBV3 tutorial 归属纠错缺失");
   assert(ofaProtocolCorrection?.result.includes("21 个动态 ks/e 位置") && ofaProtocolCorrection?.result.includes("6 个 block groups") && ofaProtocolCorrection?.result.includes("前 5 组 depth 可变") && ofaProtocolCorrection?.result.includes("最后一组 depth 固定为 1"), "Proxyless 动态位置或 block-group depth 边界缺失");
   assert(ofaProtocolCorrection?.result.includes("width=1.3") && ofaProtocolCorrection?.result.includes("resolution=128..224"), "Proxyless width 或 resolution 范围缺失");
-  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("run a353e301f420") && ofaDirectSearchRisk?.description.includes("run ddffb1e50c91 均已 completed") && ofaDirectSearchRisk?.description.includes("真实双重 1% 训练尚未启动"), "Proxyless 搜索与 smoke 完成后的 fidelity 风险缺失");
-  assert(ofaDirectSearchRisk?.mitigation.includes("controller_fidelity=project_controller_not_ofa_tutorial") && ofaDirectSearchRisk?.mitigation.includes("direct_search_protocol_evidence=false") && ofaDirectSearchRisk?.mitigation.includes("formal_training_ready=false") && ofaDirectSearchRisk?.mitigation.includes("独立状态"), "Proxyless 最终 smoke 后的 fidelity 约束缺失");
+  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("run a353e301f420") && ofaDirectSearchRisk?.description.includes("run ddffb1e50c91") && ofaDirectSearchRisk?.description.includes("e491fa421df4/25688b2db921 当前均为 running"), "Proxyless 搜索、smoke 与训练 fidelity 风险缺失");
+  assert(ofaDirectSearchRisk?.mitigation.includes("controller_fidelity=project_controller_not_ofa_tutorial") && ofaDirectSearchRisk?.mitigation.includes("direct_search_protocol_evidence=false") && ofaDirectSearchRisk?.mitigation.includes("formal_training_ready=false") && ofaDirectSearchRisk?.mitigation.includes("独立状态"), "Proxyless 运行期 fidelity 约束缺失");
   const proxyRegistryTask = data.tasks.find((entry) => entry.id === "E1");
   const proxyRegistryRisk = data.risks.find((entry) => entry.id === "R-PROXY");
   const proxyRegistryEvidence = data.evidence.find((entry) => entry.id === "EV-PROXY-REGISTRY-AUDIT-24-20260804");
