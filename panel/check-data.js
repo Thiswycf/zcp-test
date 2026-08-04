@@ -305,12 +305,15 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${httpRecoveryEvidence?.result || ""} ${httpRecoveryEvidence?.command || ""}`), "看板 HTTP 恢复证据不得泄露绝对路径或 PID");
   const panelTask = data.tasks.find((entry) => entry.id === "F4");
   assert(panelTask?.detail.includes("8768/8769") && panelTask?.detail.includes("curl 超时") && panelTask?.detail.includes("已重启服务") && panelTask?.detail.includes("monitor 根目录"), "F4 未同步 HTTP 服务恢复状态");
+  const fullGate566 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-566");
   const fullGate565 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-565");
   const fullGate564 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-564");
   const fullGate563 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-563");
   const fullGate545 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-545");
-  assert(fullGate565?.result.includes("38 个测试文件") && fullGate565?.result.includes("565 tests 全部通过"), "当前工作树 565 pytest 结果缺失");
-  assert(fullGate565?.result.includes("Ruff") && fullGate565?.result.includes("compileall") && fullGate565?.result.includes("pip check") && fullGate565?.result.includes("Bash") && fullGate565?.result.includes("JSON") && fullGate565?.result.includes("diff"), "当前工作树 565 静态门禁缺失");
+  assert(fullGate566?.result.includes("38 个测试文件") && fullGate566?.result.includes("566 tests 全部通过"), "当前工作树 566 pytest 结果缺失");
+  assert(fullGate566?.result.includes("Ruff") && fullGate566?.result.includes("compileall") && fullGate566?.result.includes("pip check") && fullGate566?.result.includes("Bash") && fullGate566?.result.includes("JSON") && fullGate566?.result.includes("diff"), "当前工作树 566 静态门禁缺失");
+  assert(fullGate566?.result.includes("4 条 THOP warning") && fullGate566?.result.includes("非失败"), "当前工作树 THOP warning 边界缺失");
+  assert(fullGate565?.result.includes("38 个测试文件") && fullGate565?.result.includes("565 tests 全部通过"), "历史工作树 565 pytest 结果缺失");
   assert(fullGate564?.result.includes("38 个测试文件") && fullGate564?.result.includes("564 tests 全部通过"), "历史工作树 564 pytest 结果缺失");
   assert(fullGate563?.result.includes("38 个测试文件") && fullGate563?.result.includes("563 tests 全部通过"), "历史工作树 563 pytest 结果缺失");
   assert(fullGate545?.result.includes("37 个测试文件") && fullGate545?.result.includes("545 tests 全部通过"), "历史工作树 545 pytest 结果缺失");
@@ -321,7 +324,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
   for (const task of [baselineTask, qualityGateTask]) {
-    assert(task?.detail.includes("38 files") && task?.detail.includes("565 tests"), `任务 ${task?.id || "?"} 缺少当前 565 gate`);
+    assert(task?.detail.includes("38 files") && task?.detail.includes("566 tests"), `任务 ${task?.id || "?"} 缺少当前 566 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
   }
   const releaseTask = data.tasks.find((entry) => entry.id === "I1");
@@ -403,6 +406,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(autoFormerTask?.detail.includes("不是实际 ImageNet 精度") && autoFormerTask?.detail.includes("不是论文精度") && autoFormerTask?.detail.includes("项目总体验收仍未完成"), "AutoFormer 历史 smoke 或当前科学边界缺失");
   assert(autoFormerTask?.detail.includes("full-data 5 epoch") && autoFormerTask?.detail.includes("one-percent-data 500 epoch") && autoFormerTask?.detail.includes("last.pt/best.pt"), "AutoFormer 双重 1% 完成边界缺失");
   const dualOnePercentPolicy = data.evidence.find((entry) => entry.id === "EV-DUAL-ONE-PERCENT-ZCP-ONLY-POLICY-20260804");
+  assert(dualOnePercentPolicy?.result.includes("未来每个训练协议只允许 zcp-selected 单一架构，禁止 fixed-random / params-FLOPs-matched 新训练；搜索候选池不受单候选训练规则限制"), "单候选训练与搜索候选池政策语义缺失");
   assert(dualOnePercentPolicy?.result.includes("一个 zcp-selected 架构") && dualOnePercentPolicy?.result.includes("全数据 × 1% epoch") && dualOnePercentPolicy?.result.includes("1% 数据 × 完整 schedule"), "未来双重 1% 单架构两协议政策缺失");
   assert(dualOnePercentPolicy?.result.includes("不能证明 ZCP 优于") && dualOnePercentPolicy?.result.includes("约 3 倍资源") && dualOnePercentPolicy?.result.includes("退出工程 gate"), "短训科学边界或三候选资源理由缺失");
   assert(dualOnePercentPolicy?.result.includes("已完成的历史产物只读保留") && dualOnePercentPolicy?.result.includes("尚未启动的 queued baseline 必须取消"), "历史产物保留或 queued baseline 取消政策缺失");
@@ -465,6 +469,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ddpRankRngEvidence?.result.includes("legacy checkpoint 缺字段") && ddpRankRngEvidence?.result.includes("world-size 不匹配") && ddpRankRngEvidence?.result.includes("fail-closed"), "DDP rank-local RNG 旧格式或 world-size 拒绝证据缺失");
   assert(ddpRankRngEvidence?.command.includes("docs/evidence/ddp_rank_local_rng_roundtrip.json"), "DDP rank-local RNG JSON 证据链接缺失");
   const gpuOwnerTask = data.tasks.find((entry) => entry.id === "J6");
+  assert(gpuOwnerTask?.detail.includes("GPU0/1/3 是 450m/600m/1g 三个 FLOPs 约束档位的 PlainNet 100k ZCP 搜索，不是三候选训练"), "PlainNet GPU0/1/3 搜索与三候选训练区分缺失");
+  assert(gpuOwnerTask?.detail.includes("2026-08-04 13:50:17 Asia/Shanghai 手工下发，无 timer、无 queued supervisor"), "PlainNet 三档手工下发与无自动调度语义缺失");
   assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("kernel flock 仍是唯一锁权威") && gpuOwnerTask?.detail.includes("陈旧 lock 文件不阻塞获取"), "GPU owner 实时巡检任务或锁权威边界缺失");
   assert(gpuOwnerTask?.detail.includes("task5 fixed-random") && gpuOwnerTask?.detail.includes("task6 params-flops-matched") && gpuOwnerTask?.detail.includes("两个 manifest 均为 interrupted"), "GPU owner 任务未同步基线终止状态");
   assert(gpuOwnerTask?.detail.includes("两把 kernel flock") && gpuOwnerTask?.detail.includes("已释放") && gpuOwnerTask?.detail.includes("task4 zcp-selected 随后在 GPU5 完成"), "GPU owner 任务未同步历史锁释放或 task4 当前终态");
@@ -494,8 +500,17 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(plainnetWaitingEvidence?.result.includes("12:08:31") && plainnetWaitingEvidence?.result.includes("immutable commit 17f54d7") && plainnetWaitingEvidence?.result.includes("waiting_for_gpu_lock"), "PlainNet GPU preflight V2 历史启动身份或等待状态缺失");
   assert(plainnetWaitingEvidence?.result.includes("尚未取得 flock") && plainnetWaitingEvidence?.result.includes("未占 GPU") && plainnetWaitingEvidence?.result.includes("未开始任何候选"), "PlainNet GPU preflight 历史等待资源边界缺失");
   assert(plainnetSearchTask?.detail.includes("3 accepted") && plainnetSearchTask?.detail.includes("2 evaluations") && plainnetSearchTask?.detail.includes("1 cache hit"), "PlainNet GPU preflight 完成结果缺失");
-  assert(plainnetSearchTask?.detail.includes("正式 100k 搜索已经启动但尚未完成") && plainnetSearchTask?.detail.includes("status=running") && plainnetSearchTask?.detail.includes("formal_search_completed=false"), "PlainNet 正式 100k 当前运行边界缺失");
+  const plainnetInterrupted100k = data.evidence.find((entry) => entry.id === "EV-PLAINNET-100K-INTERRUPTED-20260804");
+  assert(plainnetInterrupted100k?.result.includes("2026-08-04 14:13:43 Asia/Shanghai") && plainnetInterrupted100k?.result.includes("450m=2613") && plainnetInterrupted100k?.result.includes("600m=2439") && plainnetInterrupted100k?.result.includes("1g=2055"), "PlainNet 旧 100k 中断时间或终止 accepted 缺失");
+  assert(plainnetInterrupted100k?.result.includes("锁已释放") && plainnetInterrupted100k?.result.includes("只读保留") && plainnetInterrupted100k?.result.includes("不作为验收通过"), "PlainNet 旧 100k 锁释放或历史验收边界缺失");
+  const plainnetOnePercentLaunch = data.evidence.find((entry) => entry.id === "EV-PLAINNET-ONE-PERCENT-LAUNCHED-20260804");
+  assert(plainnetSearchTask?.detail.includes("one_percent_acceptance") && plainnetSearchTask?.detail.includes("fraction=0.01") && plainnetSearchTask?.detail.includes("source_aligned_control_flow_port_truncated_one_percent_budget"), "PlainNet 1% 候选预算协议身份缺失");
+  assert(plainnetOnePercentLaunch?.result.includes("77225d95479a") && plainnetOnePercentLaunch?.result.includes("5bf76f7e061b") && plainnetOnePercentLaunch?.result.includes("55e33fa80343"), "PlainNet 1% 三档 run identity 缺失");
+  assert(plainnetOnePercentLaunch?.result.includes("zcp-test-plainnet-search-1pct-450m-v4.service") && plainnetOnePercentLaunch?.result.includes("zcp-test-plainnet-search-1pct-600m-v4.service") && plainnetOnePercentLaunch?.result.includes("zcp-test-plainnet-search-1pct-1g-v4.service"), "PlainNet 1% 三档 unit identity 缺失");
+  assert(plainnetOnePercentLaunch?.result.includes("formal_search_completed 永远 false") && plainnetOnePercentLaunch?.result.includes("one_percent_search_completed") && plainnetOnePercentLaunch?.result.includes("不是完整 AZ-NAS 100k 复现"), "PlainNet 1% 完成判据或 fidelity 边界缺失");
   const plainnetFormalLaunch = data.evidence.find((entry) => entry.id === "EV-PLAINNET-FORMAL-100K-LAUNCHED-20260804");
+  assert(plainnetFormalLaunch?.result.includes("GPU0/1/3 是 450m/600m/1g 三个 FLOPs 约束档位的 PlainNet 100k ZCP 搜索，不是三候选训练"), "PlainNet launch 证据未区分候选池搜索与训练");
+  assert(plainnetFormalLaunch?.result.includes("2026-08-04 13:50:17 Asia/Shanghai 手工下发，无 timer、无 queued supervisor"), "PlainNet launch 证据缺少精确手工下发身份");
   assert(plainnetFormalLaunch?.result.includes("commit 0d86588") && plainnetFormalLaunch?.result.includes("3de9d5652b7d") && plainnetFormalLaunch?.result.includes("fd859cc76c46") && plainnetFormalLaunch?.result.includes("a40a3e3c8b32"), "PlainNet 三档正式 launcher 或 run identity 缺失");
   assert(plainnetFormalLaunch?.result.includes("GPU-f6d...") && plainnetFormalLaunch?.result.includes("GPU-3ebe...") && plainnetFormalLaunch?.result.includes("GPU-daaf...") && plainnetFormalLaunch?.result.includes("独立 service、kernel flock 与 run"), "PlainNet 三档 GPU 或资源隔离身份缺失");
   assert(plainnetFormalLaunch?.result.includes("缺完整 CLI identity 未被续接") && plainnetFormalLaunch?.result.includes("从头开始") && plainnetFormalLaunch?.result.includes("不得写成完成"), "PlainNet preflight 不续接或科学状态边界缺失");

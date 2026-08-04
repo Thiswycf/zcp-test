@@ -18,5 +18,19 @@
     "proxy": "az_nas_plainnet",
     "aggregator": "az_nas_log_rank"
   },
+  "restart": {
+    "started_at": "2026-08-04T14:23:00+08:00",
+    "project_commit": "8dbf1fc85fb0c5b909fc9385805f3e5ecd22276c",
+    "status": "running",
+    "runs": {
+      "450m": {"run_id": "77225d95479a", "gpu_index": 0, "unit": "zcp-test-plainnet-search-1pct-450m-v4.service"},
+      "600m": {"run_id": "5bf76f7e061b", "gpu_index": 1, "unit": "zcp-test-plainnet-search-1pct-600m-v4.service"},
+      "1g": {"run_id": "55e33fa80343", "gpu_index": 3, "unit": "zcp-test-plainnet-search-1pct-1g-v4.service"}
+    },
+    "completion_semantics": {
+      "formal_search_completed": false,
+      "terminal_field": "one_percent_search_completed"
+    }
+  },
   "scientific_boundary": "Engineering acceptance only; not completion or reproduction of the upstream 100000-candidate AZ-NAS search."
 }
