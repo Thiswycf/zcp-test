@@ -81,6 +81,7 @@ def test_plainnet_one_percent_source_search_launcher_is_scoped_and_resumable():
     source = script.read_text(encoding="utf-8")
 
     assert "acceptance_exec_immutable" in source
+    assert "ZCP_ACCEPTANCE_ROOT" in source
     assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in source
     assert "ZoneInfo(\"Asia/Shanghai\")" in source
     assert 'valid_candidates": 1000' in source
