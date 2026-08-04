@@ -298,10 +298,11 @@ def freeze_training_candidates(
     pool_size: int = 32,
     classes: int = 1000,
     supporting_search_runs: Sequence[str | Path] = (),
+    selected_only: bool = False,
     measure: Callable[[Any, Architecture, Mapping[str, Any], int], ResourceMeasurement]
     | None = None,
 ) -> dict[str, Any]:
-    if pool_size < 2:
+    if not selected_only and pool_size < 2:
         raise ValueError("pool_size must be at least 2")
     training_config_path = Path(training_config_path).expanduser().resolve()
     training_config = load_config(training_config_path)
@@ -320,37 +321,6 @@ def freeze_training_candidates(
     measure_fn = measure or measure_architecture_resources
     selected_resources = measure_fn(space, selected, training_config, classes)
 
-    seen = {selected.architecture_id}
-    fixed_random: Architecture | None = None
-    pool: list[Architecture] = []
-    attempt = 0
-    while fixed_random is None or len(pool) < pool_size:
-        candidate = space.sample(seed + attempt)
-        attempt += 1
-        if candidate.architecture_id in seen:
-            if attempt > pool_size * 100:
-                raise RuntimeError("Unable to sample enough unique candidate architectures")
-            continue
-        seen.add(candidate.architecture_id)
-        if fixed_random is None:
-            fixed_random = candidate
-        else:
-            pool.append(candidate)
-    assert fixed_random is not None
-    fixed_resources = measure_fn(space, fixed_random, training_config, classes)
-    measured_pool = [
-        (candidate, measure_fn(space, candidate, training_config, classes))
-        for candidate in pool
-    ]
-    matched, matched_resources = min(
-        measured_pool,
-        key=lambda item: (
-            _distance(selected_resources, item[1]),
-            item[0].architecture_id,
-        ),
-    )
-    match_distance = _distance(selected_resources, matched_resources)
-
     destination = Path(output).expanduser().resolve()
     destination.mkdir(parents=True, exist_ok=True)
     common = {
@@ -358,38 +328,75 @@ def freeze_training_candidates(
         "training_config_sha256": file_sha256(training_config_path),
         "seed": seed,
     }
-    payloads = {
+    payloads: dict[str, dict[str, Any]] = {
         "zcp_selected.json": _candidate_payload(
             selected,
             "zcp_selected",
             selected_resources,
             {**common, **search_provenance, "search_cohort": cohort},
-        ),
-        "fixed_random.json": _candidate_payload(
-            fixed_random,
-            "fixed_random",
-            fixed_resources,
-            {**common, "sampling_seed": seed},
-        ),
-        "params_flops_matched.json": _candidate_payload(
-            matched,
-            "params_flops_matched",
-            matched_resources,
-            {
-                **common,
-                "pool_size": pool_size,
-                "pool_seed_start": seed + 1,
-                "match_distance_log_l1": match_distance,
-                "target_architecture_id": selected.architecture_id,
-            },
-        ),
+        )
     }
+    if not selected_only:
+        seen = {selected.architecture_id}
+        fixed_random: Architecture | None = None
+        pool: list[Architecture] = []
+        attempt = 0
+        while fixed_random is None or len(pool) < pool_size:
+            candidate = space.sample(seed + attempt)
+            attempt += 1
+            if candidate.architecture_id in seen:
+                if attempt > pool_size * 100:
+                    raise RuntimeError("Unable to sample enough unique candidate architectures")
+                continue
+            seen.add(candidate.architecture_id)
+            if fixed_random is None:
+                fixed_random = candidate
+            else:
+                pool.append(candidate)
+        assert fixed_random is not None
+        fixed_resources = measure_fn(space, fixed_random, training_config, classes)
+        measured_pool = [
+            (candidate, measure_fn(space, candidate, training_config, classes))
+            for candidate in pool
+        ]
+        matched, matched_resources = min(
+            measured_pool,
+            key=lambda item: (
+                _distance(selected_resources, item[1]),
+                item[0].architecture_id,
+            ),
+        )
+        match_distance = _distance(selected_resources, matched_resources)
+        payloads.update(
+            {
+                "fixed_random.json": _candidate_payload(
+                    fixed_random,
+                    "fixed_random",
+                    fixed_resources,
+                    {**common, "sampling_seed": seed},
+                ),
+                "params_flops_matched.json": _candidate_payload(
+                    matched,
+                    "params_flops_matched",
+                    matched_resources,
+                    {
+                        **common,
+                        "pool_size": pool_size,
+                        "pool_seed_start": seed + 1,
+                        "match_distance_log_l1": match_distance,
+                        "target_architecture_id": selected.architecture_id,
+                    },
+                ),
+            }
+        )
     for name, payload in payloads.items():
         _atomic_json(destination / name, payload)
     manifest = {
         "schema_version": "1.0",
         "search_space_id": space_id,
         "created_at": project_now_iso(),
+        "candidate_policy": "selected_only" if selected_only else "comparison_triplet",
+        "comparison_candidates_included": not selected_only,
         "training_config_sha256": common["training_config_sha256"],
         "search_provenance": search_provenance,
         "search_cohort": cohort,
@@ -614,9 +621,264 @@ def reconcile_search_cohort(
     return {**validation, "output": str(validation_path), "sha256": validation_sha256}
 
 
+def _plainnet_json_object(path: Path, label: str) -> dict[str, Any]:
+    if not path.is_file():
+        raise FileNotFoundError(f"PlainNet run is missing {label}: {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as error:
+        raise ValueError(f"PlainNet {label} is invalid JSON") from error
+    if not isinstance(payload, dict):
+        raise ValueError(f"PlainNet {label} must be a JSON object")
+    return payload
+
+
+def _plainnet_finite(value: Any, label: str) -> float:
+    if isinstance(value, bool):
+        raise ValueError(f"PlainNet {label} must be a finite number")
+    try:
+        number = float(value)
+    except (TypeError, ValueError) as error:
+        raise ValueError(f"PlainNet {label} must be a finite number") from error
+    if not math.isfinite(number):
+        raise ValueError(f"PlainNet {label} must be a finite number")
+    return number
+
+
+def validate_plainnet_search(
+    *,
+    run: str | Path,
+    expected_target: str,
+    expected_candidates: int,
+    expected_budget_protocol: str,
+) -> dict[str, Any]:
+    expected_protocols = {
+        "one_percent_acceptance": {
+            "fraction": 0.01,
+            "fidelity": "source_aligned_control_flow_port_truncated_one_percent_budget",
+        }
+    }
+    if expected_candidates <= 0:
+        raise ValueError("expected_candidates must be positive")
+    target = str(expected_target).lower()
+    if target not in {"450m", "600m", "1g"}:
+        raise ValueError(f"Unsupported PlainNet target: {expected_target!r}")
+    try:
+        protocol = expected_protocols[expected_budget_protocol]
+    except KeyError as error:
+        raise ValueError(
+            f"Unsupported PlainNet budget protocol: {expected_budget_protocol!r}"
+        ) from error
+
+    run_path = Path(run).expanduser().resolve()
+    manifest = _plainnet_json_object(run_path / "manifest.json", "manifest")
+    state = _plainnet_json_object(run_path / "search-state.json", "search state")
+    launcher_status = _plainnet_json_object(
+        run_path.parent / "status.json", "launcher status"
+    )
+    if manifest.get("status") != "completed":
+        raise ValueError("PlainNet manifest status must be completed")
+    if state.get("status") != "completed":
+        raise ValueError("PlainNet search state status must be completed")
+    expected_launcher_status = {
+        "status": "completed",
+        "flops_target": target,
+        "valid_candidates": expected_candidates,
+        "search_budget_protocol": expected_budget_protocol,
+        "search_budget_fraction": protocol["fraction"],
+        "formal_search_completed": False,
+        "one_percent_search_completed": True,
+    }
+    launcher_mismatches = {
+        field: {"actual": launcher_status.get(field), "expected": expected}
+        for field, expected in expected_launcher_status.items()
+        if launcher_status.get(field) != expected
+    }
+    if launcher_mismatches:
+        raise ValueError(f"PlainNet launcher status mismatch: {launcher_mismatches}")
+
+    config_path = run_path / "config.yaml"
+    journal_path = run_path / "search.jsonl"
+    if not config_path.is_file():
+        raise FileNotFoundError(f"PlainNet run is missing config: {config_path}")
+    if not journal_path.is_file():
+        raise FileNotFoundError(f"PlainNet run is missing search journal: {journal_path}")
+    config = load_config(config_path)
+    config_identity = config.get("search_identity")
+    if not isinstance(config_identity, dict):
+        raise ValueError("PlainNet config must contain a search_identity object")
+    expected_identity = {
+        "search_space_id": "zennas_plainnet_mbv2",
+        "proxy_id": "az_nas_plainnet",
+        "aggregator": "az_nas_log_rank",
+        "flops_target": target,
+        "valid_candidates": expected_candidates,
+        "search_budget_protocol": expected_budget_protocol,
+        "search_budget_fraction": protocol["fraction"],
+        "controller_fidelity": protocol["fidelity"],
+    }
+    mismatches = {
+        field: {"actual": config_identity.get(field), "expected": expected}
+        for field, expected in expected_identity.items()
+        if config_identity.get(field) != expected
+    }
+    if mismatches:
+        raise ValueError(f"PlainNet search identity mismatch: {mismatches}")
+    identity = state.get("identity")
+    if not isinstance(identity, dict):
+        raise ValueError("PlainNet search state must contain an identity object")
+    state_mismatches = {
+        field: {"actual": identity.get(field), "expected": expected}
+        for field, expected in expected_identity.items()
+        if identity.get(field) != expected
+    }
+    if state_mismatches:
+        raise ValueError(f"PlainNet search state identity mismatch: {state_mismatches}")
+    if any(identity.get(field) != value for field, value in config_identity.items()):
+        raise ValueError("PlainNet search state identity does not extend config identity")
+
+    journal_payload = journal_path.read_bytes()
+    raw_rows = journal_payload.splitlines()
+    if len(raw_rows) != expected_candidates + 1 or any(not row.strip() for row in raw_rows):
+        raise ValueError("PlainNet journal must contain exactly N candidates and one summary")
+    rows: list[dict[str, Any]] = []
+    for line_number, raw_row in enumerate(raw_rows, start=1):
+        try:
+            row = json.loads(raw_row)
+        except json.JSONDecodeError as error:
+            raise ValueError(
+                f"PlainNet journal contains invalid JSON at line {line_number}"
+            ) from error
+        if not isinstance(row, dict):
+            raise ValueError(f"PlainNet journal line {line_number} must be an object")
+        rows.append(row)
+    candidates = rows[:-1]
+    summary = rows[-1]
+    if any(row.get("record_kind") != "candidate" for row in candidates):
+        raise ValueError("PlainNet journal candidate prefix contains a non-candidate row")
+    if summary.get("record_kind") != "search_summary":
+        raise ValueError("PlainNet journal final row must be the search summary")
+
+    component_names = identity.get("component_names")
+    if not isinstance(component_names, list) or not component_names:
+        raise ValueError("PlainNet identity must declare component_names")
+    expected_component_names = {str(name) for name in component_names}
+    architecture_components: dict[str, dict[str, Any]] = {}
+    cache_hits = 0
+    evaluations = 0
+    scored: list[tuple[float, str]] = []
+    identity_fields = tuple(expected_identity)
+    for accepted_index, row in enumerate(candidates):
+        if row.get("accepted_index") != accepted_index:
+            raise ValueError("PlainNet accepted_index values must be complete and continuous")
+        row_mismatches = {
+            field: row.get(field)
+            for field in identity_fields
+            if row.get(field) != identity[field]
+        }
+        if row_mismatches:
+            raise ValueError(
+                f"PlainNet candidate {accepted_index} identity mismatch: {row_mismatches}"
+            )
+        architecture_id = row.get("architecture_id")
+        if not isinstance(architecture_id, str) or not architecture_id:
+            raise ValueError(f"PlainNet candidate {accepted_index} has no architecture ID")
+        components = row.get("components")
+        if not isinstance(components, dict) or set(components) != expected_component_names:
+            raise ValueError(
+                f"PlainNet candidate {accepted_index} components do not match identity"
+            )
+        for name, value in components.items():
+            _plainnet_finite(value, f"candidate {accepted_index} component {name}")
+        score = _plainnet_finite(row.get("score"), f"candidate {accepted_index} score")
+        _plainnet_finite(
+            row.get("score_at_acceptance"),
+            f"candidate {accepted_index} score_at_acceptance",
+        )
+        cache_hit = row.get("cache_hit")
+        if not isinstance(cache_hit, bool):
+            raise ValueError(f"PlainNet candidate {accepted_index} cache_hit must be boolean")
+        previous_components = architecture_components.get(architecture_id)
+        expected_cache_hit = previous_components is not None
+        if cache_hit != expected_cache_hit:
+            raise ValueError(
+                f"PlainNet candidate {accepted_index} cache_hit contradicts architecture history"
+            )
+        if previous_components is not None and previous_components != components:
+            raise ValueError("PlainNet duplicate architecture has conflicting components")
+        architecture_components.setdefault(architecture_id, components)
+        cache_hits += int(cache_hit)
+        evaluations += int(not cache_hit)
+        if row.get("cumulative_evaluations") != evaluations:
+            raise ValueError("PlainNet cumulative evaluations are inconsistent")
+        if row.get("cumulative_cache_hits") != cache_hits:
+            raise ValueError("PlainNet cumulative cache hits are inconsistent")
+        scored.append((score, architecture_id))
+
+    maximum_score = max(score for score, _architecture_id in scored)
+    best_architecture_id = min(
+        architecture_id
+        for score, architecture_id in scored
+        if score == maximum_score
+    )
+    if state.get("accepted_count") != expected_candidates:
+        raise ValueError("PlainNet state accepted_count does not match expected candidates")
+    if state.get("evaluations") != evaluations or state.get("cache_hits") != cache_hits:
+        raise ValueError("PlainNet state evaluation/cache counters do not match journal")
+    if state.get("journal_rows") != len(rows):
+        raise ValueError("PlainNet state journal_rows does not match journal")
+    if state.get("summary_written") is not True:
+        raise ValueError("PlainNet completed state must record summary_written=true")
+    journal_sha256 = hashlib.sha256(journal_payload).hexdigest()
+    if state.get("journal_sha256") != journal_sha256:
+        raise ValueError("PlainNet state journal SHA256 does not match journal")
+
+    for field in identity_fields:
+        if summary.get(field) != identity[field]:
+            raise ValueError(f"PlainNet summary identity mismatch: {field}")
+    if summary.get("valid_candidates") != expected_candidates:
+        raise ValueError("PlainNet summary candidate count does not match expected candidates")
+    if summary.get("evaluations") != evaluations or summary.get("cache_hits") != cache_hits:
+        raise ValueError("PlainNet summary evaluation/cache counters do not match journal")
+    summary_best_score = _plainnet_finite(summary.get("best_score"), "summary best_score")
+    state_best_score = _plainnet_finite(state.get("best_score"), "state best_score")
+    if (
+        summary.get("best_architecture_id") != best_architecture_id
+        or state.get("best_architecture_id") != best_architecture_id
+        or summary_best_score != maximum_score
+        or state_best_score != maximum_score
+    ):
+        raise ValueError("PlainNet state/summary best candidate does not match maximum score")
+
+    return {
+        "schema_version": "1.0",
+        "status": "completed",
+        "run": str(run_path),
+        "run_id": manifest.get("run_id", run_path.name),
+        "expected_target": target,
+        "expected_candidates": expected_candidates,
+        "expected_budget_protocol": expected_budget_protocol,
+        "formal_search_completed": launcher_status["formal_search_completed"],
+        "one_percent_search_completed": launcher_status[
+            "one_percent_search_completed"
+        ],
+        "candidate_rows": len(candidates),
+        "summary_rows": 1,
+        "unique_architectures": len(architecture_components),
+        "evaluations": evaluations,
+        "cache_hits": cache_hits,
+        "best_architecture_id": best_architecture_id,
+        "best_score": maximum_score,
+        "journal_rows": len(rows),
+        "journal_sha256": journal_sha256,
+        "search_identity": {field: identity[field] for field in expected_identity},
+    }
+
+
 __all__ = [
     "ResourceMeasurement",
     "freeze_training_candidates",
     "measure_architecture_resources",
     "reconcile_search_cohort",
+    "validate_plainnet_search",
 ]

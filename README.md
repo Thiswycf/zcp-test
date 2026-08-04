@@ -22,6 +22,10 @@ OFA Proxyless 的官方 active-subnet 域是 21 个 `ks/e` 位置、width 1.3、
 tutorial 的 20-block/5-stage 域属于 MobileNetV3，不能移植后称为官方 Proxyless tutorial。项目在
 Proxyless 域上运行 ZCP + 通用进化控制器时固定标记为 `project_zcp_transfer`，不是官方 OFA 搜索协议。
 
+Engineering search acceptance is capped at 1%: PlainNet evaluates 1,000 of the upstream 100,000
+valid-candidate budget, while Proxyless evaluates 1,000 of a predeclared 100,000-evaluation project
+budget. The latter is not 1% of the combinatorial search-space cardinality.
+
 ### 首次使用 checklist
 
 ```bash
@@ -76,6 +80,7 @@ GPU、评估、分析、benchmark 定制研究、训练、代理扩展和验收�
 - [`docs/ANALYSIS_CN.md`](docs/ANALYSIS_CN.md)
 - [`docs/BENCHMARK_STUDIES_CN.md`](docs/BENCHMARK_STUDIES_CN.md)
 - [`docs/TRAINING_CN.md`](docs/TRAINING_CN.md)
+- [`docs/PROXIES_CN.md`](docs/PROXIES_CN.md)
 - [`docs/ADD_PROXY.md`](docs/ADD_PROXY.md) / [`docs/ADD_PROXY_CN.md`](docs/ADD_PROXY_CN.md)
 - [`docs/ACCEPTANCE_CN.md`](docs/ACCEPTANCE_CN.md)
 

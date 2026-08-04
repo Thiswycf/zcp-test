@@ -1885,6 +1885,7 @@ def command_search(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     space = SPACES.create(args.space)
     source_aligned_plainnet = args.controller == "plainnet_source_aligned"
+    project_one_percent = args.project_budget_protocol == "one_percent_planned_100k"
     resource_limits = {
         name: int(value)
         for name, value in {
@@ -1902,6 +1903,11 @@ def command_search(args: argparse.Namespace) -> None:
         raise ValueError("constraint_max_attempts must be positive")
     source_target = None
     if source_aligned_plainnet:
+        if args.project_budget_protocol != "unspecified":
+            raise ValueError(
+                "PlainNet uses --source-budget-protocol; do not also set "
+                "--project-budget-protocol"
+            )
         if resource_limits:
             raise ValueError(
                 "PlainNet source-aligned search uses --flops-target and does not accept "
@@ -1960,6 +1966,17 @@ def command_search(args: argparse.Namespace) -> None:
             "--flops-target and --valid-candidates require "
             "--controller plainnet_source_aligned"
         )
+    if project_one_percent:
+        if args.space != "ofa_proxyless_mbv2":
+            raise ValueError(
+                "one_percent_planned_100k is currently defined only for "
+                "ofa_proxyless_mbv2 project-transfer acceptance"
+            )
+        if args.population != 1_000 or args.generations != 0:
+            raise ValueError(
+                "one_percent_planned_100k requires exactly 1,000 candidate "
+                "evaluations (population=1000, generations=0)"
+            )
     model_provenance = _require_research_model(space, args.allow_approximation)
     weight_loader, weight_provenance = _prepare_model_weights(args, space)
     if space.search_space_id == "ofa_proxyless_mbv2" and _argument_was_explicit(args, "input_size"):
@@ -2075,6 +2092,18 @@ def command_search(args: argparse.Namespace) -> None:
                     "direct_search_protocol_evidence": False,
                 }
             )
+            if project_one_percent:
+                search_identity.update(
+                    {
+                        "search_budget_protocol": "one_percent_planned_100k",
+                        "search_budget_reference_evaluations": 100_000,
+                        "search_budget_evaluations": 1_000,
+                        "search_budget_fraction": 0.01,
+                        "search_budget_scope": (
+                            "engineering_acceptance_not_search_space_fraction"
+                        ),
+                    }
+                )
         if resource_limits:
             search_identity.update(
                 {
@@ -2335,6 +2364,11 @@ def command_train(args: argparse.Namespace) -> None:
         _prepare_gpu(args)
     load_builtin_spaces()
     space = SPACES.create(config["space"])
+    architecture = (
+        space.sample(args.seed)
+        if args.architecture is None
+        else space.canonicalize(_load_architecture_spec(args.architecture))
+    )
     model_provenance = _space_provenance(space)
     model_fidelity = model_provenance["model_fidelity"]
     if not args.smoke and model_fidelity != ModelFidelity.REFERENCE_MODEL.value:
@@ -2353,23 +2387,46 @@ def command_train(args: argparse.Namespace) -> None:
             "use --smoke only until the declared recipe is implemented and validated."
             f"{suffix}"
         )
+    configured_input_size = int(config.get("input_size", 32))
+    cli_input_size_explicit = "input_size" in getattr(
+        args, "_cli_explicit_options", frozenset()
+    )
+    input_size_policy = str(config.get("candidate_input_size_policy", "fixed_config"))
+    candidate_resolution = architecture.spec.get("resolution")
+    if input_size_policy == "architecture_resolution":
+        if candidate_resolution is None:
+            raise ValueError(
+                "architecture_resolution training requires architecture.spec.resolution"
+            )
+        resolved_candidate_input_size = int(candidate_resolution)
+        if resolved_candidate_input_size <= 0:
+            raise ValueError("Candidate architecture resolution must be positive")
+    elif input_size_policy == "fixed_config":
+        resolved_candidate_input_size = None
+    else:
+        raise ValueError(f"Unsupported candidate_input_size_policy: {input_size_policy!r}")
     if formal_training:
         validate_formal_training_protocol(config)
         if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
             raise ValueError("Formal training cannot override the accepted batch_size")
-        if args.input_size is not None and args.input_size != int(config["input_size"]):
+        expected_input_size = resolved_candidate_input_size or configured_input_size
+        if (
+            cli_input_size_explicit
+            and args.input_size is not None
+            and args.input_size != expected_input_size
+        ):
             raise ValueError("Formal training cannot override the accepted input_size")
     elif acceptance_smoke or real_data_preflight:
         validate_acceptance_training_protocol(config)
         if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
             raise ValueError("Real-data validation cannot override the candidate batch_size")
-        if args.input_size is not None and args.input_size != int(config["input_size"]):
+        expected_input_size = resolved_candidate_input_size or configured_input_size
+        if (
+            cli_input_size_explicit
+            and args.input_size is not None
+            and args.input_size != expected_input_size
+        ):
             raise ValueError("Real-data validation cannot override the candidate input_size")
-    architecture = (
-        space.sample(args.seed)
-        if args.architecture is None
-        else space.canonicalize(_load_architecture_spec(args.architecture))
-    )
     epochs = args.epochs if args.epochs is not None else int(config["epochs"])
     if full_batch_smoke and epochs != 1:
         raise ValueError("--full-batch-smoke requires exactly one epoch")
@@ -2394,7 +2451,11 @@ def command_train(args: argparse.Namespace) -> None:
         )
     else:
         batch_size = args.batch_size or configured_batch_size
-    input_size = args.input_size or int(config.get("input_size", 32))
+    input_size = (
+        resolved_candidate_input_size
+        if resolved_candidate_input_size is not None
+        else args.input_size or configured_input_size
+    )
     base_learning_rate = float(config["learning_rate"])
     requested_accumulation = config.get("gradient_accumulation_steps", 1)
     target_global_batch_size = config.get("target_global_batch_size")
@@ -2514,6 +2575,9 @@ def command_train(args: argparse.Namespace) -> None:
             "configured_batch_size": configured_batch_size,
             "batch_size_semantics": batch_size_semantics,
             "input_size": input_size,
+            "configured_input_size": configured_input_size,
+            "candidate_input_size_policy": input_size_policy,
+            "candidate_resolution": candidate_resolution,
             "distributed_world_size": distributed_world_size,
             "distributed_rank": distributed_rank,
             "distributed_local_rank": distributed_local_rank,
@@ -2634,16 +2698,30 @@ def command_train(args: argparse.Namespace) -> None:
 
 
 def _load_architecture_spec(value: str) -> dict[str, Any]:
-    candidate = Path(value).expanduser()
-    if candidate.is_file():
-        payload = json.loads(candidate.read_text(encoding="utf-8"))
-    else:
+    stripped = value.lstrip()
+    payload: Any
+    if stripped.startswith(("{", "[")):
         try:
             payload = json.loads(value)
         except json.JSONDecodeError as error:
             raise ValueError(
                 "--architecture must be an existing JSON file or an inline JSON object"
             ) from error
+    else:
+        candidate = Path(value).expanduser()
+        try:
+            is_file = candidate.is_file()
+        except OSError:
+            is_file = False
+        if is_file:
+            payload = json.loads(candidate.read_text(encoding="utf-8"))
+        else:
+            try:
+                payload = json.loads(value)
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    "--architecture must be an existing JSON file or an inline JSON object"
+                ) from error
     if not isinstance(payload, dict):
         raise ValueError("Architecture JSON must be an object")
     specification = payload.get("spec", payload)
@@ -2959,7 +3037,7 @@ def command_legacy(args: argparse.Namespace) -> None:
 
 
 def command_acceptance(args: argparse.Namespace) -> None:
-    from zcp_test.acceptance import reconcile_search_cohort
+    from zcp_test.acceptance import reconcile_search_cohort, validate_plainnet_search
 
     if args.action == "freeze-candidates":
         _json(
@@ -2971,6 +3049,7 @@ def command_acceptance(args: argparse.Namespace) -> None:
                 pool_size=args.pool_size,
                 classes=args.classes,
                 supporting_search_runs=args.supporting_search_run,
+                selected_only=args.selected_only,
             )
         )
         return
@@ -2987,6 +3066,16 @@ def command_acceptance(args: argparse.Namespace) -> None:
                     for component in args.expected_components.split(",")
                     if component.strip()
                 ),
+            )
+        )
+        return
+    if args.action == "validate-plainnet-search":
+        _json(
+            validate_plainnet_search(
+                run=args.run,
+                expected_target=args.expected_target,
+                expected_candidates=args.expected_candidates,
+                expected_budget_protocol=args.expected_budget_protocol,
             )
         )
         return
@@ -3220,6 +3309,17 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--valid-candidates", type=int)
     search.add_argument(
+        "--project-budget-protocol",
+        choices=("unspecified", "one_percent_planned_100k"),
+        default="unspecified",
+        help=(
+            "project-level generic-search budget identity; "
+            "one_percent_planned_100k means 1,000 evaluations from a "
+            "predeclared 100,000-evaluation engineering budget, not 1% of "
+            "the search-space cardinality"
+        ),
+    )
+    search.add_argument(
         "--source-budget-protocol",
         choices=("upstream_full_100k", "one_percent_acceptance"),
         default="upstream_full_100k",
@@ -3420,6 +3520,11 @@ def build_parser() -> argparse.ArgumentParser:
     freeze_candidates.add_argument("--seed", type=int, default=20260731)
     freeze_candidates.add_argument("--pool-size", type=int, default=32)
     freeze_candidates.add_argument("--classes", type=int, default=1000)
+    freeze_candidates.add_argument(
+        "--selected-only",
+        action="store_true",
+        help="freeze only zcp_selected.json for single-candidate engineering acceptance",
+    )
     freeze_candidates.set_defaults(function=command_acceptance)
     reconcile_cohort = acceptance_actions.add_parser("reconcile-search-cohort")
     reconcile_cohort.add_argument("--cohort-root", required=True)
@@ -3429,6 +3534,18 @@ def build_parser() -> argparse.ArgumentParser:
     reconcile_cohort.add_argument("--expected-seed", action="append", type=int, required=True)
     reconcile_cohort.add_argument("--expected-components", required=True)
     reconcile_cohort.set_defaults(function=command_acceptance)
+    validate_plainnet = acceptance_actions.add_parser("validate-plainnet-search")
+    validate_plainnet.add_argument("--run", required=True)
+    validate_plainnet.add_argument(
+        "--expected-target", choices=("450m", "600m", "1g"), required=True
+    )
+    validate_plainnet.add_argument("--expected-candidates", type=int, required=True)
+    validate_plainnet.add_argument(
+        "--expected-budget-protocol",
+        choices=("one_percent_acceptance",),
+        required=True,
+    )
+    validate_plainnet.set_defaults(function=command_acceptance)
     legacy = subparsers.add_parser("legacy")
     legacy_actions = legacy.add_subparsers(dest="action", required=True)
     legacy_import = legacy_actions.add_parser("import")
@@ -3467,6 +3584,7 @@ def main(argv: list[str] | None = None) -> None:
             if key not in explicitly_set and hasattr(args, key):
                 setattr(args, key, value)
                 configured_options.add(key)
+    args._cli_explicit_options = frozenset(explicitly_set)
     args._explicit_options = frozenset(explicitly_set | configured_options)
     args.function(args)
 

@@ -305,14 +305,18 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${httpRecoveryEvidence?.result || ""} ${httpRecoveryEvidence?.command || ""}`), "看板 HTTP 恢复证据不得泄露绝对路径或 PID");
   const panelTask = data.tasks.find((entry) => entry.id === "F4");
   assert(panelTask?.detail.includes("8768/8769") && panelTask?.detail.includes("curl 超时") && panelTask?.detail.includes("已重启服务") && panelTask?.detail.includes("monitor 根目录"), "F4 未同步 HTTP 服务恢复状态");
+  const fullGate581 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-581");
+  const fullGate579 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-579");
   const fullGate566 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-566");
   const fullGate565 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-565");
   const fullGate564 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-564");
   const fullGate563 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-563");
   const fullGate545 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-545");
-  assert(fullGate566?.result.includes("38 个测试文件") && fullGate566?.result.includes("566 tests 全部通过"), "当前工作树 566 pytest 结果缺失");
-  assert(fullGate566?.result.includes("Ruff") && fullGate566?.result.includes("compileall") && fullGate566?.result.includes("pip check") && fullGate566?.result.includes("Bash") && fullGate566?.result.includes("JSON") && fullGate566?.result.includes("diff"), "当前工作树 566 静态门禁缺失");
-  assert(fullGate566?.result.includes("4 条 THOP warning") && fullGate566?.result.includes("非失败"), "当前工作树 THOP warning 边界缺失");
+  assert(fullGate581?.result.includes("38 个测试文件") && fullGate581?.result.includes("581 tests 全部通过"), "当前工作树 581 pytest 结果缺失");
+  assert(fullGate581?.result.includes("Ruff") && fullGate581?.result.includes("compileall") && fullGate581?.result.includes("pip check") && fullGate581?.result.includes("Bash") && fullGate581?.result.includes("JSON") && fullGate581?.result.includes("diff"), "当前工作树 581 静态门禁缺失");
+  assert(fullGate579?.result.includes("38 个测试文件") && fullGate579?.result.includes("579 tests 全部通过"), "历史工作树 579 pytest 结果缺失");
+  assert(fullGate566?.result.includes("38 个测试文件") && fullGate566?.result.includes("566 tests 全部通过"), "历史工作树 566 pytest 结果缺失");
+  assert(fullGate566?.result.includes("4 条 THOP warning") && fullGate566?.result.includes("非失败"), "历史工作树 566 THOP warning 边界缺失");
   assert(fullGate565?.result.includes("38 个测试文件") && fullGate565?.result.includes("565 tests 全部通过"), "历史工作树 565 pytest 结果缺失");
   assert(fullGate564?.result.includes("38 个测试文件") && fullGate564?.result.includes("564 tests 全部通过"), "历史工作树 564 pytest 结果缺失");
   assert(fullGate563?.result.includes("38 个测试文件") && fullGate563?.result.includes("563 tests 全部通过"), "历史工作树 563 pytest 结果缺失");
@@ -324,7 +328,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
   for (const task of [baselineTask, qualityGateTask]) {
-    assert(task?.detail.includes("38 files") && task?.detail.includes("566 tests"), `任务 ${task?.id || "?"} 缺少当前 566 gate`);
+    assert(task?.detail.includes("38 files") && task?.detail.includes("581 tests"), `任务 ${task?.id || "?"} 缺少当前 581 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
   }
   const releaseTask = data.tasks.find((entry) => entry.id === "I1");
@@ -346,6 +350,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const plainnetRisk = data.risks.find((entry) => entry.id === "R-PLAINNET-FIDELITY");
   const ofaEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-MBV2-TRAINING-PROTOCOL-FIDELITY");
   const ofaProtocolCorrection = data.evidence.find((entry) => entry.id === "EV-OFA-PROXYLESS-PROTOCOL-CORRECTION-20260804");
+  const proxylessCompleteEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-PROJECT-TRANSFER-COMPLETE-20260804");
+  const proxylessRerunPreparedEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-ONE-PERCENT-PLANNED-100K-PREPARED-20260804");
   const ofaDirectSearchRisk = data.risks.find((entry) => entry.id === "R-OFA-DIRECT-SEARCH-FIDELITY");
   assert(plainnetTask?.status === "已完成" && plainnetTask?.progress === 100, "PlainNet 结构与候选协议任务未标记完成");
   assert(plainnetTask?.title.includes("PlainNet 真实 structure-string 与候选协议"), "PlainNet 任务标题未更新");
@@ -360,24 +366,41 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const plainnetTrainingBlocker = "双重 1% GPU / distributed validation / checkpoint resume / reporting 仍开放";
   assert(plainnetTask?.detail.includes("结构与候选协议完成") && plainnetTask?.detail.includes(plainnetTrainingBlocker), "PlainNet 完成范围或正式训练 blocker 缺失");
   assert(plainnetEvidence?.result.includes(plainnetTrainingBlocker) && plainnetEvidence?.result.includes("不得称正式训练完成"), "PlainNet 证据未保留正式训练边界");
-  assert(plainnetRisk?.status === "开放" && plainnetRisk?.mitigation.includes("distributed validation") && plainnetRisk?.mitigation.includes("checkpoint resume") && plainnetRisk?.mitigation.includes("reporting"), "PlainNet 正式训练风险未保持开放");
+  assert(plainnetRisk?.status === "监控" && plainnetRisk?.description.includes("三档均 completed") && plainnetRisk?.description.includes("one_percent_search_completed=true") && plainnetRisk?.description.includes("formal_search_completed=false"), "PlainNet 1% 完成后的 fidelity 风险分层缺失");
+  assert(!plainnetRisk?.description.includes("仍为 running"), "R-PLAINNET-FIDELITY description 仍保留 running 旧状态");
   assert(ofaTask?.status === "进行中", "OFA 任务应保持进行中");
   assert(ofaTask?.detail.includes("c5234b8"), "OFA MAC golden commit 缺失");
   assert(ofaTask?.detail.includes("265,526,256"), "OFA MAC golden 数值缺失");
   assert(ofaTask?.detail.includes("265,526,240"), "OFA float32 profile 数值缺失");
-  assert(ofaTask?.detail.includes("现有 ofa_proxyless_mbv2 模型域正确"), "Proxyless-MBV2 模型域结论缺失");
-  for (const marker of ["project_zcp_transfer", "project_resource_baseline", "controller_fidelity=project_controller_not_ofa_tutorial", "direct_search_protocol_evidence=false"]) {
+  assert(ofaTask?.detail.includes("Proxyless-MBV2 官方 supernet") && ofaTask?.detail.includes("现有模型域正确"), "Proxyless-MBV2 当前模型域结论缺失");
+  for (const marker of ["project_zcp_transfer", "controller_fidelity=project_controller_not_ofa_tutorial", "direct_search_protocol_evidence=false"]) {
     assert(ofaTask?.detail.includes(marker), `OFA 任务缺少协议标记 ${marker}`);
     assert(ofaProtocolCorrection?.result.includes(marker), `OFA 纠错证据缺少协议标记 ${marker}`);
   }
+  assert(ofaProtocolCorrection?.result.includes("project_resource_baseline"), "OFA 纠错证据缺少 project_resource_baseline 协议标记");
+  assert(proxylessCompleteEvidence?.result.includes("run b1dc85daaae1 已 completed") && proxylessCompleteEvidence?.result.includes("1000 candidate rows + 1 summary") && proxylessCompleteEvidence?.result.includes("winner=968893a0cc5f0f687688"), "Proxyless project-transfer 完成结果缺失");
+  assert(proxylessCompleteEvidence?.result.includes("selected-only") && proxylessCompleteEvidence?.result.includes("formal_training_ready=false") && proxylessCompleteEvidence?.result.includes("搜索完成不等于训练验收"), "Proxyless winner 冻结或训练边界缺失");
+  for (const marker of ["one_percent_planned_100k", "planned_engineering_evaluations=100000", "evaluation_budget=1000", "不是搜索空间基数的 1%", "当前无 zcp-test GPU 进程", "prepared/not_started"]) {
+    assert(ofaTask?.detail.includes(marker) || proxylessRerunPreparedEvidence?.result.includes(marker), `Proxyless 可审计重跑准备缺少 ${marker}`);
+  }
+  assert(proxylessRerunPreparedEvidence?.result.includes("不表示已启动、running 或 completed") && proxylessRerunPreparedEvidence?.result.includes("不得作为本次重跑完成证据"), "Proxyless 重跑未启动或历史完成证据边界缺失");
   assert(ofaEvidence?.result.includes("c5234b8"), "OFA 证据缺少 MAC golden commit");
   assert(ofaEvidence?.result.includes("265,526,256") && ofaEvidence?.result.includes("265,526,240"), "OFA 证据缺少 MAC 数值");
   assert(ofaEvidence?.result.includes("双重 1% / distributed validation / reporting"), "OFA 证据缺少训练阻断边界");
   assert(ofaProtocolCorrection?.result.includes("commit f03b267") && ofaProtocolCorrection?.result.includes("20-block/5-stage") && ofaProtocolCorrection?.result.includes("resolution={160,176,192,208,224}") && ofaProtocolCorrection?.result.includes("OFA-MBV3"), "OFA-MBV3 tutorial 归属纠错缺失");
   assert(ofaProtocolCorrection?.result.includes("21 个动态 ks/e 位置") && ofaProtocolCorrection?.result.includes("6 个 block groups") && ofaProtocolCorrection?.result.includes("前 5 组 depth 可变") && ofaProtocolCorrection?.result.includes("最后一组 depth 固定为 1"), "Proxyless 动态位置或 block-group depth 边界缺失");
   assert(ofaProtocolCorrection?.result.includes("width=1.3") && ofaProtocolCorrection?.result.includes("resolution=128..224"), "Proxyless width 或 resolution 范围缺失");
-  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("模型域") && ofaDirectSearchRisk?.description.includes("不是官方 OFA tutorial 的直接搜索协议证据"), "Proxyless direct-search fidelity 风险缺失");
-  assert(ofaDirectSearchRisk?.mitigation.includes("只有新增独立官方直接搜索协议证据后才能调整 fidelity"), "Proxyless fidelity 升级门槛缺失");
+  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("历史 project_zcp_transfer") && ofaDirectSearchRisk?.description.includes("one_percent_planned_100k") && ofaDirectSearchRisk?.description.includes("不能写成 completed"), "Proxyless 重跑准备后的 fidelity 风险缺失");
+  assert(ofaDirectSearchRisk?.mitigation.includes("controller_fidelity=project_controller_not_ofa_tutorial") && ofaDirectSearchRisk?.mitigation.includes("direct_search_protocol_evidence=false") && ofaDirectSearchRisk?.mitigation.includes("formal_training_ready=false") && ofaDirectSearchRisk?.mitigation.includes("无 zcp-test GPU 进程"), "Proxyless 重跑准备后的 fidelity 约束缺失");
+  const proxyRegistryTask = data.tasks.find((entry) => entry.id === "E1");
+  const proxyRegistryRisk = data.risks.find((entry) => entry.id === "R-PROXY");
+  const proxyRegistryEvidence = data.evidence.find((entry) => entry.id === "EV-PROXY-REGISTRY-AUDIT-24-20260804");
+  for (const marker of ["24", "2 aliases", "7 project extensions", "2 approximations", "11 unverified"]) {
+    assert(proxyRegistryTask?.detail.includes(marker), `24 registry 任务缺少风险分层 ${marker}`);
+    assert(proxyRegistryRisk?.description.includes(marker), `24 registry 风险缺少分层 ${marker}`);
+    assert(proxyRegistryEvidence?.result.includes(marker), `24 registry 证据缺少分层 ${marker}`);
+  }
+  assert(proxyRegistryRisk?.status === "开放" && proxyRegistryEvidence?.result.includes("不等于复现 22 个独立论文公式"), "24 registry 开放风险或历史 sweep 边界缺失");
   assert(!JSON.stringify(data).includes("ofa_proxyless_official_tutorial"), "不得新增或宣称虚构的 Proxyless official tutorial 协议名");
   const pitTask = data.tasks.find((entry) => entry.id === "C4");
   const pitEvidence = data.evidence.find((entry) => entry.id === "EV-PIT-REFERENCE");
@@ -469,14 +492,15 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ddpRankRngEvidence?.result.includes("legacy checkpoint 缺字段") && ddpRankRngEvidence?.result.includes("world-size 不匹配") && ddpRankRngEvidence?.result.includes("fail-closed"), "DDP rank-local RNG 旧格式或 world-size 拒绝证据缺失");
   assert(ddpRankRngEvidence?.command.includes("docs/evidence/ddp_rank_local_rng_roundtrip.json"), "DDP rank-local RNG JSON 证据链接缺失");
   const gpuOwnerTask = data.tasks.find((entry) => entry.id === "J6");
-  assert(gpuOwnerTask?.detail.includes("GPU0/1/3 是 450m/600m/1g 三个 FLOPs 约束档位的 PlainNet 100k ZCP 搜索，不是三候选训练"), "PlainNet GPU0/1/3 搜索与三候选训练区分缺失");
-  assert(gpuOwnerTask?.detail.includes("2026-08-04 13:50:17 Asia/Shanghai 手工下发，无 timer、无 queued supervisor"), "PlainNet 三档手工下发与无自动调度语义缺失");
+  assert(gpuOwnerTask?.detail.includes("GPU0/1/3 旧任务是 PlainNet 100k ZCP 搜索而非三候选训练") && gpuOwnerTask?.detail.includes("已中断并释放锁"), "PlainNet 旧 100k 搜索身份或锁释放缺失");
+  assert(gpuOwnerTask?.detail.includes("PlainNet 450m/600m/1g one_percent_acceptance 三档") && gpuOwnerTask?.detail.includes("历史 GPU5 Proxyless project_zcp_transfer 均已 completed"), "GPU owner 任务未保留 PlainNet 与 Proxyless 历史终态");
+  assert(gpuOwnerTask?.detail.includes("不再把这四项写成 running"), "GPU owner 任务仍保留四项 running 旧状态");
+  assert(gpuOwnerTask?.detail.includes("one_percent_planned_100k") && gpuOwnerTask?.detail.includes("当前无 zcp-test GPU 进程") && gpuOwnerTask?.detail.includes("重跑尚未启动或完成"), "GPU owner 任务未同步 Proxyless 重跑准备状态");
   assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("kernel flock 仍是唯一锁权威") && gpuOwnerTask?.detail.includes("陈旧 lock 文件不阻塞获取"), "GPU owner 实时巡检任务或锁权威边界缺失");
-  assert(gpuOwnerTask?.detail.includes("task5 fixed-random") && gpuOwnerTask?.detail.includes("task6 params-flops-matched") && gpuOwnerTask?.detail.includes("两个 manifest 均为 interrupted"), "GPU owner 任务未同步基线终止状态");
-  assert(gpuOwnerTask?.detail.includes("两把 kernel flock") && gpuOwnerTask?.detail.includes("已释放") && gpuOwnerTask?.detail.includes("task4 zcp-selected 随后在 GPU5 完成"), "GPU owner 任务未同步历史锁释放或 task4 当前终态");
+  assert(gpuOwnerTask?.detail.includes("task5/6 interrupted") && gpuOwnerTask?.detail.includes("task4 completed"), "GPU owner 任务未保留 AutoFormer 历史终态边界");
   const gpuOwnerRisk = data.risks.find((entry) => entry.id === "R-GPU-LOCK-RUNTIME-OWNER");
   assert(gpuOwnerRisk?.status === "监控" && gpuOwnerRisk?.mitigation.includes("非阻塞 flock") && gpuOwnerRisk?.mitigation.includes("唯一权威"), "GPU runtime owner 监控风险或处置边界缺失");
-  assert(gpuOwnerRisk?.description.includes("task5/6 对应锁已释放") && gpuOwnerRisk?.description.includes("task4 zcp-selected 已完成") && gpuOwnerRisk?.description.includes("PlainNet preflight") && gpuOwnerRisk?.description.includes("释放锁"), "GPU runtime owner 风险未同步当前锁状态");
+  assert(gpuOwnerRisk?.description.includes("旧 PlainNet 100k 三档已中断") && gpuOwnerRisk?.description.includes("历史 Proxyless project-transfer 均 completed") && gpuOwnerRisk?.description.includes("当前无 zcp-test GPU 进程") && gpuOwnerRisk?.description.includes("prepared/not_started"), "GPU runtime owner 风险未同步当前锁状态");
   const gpuLeaseEvidence = data.evidence.find((entry) => entry.id === "EV-GPU-LOCK-LEASE-RUNTIME-20260804");
   assert(gpuLeaseEvidence?.result.includes("ImageNet candidate") && gpuLeaseEvidence?.result.includes("DARTS resume") && gpuLeaseEvidence?.result.includes("AutoFormer 8,000-candidate"), "GPU lock wrapper launcher 接入范围缺失");
   assert(gpuLeaseEvidence?.result.includes("内核 flock 是唯一权威") && gpuLeaseEvidence?.result.includes(".lease heartbeat") && gpuLeaseEvidence?.result.includes("supervisor 可继续存活"), "GPU lock/lease 权威或释放边界缺失");
@@ -494,17 +518,22 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(documentationPatchEvidence?.result.includes("legacy import") && documentationPatchEvidence?.result.includes("migration manifest v1 schema"), "文档 P1 证据缺少 legacy 或 manifest 范围");
   assert(documentationPatchEvidence?.result.includes("待主线测试与内容验收") && documentationPatchEvidence?.result.includes("不等同于整个文档审计完成"), "文档 P1 证据未保持验收边界");
   const plainnetSearchTask = data.tasks.find((entry) => entry.id === "J7");
-  assert(plainnetSearchTask?.status === "进行中" && plainnetSearchTask?.detail.includes("source-aligned controller 已完成"), "PlainNet source-aligned controller 阶段任务缺失");
-  assert(plainnetSearchTask?.detail.includes("15,165.56 秒") && plainnetSearchTask?.detail.includes("4.21 小时"), "PlainNet CPU full-history rerank 估计缺失");
+  const plainnetOnePercentComplete = data.evidence.find((entry) => entry.id === "EV-PLAINNET-ONE-PERCENT-COMPLETE-20260804");
+  assert(plainnetSearchTask?.status === "已完成" && plainnetSearchTask?.progress === 100 && plainnetSearchTask?.finishedAt === "2026-08-04 15:00", "PlainNet 1% 候选预算任务未标记完成");
+  assert(plainnetSearchTask?.detail.includes("source-aligned controller") && plainnetSearchTask?.detail.includes("CPU rerank scaling") && plainnetSearchTask?.detail.includes("GPU preflight"), "PlainNet 完成任务未保留前置阶段链");
+  assert(plainnetSearchTask?.detail.includes("one_percent_acceptance 三档已全部 completed") && plainnetSearchTask?.detail.includes("one_percent_search_completed=true") && plainnetSearchTask?.detail.includes("formal_search_completed=false"), "PlainNet 三档当前完成状态缺失");
+  assert(plainnetOnePercentComplete?.result.includes("450m") && plainnetOnePercentComplete?.result.includes("600m") && plainnetOnePercentComplete?.result.includes("1g") && plainnetOnePercentComplete?.result.includes("每档均产出 1000 candidate rows + 1 summary"), "PlainNet 三档完成 evidence 缺失");
+  assert(plainnetOnePercentComplete?.result.includes("source_aligned_control_flow_port_truncated_one_percent_budget") && plainnetOnePercentComplete?.result.includes("fraction=0.01") && plainnetOnePercentComplete?.result.includes("不是完整 AZ-NAS 100k 复现"), "PlainNet 1% 完成 fidelity 边界缺失");
   const plainnetWaitingEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-GPU-PREFLIGHT-WAITING-20260804");
   assert(plainnetWaitingEvidence?.result.includes("12:08:31") && plainnetWaitingEvidence?.result.includes("immutable commit 17f54d7") && plainnetWaitingEvidence?.result.includes("waiting_for_gpu_lock"), "PlainNet GPU preflight V2 历史启动身份或等待状态缺失");
   assert(plainnetWaitingEvidence?.result.includes("尚未取得 flock") && plainnetWaitingEvidence?.result.includes("未占 GPU") && plainnetWaitingEvidence?.result.includes("未开始任何候选"), "PlainNet GPU preflight 历史等待资源边界缺失");
-  assert(plainnetSearchTask?.detail.includes("3 accepted") && plainnetSearchTask?.detail.includes("2 evaluations") && plainnetSearchTask?.detail.includes("1 cache hit"), "PlainNet GPU preflight 完成结果缺失");
+  const plainnetPreflightComplete = data.evidence.find((entry) => entry.id === "EV-PLAINNET-SOURCE-ALIGNED-GPU-PREFLIGHT-COMPLETE");
+  assert(plainnetPreflightComplete?.result.includes("3 accepted candidate rows") && plainnetPreflightComplete?.result.includes("2 distinct GPU evaluations") && plainnetPreflightComplete?.result.includes("1 cache hit"), "PlainNet GPU preflight 历史完成结果缺失");
   const plainnetInterrupted100k = data.evidence.find((entry) => entry.id === "EV-PLAINNET-100K-INTERRUPTED-20260804");
   assert(plainnetInterrupted100k?.result.includes("2026-08-04 14:13:43 Asia/Shanghai") && plainnetInterrupted100k?.result.includes("450m=2613") && plainnetInterrupted100k?.result.includes("600m=2439") && plainnetInterrupted100k?.result.includes("1g=2055"), "PlainNet 旧 100k 中断时间或终止 accepted 缺失");
   assert(plainnetInterrupted100k?.result.includes("锁已释放") && plainnetInterrupted100k?.result.includes("只读保留") && plainnetInterrupted100k?.result.includes("不作为验收通过"), "PlainNet 旧 100k 锁释放或历史验收边界缺失");
   const plainnetOnePercentLaunch = data.evidence.find((entry) => entry.id === "EV-PLAINNET-ONE-PERCENT-LAUNCHED-20260804");
-  assert(plainnetSearchTask?.detail.includes("one_percent_acceptance") && plainnetSearchTask?.detail.includes("fraction=0.01") && plainnetSearchTask?.detail.includes("source_aligned_control_flow_port_truncated_one_percent_budget"), "PlainNet 1% 候选预算协议身份缺失");
+  assert(plainnetSearchTask?.detail.includes("one_percent_acceptance") && plainnetSearchTask?.detail.includes("source_aligned_control_flow_port_truncated_one_percent_budget") && plainnetOnePercentComplete?.result.includes("fraction=0.01"), "PlainNet 1% 候选预算协议身份缺失");
   assert(plainnetOnePercentLaunch?.result.includes("77225d95479a") && plainnetOnePercentLaunch?.result.includes("5bf76f7e061b") && plainnetOnePercentLaunch?.result.includes("55e33fa80343"), "PlainNet 1% 三档 run identity 缺失");
   assert(plainnetOnePercentLaunch?.result.includes("zcp-test-plainnet-search-1pct-450m-v4.service") && plainnetOnePercentLaunch?.result.includes("zcp-test-plainnet-search-1pct-600m-v4.service") && plainnetOnePercentLaunch?.result.includes("zcp-test-plainnet-search-1pct-1g-v4.service"), "PlainNet 1% 三档 unit identity 缺失");
   assert(plainnetOnePercentLaunch?.result.includes("formal_search_completed 永远 false") && plainnetOnePercentLaunch?.result.includes("one_percent_search_completed") && plainnetOnePercentLaunch?.result.includes("不是完整 AZ-NAS 100k 复现"), "PlainNet 1% 完成判据或 fidelity 边界缺失");
@@ -514,7 +543,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(plainnetFormalLaunch?.result.includes("commit 0d86588") && plainnetFormalLaunch?.result.includes("3de9d5652b7d") && plainnetFormalLaunch?.result.includes("fd859cc76c46") && plainnetFormalLaunch?.result.includes("a40a3e3c8b32"), "PlainNet 三档正式 launcher 或 run identity 缺失");
   assert(plainnetFormalLaunch?.result.includes("GPU-f6d...") && plainnetFormalLaunch?.result.includes("GPU-3ebe...") && plainnetFormalLaunch?.result.includes("GPU-daaf...") && plainnetFormalLaunch?.result.includes("独立 service、kernel flock 与 run"), "PlainNet 三档 GPU 或资源隔离身份缺失");
   assert(plainnetFormalLaunch?.result.includes("缺完整 CLI identity 未被续接") && plainnetFormalLaunch?.result.includes("从头开始") && plainnetFormalLaunch?.result.includes("不得写成完成"), "PlainNet preflight 不续接或科学状态边界缺失");
-  assert(plainnetSearchTask?.detail.includes("formal_valid_candidates=100000") && plainnetSearchTask?.detail.includes("stop_after=3") && plainnetSearchTask?.detail.includes("batch=64") && plainnetSearchTask?.detail.includes("input=224"), "PlainNet GPU preflight 协议字段缺失");
+  assert(plainnetOnePercentComplete?.result.includes("77225d95479a") && plainnetOnePercentComplete?.result.includes("5bf76f7e061b") && plainnetOnePercentComplete?.result.includes("55e33fa80343"), "PlainNet 三档完成 run identity 缺失");
   const plainnetRerankEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-RERANK-SCALING-20260804");
   assert(plainnetRerankEvidence?.command.includes("docs/evidence/plainnet_rerank_scaling_20260804.json") && plainnetRerankEvidence?.result.includes("15,165.56 秒"), "PlainNet rerank scaling JSON 证据缺失");
   const plainnetControllerEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-SOURCE-ALIGNED-CONTROLLER-STAGE");

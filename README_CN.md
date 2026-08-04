@@ -13,6 +13,8 @@
 - OFA tutorial 的 20-block/5-stage 域属于 MobileNetV3；Proxyless-MBV2 官方域为 21 个 `ks/e`
   位置、width 1.3、resolution 128–224。Proxyless 上的项目通用 ZCP evolution 是
   `project_zcp_transfer`，不得称为官方 OFA ZCP 协议。
+- 搜索工程验收预算同样缩减为 1%：PlainNet 使用上游 100,000 个有效候选中的 1,000 个；
+  Proxyless 使用预声明 100,000 次项目评估预算中的 1,000 次。后者不是搜索空间基数的 1%。
 
 ## 安装
 

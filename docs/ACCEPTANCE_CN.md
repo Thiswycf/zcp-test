@@ -7,7 +7,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-08-04 当前工作树：**566 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
+| 单元/集成基线 | 2026-08-04 当前工作树：**581 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
 | 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
@@ -19,7 +19,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 | AutoFormer 单候选 real dual-1% V2 | `zcp-selected` 完成 full-data 5 epoch 与 one-percent-data 500 epoch，分别为 5/500 行，均有 terminal manifest、`last.pt` 与 `best.pt` | **限定协议通过** | task 5/6 基线因违反新政策而中止并排除；只证明实现、调度和恢复就绪，不是 500-epoch 全数据论文精度或搜索收益 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-当前完整 gate 实际执行并通过 566 tests（38 个测试文件）。第一方 source coverage 87%、CLI
+当前完整 gate 实际执行并通过 581 tests（38 个测试文件）。第一方 source coverage 87%、CLI
 coverage 82% 仍来自最近一次保留的 coverage gate；Ruff、compileall、pip check、Bash 语法、看板、
 JSON 与 `git diff --check` 均通过，仅有 4 条来自 THOP 上游 `distutils` 的非失败弃用警告。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
@@ -33,16 +33,17 @@ NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifes
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。这只关闭 NB201
 既定 seed 子项，H1 仍等待其余 benchmark。
 
-## 22 个代理的口径
+## 代理 ID 的口径
 
-22 个名称为 `az_nas`、`er`、`er_conn`、`er_deg`、`er_dist`、`er_pr`、`flops`、`gradnorm`、
+registry 当前有 24 个可调用 ID；历史 sweep 的 22 个名称为 `az_nas`、`er`、`er_conn`、`er_deg`、`er_dist`、`er_pr`、`flops`、`gradnorm`、
 `jacob_cov`、`meco`、`meco_opt`、`naswot`、`near`、`ntkt`、`params`、`swap`、`synflow`、
 `te_nas`、`ter`、`vkdnw`、`zen`、`zico`。
 
 sweep 表示每个名称经过统一 evaluator，并产生明确 `ok`、`unsupported` 或 `failed`。NB201 seed
 2026 的 22 个名称均有记录，但 `az_nas`、`naswot`、`te_nas` 各有一条非有限失败；`near` 和
 `swap` 为常数，相关系数未定义。该结果不表示每个代理支持所有模型族，也不表示 `portable-v1`
-与论文数值一致。出现数值完全相同的不同名称也不能据此认定算法独立，仍需 provenance/公式审计。
+与论文数值一致。22 个名称包含 2 个 alias、7 个项目扩展、2 个组合近似和 11 个未完成公式 golden
+核验的 port，不能表述为“22 个独立论文方法”。完整分层和使用规则见 [PROXIES_CN.md](PROXIES_CN.md)。
 
 ## DARTS CIFAR 双重 1% 与 smoke 边界
 
@@ -113,6 +114,9 @@ CPU rerank 的本机保守累计估计为 15,165.56 秒（约 4.21 小时）；G
 复现。新三档 run 已于北京时间约 14:23 从 commit `8dbf1fc` 启动，完成状态只使用
 `one_percent_search_completed`，`formal_search_completed` 永远为 false。见
 [`evidence/plainnet_search_budget_one_percent_intervention_20260804.json`](evidence/plainnet_search_budget_one_percent_intervention_20260804.json)。
+三档随后全部完成，并通过公共 `acceptance validate-plainnet-search` 的 status/manifest/state/journal
+一致性检查；终态见
+[`evidence/plainnet_one_percent_completion_20260804.json`](evidence/plainnet_one_percent_completion_20260804.json)。
 
 AutoFormer 仓库配置已在单候选双重 1% 终态核验后置为 `formal_training_ready: true`；PlainNet-MBV2
 与 Proxyless-MBV2 仍为 false。AutoFormer 已有
@@ -259,9 +263,11 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 1. DARTS CIFAR-10/CIFAR-100 的 600 epoch **全数据精度复现**与多 seed 搜索收益验证仍未完成；
    已完成的是上述双重 1% 限定协议。DARTS ImageNet 六项双重 1% 已完成，但首项 DDP 与其余单卡
    存在 BatchNorm 粒度差异；250 epoch 全数据正式训练不在本次限定验收范围内且尚未执行。
-2. PlainNet-MBV2 与 Proxyless-MBV2 的双重 1% 尚未完成。AutoFormer 的单候选双重 1% 已完成并解除
+2. PlainNet-MBV2 与 Proxyless-MBV2 的单候选双重 1% 训练尚未完成。二者搜索验收预算均已缩减为
+   1,000 次：PlainNet 是上游 100k 有效候选的 1%，Proxyless 是预声明 100k 项目评估预算的 1%，
+   后者不得解释为搜索空间基数或 OFA 官方控制器预算。AutoFormer 的单候选双重 1% 已完成并解除
    profile 启动门禁，但 500 epoch 全数据精度复现与多 seed 搜索收益仍未完成。PlainNet 只完成 3 个
-   accepted candidate 的 GPU preflight，明确 `formal_search_completed=false`；Proxyless-MBV2 150 epoch
+   one-percent search，明确 `formal_search_completed=false`；Proxyless-MBV2 150 epoch
    正式训练仍未放行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、

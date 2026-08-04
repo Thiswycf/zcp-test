@@ -13,6 +13,7 @@ import zcp_test.cli as cli
 from zcp_test.artifacts import normalize_score_records
 from zcp_test.cli import _load_architecture_spec, _stratified_subset, main
 from zcp_test.inputs import make_input_batch
+from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training.protocols import (
     resolve_acceptance_protocol,
     validate_candidate_training_protocol,
@@ -601,12 +602,97 @@ def test_proxyless_candidate_training_protocol_is_locked():
     )
 
     assert validate_candidate_training_protocol(config) == (
-        "proxylessnas-mbv2-scratch-b23018c9"
+        "project-ofa-proxyless-mbv2-scratch-v1"
     )
     assert config["scheduler"] == "cosine_step"
     assert config["color_distortion"] == "tf"
     assert config["exclude_norm_from_weight_decay"] is True
+    assert config["candidate_input_size_policy"] == "architecture_resolution"
+    assert config["training_protocol_fidelity"] == (
+        "project_candidate_resolution_adaptation"
+    )
     assert config["formal_training_ready"] is False
+
+
+def test_proxyless_acceptance_training_uses_candidate_resolution(monkeypatch, tmp_path):
+    captured = {}
+    load_builtin_spaces()
+    space = SPACES.create("ofa_proxyless_mbv2")
+    architecture = space.canonicalize(
+        {
+            "kernel_size": [3] * 21,
+            "expand_ratio": [3] * 21,
+            "depth": [2] * 5,
+            "width_mult": 1.3,
+            "resolution": 128,
+        }
+    )
+
+    @contextmanager
+    def training_device(*args, **kwargs):
+        yield torch.device("cpu"), {"selection_strategy": "test"}
+
+    @contextmanager
+    def training_run_context(output, argv, resolved, runtime, world_size, rank):
+        captured["resolved"] = resolved
+        yield SimpleNamespace(directory=tmp_path)
+
+    def fake_train_model(*args, **kwargs):
+        captured["run_identity"] = kwargs["run_identity"]
+        return {"best_accuracy": 0.0}
+
+    monkeypatch.setattr(cli, "_prepare_gpu", lambda args: None)
+    monkeypatch.setattr(cli, "_training_device", training_device)
+    monkeypatch.setattr(cli, "_training_run_context", training_run_context)
+    monkeypatch.setattr(cli, "_build_training_model", lambda *args: torch.nn.Linear(1, 1))
+    monkeypatch.setattr(cli, "_resolve_data_root", lambda args, dataset: tmp_path)
+    monkeypatch.setattr(cli, "_real_loaders", lambda *args, **kwargs: ([], []))
+    monkeypatch.setattr(cli, "train_model", fake_train_model)
+
+    main(
+        [
+            "train",
+            "--config",
+            "configs/training/ofa_proxyless_mbv2_imagenet.yaml",
+            "--architecture",
+            json.dumps(architecture.to_dict()),
+            "--acceptance-smoke",
+            "--epochs",
+            "2",
+            "--data-fraction",
+            "1.0",
+            "--device",
+            "cpu",
+        ]
+    )
+
+    assert captured["resolved"]["configured_input_size"] == 224
+    assert captured["resolved"]["input_size"] == 128
+    assert captured["resolved"]["candidate_resolution"] == 128
+    assert captured["resolved"]["candidate_input_size_policy"] == (
+        "architecture_resolution"
+    )
+    assert captured["run_identity"]["input_size"] == 128
+
+    with pytest.raises(ValueError, match="candidate input_size"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/ofa_proxyless_mbv2_imagenet.yaml",
+                "--architecture",
+                json.dumps(architecture.to_dict()),
+                "--acceptance-smoke",
+                "--epochs",
+                "2",
+                "--data-fraction",
+                "1.0",
+                "--input-size",
+                "224",
+                "--device",
+                "cpu",
+            ]
+        )
 
 
 def test_proxyless_project_zcp_transfer_search_profile_is_explicitly_scoped():
@@ -623,6 +709,7 @@ def test_proxyless_project_zcp_transfer_search_profile_is_explicitly_scoped():
         "aggregator": "primary",
         "population": 1000,
         "generations": 0,
+        "project_budget_protocol": "one_percent_planned_100k",
         "elite_ratio": 0.2,
         "seed": 20260731,
         "input_source": "random",
@@ -636,6 +723,40 @@ def test_proxyless_project_zcp_transfer_search_profile_is_explicitly_scoped():
     }
     assert "input_size" not in config
     assert "model_checkpoint" not in config
+
+
+def test_proxyless_one_percent_project_budget_rejects_wrong_candidate_count():
+    with pytest.raises(ValueError, match="exactly 1,000 candidate evaluations"):
+        main(
+            [
+                "search",
+                "--config",
+                "configs/search/proxyless_mbv2_zen_project_transfer.yaml",
+                "--population",
+                "999",
+                "--device",
+                "cpu",
+            ]
+        )
+
+
+def test_project_one_percent_budget_is_not_a_generic_space_fraction():
+    with pytest.raises(ValueError, match="currently defined only"):
+        main(
+            [
+                "search",
+                "--space",
+                "nb201_topology",
+                "--project-budget-protocol",
+                "one_percent_planned_100k",
+                "--population",
+                "1000",
+                "--generations",
+                "0",
+                "--device",
+                "cpu",
+            ]
+        )
 
 
 def test_plainnet_candidate_training_protocol_is_locked():

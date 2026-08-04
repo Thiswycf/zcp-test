@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T14:53:57+08:00",
+  "timezone": "Asia/Shanghai",
+  "status": "frozen_selected_only",
+  "search_run_id": "b1dc85daaae1",
+  "search_identity": {
+    "experiment_kind": "project_zcp_transfer",
+    "controller_fidelity": "project_controller_not_ofa_tutorial",
+    "direct_search_protocol_evidence": false,
+    "proxy_id": "zen",
+    "proxy_version": "portable-v1",
+    "proxy_implementation_fidelity": "paper_formula_port_unverified"
+  },
+  "candidate": {
+    "architecture_id": "968893a0cc5f0f687688",
+    "resolution": 128,
+    "parameters": 6073296,
+    "thop_macs": 213470592,
+    "resource_input_size": 128,
+    "candidate_sha256": "4bc60fa0032e2b4297118bb92f0284f0b7df093b176e96c95434813038bff5aa"
+  },
+  "freeze_policy": {
+    "candidate_policy": "selected_only",
+    "comparison_candidates_included": false,
+    "files": ["zcp_selected.json", "candidates-manifest.json"]
+  },
+  "training_protocol": {
+    "id": "project-ofa-proxyless-mbv2-scratch-v1",
+    "candidate_input_size_policy": "architecture_resolution",
+    "training_protocol_fidelity": "project_candidate_resolution_adaptation",
+    "formal_training_ready": false
+  },
+  "scientific_boundary": "The candidate is suitable for single-candidate engineering acceptance only. The Zen port and controller are not validated as an official OFA or direct-paper search protocol."
+}

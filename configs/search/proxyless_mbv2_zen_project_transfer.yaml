@@ -5,6 +5,7 @@ search:
   aggregator: primary
   population: 1000
   generations: 0
+  project_budget_protocol: one_percent_planned_100k
   elite_ratio: 0.2
   seed: 20260731
   input_source: random

@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T14:42:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "status": "completed",
+  "protocol": "one_percent_acceptance",
+  "search_budget_fraction": 0.01,
+  "expected_candidates_per_target": 1000,
+  "formal_search_completed": false,
+  "one_percent_search_completed": true,
+  "validator": "zcp-test acceptance validate-plainnet-search",
+  "runs": [
+    {
+      "target": "450m",
+      "run_id": "77225d95479a",
+      "candidate_rows": 1000,
+      "summary_rows": 1,
+      "unique_architectures": 913,
+      "evaluations": 913,
+      "cache_hits": 87,
+      "best_architecture_id": "acae937e27232867ea37",
+      "best_score": -1.2163458506953335,
+      "journal_sha256": "2c17e0c25c63419655181330604a8198b101f759d982502c78309c80b3c1c0aa"
+    },
+    {
+      "target": "600m",
+      "run_id": "5bf76f7e061b",
+      "candidate_rows": 1000,
+      "summary_rows": 1,
+      "unique_architectures": 910,
+      "evaluations": 910,
+      "cache_hits": 90,
+      "best_architecture_id": "875ab6bb0b7a787e6a13",
+      "best_score": -1.3283318782034748,
+      "journal_sha256": "fca3337526fe4074a658ae8533e93ae45aab0dc1db5c8dd4942fae936fd7d6dc"
+    },
+    {
+      "target": "1g",
+      "run_id": "55e33fa80343",
+      "candidate_rows": 1000,
+      "summary_rows": 1,
+      "unique_architectures": 928,
+      "evaluations": 928,
+      "cache_hits": 72,
+      "best_architecture_id": "83913e042fce2a85bc29",
+      "best_score": -1.223409362353647,
+      "journal_sha256": "283d29c6953a51ecc544ea764352e3efba82bcd7cbefea0b207a4aae279cdd7d"
+    }
+  ],
+  "scientific_boundary": "This validates the truncated one-percent engineering search only and is not an upstream 100000-candidate AZ-NAS reproduction."
+}

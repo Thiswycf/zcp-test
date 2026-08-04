@@ -19,7 +19,10 @@
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md)；
 AutoFormer optimizer、LR 与 validation 协议证据见
 [`evidence/AUTOFORMER_TRAINING_PROTOCOL_CN.md`](evidence/AUTOFORMER_TRAINING_PROTOCOL_CN.md)。
-OFA/Proxyless-MBV2 scratch 与 inherited 边界、逐 batch cosine 及 BN 协议见
+OFA/Proxyless-MBV2 的 1% scratch 验收使用
+`project-ofa-proxyless-mbv2-scratch-v1`：recipe 以固定 ProxylessNAS commit 为依据，但输入尺寸强制
+跟随候选 architecture resolution，fidelity 为 `project_candidate_resolution_adaptation`，不得称为
+224 固定官方训练复现。scratch 与 inherited 边界、逐 batch cosine 及 BN 协议见
 [`evidence/OFA_PROXYLESS_TRAINING_PROTOCOL_CN.md`](evidence/OFA_PROXYLESS_TRAINING_PROTOCOL_CN.md)。
 
 模型为 `reference_model` 不自动表示训练协议完备。非 smoke 训练同时要求配置

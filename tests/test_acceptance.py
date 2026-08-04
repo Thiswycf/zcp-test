@@ -1,16 +1,153 @@
+import hashlib
 import json
 from pathlib import Path
 
 import pytest
 import yaml
 
+from zcp_test import cli
 from zcp_test.acceptance import (
     ResourceMeasurement,
     freeze_training_candidates,
     measure_architecture_resources,
     reconcile_search_cohort,
+    validate_plainnet_search,
 )
 from zcp_test.spaces import SPACES, load_builtin_spaces
+
+
+def _plainnet_acceptance_run(tmp_path: Path) -> Path:
+    run = tmp_path / "450m" / "plainnet-run"
+    run.mkdir(parents=True)
+    identity = {
+        "search_space_id": "zennas_plainnet_mbv2",
+        "proxy_id": "az_nas_plainnet",
+        "aggregator": "az_nas_log_rank",
+        "flops_target": "450m",
+        "valid_candidates": 3,
+        "search_budget_protocol": "one_percent_acceptance",
+        "search_budget_fraction": 0.01,
+        "controller_fidelity": (
+            "source_aligned_control_flow_port_truncated_one_percent_budget"
+        ),
+    }
+    state_identity = {
+        **identity,
+        "component_names": [
+            "expressivity",
+            "progressivity",
+            "trainability",
+            "complexity",
+        ],
+    }
+    components_a = {
+        "expressivity": 1.0,
+        "progressivity": 2.0,
+        "trainability": 3.0,
+        "complexity": 4.0,
+    }
+    components_b = {
+        "expressivity": 2.0,
+        "progressivity": 3.0,
+        "trainability": 4.0,
+        "complexity": 5.0,
+    }
+    candidates = [
+        {
+            **identity,
+            "record_kind": "candidate",
+            "accepted_index": 0,
+            "architecture_id": "architecture-a",
+            "components": components_a,
+            "score": 0.5,
+            "score_at_acceptance": 0.5,
+            "cache_hit": False,
+            "cumulative_evaluations": 1,
+            "cumulative_cache_hits": 0,
+        },
+        {
+            **identity,
+            "record_kind": "candidate",
+            "accepted_index": 1,
+            "architecture_id": "architecture-b",
+            "components": components_b,
+            "score": 1.5,
+            "score_at_acceptance": 1.5,
+            "cache_hit": False,
+            "cumulative_evaluations": 2,
+            "cumulative_cache_hits": 0,
+        },
+        {
+            **identity,
+            "record_kind": "candidate",
+            "accepted_index": 2,
+            "architecture_id": "architecture-a",
+            "components": components_a,
+            "score": 0.5,
+            "score_at_acceptance": 0.5,
+            "cache_hit": True,
+            "cumulative_evaluations": 2,
+            "cumulative_cache_hits": 1,
+        },
+    ]
+    summary = {
+        **identity,
+        "record_kind": "search_summary",
+        "evaluations": 2,
+        "cache_hits": 1,
+        "best_architecture_id": "architecture-b",
+        "best_score": 1.5,
+    }
+    journal = "".join(json.dumps(row) + "\n" for row in [*candidates, summary])
+    (run / "manifest.json").write_text(
+        json.dumps({"status": "completed", "run_id": "plainnet-fixture"}),
+        encoding="utf-8",
+    )
+    (run / "config.yaml").write_text(
+        yaml.safe_dump({"search_identity": identity}), encoding="utf-8"
+    )
+    (run / "search.jsonl").write_text(journal, encoding="utf-8")
+    (run / "search-state.json").write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "identity": state_identity,
+                "accepted_count": 3,
+                "evaluations": 2,
+                "cache_hits": 1,
+                "summary_written": True,
+                "journal_rows": 4,
+                "journal_sha256": hashlib.sha256(journal.encode()).hexdigest(),
+                "best_architecture_id": "architecture-b",
+                "best_score": 1.5,
+            }
+        ),
+        encoding="utf-8",
+    )
+    (run.parent / "status.json").write_text(
+        json.dumps(
+            {
+                "status": "completed",
+                "flops_target": "450m",
+                "valid_candidates": 3,
+                "search_budget_protocol": "one_percent_acceptance",
+                "search_budget_fraction": 0.01,
+                "formal_search_completed": False,
+                "one_percent_search_completed": True,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return run
+
+
+def _rewrite_plainnet_journal(run: Path, rows: list[dict]) -> None:
+    journal = "".join(json.dumps(row) + "\n" for row in rows)
+    (run / "search.jsonl").write_text(journal, encoding="utf-8")
+    state_path = run / "search-state.json"
+    state = json.loads(state_path.read_text(encoding="utf-8"))
+    state["journal_sha256"] = hashlib.sha256(journal.encode()).hexdigest()
+    state_path.write_text(json.dumps(state), encoding="utf-8")
 
 
 def _search_run(
@@ -141,6 +278,30 @@ def test_freeze_candidates_requires_search_provenance_and_writes_three_roles(tmp
     )
     assert set(manifest["candidates"]) == set(expected)
     assert all(len(entry["sha256"]) == 64 for entry in manifest["candidates"].values())
+
+
+def test_freeze_candidates_selected_only_avoids_comparison_sampling(tmp_path):
+    search_run, config, selected = _search_run(tmp_path)
+    output = tmp_path / "selected-only"
+    result = freeze_training_candidates(
+        search_run=search_run,
+        training_config_path=config,
+        output=output,
+        seed=2026,
+        pool_size=0,
+        selected_only=True,
+        measure=_fake_measure,
+    )
+
+    assert result["candidate_policy"] == "selected_only"
+    assert result["comparison_candidates_included"] is False
+    assert set(result["candidates"]) == {"zcp_selected.json"}
+    assert {path.name for path in output.iterdir()} == {
+        "zcp_selected.json",
+        "candidates-manifest.json",
+    }
+    payload = json.loads((output / "zcp_selected.json").read_text(encoding="utf-8"))
+    assert payload["architecture_id"] == selected.architecture_id
 
 
 @pytest.mark.parametrize(
@@ -395,4 +556,102 @@ def test_reconcile_search_cohort_rejects_nonfinite_components(tmp_path):
             expected_population=1,
             expected_seeds=[91],
             expected_components=["a", "b"],
+        )
+
+
+def test_validate_plainnet_search_cli_returns_structured_summary(tmp_path, capsys):
+    run = _plainnet_acceptance_run(tmp_path)
+
+    cli.main(
+        [
+            "acceptance",
+            "validate-plainnet-search",
+            "--run",
+            str(run),
+            "--expected-target",
+            "450m",
+            "--expected-candidates",
+            "3",
+            "--expected-budget-protocol",
+            "one_percent_acceptance",
+        ]
+    )
+
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == "completed"
+    assert summary["formal_search_completed"] is False
+    assert summary["one_percent_search_completed"] is True
+    assert summary["candidate_rows"] == 3
+    assert summary["summary_rows"] == 1
+    assert summary["unique_architectures"] == 2
+    assert summary["evaluations"] == 2
+    assert summary["cache_hits"] == 1
+    assert summary["best_architecture_id"] == "architecture-b"
+    assert summary["best_score"] == 1.5
+    assert len(summary["journal_sha256"]) == 64
+
+
+@pytest.mark.parametrize(
+    ("damage", "message"),
+    [
+        ("manifest_status", "manifest status must be completed"),
+        ("launcher_status", "launcher status mismatch"),
+        ("identity", "search identity mismatch"),
+        ("accepted_index", "accepted_index values must be complete"),
+        ("nonfinite_score", "must be a finite number"),
+        ("cache_hit", "cache_hit contradicts architecture history"),
+        ("journal_sha256", "journal SHA256 does not match"),
+        ("summary_written", "summary_written=true"),
+        ("best_candidate", "best candidate does not match maximum score"),
+        ("state_counts", "state evaluation/cache counters"),
+    ],
+)
+def test_validate_plainnet_search_rejects_corrupt_runs(tmp_path, damage, message):
+    run = _plainnet_acceptance_run(tmp_path)
+    if damage == "manifest_status":
+        path = run / "manifest.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["status"] = "running"
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    elif damage == "launcher_status":
+        path = run.parent / "status.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        payload["formal_search_completed"] = True
+        path.write_text(json.dumps(payload), encoding="utf-8")
+    elif damage == "identity":
+        path = run / "config.yaml"
+        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+        payload["search_identity"]["aggregator"] = "wrong"
+        path.write_text(yaml.safe_dump(payload), encoding="utf-8")
+    elif damage in {"accepted_index", "nonfinite_score", "cache_hit", "best_candidate"}:
+        rows = [
+            json.loads(line)
+            for line in (run / "search.jsonl").read_text(encoding="utf-8").splitlines()
+        ]
+        if damage == "accepted_index":
+            rows[1]["accepted_index"] = 2
+        elif damage == "nonfinite_score":
+            rows[0]["score"] = float("nan")
+        elif damage == "cache_hit":
+            rows[2]["cache_hit"] = False
+        else:
+            rows[-1]["best_architecture_id"] = "architecture-a"
+        _rewrite_plainnet_journal(run, rows)
+    else:
+        path = run / "search-state.json"
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if damage == "journal_sha256":
+            payload["journal_sha256"] = "0" * 64
+        elif damage == "summary_written":
+            payload["summary_written"] = False
+        else:
+            payload["evaluations"] = 3
+        path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match=message):
+        validate_plainnet_search(
+            run=run,
+            expected_target="450m",
+            expected_candidates=3,
+            expected_budget_protocol="one_percent_acceptance",
         )

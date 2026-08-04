@@ -120,10 +120,12 @@ CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "deterministic": True,
         "implementation_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
     },
-    "proxylessnas-mbv2-scratch-b23018c9": {
+    "project-ofa-proxyless-mbv2-scratch-v1": {
         "space": "ofa_proxyless_mbv2",
         "dataset": "imagenet1k",
         "input_size": 224,
+        "candidate_input_size_policy": "architecture_resolution",
+        "training_protocol_fidelity": "project_candidate_resolution_adaptation",
         "epochs": 150,
         "optimizer": "sgd",
         "learning_rate": 0.05,

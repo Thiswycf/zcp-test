@@ -882,6 +882,19 @@ bash tools/acceptance/run-plainnet-source-search-one-percent.sh
 则从最新 `search-state.json` 创建新 run 恢复，并由 CLI 严格核对完整 identity 和源 journal SHA。
 旧 100k 或预检 state 与 1% 协议 identity 不同，不能传给该 launcher 续跑；新协议从独立 run 开始。
 
+完成后必须逐档运行公共验证器；它同时核验 launcher status、manifest、state、JSONL 行数与 SHA、连续
+索引、缓存计数、有限组件和 best 一致性：
+
+```bash
+RUN=/path/to/runs/acceptance/plainnet-source-aligned-one-percent/450m/<timestamp_run>
+zcp-test acceptance validate-plainnet-search \
+  --run "$RUN" --expected-target 450m --expected-candidates 1000 \
+  --expected-budget-protocol one_percent_acceptance
+```
+
+预期 `candidate_rows=1000`、`summary_rows=1`、`formal_search_completed=false` 且
+`one_percent_search_completed=true`。600m/1g 必须分别替换 target 和 RUN，不能共用验证结果。
+
 CLI 会在创建 run 前拒绝只用主组件排名或搜索空间不匹配。稳定化端口会裁剪协方差负特征值浮点噪声，
 并令退化奇异值计算保持有限，因此版本为 `aznas-5e6683-plainnet-stabilized-v1`，不声明逐位一致。
 `docs/evidence/aznas_plainnet_rank_smoke.json` 的两候选 GPU 证据只验证四组件、聚合与 artifact；其中
@@ -900,10 +913,13 @@ zcp-test search \
 ```
 
 该配置固定 1,000 个候选、generation 0、seed `20260731`、Zen、逐候选分辨率随机输入和 scratch
-初始化。结果必须带 `experiment_kind=project_zcp_transfer`、
+初始化，并声明 `project_budget_protocol=one_percent_planned_100k`。这里的 1% 是预先约定的
+100,000 次工程评估预算的 1,000 次，不是巨大离散搜索空间基数的 1%，也不是 OFA 论文控制器预算。
+CLI 会拒绝不等于 1,000 次的该协议。结果必须带 `search_budget_fraction=0.01`、
+`search_budget_scope=engineering_acceptance_not_search_space_fraction`、`experiment_kind=project_zcp_transfer`、
 `controller_fidelity=project_controller_not_ofa_tutorial`、`direct_search_protocol_evidence=false`。
 ZenNAS 只提供 MobileNet-style 同族依据；本项目 OFA-Proxyless 域上的应用是推广实验，不是论文直接复现。
-3-candidate GPU smoke 仅证明兼容性，见
+历史 3-candidate GPU smoke 仅证明兼容性；2026-08-04 起后续训练严格只使用重新冻结的唯一 winner。见
 `docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`。
 
 | 空间 | 启动器 | 全数据协议 | 1% 数据协议 |
@@ -930,7 +946,7 @@ SEARCH_RUN=/path/to/timestamped/search-run
 zcp-test acceptance freeze-candidates \
   --search-run "$SEARCH_RUN" \
   --training-config configs/training/autoformer_imagenet.yaml \
-  --seed 20260731 --pool-size 32 \
+  --seed 20260731 --selected-only \
   --output /path/to/frozen-candidates/autoformer
 ```
 
@@ -946,7 +962,7 @@ zcp-test acceptance freeze-candidates \
   --supporting-search-run "$SUPPORT_1" \
   --supporting-search-run "$SUPPORT_2" \
   --training-config configs/training/autoformer_imagenet.yaml \
-  --seed 20260731 --pool-size 32 \
+  --seed 20260731 --selected-only \
   --output /path/to/frozen-candidates/autoformer
 ```
 
@@ -958,7 +974,8 @@ zcp-test acceptance freeze-candidates \
 
 命令要求 search manifest 为 `completed`，且 `search_identity` 完整包含 space、proxy/version、dataset、
 input fingerprint 和 seed；`best_architecture.json` 还必须真实出现在 `search.jsonl` candidate 记录中。
-输出严格为每种角色一份 JSON 加 `candidates-manifest.json`，其中保存 search/config/JSONL SHA-256、
+`--selected-only` 输出严格只有 `zcp_selected.json` 和 `candidates-manifest.json`，不会采样或测量两类
+对照候选；其中保存 search/config/JSONL SHA-256、
 训练配置 SHA-256、架构 ID、资源协议和匹配距离。训练 CLI 只读取其中的 `spec`，其余 provenance 保持
 只读审计。
 

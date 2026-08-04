@@ -736,6 +736,21 @@ an interrupted formal run resumes into a new run from its latest state with full
 validation. Old 100k and preflight states have different identities and cannot resume the
 one-percent protocol; the truncated acceptance search starts in a separate clean run.
 
+Validate every completed target with the public validator. It checks launcher status, manifest,
+state, JSONL row count and SHA, continuous indices, cache counters, finite components, and best-row
+agreement:
+
+```bash
+RUN=/path/to/runs/acceptance/plainnet-source-aligned-one-percent/450m/<timestamp_run>
+zcp-test acceptance validate-plainnet-search \
+  --run "$RUN" --expected-target 450m --expected-candidates 1000 \
+  --expected-budget-protocol one_percent_acceptance
+```
+
+Expected output includes `candidate_rows=1000`, `summary_rows=1`,
+`formal_search_completed=false`, and `one_percent_search_completed=true`. Validate 600m and 1g
+separately with their matching target and run path.
+
 The CLI rejects primary-component-only ranking and any mismatched search space. The stabilized port
 clamps covariance eigenvalue noise and keeps degenerate singular-value calculations finite, so it
 is versioned `aznas-5e6683-plainnet-stabilized-v1`, not claimed bitwise parity. The two-candidate GPU
@@ -761,11 +776,16 @@ zcp-test search --config configs/search/proxyless_mbv2_zen_project_transfer.yaml
 ```
 
 It fixes 1,000 candidates, generation 0, seed `20260731`, Zen, candidate-resolution random input,
-and scratch initialization. Rows must retain `experiment_kind=project_zcp_transfer`,
+and scratch initialization under `project_budget_protocol=one_percent_planned_100k`. This means
+1,000 evaluations (1%) of a predeclared 100,000-evaluation engineering budget; it is not 1% of the
+combinatorial search-space cardinality and is not an OFA paper-controller budget. The CLI rejects
+any other candidate count under this protocol. Rows must retain `search_budget_fraction=0.01`,
+`search_budget_scope=engineering_acceptance_not_search_space_fraction`, `experiment_kind=project_zcp_transfer`,
 `controller_fidelity=project_controller_not_ofa_tutorial`, and
 `direct_search_protocol_evidence=false`. ZenNAS is same-family MobileNet-style evidence; applying it
 to this OFA-Proxyless domain is a project extension, not a direct paper reproduction. The retained
-three-candidate GPU run is compatibility smoke only; see
+three-candidate GPU run is compatibility smoke only. Launches after 2026-08-04 freeze and train only
+the single winner; see
 `docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`.
 
 From 2026-08-04 onward, engineering acceptance trains only one `zcp_selected.json`; its
@@ -783,7 +803,7 @@ Freeze candidates from a completed search run, not from an arbitrary architectur
 zcp-test acceptance freeze-candidates \
   --search-run /path/to/timestamped/search-run \
   --training-config configs/training/autoformer_imagenet.yaml \
-  --seed 20260731 --pool-size 32 \
+  --seed 20260731 --selected-only \
   --output /path/to/frozen-candidates/autoformer
 ```
 
@@ -797,7 +817,7 @@ zcp-test acceptance freeze-candidates \
   --supporting-search-run /path/to/seed-20260732/timestamped-run \
   --supporting-search-run /path/to/seed-20260733/timestamped-run \
   --training-config configs/training/autoformer_imagenet.yaml \
-  --seed 20260731 --pool-size 32 \
+  --seed 20260731 --selected-only \
   --output /path/to/frozen-candidates/autoformer
 ```
 
@@ -806,7 +826,9 @@ All runs must be completed and protocol-compatible with unique seeds. Only the p
 canonical architecture ID ascending, with the original best file, tie count, state checksum, and rule
 recorded in the candidate manifest.
 
-The command requires a versioned search identity containing space, proxy/version, dataset, input
+With `--selected-only`, the command writes only `zcp_selected.json` and
+`candidates-manifest.json`; it does not sample or measure comparison candidates. The command requires
+a versioned search identity containing space, proxy/version, dataset, input
 fingerprint, and seed, and verifies that the best architecture occurs in `search.jsonl`. The output
 manifest locks all source and candidate checksums. MobileNet uses THOP MACs as its explicit compute
 convention. AutoFormer instead uses the Cream/AZ-NAS `get_complexity` protocol and records
