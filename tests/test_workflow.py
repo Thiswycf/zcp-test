@@ -139,7 +139,7 @@ def test_acceptance_launcher_snapshot_survives_source_rewrite(tmp_path):
         """#!/usr/bin/env bash
 set -Eeuo pipefail
 PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
-OUTPUT_ROOT=$PROJECT_ROOT/output
+OUTPUT_ROOT=${ZCP_ACCEPTANCE_ROOT:-$PROJECT_ROOT/output}
 source "$PROJECT_ROOT/tools/acceptance/lib/launcher-runtime.sh"
 acceptance_exec_immutable "$PROJECT_ROOT" "$OUTPUT_ROOT" "${BASH_SOURCE[0]}" "$@"
 printf 'before\\n' >> "$OUTPUT_ROOT/result.txt"
@@ -158,7 +158,7 @@ printf 'after\\n' >> "$OUTPUT_ROOT/result.txt"
     process = subprocess.Popen(["bash", str(launcher)], cwd=root)
     snapshot_dir = root / "output" / "launcher-snapshots"
     for _ in range(100):
-        if list(snapshot_dir.glob("long-launcher-*.sh")):
+        if list(snapshot_dir.glob("long-launcher-*/source/tools/acceptance/long-launcher.sh")):
             break
         process.poll()
         assert process.returncode is None
@@ -172,7 +172,7 @@ printf 'after\\n' >> "$OUTPUT_ROOT/result.txt"
     launcher.write_text("#!/usr/bin/env bash\nexit 127\n", encoding="utf-8")
     assert process.wait(timeout=5) == 0
     assert (root / "output" / "result.txt").read_text(encoding="utf-8") == "before\nafter\n"
-    snapshots = list(snapshot_dir.glob("long-launcher-*.sh"))
+    snapshots = list(snapshot_dir.glob("long-launcher-*/source/tools/acceptance/long-launcher.sh"))
     assert len(snapshots) == 1
     assert snapshots[0].stat().st_mode & 0o222 == 0
     assert snapshots[0].with_suffix(".sh.sha256").is_file()

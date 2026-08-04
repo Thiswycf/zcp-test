@@ -48,9 +48,10 @@ YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 关闭任务侧继承的锁 FD；Python `fork` 子进程也会关闭继承副本，避免 `tee`、DataLoader worker 或
 孤儿后代在 GPU 工作结束后继续持锁。
 
-高成本验收 launcher 会在启动时要求工作树干净，并将实际执行脚本固化到该 run 的
-`launcher-snapshots/`，写入 SHA-256、设为只读后再 `exec`。长任务运行期间可以继续修改主仓；已启动
-supervisor 不再从被修改的原脚本继续读取。结构化 `supervisor.log` 分别记录 lane 持锁和释放时间、
+高成本验收 launcher 会在启动时要求工作树干净，并用 `git archive` 将启动 commit 的完整已跟踪源码
+固化到该 run 的 `launcher-snapshots/`，写入 launcher SHA-256、整体设为只读后再 `exec`。长任务运行
+期间可以继续修改主仓；已启动 supervisor 不再从被修改的原脚本继续读取，后启动的 lane 也只从固定
+commit 导入 Python 与 config。结构化 `supervisor.log` 分别记录 lane 持锁和释放时间、
 child wait 状态及失败时的 `BASH_COMMAND`。这用于避免“GPU 已空闲但旧 supervisor 因控制流漂移仍
 持锁”的低效情形；不得通过删除锁文件替代正常退出或 `flock` 探测。
 

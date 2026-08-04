@@ -396,8 +396,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(azNasEvidence?.command.includes("docs/evidence/aznas_autoformer_rank_smoke.json"), "AutoFormer AZ-NAS 仓库相对证据文档缺失");
   assert(azNasEvidence?.command.includes("docs/evidence/gpu_throughput_optimization.json"), "AutoFormer GPU 吞吐证据文档缺失");
   const autoFormerRisk = data.risks.find((entry) => entry.id === "R-AUTOFORMER");
-  assert(autoFormerRisk?.status === "开放" && autoFormerRisk?.description.includes("三个唯一候选") && autoFormerRisk?.description.includes("supporting seed 仅作 provenance"), "AutoFormer 风险未记录候选冻结事实");
-  assert(autoFormerRisk?.description.includes("synthetic full-batch memory smoke") && autoFormerRisk?.description.includes("不是实际 ImageNet 精度") && autoFormerRisk?.description.includes("双重 1% 训练"), "AutoFormer 风险未保持 smoke 与正式训练边界");
+  assert(autoFormerRisk?.status === "开放" && autoFormerRisk?.description.includes("11:02") && autoFormerRisk?.description.includes("11:03") && autoFormerRisk?.description.includes("interrupted"), "AutoFormer 风险未记录首次 real dual-1% 主动中断");
+  assert(autoFormerRisk?.description.includes("不记科学失败") && autoFormerRisk?.description.includes("所有 GPU 锁已释放") && autoFormerRisk?.description.includes("尚无有效 real dual-1%"), "AutoFormer 风险未保持中断科学边界或锁状态");
   const cohortEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-COHORT-RECONCILED");
   assert(cohortEvidence?.result.includes("24,000/24,000 candidate rows") && cohortEvidence?.result.includes("23,999 unique evaluations") && cohortEvidence?.result.includes("1 cache hit"), "AutoFormer cohort 归并证据缺失");
   assert(cohortEvidence?.result.includes("workload 状态为 completed") && cohortEvidence?.result.includes("独立 orchestration warning") && cohortEvidence?.result.includes("总体验收仍未完成"), "AutoFormer cohort 证据科学边界缺失");
@@ -408,8 +408,11 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(memorySmokeEvidence?.result.includes("zcp-test-autoformer-smoke-{zcp-selected,fixed-random,params-flops-matched}.service") && memorySmokeEvidence?.result.includes("GPU0/1/3") && memorySmokeEvidence?.result.includes("batch=256"), "AutoFormer 三候选 smoke unit、GPU 或 batch 缺失");
   assert(memorySmokeEvidence?.result.includes("completed/exit 0") && memorySmokeEvidence?.result.includes("不使用真实 ImageNet") && memorySmokeEvidence?.result.includes("双重 1% 训练尚未启动"), "AutoFormer smoke 终态或科学边界缺失");
   const immutableLauncherEvidence = data.evidence.find((entry) => entry.id === "EV-LAUNCHER-IMMUTABLE-SNAPSHOT");
-  assert(immutableLauncherEvidence?.result.includes("运行中的 launcher 脚本被工作树改写") && immutableLauncherEvidence?.result.includes("只读 snapshot") && immutableLauncherEvidence?.result.includes("SHA-256"), "Launcher exit 127 根因或不可变快照证据缺失");
-  assert(immutableLauncherEvidence?.result.includes("lock_acquired/lock_released") && immutableLauncherEvidence?.result.includes("supervisor.log"), "Launcher 结构化 supervisor/锁日志证据缺失");
+  assert(immutableLauncherEvidence?.result.includes("仅复制 Shell") && immutableLauncherEvidence?.result.includes("git archive") && immutableLauncherEvidence?.result.includes("Shell、Python 与 configs"), "Launcher 完整 commit 快照边界缺失");
+  assert(immutableLauncherEvidence?.result.includes("只读 launcher-snapshots") && immutableLauncherEvidence?.result.includes("不导入主仓新代码") && immutableLauncherEvidence?.result.includes("lock_acquired/lock_released"), "Launcher 快照执行或结构化锁日志证据缺失");
+  const interruptedTrainingEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-REAL-DUAL-1PCT-SNAPSHOT-INTERRUPT");
+  assert(interruptedTrainingEvidence?.result.includes("11:02") && interruptedTrainingEvidence?.result.includes("11:03") && interruptedTrainingEvidence?.result.includes("interrupted"), "AutoFormer real dual-1% 首次中断时间或状态缺失");
+  assert(interruptedTrainingEvidence?.result.includes("不记科学失败") && interruptedTrainingEvidence?.result.includes("所有 GPU 锁已释放") && interruptedTrainingEvidence?.result.includes("待修复提交后重新启动"), "AutoFormer 首次中断科学边界、锁释放或重启条件缺失");
   const budgetRisk = data.risks.find((entry) => entry.id === "R-BUDGET");
   assert(budgetRisk?.description.includes("允许增加高成本验收时间预算"), "高成本验收追加时间预算授权缺失");
   for (const riskId of ["R-DDP-RANK-RNG"]) {

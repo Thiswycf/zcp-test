@@ -46,10 +46,11 @@ GPU 空闲但怀疑被锁，应使用 `flock -n <lock-file> -c true` 做无破�
 supervisor 在数据预检或等待其他 lane 时预占四张卡。锁 holder 会在任务子进程一侧关闭继承 FD，
 Python 也注册了 fork 后关闭逻辑，防止 pipeline、DataLoader 或孤儿 worker 延长锁生命周期。
 
-所有高成本 acceptance launcher 在进入等待或持锁阶段前，都会把启动时脚本复制到 run 目录下的
-`launcher-snapshots/`，设为只读，保存 SHA-256，并从该快照 `exec`。因此主仓在长任务期间继续开发或
-提交，不会让运行中的 Bash 在 `wait` 返回后读取到已变化的行，也不会因命令错位异常退出并延长锁
-生命周期。`supervisor.log` 会记录 launcher、lock acquire/release、child wait、错误命令和退出码。
+所有高成本 acceptance launcher 在进入等待或持锁阶段前，都会用 `git archive` 将启动 commit 的完整
+已跟踪源码固化到 run 目录下的 `launcher-snapshots/`，设为只读，保存 launcher SHA-256，并从该源码
+快照 `exec`。因此主仓在长任务期间继续开发或提交，既不会让 Bash 在 `wait` 返回后读取到已变化的行，
+也不会让后启动的 lane 导入新版本 Python/config。`supervisor.log` 会记录 launcher、lock
+acquire/release、child wait、错误命令和退出码。
 这项机制不能代替 `flock`；快照保证控制流不漂移，`flock` 仍负责同用户任务互斥。
 
 `--gpu-lock-timeout` 必须是非负秒数。正数是本次选择过程获取合格锁的总等待时间，不是每张卡

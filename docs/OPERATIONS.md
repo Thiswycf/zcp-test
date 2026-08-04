@@ -67,9 +67,10 @@ holder closes the task-side descriptors before launching pipelines, and Python f
 inherited copies so `tee`, DataLoader workers, and orphan descendants cannot extend lock lifetime.
 
 Before a high-cost acceptance launcher waits for or acquires GPU locks, it requires a clean worktree,
-copies the effective launcher into the run's `launcher-snapshots/` directory, records SHA-256, makes
-the snapshot read-only, and `exec`s that copy. Repository edits made while the job runs therefore
-cannot change the commands read after a long `wait`. The structured `supervisor.log` records launcher,
+uses `git archive` to materialize the complete tracked source at the launch commit under the run's
+`launcher-snapshots/` directory, records launcher SHA-256, makes that source tree read-only, and
+`exec`s the pinned copy. Repository edits made while the job runs therefore cannot change commands
+read after a long `wait` or the Python/config imported by a later lane. The structured `supervisor.log` records launcher,
 lock acquire/release, child wait, failing `BASH_COMMAND`, and exit status. This prevents control-flow
 drift from keeping locks after GPU work ends; it does not replace kernel `flock` inspection and never
 justifies deleting an active lock path.

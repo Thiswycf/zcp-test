@@ -10,8 +10,8 @@
     "evidence_boundary": "The empty historical supervisor.log prevents uniquely reconstructing the exact misread command. Runtime script mutation is the strongest evidence-supported cause, not a mathematically proven unique cause."
   },
   "remediation": [
-    "Acceptance launchers create a read-only, SHA-256-recorded launcher snapshot before entering long waits or GPU lock scopes.",
-    "The running shell execs the snapshot, so later repository edits cannot alter its remaining control flow.",
+    "Acceptance launchers use git archive to create a read-only snapshot of the complete tracked source at the launch commit before entering long waits or GPU lock scopes.",
+    "The running shell execs the launcher inside that source snapshot, so later repository edits cannot alter its remaining control flow, Python modules, or configs used by later lanes.",
     "The launch commit is propagated explicitly instead of being recomputed after snapshot exec.",
     "AutoFormer supervisor logging records launcher lifecycle, lock acquisition and release, child waits, failing BASH_COMMAND, line, and exit code.",
     "Per-lane lock holders explicitly unlock immediately after their active workload exits."
@@ -24,7 +24,7 @@
   "validation": [
     "bash -n tools/acceptance/lib/launcher-runtime.sh tools/acceptance/*.sh",
     "pytest tests/test_workflow.py tests/test_gpu.py",
-    "Regression test rewrites the original launcher to exit 127 during sleep and verifies the snapshotted process still exits 0 and writes both lifecycle markers.",
+    "Regression test rewrites the original launcher to exit 127 during sleep and verifies the commit-snapshotted process still exits 0 and writes both lifecycle markers.",
     "git diff --check"
   ],
   "scientific_protocol_changed": false,
