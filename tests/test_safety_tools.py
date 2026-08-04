@@ -1,5 +1,6 @@
 import builtins
 import json
+import os
 import pickle
 from pathlib import Path
 
@@ -54,6 +55,51 @@ def test_legacy_pickle_shapes_require_trust(tmp_path, payload, expected):
         import_pickle(source, destination)
     assert import_pickle(source, destination, trusted=True) == len(expected)
     assert _jsonl(destination) == expected
+    with pytest.raises(FileExistsError, match="already exists"):
+        import_pickle(source, destination, trusted=True)
+    assert _jsonl(destination) == expected
+
+
+def test_legacy_pickle_failure_does_not_publish_partial_jsonl(tmp_path):
+    source = tmp_path / "legacy.pkl"
+    destination = tmp_path / "legacy.jsonl"
+    source.write_bytes(pickle.dumps([{"unsupported": {1, 2}}]))
+
+    with pytest.raises(TypeError):
+        import_pickle(source, destination, trusted=True)
+
+    assert not destination.exists()
+    assert not list(tmp_path.glob(".legacy.jsonl.*.tmp"))
+
+
+def test_legacy_empty_list_publishes_empty_jsonl_atomically(tmp_path):
+    source = tmp_path / "legacy.pkl"
+    destination = tmp_path / "legacy.jsonl"
+    source.write_bytes(pickle.dumps([]))
+
+    assert import_pickle(source, destination, trusted=True) == 0
+    assert destination.read_bytes() == b""
+    assert not list(tmp_path.glob(".legacy.jsonl.*.tmp"))
+
+
+def test_legacy_pickle_atomic_publish_does_not_overwrite_racing_destination(
+    monkeypatch, tmp_path
+):
+    source = tmp_path / "legacy.pkl"
+    destination = tmp_path / "legacy.jsonl"
+    source.write_bytes(pickle.dumps([{"score": 1}]))
+    original_link = os.link
+
+    def create_destination_before_link(source_path, destination_path):
+        destination.write_text('{"owner":"other-process"}\n', encoding="utf-8")
+        return original_link(source_path, destination_path)
+
+    monkeypatch.setattr(os, "link", create_destination_before_link)
+    with pytest.raises(FileExistsError, match="already exists"):
+        import_pickle(source, destination, trusted=True)
+
+    assert _jsonl(destination) == [{"owner": "other-process"}]
+    assert not list(tmp_path.glob(".legacy.jsonl.*.tmp"))
 
 
 def test_vitbench_release_parser_preserves_metric_protocols():

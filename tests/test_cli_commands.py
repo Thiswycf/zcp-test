@@ -17,6 +17,45 @@ def _output(capsys):
     return json.loads(capsys.readouterr().out)
 
 
+def test_cli_documentation_audit_inventory_matches_parser():
+    parser = cli.build_parser()
+
+    def choices(value):
+        action = next(
+            (
+                item
+                for item in value._actions
+                if isinstance(item, argparse._SubParsersAction)
+            ),
+            None,
+        )
+        return {} if action is None else action.choices
+
+    top_level = choices(parser)
+    nested = {
+        name: sorted(choices(subparser))
+        for name, subparser in sorted(top_level.items())
+        if choices(subparser)
+    }
+    direct = sorted(set(top_level) - set(nested))
+    evidence_path = (
+        Path(__file__).resolve().parents[1]
+        / "docs/evidence/cli_documentation_audit_20260804.json"
+    )
+    evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
+
+    assert evidence["level_one_commands"] == sorted(top_level)
+    assert evidence["direct_endpoints"] == direct
+    assert evidence["level_two_commands"] == nested
+    assert evidence["counts"] == {
+        "level_one_commands": len(top_level),
+        "level_two_commands": sum(map(len, nested.values())),
+        "direct_endpoints": len(direct),
+        "total_leaf_endpoints": len(direct) + sum(map(len, nested.values())),
+        "p0_documentation_gaps": 0,
+    }
+
+
 def test_evaluation_summary_does_not_count_unsupported_as_failed():
     assert cli._evaluation_status_summary(
         ["ok", "ok", "failed", "unsupported", "unsupported", "skipped"]
@@ -372,6 +411,26 @@ def test_cli_registry_lists_and_inspects(capsys):
     assert params["resource_direction"] == "minimize"
     cli.main(["proxy", "matrix"])
     matrix = _output(capsys)
+    capability_fields = {
+        "proxy_id",
+        "version",
+        "model_families",
+        "requires_data",
+        "requires_labels",
+        "supports_cpu",
+        "direction",
+        "components",
+        "primary_component",
+        "dependencies",
+        "implementation_fidelity",
+        "source",
+        "alias_of",
+        "resource_direction",
+    }
+    assert all(set(row) == capability_fields for row in matrix)
+    assert [row["proxy_id"] for row in matrix] == sorted(
+        row["proxy_id"] for row in matrix
+    )
     assert any(row["proxy_id"] == "er" for row in matrix)
     assert any(
         row["proxy_id"] == "flops"
@@ -431,6 +490,26 @@ def test_cli_legacy_and_report_validation(capsys, tmp_path):
     assert _output(capsys)["records"] == 2
     with pytest.raises(ValueError, match="requires --source"):
         cli.main(["report"])
+
+    report_source = tmp_path / "scores.jsonl"
+    report_source.write_text(
+        '{"architecture_id":"a","score":1.5}\n', encoding="utf-8"
+    )
+    report_output = tmp_path / "reports" / "scores.csv"
+    cli.main(
+        [
+            "report",
+            "--source",
+            str(report_source),
+            "--output",
+            str(report_output),
+        ]
+    )
+    assert _output(capsys) == {"rows": 1, "output": str(report_output)}
+    assert report_output.read_text(encoding="utf-8").splitlines() == [
+        "architecture_id,score",
+        "a,1.5",
+    ]
 
 
 def test_cli_path_resolution_failures(tmp_path):
@@ -1263,6 +1342,20 @@ def test_cli_data_lifecycle_control_paths(monkeypatch, capsys, tmp_path):
             "--manifest", str(manifest),
         ])
     _output(capsys)
+
+
+@pytest.mark.parametrize("action", ["export-manifest", "import-manifest"])
+def test_data_transfer_manifest_rejects_unused_catalog_argument(action, tmp_path):
+    arguments = ["data", action, "--root", str(tmp_path), "--catalog", "unused.json"]
+    if action == "export-manifest":
+        arguments.extend(
+            ["--benchmarks", "nasbench101", "--output", str(tmp_path / "manifest.json")]
+        )
+    else:
+        arguments.extend(["--manifest", str(tmp_path / "manifest.json")])
+
+    with pytest.raises(SystemExit):
+        cli.main(arguments)
 
 
 def test_cli_data_verify_all_and_vit_conversion(monkeypatch, capsys, tmp_path):

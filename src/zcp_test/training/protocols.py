@@ -161,6 +161,7 @@ CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "warmup_learning_rate": 0.000001,
         "minimum_learning_rate": 0.00001,
         "batch_size": 256,
+        "batch_size_semantics": "per_device",
         "label_smoothing": 0.1,
         "validation_label_smoothing": 0.0,
         "exclude_bias_norm_from_weight_decay": True,
@@ -191,6 +192,12 @@ CANDIDATE_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
         "implementation_source": "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer",
         "implementation_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
     },
+}
+
+FORMAL_TRAINING_PROTOCOLS["aznas-autoformer-scratch"] = {
+    **CANDIDATE_TRAINING_PROTOCOLS["aznas-autoformer-scratch"],
+    "formal_training_ready": True,
+    "formal_training_acceptance": "docs/evidence/autoformer_single_candidate_dual_one_percent_completion_20260804.json",
 }
 
 

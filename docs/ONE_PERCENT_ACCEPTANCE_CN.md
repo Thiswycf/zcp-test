@@ -22,9 +22,9 @@ AutoFormer 搜索空间没有完整 tabular 真值，不运行这种相关性验
 [`evidence/darts_cifar_dual_one_percent_summary.json`](evidence/darts_cifar_dual_one_percent_summary.json)。
 该验收不是 600 epoch 全数据精度复现，也不是多 seed 搜索收益证明；全部训练只使用 seed
 `20260731`，候选选择只使用一个固定 CIFAR-10 batch 和一个初始化 seed。两个训练协议排序不同且
-科学含义不同，禁止求平均。ImageNet-1k 已通过 1000 类、1,281,167/50,000 张图和真实 loader
-解码的资产预检；DARTS ImageNet 双重 1% 尚未执行，不能再记为“数据缺失”，也不能记为通过；AutoFormer、
-PlainNet-MBV2、Proxyless-MBV2 的双重 1% 均未完成。
+科学含义不同，禁止求平均。DARTS ImageNet 的历史三候选限定验收已完成，但存在首项 DDP 与其余单卡
+BatchNorm 粒度差异；AutoFormer 的新单候选双重 1% 也已完成。两者都不是完整论文精度或搜索收益证据。
+PlainNet-MBV2、Proxyless-MBV2 的双重 1% 仍未完成。
 
 ## 1. 生成确定性分层清单
 

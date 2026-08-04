@@ -1,4 +1,5 @@
 import json
+import os
 from pathlib import Path
 
 import pytest
@@ -133,6 +134,37 @@ def test_cutout_and_proxy_scaffold_in_temporary_checkout(monkeypatch, capsys, tm
         cli._scaffold_proxy("research_proxy")
     with pytest.raises(ValueError, match="public Python identifier"):
         cli._scaffold_proxy("invalid-name")
+
+
+def test_proxy_scaffold_rolls_back_if_second_file_publish_races(
+    monkeypatch, tmp_path
+):
+    fake_cli = tmp_path / "src" / "zcp_test" / "cli.py"
+    custom = tmp_path / "src" / "zcp_test" / "proxies" / "custom"
+    tests = tmp_path / "tests"
+    custom.mkdir(parents=True)
+    tests.mkdir()
+    monkeypatch.setattr(cli, "__file__", str(fake_cli))
+    original_link = os.link
+    calls = 0
+
+    def race_on_second_file(source, destination):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            Path(destination).write_text("other process", encoding="utf-8")
+        return original_link(source, destination)
+
+    monkeypatch.setattr(os, "link", race_on_second_file)
+    with pytest.raises(FileExistsError, match="created concurrently"):
+        cli._scaffold_proxy("racing_proxy")
+
+    assert not (custom / "racing_proxy.py").exists()
+    assert (tests / "test_proxy_racing_proxy.py").read_text(encoding="utf-8") == (
+        "other process"
+    )
+    assert not list(custom.glob(".*.tmp"))
+    assert not list(tests.glob(".*.tmp"))
 
 
 def test_transnas_benchmark_example_declares_a_real_task_protocol():

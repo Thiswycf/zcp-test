@@ -12,6 +12,7 @@ warmup_epochs: 20
 warmup_learning_rate: 0.000001
 minimum_learning_rate: 0.00001
 batch_size: 256
+batch_size_semantics: per_device
 target_global_batch_size: 2048
 gradient_accumulation_steps: auto
 label_smoothing: 0.1
@@ -44,6 +45,5 @@ global_pool: true
 protocol: aznas-autoformer-scratch
 implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer
 implementation_commit: 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47
-formal_training_ready: false
-formal_training_blockers:
-  - full ImageNet-1k dual 1% acceptance protocols are not completed
+formal_training_ready: true
+formal_training_acceptance: docs/evidence/autoformer_single_candidate_dual_one_percent_completion_20260804.json

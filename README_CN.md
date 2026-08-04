@@ -194,15 +194,17 @@ batch 和一个初始化 seed。两套协议分别衡量早期全数据学习与
 DDP，其余五项为单卡，因而 per-device BatchNorm 统计粒度不可严格比较；该结论也不是 250 epoch
 全数据精度复现。首轮发现低速盘小文件 I/O 与旧版空 `run.log` 问题；当前实现会把事件同时 flush
 到 `events.jsonl` 和 `run.log`，重启时应通过
-`--data-root` 显式选择经 `findmnt` 核验的高速本地副本。AutoFormer、PlainNet-MBV2 和
-Proxyless-MBV2 的双重 1% 验收均未完成。
+`--data-root` 显式选择经 `findmnt` 核验的高速本地副本。AutoFormer 单候选双重 1% 已完成；
+PlainNet-MBV2 和 Proxyless-MBV2 的双重 1% 验收仍未完成。
 
 自 2026-08-04 起，未来工程验收固定只训练一个 `zcp-selected` 架构的两项 1% 协议，共 2 runs；
-历史已完成或已启动的三候选结果保持不变。短训不能可靠证明 ZCP 比随机或参数量/FLOPs 基线更优，
+历史已完成产物保持不变，但旧 supervisor 中尚未启动的基线任务必须取消，不能在政策生效后自动继承。
+短训不能可靠证明 ZCP 比随机或参数量/FLOPs 基线更优，
 因此不再为工程验收消耗三倍资源。候选优越性必须由独立、预声明、充分训练且多 seed 的研究实验验证。
 
 `--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且至少
-1% epoch”或“恰好 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
+1% epoch”或“恰好 1% 数据且完整 schedule”；单次命令不会自动修改 `formal_training_ready`，只有核验
+双协议终态证据后才可在仓库配置中显式解除门禁。AutoFormer 已完成该核验，但这仍不代表
 论文精度复现。`--real-data-preflight --epochs 1 --data-fraction 1.0` 只用于在启动高成本任务前
 测量一个完整数据 epoch 的吞吐、显存和流水线完整性，结果固定标记为 `real_data_preflight`，不得
 计入双重 1% 验收。详见 [操作手册](docs/OPERATIONS_CN.md)。
@@ -230,8 +232,8 @@ events、status 和隔离文件名均携带 `+08:00`/`+0800`。历史 `...Z_...`
   600/250 epoch 全数据精度复现。ImageNet 首项四卡 DDP 与其余五项单卡的 BatchNorm 粒度不同，
   不得直接把候选差异全归因于架构。大型图像训练应显式选择已核验的本机高速 `--data-root`，项目
   不硬编码机器路径。
-  AutoFormer、PlainNet-MBV2 与
-  Proxyless-MBV2 配置仍是可审计的候选 recipe，其双重 1% 均未完成，不得把
-  `--smoke` 写成正式训练验收。`torchrun` 必须显式提供按 UUID 排列的 `CUDA_VISIBLE_DEVICES`；
+  AutoFormer 的单候选双重 1% 已完成，正式 scratch profile 可启动；PlainNet-MBV2 与
+  Proxyless-MBV2 仍是被门禁保护的候选 recipe。任何空间都不得把 `--smoke` 写成正式训练验收。
+  `torchrun` 必须显式提供按 UUID 排列的 `CUDA_VISIBLE_DEVICES`；
   CLI 使用 `cuda:LOCAL_RANK`、DDP、分布式 sampler/指标归约和 rank-zero artifacts。AutoFormer
   可将梯度累积自动调整到 global batch 2048，因此 4 卡×256 使用 2 次累积。

@@ -47,6 +47,9 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
     assert "candidate manifest checksum/role mismatch" in common_source
     assert "parallel_single_gpu requires ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes" in common_source
     assert "packed_single_gpu requires ZCP_PACKED_SINGLE_GPU_ACCEPTED=yes" in common_source
+    assert "parallel_single_gpu requires exactly two GPU UUIDs" in common_source
+    assert "packed_single_gpu requires exactly one GPU UUID" in common_source
+    assert "three architecture JSON files" not in common_source
     assert '"acceptance_scope": "single_zcp_dual_one_percent"' in common_source
     assert "both zcp-selected $SPACE ImageNet dual-one-percent acceptance runs completed" in common_source
     assert "ZCP_CPU_AFFINITIES" in common_source
@@ -538,9 +541,34 @@ def test_autoformer_candidate_training_protocol_is_locked():
     assert config["minimum_learning_rate"] == pytest.approx(1e-5)
     assert config["validation_label_smoothing"] == 0.0
     assert config["exclude_bias_norm_from_weight_decay"] is True
+    assert config["batch_size_semantics"] == "per_device"
+    assert config["formal_training_ready"] is True
+    assert config["formal_training_acceptance"].endswith(
+        "autoformer_single_candidate_dual_one_percent_completion_20260804.json"
+    )
+    assert "formal_training_blockers" not in config
     config["mixup"] = 0.0
     with pytest.raises(ValueError, match="mixup"):
         validate_candidate_training_protocol(config)
+
+
+def test_autoformer_formal_training_gate_is_released(monkeypatch, tmp_path):
+    monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
+
+    with pytest.raises(ValueError, match="data-root"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/autoformer_imagenet.yaml",
+                "--device",
+                "cpu",
+                "--output",
+                str(tmp_path),
+            ]
+        )
+
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_proxyless_candidate_training_protocol_is_locked():

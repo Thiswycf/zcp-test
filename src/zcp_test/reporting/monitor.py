@@ -37,6 +37,11 @@ def _source_path(source: PathLike) -> Path:
     raise FileNotFoundError(f"No monitorable JSONL file in {path}")
 
 
+def monitor_source_path(source: PathLike) -> Path:
+    """Resolve a JSONL file, run directory, or unambiguous run parent."""
+    return _source_path(source)
+
+
 def read_jsonl_tolerant(
     source: PathLike,
     *,
@@ -155,6 +160,7 @@ refresh_monitor = refresh_once
 
 
 __all__ = [
+    "monitor_source_path",
     "monitor_once",
     "read_jsonl_tolerant",
     "refresh_monitor",

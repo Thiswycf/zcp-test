@@ -153,6 +153,28 @@ zcp-test data export-manifest \
   --output /path/to/data/transfer/manifest.json
 ```
 
+当前迁移 manifest 的真实 schema 为版本 1：顶层只有 `schema_version=1` 和 `records` 数组；每条
+导出记录包含 `benchmark_id`、相对 `path`、`kind`（`file` 或 `directory`）和 `sha256`：
+
+```json
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "benchmark_id": "vitbench101",
+      "path": "vitbench101/converted",
+      "kind": "directory",
+      "sha256": "<64 位小写十六进制摘要>"
+    }
+  ]
+}
+```
+
+文件摘要绑定文件路径名和内容；目录摘要按排序后的相对文件路径及文件内容绑定整棵目录树。
+`kind` 是导出时记录的类型；当前 importer 不另行核对目标对象类型，而是对目标路径按其实际类型
+重新计算摘要。`export-manifest` 要求每个运行期路径存在且能相对于 `--root` 表示，路径在 root
+之外会失败。该命令不读取也不更新 catalog，因此没有 `--catalog` 参数。
+
 复制 manifest 和运行期数据，并保持相对于源 root 的目录结构。对于 NAS-Bench-101，必须复制
 完整的 `converted/full` 目录，不能只复制 `manifest.json`：
 
@@ -178,7 +200,9 @@ ViT-Bench-101 也按完整转换目录散列。迁移后仍需执行 adapter smo
 ### 5. 通过验证完成 import
 
 虽然命令名是 `import-manifest`，它既不复制文件，也不更新数据 catalog。它只验证 manifest
-中的安全相对路径都位于目标 root 下，并比较导出时的摘要。
+中的相对路径并比较导出时的摘要。当前路径边界是词法检查：拒绝绝对路径和任意包含 `..` 路径段
+的记录，其他路径拼接到解析后的 `--root`。它不会解析并禁止 root 内已有符号链接指向 root 外，
+所以 manifest 和目标目录都必须来自可信迁移流程；不要把它当作处理不可信归档的沙箱。
 
 ```bash
 zcp-test data import-manifest \
@@ -187,6 +211,33 @@ zcp-test data import-manifest \
 
 zcp-test data checklist --root /path/to/data/offline
 ```
+
+成功或摘要失败时，输出保留原记录，并为每条记录增加 `exists`、`actual_sha256`、`valid`：
+
+```json
+{
+  "valid": true,
+  "records": [
+    {
+      "benchmark_id": "vitbench101",
+      "path": "vitbench101/converted",
+      "kind": "directory",
+      "sha256": "<导出摘要>",
+      "exists": true,
+      "actual_sha256": "<目标机实算摘要>",
+      "valid": true
+    }
+  ]
+}
+```
+
+路径不存在时 `exists=false`、`actual_sha256=null`、`valid=false`；摘要不一致时 `exists=true` 但
+`valid=false`。顶层 `valid` 仅在所有记录都有效时为 `true`。任一记录无效时 CLI 会先输出结果，
+再以非零状态退出；schema 版本错误、`records` 不是数组、路径越界、记录不是对象，或缺少/无法
+解析 importer 实际使用的 `path`、`sha256` 字段，也会直接非零退出。当前 importer 不对
+`benchmark_id`、`kind` 或 SHA-256 字符串格式做完整 schema 校验，因此只应导入本命令产生且经
+可信渠道传输的 manifest。
+该命令同样没有 `--catalog` 参数。
 
 迁移后可显式传 `--benchmark-path`，也可以注册已验证的运行期路径：
 
@@ -270,6 +321,87 @@ ViT-Bench-101 固定了以下源文件摘要：
 | `autoformer_main` | `712ad277546d9f7f565ce07885be7e0b98dcd8d0724fdd1120f595b517436eca` | AutoFormer 主切片，不与扩展切片合并。 |
 | `autoformer_ext` | `05f5df6a41f338fb5f47eafebfc8758c75e451606856b278ccda1c60b26e7bca` | 扩展切片，保留独立身份。 |
 | `pit` | `bdda89841d4105f99ab759e3243e7a2402929ba7a8430dac12a50256aa533bb2` | PiT 搜索空间。 |
+
+### 手动执行 `data convert-vit`
+
+bootstrap 会自动完成三次转换；已有经独立核验的官方 `.pth` 时，也可逐个切片手动转换。三个
+`--source` 必须分别与对应 `--slice-id` 配对，三个 `--output` 也必须保持分离：
+
+```bash
+RAW=/path/to/data/vitbench101
+OUT=/path/to/data/vitbench101/converted
+mkdir -p "$OUT"
+
+zcp-test data convert-vit \
+  --source "$RAW/gt_autoformer.pth" \
+  --output "$OUT/gt_autoformer.jsonl" \
+  --slice-id autoformer_main \
+  --trusted
+
+zcp-test data convert-vit \
+  --source "$RAW/gt_autoformer_2.pth" \
+  --output "$OUT/gt_autoformer_2.jsonl" \
+  --slice-id autoformer_ext \
+  --trusted
+
+zcp-test data convert-vit \
+  --source "$RAW/gt_pit.pth" \
+  --output "$OUT/gt_pit.jsonl" \
+  --slice-id pit \
+  --trusted
+
+wc -l "$OUT/gt_autoformer.jsonl" \
+  "$OUT/gt_autoformer_2.jsonl" \
+  "$OUT/gt_pit.jsonl"
+```
+
+参数语义以当前实现为准：
+
+- `--source` 是一次转换要反序列化的单个 PyTorch `.pth`；转换器先计算其 SHA-256，再使用
+  `torch.load(..., map_location="cpu", weights_only=True)` 加载。当前 PyTorch 不支持
+  `weights_only` 时会拒绝不安全回退。
+- `--output` 是单个安全 JSONL 文件，不是目录。转换器先写同目录的 `.tmp`，成功后用重命名
+  发布；父目录会自动创建。
+- `--slice-id` 决定写入每行的搜索空间与 protocol：`autoformer_main` 和 `autoformer_ext` 均为
+  `autoformer`，但 protocol 分别为 `auto-prox-90ed458-autoformer-main` 和
+  `auto-prox-90ed458-autoformer-ext`；`pit` 写为 `pit` / `auto-prox-90ed458-pit`。
+- `--trusted` 只是操作者明确允许本次反序列化，不验证来源、摘要或切片配对。任意 PyTorch
+  `.pth` 都只应从可信来源取得并先独立核对摘要；即使使用 `weights_only=True`，也不应把未知
+  文件视为可信输入。
+
+release parser 对源 payload 的 list 每个元素输出一行，行内包含架构、可用指标、连续
+`benchmark_index`、实际 `source_sha256` 及上述身份字段。固定在本节表格中的三个公开源文件各有
+100 个元素，因此预期是三个 JSONL **各 100 行**，不是合并后的 300 行；其他可信源的预期行数
+等于各自源切片 list 的元素数。转换器不去重，也不检测同一架构是否重复；源内重复会原样成为
+多行。它也不会先检查 `source` 是否与 `slice-id` 的固定摘要配对，后续
+`benchmark inspect vitbench101` 才会拒绝摘要或 protocol 错配。
+
+直接执行 `convert-vit` **只写一个 JSONL**：不会生成 manifest，不会写 catalog。它也没有
+`--catalog` 或 `--replace` 参数；若 `--output` 已存在，成功转换会原子替换旧文件而不询问，
+所以先检查输出路径，避免不同切片互相覆盖。若需要标准 catalog 接线，可在核对行数并执行
+前文 smoke 后显式注册三个文件：
+
+```bash
+CATALOG=/path/to/data/catalog.json
+zcp-test data register vitbench101_0 "$OUT/gt_autoformer.jsonl" \
+  --version auto-prox-90ed458 --protocol auto-prox-90ed458-autoformer-main \
+  --sha256 "$(sha256sum "$OUT/gt_autoformer.jsonl" | awk '{print $1}')" --catalog "$CATALOG"
+zcp-test data register vitbench101_1 "$OUT/gt_autoformer_2.jsonl" \
+  --version auto-prox-90ed458 --protocol auto-prox-90ed458-autoformer-ext \
+  --sha256 "$(sha256sum "$OUT/gt_autoformer_2.jsonl" | awk '{print $1}')" --catalog "$CATALOG"
+zcp-test data register vitbench101_2 "$OUT/gt_pit.jsonl" \
+  --version auto-prox-90ed458 --protocol auto-prox-90ed458-pit \
+  --sha256 "$(sha256sum "$OUT/gt_pit.jsonl" | awk '{print $1}')" --catalog "$CATALOG"
+```
+
+若 catalog 中已有同名 ID，`data register` 默认拒绝覆盖；只有确认替换机器本地绑定时才显式加
+`--replace`。相对地，`data bootstrap --benchmarks vitbench101 --catalog ...` 会按标准文件名转换
+三个切片，并以相同 ID、版本、protocol 和实算 JSONL SHA-256 自动替换注册。需要迁移 manifest
+时，应在三个标准输出都存在后另行运行前文 `export-manifest`；它记录整个
+`vitbench101/converted` 目录，不会由 `convert-vit` 隐式产生。
+
+转换完成后，运行期 adapter 只读取不触发 pickle/PyTorch 反序列化的 JSONL；应把原始 `.pth`
+隔离为仅转换阶段可访问的可信输入，正式评估只向 adapter 提供已固定摘要的只读 JSONL。
 
 vanilla、knowledge-distillation、inherited-supernet accuracy 是三种不同指标协议，不得合并为
 同一个 target metric。

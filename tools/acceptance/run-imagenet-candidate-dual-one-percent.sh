@@ -3,8 +3,8 @@ set -Eeuo pipefail
 
 PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 DATA_ROOT=${ZCP_IMAGENET_ROOT:?Set ZCP_IMAGENET_ROOT to a verified ImageNet-1k root}
-CANDIDATE_ROOT=${ZCP_TRAINING_CANDIDATES:?Set ZCP_TRAINING_CANDIDATES to the three architecture JSON files}
-GPU_UUIDS=${ZCP_GPU_UUIDS:?Set ZCP_GPU_UUIDS to four comma-separated GPU UUIDs}
+CANDIDATE_ROOT=${ZCP_TRAINING_CANDIDATES:?Set ZCP_TRAINING_CANDIDATES to zcp_selected.json and candidates-manifest.json}
+GPU_UUIDS=${ZCP_GPU_UUIDS:?Set ZCP_GPU_UUIDS to strategy-specific comma-separated GPU UUIDs}
 CONFIG=${ZCP_TRAINING_CONFIG:?Set ZCP_TRAINING_CONFIG to a repository-relative training config}
 SPACE=${ZCP_ACCEPTANCE_SPACE:?Set ZCP_ACCEPTANCE_SPACE to the expected search-space ID}
 FORMAL_EPOCHS=${ZCP_FORMAL_EPOCHS:?Set ZCP_FORMAL_EPOCHS to the complete schedule length}
@@ -110,12 +110,12 @@ if [[ "$EXECUTION_STRATEGY" == sequential_ddp && ${#gpu_array[@]} != 4 ]]; then
   echo "sequential_ddp requires exactly four GPU UUIDs" >&2
   exit 2
 fi
-if [[ "$EXECUTION_STRATEGY" == parallel_single_gpu && ${#gpu_array[@]} -lt 2 ]]; then
-  echo "parallel_single_gpu requires at least two GPU UUIDs" >&2
+if [[ "$EXECUTION_STRATEGY" == parallel_single_gpu && ${#gpu_array[@]} != 2 ]]; then
+  echo "parallel_single_gpu requires exactly two GPU UUIDs" >&2
   exit 2
 fi
-if [[ "$EXECUTION_STRATEGY" == packed_single_gpu && ${#gpu_array[@]} -lt 1 ]]; then
-  echo "packed_single_gpu requires at least one GPU UUID" >&2
+if [[ "$EXECUTION_STRATEGY" == packed_single_gpu && ${#gpu_array[@]} != 1 ]]; then
+  echo "packed_single_gpu requires exactly one GPU UUID" >&2
   exit 2
 fi
 cpu_affinities=()

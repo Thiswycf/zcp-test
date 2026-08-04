@@ -153,6 +153,30 @@ zcp-test data export-manifest \
   --output /path/to/data/transfer/manifest.json
 ```
 
+The transfer-manifest schema is currently version 1. Its top level contains
+`schema_version: 1` and a `records` array; each exported record contains `benchmark_id`, a
+root-relative `path`, `kind` (`file` or `directory`), and `sha256`:
+
+```json
+{
+  "schema_version": 1,
+  "records": [
+    {
+      "benchmark_id": "vitbench101",
+      "path": "vitbench101/converted",
+      "kind": "directory",
+      "sha256": "<64-character lowercase hexadecimal digest>"
+    }
+  ]
+}
+```
+
+File digests bind the file name and contents. Directory digests bind the sorted relative file
+paths and contents of the complete tree. `kind` records the type seen during export; the current
+importer recomputes a digest from the destination path's actual type rather than separately
+enforcing `kind`. Every exported runtime path must exist and be lexically relative to `--root`.
+This command neither reads nor updates a catalog and has no `--catalog` option.
+
 Copy the manifest and runtime data while preserving their paths relative to the source root.
 For NAS-Bench-101, copy the entire `converted/full` directory, not only `manifest.json`:
 
@@ -178,8 +202,11 @@ adapter smoke after transfer as a semantic check in addition to the byte-level t
 ### 5. Import by verifying the transferred tree
 
 Despite its name, `import-manifest` does not copy files and does not update the data catalog. It
-verifies that every safe relative path exists under the destination root and that its digest
-matches the export manifest.
+checks each relative path and compares its digest with the export manifest. The current boundary
+is lexical: it rejects absolute paths and any path containing a `..` component, then joins every
+other path to the resolved `--root`. It does not reject an existing symlink below the root that
+points outside it. Treat both the manifest and destination tree as trusted transfer inputs; this
+command is not a sandbox for an untrusted archive.
 
 ```bash
 zcp-test data import-manifest \
@@ -188,6 +215,15 @@ zcp-test data import-manifest \
 
 zcp-test data checklist --root /path/to/data/offline
 ```
+
+For each input record, the result adds `exists`, `actual_sha256`, and `valid`, and the top-level
+`valid` is true only when every record is valid. A missing path has `exists: false`,
+`actual_sha256: null`, and `valid: false`; a digest mismatch has `exists: true` and `valid: false`.
+The CLI prints this result and then exits nonzero if any record is invalid. A bad schema version,
+non-array `records`, unsafe path, non-object record, or missing/unusable `path` or `sha256` field
+also exits nonzero. The current importer does not fully schema-validate `benchmark_id`, `kind`, or
+the SHA-256 string format, so import only manifests produced by this command and transferred
+through a trusted channel. This command has no `--catalog` option.
 
 Use explicit `--benchmark-path` values after transfer, or register verified runtime paths:
 

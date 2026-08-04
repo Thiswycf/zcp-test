@@ -1,0 +1,57 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T13:22:36+08:00",
+  "timezone": "Asia/Shanghai",
+  "status": "scoped_acceptance_completed",
+  "search_space_id": "autoformer",
+  "architecture_id": "42e6457ccb580a092454",
+  "candidate_role": "zcp_selected",
+  "source_snapshot": "76a0fcd3936cf63f70faba3f1c5716551133520e",
+  "model_fidelity": "reference_model",
+  "training_protocol": "aznas-autoformer-scratch",
+  "dataset": "imagenet1k",
+  "seed": 20260731,
+  "protocols": {
+    "full_data_one_percent_epochs": {
+      "run": "runs/acceptance/autoformer-imagenet-frozen-20260804-v2/full-data-5epoch-zcp-selected/20260804T110729+0800_fc27e7c51ed7",
+      "started_at": "2026-08-04T11:07:29.547358+08:00",
+      "ended_at": "2026-08-04T12:52:46.755991+08:00",
+      "data_fraction": 1.0,
+      "epochs": 5,
+      "training_rows": 5,
+      "epoch_range": [0, 4],
+      "last_checkpoint_epoch": 4,
+      "artifacts": {
+        "manifest.json": {"bytes": 2478, "sha256": "a4571249b40c899ba2a6691ae7c96d24bd06e4a1f01d8542b7097e12d5d37b51"},
+        "config.yaml": {"bytes": 2834, "sha256": "8cb95af20690c207c8c6921332eb58e6e219cbfdf5cc76d021df4b137531cb9b"},
+        "training.jsonl": {"bytes": 3087, "sha256": "283e2e612d80e5d3a1b7b72783dd02c16c352486683c7e537bc80c3259f1165f"},
+        "checkpoints/last.pt": {"bytes": 101126062, "sha256": "4d0e24e26cb86e1879a1866567af5680b698c4a07f4e924ae145ee09faff8c1b"},
+        "checkpoints/best.pt": {"bytes": 101126062, "sha256": "3ad52f88f79e61c9ed83699b2df58def3739f38cb6a19d58ef4f89331c8ae7ee"}
+      }
+    },
+    "one_percent_data_full_schedule": {
+      "run": "runs/acceptance/autoformer-imagenet-frozen-20260804-v2/one-percent-data-500epoch-zcp-selected/20260804T110729+0800_71d5c8fa8d09",
+      "started_at": "2026-08-04T11:07:29.476425+08:00",
+      "ended_at": "2026-08-04T13:18:23.994127+08:00",
+      "data_fraction": 0.01,
+      "epochs": 500,
+      "training_rows": 500,
+      "epoch_range": [0, 499],
+      "finite_rows": true,
+      "last_checkpoint_epoch": 499,
+      "effective_global_batch_size": 2048,
+      "gradient_accumulation_steps": 8,
+      "artifacts": {
+        "manifest.json": {"bytes": 2488, "sha256": "17ec1aee87377c241a5b0e561b5c269600dde25211bef36ab33c7c7b146d5974"},
+        "config.yaml": {"bytes": 2834, "sha256": "72d5bc235bfaf9f4282aa95fbb4765514af199ff3d142720bd10351d67a8c2ee"},
+        "training.jsonl": {"bytes": 303148, "sha256": "542bd2299cc0b0a7b6ffeabac9286b9f3a672b602264e1dc037017b55eac939c"},
+        "checkpoints/last.pt": {"bytes": 101433710, "sha256": "93413920489c11d8e185b4460a9c24ec15ddb5280029a933ce33986b4150968e"},
+        "checkpoints/best.pt": {"bytes": 101334190, "sha256": "6368b7885e8d383570abe41b248416cf305346684bced124dd65211ca2cef5cd"}
+      }
+    }
+  },
+  "checkpoint_recovery_evidence": "docs/evidence/autoformer_frozen_candidate_smokes.json",
+  "policy_intervention_evidence": "docs/evidence/autoformer_single_candidate_policy_intervention_20260804.json",
+  "formal_training_gate": "The repository AutoFormer profile may launch formal scratch training after this scoped acceptance. This is implementation readiness, not a paper-accuracy result.",
+  "scientific_boundary": "The two short acceptance protocols must not be averaged, used as paper accuracy, or used to claim that ZCP selection outperforms random or parameter/FLOPs baselines. Such a claim requires a separately predeclared, sufficiently converged, multi-seed experiment."
+}

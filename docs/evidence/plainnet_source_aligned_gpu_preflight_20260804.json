@@ -1,0 +1,47 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T13:22:36+08:00",
+  "timezone": "Asia/Shanghai",
+  "status": "preflight_completed",
+  "scope": "gpu_memory_throughput_preflight_not_formal_search",
+  "run": "runs/acceptance/plainnet-source-aligned-throughput-preflight/20260804T120831+0800_plainnet-preflight",
+  "started_at": "2026-08-04T12:08:31.971348+08:00",
+  "lock_acquired_at": "2026-08-04T13:18:28.197859+08:00",
+  "completed_at": "2026-08-04T13:18:31.163315+08:00",
+  "gpu": {
+    "index_at_selection": 5,
+    "uuid": "GPU-bee8080a-7101-87ee-b02f-9370594b3a56",
+    "pci_bus_id": "00000000:A8:00.0",
+    "model": "NVIDIA GeForce RTX 4090",
+    "cuda_device_order": "PCI_BUS_ID"
+  },
+  "protocol": {
+    "search_space_id": "zennas_plainnet_mbv2",
+    "formal_valid_candidates": 100000,
+    "stop_after_accepted": 3,
+    "batch_size": 64,
+    "input_size": 224,
+    "flops_target": "450m"
+  },
+  "result": {
+    "state_status": "running",
+    "formal_search_completed": false,
+    "accepted_count": 3,
+    "evaluations": 2,
+    "cache_hits": 1,
+    "measurement_count": 2,
+    "median_candidate_seconds": 0.6239937585778534,
+    "max_candidate_seconds": 0.9778446033596992,
+    "max_peak_allocated_gib": 3.2657251358032227,
+    "max_peak_reserved_gib": 4.009765625
+  },
+  "artifacts": {
+    "preflight-manifest.json": {"bytes": 1093, "sha256": "5841833e1bb7d5d5bd4b80b39abf70f26239bf6405ba9a4accf836c76b940eb5"},
+    "preflight-summary.json": {"bytes": 1093, "sha256": "5841833e1bb7d5d5bd4b80b39abf70f26239bf6405ba9a4accf836c76b940eb5"},
+    "measurements.jsonl": {"bytes": 537, "rows": 2, "sha256": "ba1c57712cb56a762c8f6cdb8a75bd6c68ffae4e74f43d27457b5314d15ece69"},
+    "search.jsonl": {"bytes": 4742, "rows": 3, "sha256": "1ad2f36d8af3f48f0b3f63a013d3094c4b45e4cf97a777d359e1c552ead3cc2a"},
+    "search-state.json": {"bytes": 16099, "sha256": "5d4b2f60560e10279553048d56a9d5e19df4d9605c62dca8fe90aafa8eb1b67f"}
+  },
+  "interpretation": "Three accepted candidate rows include one cache hit, so only two distinct GPU measurements are expected. The retained running search state is resumable but does not contain a formal search summary.",
+  "scientific_boundary": "This evidence only validates memory, throughput, locking, caching, and resumable state for a three-candidate preflight. It does not prove completion or scientific validity of the declared 100000-candidate search."
+}

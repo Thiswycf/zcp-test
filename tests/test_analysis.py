@@ -24,6 +24,7 @@ from zcp_test.reporting.analysis import (
 )
 from zcp_test.reporting.monitor import read_jsonl_tolerant, refresh_once
 from zcp_test.reporting.reports import curve_plot, static_html
+from zcp_test.cli import main
 
 
 matplotlib.use("Agg")
@@ -474,6 +475,23 @@ def test_monitor_discovers_single_timestamped_run_and_rejects_ambiguous_root(tmp
     (second / "training.jsonl").write_text('{"epoch": 0}\n')
     with pytest.raises(ValueError, match="select one"):
         refresh_once(tmp_path)
+
+
+@pytest.mark.parametrize("source_kind", ["jsonl", "parent"])
+def test_cli_monitor_default_output_follows_resolved_run(capsys, tmp_path, source_kind):
+    run = tmp_path / "20260101T080000+0800_first"
+    run.mkdir()
+    source = run / "scores.jsonl"
+    source.write_text('{"score": 1}\n', encoding="utf-8")
+    argument = source if source_kind == "jsonl" else tmp_path
+
+    main(["monitor", str(argument), "--once"])
+
+    result = json.loads(capsys.readouterr().out)
+    expected = run / "reports" / "monitor.html"
+    assert result["source"] == str(source)
+    assert result["output"] == str(expected)
+    assert expected.is_file()
 
 
 def test_monitor_prefers_live_training_events_over_epoch_log(tmp_path):

@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "audited_at": "2026-08-04T13:32:25+08:00",
+  "timezone": "Asia/Shanghai",
+  "source": "src/zcp_test/cli.py:build_parser",
+  "source_commit": "fd9e0f0db6170be145f6b4cb3727c086d0bbd0b5",
+  "source_worktree": "dirty_review_patch",
+  "counting_rule": "Count argparse choices directly below the root parser as level_one_commands. Count choices below those parsers as level_two_commands. Root commands without a nested action remain direct_endpoints and are not added to the level_two count.",
+  "counts": {
+    "level_one_commands": 15,
+    "level_two_commands": 32,
+    "direct_endpoints": 6,
+    "total_leaf_endpoints": 38,
+    "p0_documentation_gaps": 0
+  },
+  "level_one_commands": [
+    "acceptance",
+    "analyze",
+    "benchmark",
+    "correlate",
+    "data",
+    "doctor",
+    "evaluate",
+    "gpu",
+    "legacy",
+    "monitor",
+    "proxy",
+    "report",
+    "search",
+    "space",
+    "train"
+  ],
+  "direct_endpoints": [
+    "correlate",
+    "doctor",
+    "evaluate",
+    "monitor",
+    "search",
+    "train"
+  ],
+  "level_two_commands": {
+    "acceptance": ["freeze-candidates", "reconcile-search-cohort"],
+    "analyze": ["benchmark", "compare", "correlation", "search", "sensitivity", "training"],
+    "benchmark": ["inspect", "list", "sample"],
+    "data": ["bootstrap", "checklist", "convert-imagenet16", "convert-vit", "export-manifest", "fetch", "import-manifest", "list", "prepare-transnas-input", "register", "verify"],
+    "gpu": ["list"],
+    "legacy": ["import"],
+    "proxy": ["inspect", "list", "matrix", "scaffold", "validate"],
+    "report": ["bundle"],
+    "space": ["inspect", "list"]
+  },
+  "p1_resolution": {
+    "acceptance_reconcile_search_cohort": "documented_full_code_gate_passed",
+    "search_resource_constraint_semantics": "documented_full_code_gate_passed",
+    "data_transfer_manifest_schema": "documented_full_code_gate_passed",
+    "legacy_import_repeat_safety": "code_and_tests_full_code_gate_passed",
+    "data_convert_vit_chinese_workflow": "documented_full_code_gate_passed",
+    "immutable_supervisor_queued_baseline_cancellation": "documented_and_runtime_intervention_recorded"
+  },
+  "remaining_review": {
+    "proxy_extension_command_contracts": "resolved_code_docs_tests_full_code_gate_passed",
+    "legacy_report_source_compatibility": "resolved_docs_positive_test_full_code_gate_passed",
+    "monitor_custom_output_semantics": "resolved_code_docs_cli_tests_full_code_gate_passed",
+    "machine_readable_json_output_contracts": "resolved_explicit_proxy_serializer_docs_tests_full_code_gate_passed"
+  },
+  "latest_code_gate": {"tests": 563, "test_files": 38, "status": "passed"},
+  "correction": "An earlier exploratory note reported 33 level-two commands. Direct parser introspection proves 32; the earlier number must not be reused."
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T13:02:07+08:00",
+  "timezone": "Asia/Shanghai",
+  "run_identity": "autoformer-imagenet-frozen-20260804-v2",
+  "source_snapshot": "76a0fcd3936cf63f70faba3f1c5716551133520e",
+  "incident": "The immutable pre-policy supervisor automatically launched queued fixed-random and params/FLOPs-matched one-percent-data tasks after their full-data lanes completed.",
+  "assessment": "No new command was submitted, but allowing not-yet-started baseline tasks to begin after the single-candidate policy took effect was a scheduling error.",
+  "intervention": {
+    "fixed_random_status": "interrupted",
+    "params_flops_matched_status": "interrupted",
+    "interrupted_at": [
+      "2026-08-04T13:01:23.901922+08:00",
+      "2026-08-04T13:01:25.146680+08:00"
+    ],
+    "gpu_0_after_mb": 89,
+    "gpu_1_after_mb": 15,
+    "gpu_0_1_utilization_percent": 0,
+    "gpu_0_1_kernel_flocks_released": true,
+    "zcp_selected_task_action": "continue"
+  },
+  "cleanup": {
+    "old_main_supervisor": "stopped to prevent failure propagation",
+    "cancelled_lane_holders": "terminated after their training trees exited",
+    "watcher_unit": "zcp-test-autoformer-policy-cleanup.service",
+    "watcher_action": "After the zcp-selected manifest becomes terminal, write policy-override.json and terminate the old service before it can launch any additional baseline work."
+  },
+  "future_policy": "Only the zcp-selected architecture runs the full-data one-percent-epoch and one-percent-data full-schedule engineering protocols."
+}

@@ -7,6 +7,7 @@ import math
 import os
 import signal
 import sys
+import tempfile
 import time
 from contextlib import ExitStack, contextmanager
 from dataclasses import asdict
@@ -78,7 +79,7 @@ from zcp_test.reporting.benchmark_studies import (
     transnas_transfer_study,
     vit_architecture_study,
 )
-from zcp_test.reporting.monitor import refresh_once
+from zcp_test.reporting.monitor import monitor_source_path, refresh_once
 from zcp_test.search import (
     EvolutionSearch,
     PlainNetSourceAlignedSearch,
@@ -992,15 +993,82 @@ def command_proxy(args: argparse.Namespace) -> None:
         _json(PROXIES.names())
         return
     if args.action == "inspect":
-        _json(PROXIES.create(args.name).capability.__dict__)
+        _json(_proxy_capability_payload(PROXIES.create(args.name).capability))
         return
     if args.action == "matrix":
-        _json([PROXIES.create(name).capability.__dict__ for name in PROXIES.names()])
+        _json(
+            [
+                _proxy_capability_payload(PROXIES.create(name).capability)
+                for name in PROXIES.names()
+            ]
+        )
         return
     if args.action == "scaffold":
         _scaffold_proxy(args.name)
         return
     _validate_proxy(args.name)
+
+
+def _proxy_capability_payload(capability: Any) -> dict[str, Any]:
+    return {
+        "proxy_id": capability.proxy_id,
+        "version": capability.version,
+        "model_families": list(capability.model_families),
+        "requires_data": capability.requires_data,
+        "requires_labels": capability.requires_labels,
+        "supports_cpu": capability.supports_cpu,
+        "direction": capability.direction.value,
+        "components": list(capability.components),
+        "primary_component": capability.primary_component,
+        "dependencies": list(capability.dependencies),
+        "implementation_fidelity": capability.implementation_fidelity,
+        "source": capability.source,
+        "alias_of": capability.alias_of,
+        "resource_direction": (
+            None
+            if capability.resource_direction is None
+            else capability.resource_direction.value
+        ),
+    }
+
+
+def _publish_new_text_files(files: list[tuple[Path, str]]) -> None:
+    temporary_paths: list[Path] = []
+    published_paths: list[Path] = []
+    try:
+        for target, content in files:
+            if not target.parent.is_dir():
+                raise FileNotFoundError(
+                    f"Scaffold target directory does not exist: {target.parent}"
+                )
+            descriptor, temporary_name = tempfile.mkstemp(
+                dir=target.parent,
+                prefix=f".{target.name}.",
+                suffix=".tmp",
+            )
+            temporary = Path(temporary_name)
+            temporary_paths.append(temporary)
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(content)
+                handle.flush()
+                os.fsync(handle.fileno())
+        for (target, _), temporary in zip(files, temporary_paths, strict=True):
+            os.link(temporary, target)
+            published_paths.append(target)
+        for parent in {target.parent for target, _ in files}:
+            descriptor = os.open(parent, os.O_RDONLY)
+            try:
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+    except FileExistsError as error:
+        raise FileExistsError("A scaffold target was created concurrently") from error
+    finally:
+        for target in reversed(published_paths):
+            if len(published_paths) != len(files):
+                target.unlink(missing_ok=True)
+        for temporary in temporary_paths:
+            temporary.unlink(missing_ok=True)
 
 
 def _scaffold_proxy(name: str) -> None:
@@ -1011,7 +1079,7 @@ def _scaffold_proxy(name: str) -> None:
     test = root.parent / "tests" / f"test_proxy_{name}.py"
     if module.exists() or test.exists():
         raise FileExistsError(f"Custom proxy {name!r} already exists")
-    module.write_text(
+    module_source = (
         "from __future__ import annotations\n\n"
         "from typing import Any\n\n"
         "from zcp_test.proxies import PROXIES\n"
@@ -1020,18 +1088,17 @@ def _scaffold_proxy(name: str) -> None:
         f"def compute_{name}(model: Any, inputs: Any, labels: Any, loss_fn: Any) -> float:\n"
         '    raise NotImplementedError("implement the proxy formula")\n\n\n'
         f'CAPABILITY = ProxyCapability("{name}", version="custom-v1")\n'
-        f'PROXIES.register("{name}", lambda: FunctionProxy(CAPABILITY, compute_{name}))\n',
-        encoding="utf-8",
+        f'PROXIES.register("{name}", lambda: FunctionProxy(CAPABILITY, compute_{name}))\n'
     )
-    test.write_text(
+    test_source = (
         "import torch\n\n"
         "from zcp_test.proxies.evaluator import evaluate_proxy\n\n\n"
         f"def test_{name}_contract():\n"
         "    model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(12, 2))\n"
         f'    result = evaluate_proxy("{name}", model, torch.randn(2, 3, 2, 2))\n'
-        '    assert result.status.value == "ok"\n',
-        encoding="utf-8",
+        '    assert result.status.value == "ok"\n'
     )
+    _publish_new_text_files([(module, module_source), (test, test_source)])
     _json({"module": str(module), "test": str(test), "next": f"zcp-test proxy validate {name}"})
 
 
@@ -1098,7 +1165,7 @@ def _validate_proxy(name: str) -> None:
         "numpy_rng_unchanged": numpy_rng_unchanged,
         "torch_rng_unchanged": torch_rng_unchanged,
         "primary_component_matches_capability": primary_component_matches,
-        "capability": proxy.capability.__dict__,
+        "capability": _proxy_capability_payload(proxy.capability),
         "error": result.error_message,
     }
     _json(report)
@@ -1200,7 +1267,7 @@ def command_registry(args: argparse.Namespace, registry: str) -> None:
             }
         _json(result)
     elif registry == "proxy":
-        _json(instance.capability.__dict__)
+        _json(_proxy_capability_payload(instance.capability))
     else:
         _json(
             {
@@ -1401,7 +1468,12 @@ def command_data(args: argparse.Namespace) -> None:
         return
     registry = DataRegistry(args.catalog)
     if args.action == "list":
-        _json([asset.__dict__ for asset in registry.list()])
+        _json(
+            [
+                asdict(asset)
+                for asset in sorted(registry.list(), key=lambda item: item.asset_id)
+            ]
+        )
     elif args.action == "register":
         registry.register(
             DataAsset(
@@ -2832,13 +2904,14 @@ def command_analyze_benchmark(args: argparse.Namespace) -> None:
 def command_monitor(args: argparse.Namespace) -> None:
     if args.interval <= 0:
         raise ValueError("monitor interval must be positive")
-    destination = args.output or str(Path(args.run) / "reports" / "monitor.html")
+    source = monitor_source_path(args.run)
+    destination = args.output or str(source.parent / "reports" / "monitor.html")
     offset = 0
     history: list[dict[str, Any]] = []
     while True:
         try:
             result = refresh_once(
-                args.run,
+                source,
                 destination,
                 offset=offset,
                 title=args.title,
@@ -2851,7 +2924,7 @@ def command_monitor(args: argparse.Namespace) -> None:
             offset = 0
             history.clear()
             result = refresh_once(
-                args.run,
+                source,
                 destination,
                 title=args.title,
                 history=history,
@@ -2959,12 +3032,10 @@ def build_parser() -> argparse.ArgumentParser:
     data_export.add_argument("--root", required=True)
     data_export.add_argument("--benchmarks", required=True)
     data_export.add_argument("--output", required=True)
-    data_export.add_argument("--catalog", default=data_default)
     data_export.set_defaults(function=command_data)
     data_import = data_actions.add_parser("import-manifest")
     data_import.add_argument("--root", required=True)
     data_import.add_argument("--manifest", required=True)
-    data_import.add_argument("--catalog", default=data_default)
     data_import.set_defaults(function=command_data)
     convert_vit = data_actions.add_parser("convert-vit")
     convert_vit.add_argument("--source", required=True)

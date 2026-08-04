@@ -126,6 +126,16 @@ same time. Do not stop a supervisor that still has an active child merely to fre
 a supervisor with no active child must not reserve an idle GPU. Because every probe has a race window,
 re-check PID, children, and run identity immediately before termination.
 
+### Retiring pre-policy supervisors under the single-candidate policy
+
+After the single-candidate policy takes effect, cancel queued fixed-random and params/FLOPs-matched
+baseline work that an old immutable supervisor would otherwise launch; keep the selected task running.
+Use candidate/run manifests and the full process tree to identify roles, terminate only unauthorized
+baseline trees and their dedicated lane holders, and preserve any started run as `interrupted`. Never
+kill the `zcp-selected` tree or delete lock files. Afterward, verify both GPU memory/processes and the
+kernel flock with `flock -n`. The recorded intervention is
+`docs/evidence/autoformer_single_candidate_policy_intervention_20260804.json`.
+
 ## Evaluation inputs and result types
 
 Dataset input is the default and requires `--data-root` or a valid `dataset_<name>` catalog asset.
@@ -151,8 +161,8 @@ Do not pool these result types or substitute NAS-Bench-201 truth for NATS-TSS tr
 
 ## Run directories
 
-`--output` is a parent directory. Every command creates
-`<output>/YYYYMMDDTHHMMSS+0800_<run-id>/` in `Asia/Shanghai` and prints that exact path as `run`. Use the printed path
+For run-producing commands such as `evaluate`, `search`, and `train`, `--output` is a parent directory.
+They create `<output>/YYYYMMDDTHHMMSS+0800_<run-id>/` in `Asia/Shanghai` and print that exact path as `run`. Use the printed path
 for reports, monitoring and resume:
 
 ```bash
@@ -163,7 +173,12 @@ zcp-test monitor "$RUN" --interval 5
 
 `report bundle` expands one level below a parent without direct artifacts and processes all
 recognizable timestamped runs. `monitor` enters a parent only when it contains exactly one
-recognizable run; pass the exact `RUN` when multiple runs exist. During training it prefers
+recognizable run; pass the exact `RUN` when multiple runs exist. A JSONL file may also be passed
+directly. Without `--output`, HTML is written under the resolved run at `reports/monitor.html`;
+`--output FILE.html` is an exact file and any other value is treated as a directory. `--once` emits
+one JSON object, while continuous mode emits a stream of independent JSON objects rather than one
+JSON document. Stable status fields are `source`, `output`, `row_count`, `new_row_count`,
+`next_offset`, and `ignored_partial_line`. During training it prefers
 `events.jsonl`: rank 0 writes `training_batch_progress` about every 30 seconds and at each split's
 last batch, plus `training_epoch_completed` at epoch completion. `training.jsonl` remains one row
 per completed epoch and is the canonical curve source. `rank_local_samples` is rank 0 local
@@ -173,6 +188,32 @@ non-empty `events.jsonl` with a persistently empty `run.log` is a logging regres
 1.28 million small files, inspect the actual mount with `findmnt -T`, run a full-epoch preflight and
 point `--data-root` to a verified local SSD/NVMe copy when available. The CLI never hard-codes,
 copies or silently switches between `/home`, `/public` or other machine-specific roots.
+
+## JSON contracts for inspection commands
+
+`doctor`, `gpu list`, registry `list|inspect`, and `proxy matrix` already emit indented UTF-8 JSON;
+there is no extra `--json` switch. Existing bare objects/arrays remain for compatibility. `doctor`
+always has `python`, `python_supported`, `platform`, `packages`, and `torch`; catalog/data-root options
+add `data_catalog`/`benchmark_data`. Registry lists and `data list` are ID-sorted arrays. `gpu list`
+uses PCI order and includes physical identity/load plus logical visibility and lock status.
+`benchmark inspect` has `metadata` and `capabilities` plus optional `query`; `space inspect` has
+`search_space_id`, `model_family`, `model_fidelity`, and `sample`. Proxy inspect/matrix use the stable
+capability fields documented in [Adding a ZCP](ADD_PROXY.md); matrix is static metadata, not a runtime
+compatibility sweep. Schema changes must update the contract tests instead of exposing dataclass
+`__dict__` implicitly.
+
+The retained single-file compatibility form uses `--output` as an exact file path, not a parent:
+
+```bash
+zcp-test report --source "$RUN/scores.jsonl" --format csv \
+  --output "$RUN/reports/scores.csv"
+zcp-test report --source "$RUN/training.jsonl" --format plot --kind training \
+  --output "$RUN/reports/training.png"
+```
+
+Formats are `csv`, `html`, and `plot` (default `csv`); `--kind training|search` only affects plots.
+Success emits `{"rows": N, "output": "..."}`. CSV/HTML accept empty JSONL, while plotting rejects it.
+Prefer `report bundle` for new multi-artifact or multi-run studies.
 All new manifest, event, status and quarantine timestamps use explicit Beijing offsets
 (`+08:00` in ISO fields and `+0800` in filenames). Historical `...Z_...` runs remain read-only
 compatible and are not rewritten.
@@ -228,7 +269,10 @@ Python pickle can execute code while loading. Run this only on a trusted, checks
 in an isolated environment. A list becomes one JSONL record per item; a mapping becomes
 `{"key": ..., "value": ...}` records; other objects become one `{"value": ...}` record. This is a
 shape-preserving migration, not schema validation. Inspect the JSONL before using it as scores or
-targets, and never overwrite the source file.
+targets, and never overwrite the source file. Import is fail-closed: the output must be absent or
+empty, and the importer must never append to a non-empty file. `legacy_index` is unique and contiguous
+from zero. Expected rows are `len(list)`, `len(mapping)`, or one for any other payload; verify the
+reported count, physical line count, and final `legacy_index + 1` agree.
 
 ## NATS-SSS CIFAR-100 and ImageNet16-120
 
@@ -348,14 +392,15 @@ torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
 
 Each process uses `cuda:LOCAL_RANK`; metrics are reduced across ranks, and only rank zero owns the
 run manifest, JSONL and checkpoints. Auto accumulation preserves target global batch 2048, so four
-GPUs at batch 256 use two micro-steps. Real mixed-4090D/4090 two-rank DARTS and AutoFormer smokes
-passed, as did interruption and new-run recovery on a real-image fixture. The two full ImageNet 1%
-protocols remain unaccepted, so AutoFormer formal training stays disabled.
+GPUs at batch 256 use two micro-steps. Real mixed-4090D/4090 two-rank DARTS and AutoFormer smokes,
+real-image interruption/recovery, and the selected-candidate full-data-5-epoch plus one-percent-data-
+500-epoch protocols passed. AutoFormer therefore explicitly sets `formal_training_ready: true`.
 The resolved config stores the Cream static-model commit
 `b799630a29995163f282b15e2f38701160272fd1` separately from the AZ-NAS training-recipe commit;
 one ambiguous implementation field must not overwrite either provenance.
-This is an executable DDP plumbing smoke. Removing `--smoke` is intentionally rejected until the
-remaining formal gate closes; the manual does not present a future formal command as currently usable.
+This remains an executable DDP plumbing smoke. Formal 500-epoch scratch training is now permitted
+when `--smoke` is removed and both a frozen AutoFormer architecture and real ImageNet root are supplied;
+passing the launch gate is not itself a paper-accuracy result.
 
 Without `--architecture`, training samples an architecture from the configured space.
 `--architecture` accepts either an existing JSON file or inline JSON; either a top-level `spec`
@@ -507,10 +552,15 @@ zcp-test search --space ofa_proxyless_mbv2 --proxy naswot \
 
 `--max-macs` strictly means THOP MACs (`compute_metric=thop_macs`), not FLOPs, an official lookup
 table, or device latency. A metric mismatch fails closed. Rejected candidates never run the proxy or
-enter its cache; resumable state records attempt/rejection counters and RNG state. The maximum-attempt
-limit prevents an empty feasible region from sampling forever. PlainNet source-aligned search keeps
-its pinned `--flops-target` and rejects these generic limits. Hardware-latency constraints are not yet
-implemented and MACs must not be relabelled as latency.
+enter its cache. `--max-parameters` is the sum of `numel()` over every registered model parameter;
+`--classes` participates in model construction and candidate resolution (or `--input-size`) in the
+resource protocol. `--constraint-max-attempts` limits consecutive rejections while producing each next
+accepted candidate, not total search attempts. Candidate rows and summaries record cumulative attempts
+and rejections; state checkpoints record `constraint_attempts` and `constraint_rejections`. Interrupted
+runs retain fsynced JSONL, the manifest, and the latest atomic state checkpoint, so work after that
+checkpoint may need replay. The limit prevents an empty feasible region from sampling forever.
+PlainNet source-aligned search keeps its pinned `--flops-target` and rejects these generic limits.
+Hardware-latency constraints are not yet implemented and MACs must not be relabelled as latency.
 
 ### OFA Proxyless protocol boundary
 
@@ -568,6 +618,30 @@ Rerunning the launcher skips completed seeds and supplies `--resume` for the lat
 state. Do not bypass another process's GPU lock or call this cohort an upstream controller replica:
 the formulas and 8,000-candidate sampling scale are source-aligned, while the project sampler and
 artifact system remain versioned project implementations.
+
+Once all seeds complete, select one terminal-complete run per seed and reconcile the cohort:
+
+```bash
+COHORT=runs/acceptance/autoformer-aznas-random-8000
+zcp-test acceptance reconcile-search-cohort \
+  --cohort-root "$COHORT" \
+  --search-run "$COHORT/seed-20260731/<completed-run-directory>" \
+  --search-run "$COHORT/seed-20260732/<completed-run-directory>" \
+  --search-run "$COHORT/seed-20260733/<completed-run-directory>" \
+  --expected-space autoformer --expected-population 8000 \
+  --expected-seed 20260731 --expected-seed 20260732 --expected-seed 20260733 \
+  --expected-components expressivity,trainability,complexity
+```
+
+The pre-existing `status.json` must declare primary seed `20260731` and supporting seeds
+`20260732,20260733`. Expect `population × seeds = 24,000` candidate rows plus one summary per run.
+Validation checks completed generation-zero artifacts, protocol/components, finite scores, cache and
+summary counters, best selection, and cross-seed identity. It atomically writes schema-1.0
+`cohort-validation.json`, then separately atomically changes `status.json` to `completed`, preserving
+the prior supervisor terminal status/detail. Re-running is semantically idempotent but refreshes
+`validated_at` and hashes. Validation failure writes neither file; a failure between the two atomic
+replacements can leave new validation with old status, in which case verify hashes and rerun the same
+command rather than editing status manually.
 
 ```bash
 CATALOG=~/.config/zcp-test/data.json
@@ -736,12 +810,13 @@ After a real two-process-per-GPU forward/backward smoke also passes, both protoc
 export ZCP_EXECUTION_STRATEGY=packed_single_gpu
 export ZCP_PACKED_SINGLE_GPU_ACCEPTED=yes
 export ZCP_DATA_WORKERS=4
-export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
+export ZCP_GPU_UUIDS=GPU-...  # packed_single_gpu requires exactly this one GPU
+export ZCP_CPU_AFFINITIES='32-63,96-127'
 ```
 
 This reduces occupied GPU count without changing either run's batch or LR. Verify combined
-peak memory first and reduce workers to avoid CPU decode contention. The optional four affinity
-lists correspond one-to-one with the GPU UUIDs and must be derived from `nvidia-smi topo -m`; never copy
+peak memory first and reduce workers to avoid CPU decode contention. The optional affinity list
+corresponds to the single GPU UUID and must be derived from `nvidia-smi topo -m`; never copy
 host-specific CPU IDs to another machine or mechanically split a NUMA node into undersized groups.
 On this host, a 16-logical-CPU-per-run trial reduced throughput by about 6–8%, while a short trial
 with the complete shared NUMA-1 list did not establish a gain over baseline. The live jobs were

@@ -30,12 +30,21 @@ commit，不再用搜索空间级来源覆盖 benchmark 构模来源。
 - 同一 architecture 经 ViT-Bench adapter 和开放 space 构造时必须得到不同 profile；
 - Cream/AZ `get_complexity` 只允许 AZ profile 调用，不得冒充通用 FLOPs 或 ViT-Bench 成本。
 
-## 尚未关闭
+## 2026-07-31 时尚未关闭
 
-AZ-NAS scratch 的 optimizer/scheduler 仍须逐项验证：timm 等价 no-weight-decay 参数组、
+在该日审计时，AZ-NAS scratch 的 optimizer/scheduler 仍须逐项验证：timm 等价 no-weight-decay 参数组、
 `warmup_lr=1e-6`、`min_lr=1e-5`、validation plain CE 与正式 epoch trace。在这些 golden 完成前，
-`configs/training/autoformer_imagenet.yaml` 必须保持 `formal_training_ready: false`，不得启动正式双重
+当时 `configs/training/autoformer_imagenet.yaml` 必须保持 `formal_training_ready: false`，不得启动正式双重
 1% 或完整训练。ViT-Bench 三公开切片也必须使用新 profile 重新计算代表性架构和 5×22 预验收。
+
+## 2026-08-04 状态更新
+
+上述 optimizer/scheduler/no-decay/validation golden 已补齐，单候选 `zcp-selected` 又完成全 ImageNet
+5 epoch 与严格 1% 数据 500 epoch 两项限定协议，分别保留 5/500 行训练记录、终态 manifest 和
+`last.pt`/`best.pt`。因此仓库 AutoFormer profile 的启动门禁现已显式解除；checksum 与科学边界见
+`autoformer_single_candidate_dual_one_percent_completion_20260804.json`。这只表示 reference profile
+具备启动完整训练的工程条件，不表示已完成 500 epoch 全数据精度复现，也不证明 ZCP 优于随机或资源基线。
+ViT-Bench 的固定候选协议仍与该 scratch training profile 分开。
 
 ## 权威来源
 

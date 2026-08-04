@@ -79,8 +79,9 @@ zcp-test train --config configs/training/darts_imagenet.yaml \
 也不是多 seed 搜索收益证明：训练只使用 seed `20260731`，ER 候选只由一个固定 CIFAR-10 batch 和
 一个初始化 seed 选出。两个协议给出的候选排序不同，分别测试早期全数据学习与小数据完整
 schedule，禁止平均、合并或据此宣称 ER 稳定优于基线。ImageNet-1k 现已通过结构审计（1000 类、
-1,281,167 张训练图、50,000 张验证图）和真实 loader 解码检查；DARTS ImageNet 双重 1% 仍待
-正式执行，状态不再是“数据缺失”。AutoFormer、PlainNet-MBV2 和 Proxyless-MBV2 的双重 1% 均未完成。
+1,281,167 张训练图、50,000 张验证图）和真实 loader 解码检查；DARTS ImageNet 双重 1% 已完成限定
+验收，但首个 DDP 与其余单卡 run 的 BatchNorm 粒度不同。AutoFormer 单候选双重 1% 也已完成；
+PlainNet-MBV2 和 Proxyless-MBV2 仍未完成。
 
 正式启动前可用以下命令执行一个完整真实数据 epoch 的吞吐与流水线预检：
 

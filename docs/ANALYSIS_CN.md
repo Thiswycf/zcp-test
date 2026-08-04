@@ -169,4 +169,7 @@ zcp-test monitor RUN --interval 5
 zcp-test monitor RUN --once
 ```
 
-监控器只读 JSONL，容忍尚未写完的最后一行，原子刷新 `RUN/reports/monitor.html`。HTML 每 5 秒自动刷新，不需要 Jupyter、TensorBoard 或后台 Web 服务。
+监控器只读 JSONL，容忍尚未写完的最后一行，原子刷新解析后 run 的
+`reports/monitor.html`。可直接传 JSONL；`--output FILE.html` 指定精确文件，其他输出值按目录处理。
+HTML 每 5 秒自动刷新，不需要 Jupyter、TensorBoard 或后台 Web 服务。持续模式 stdout 是逐次 JSON
+对象流，不是单个 JSON 文档；脚本只需一个快照时应使用 `--once`。

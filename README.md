@@ -76,7 +76,7 @@ GPU、评估、分析、benchmark 定制研究、训练、代理扩展和验收�
 - [`docs/ANALYSIS_CN.md`](docs/ANALYSIS_CN.md)
 - [`docs/BENCHMARK_STUDIES_CN.md`](docs/BENCHMARK_STUDIES_CN.md)
 - [`docs/TRAINING_CN.md`](docs/TRAINING_CN.md)
-- [`docs/ADD_PROXY_CN.md`](docs/ADD_PROXY_CN.md)
+- [`docs/ADD_PROXY.md`](docs/ADD_PROXY.md) / [`docs/ADD_PROXY_CN.md`](docs/ADD_PROXY_CN.md)
 - [`docs/ACCEPTANCE_CN.md`](docs/ACCEPTANCE_CN.md)
 
 实时任务与验收看板位于 [`panel/index.html`](panel/index.html)。推荐运行
@@ -324,10 +324,11 @@ Each new run creates `YYYYMMDDTHHMMSS+0800_<run-id>/` in the fixed `Asia/Shangha
   one-percent engineering evidence, not a 250-epoch full-data reproduction. The first attempt exposed
   slow-disk small-file I/O and an empty legacy `run.log`; current runs mirror events to both
   `events.jsonl` and `run.log`, and operators should explicitly select a verified fast local
-  `--data-root`. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains
-  incomplete. For launches after 2026-08-04, engineering acceptance trains only the ZCP-selected
-  architecture under the two 1% protocols (two runs total). Historical completed/running
-  three-candidate artifacts remain unchanged. Short acceptance training must not be used to claim
+  `--data-root`. AutoFormer selected-candidate dual one-percent acceptance is complete; PlainNet-MBV2
+  and Proxyless-MBV2 remain incomplete. For launches after 2026-08-04, engineering acceptance trains only the ZCP-selected
+  architecture under the two 1% protocols (two runs total). Historical completed artifacts remain
+  unchanged; queued baseline tasks that have not started must be cancelled rather than inherited from
+  an old supervisor. Short acceptance training must not be used to claim
   superiority over random or parameter/FLOPs baselines; that requires a separate sufficiently
   trained, multi-seed research protocol.
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited

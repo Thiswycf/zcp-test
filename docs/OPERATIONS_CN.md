@@ -102,6 +102,24 @@ flock -n /path/to/GPU-UUID.lock -c 'echo lock-released'
 若没有活跃 child，则不应让 supervisor 继续预占空闲卡。所有判定都具有竞争窗口，执行终止操作前
 应再次核对 PID、child 和 run identity。
 
+### 单候选政策下的旧 supervisor 清理
+
+单候选政策生效后，旧的 immutable supervisor 中尚处于 `queued`、且角色为 fixed-random 或
+params/FLOPs-matched baseline 的任务不再获得启动授权，必须取消；已经启动的 `zcp-selected` 任务仍须
+继续。现场处置证据见
+`docs/evidence/autoformer_single_candidate_policy_intervention_20260804.json`。安全顺序是：
+
+1. 先从候选 manifest、run manifest、launcher/status 和完整进程树识别每个 PID 的 candidate role，不能
+   只凭命令行片段、GPU 编号或低利用率判断角色。
+2. 仅终止“旧 supervisor 将自动启动、但新政策未授权”的 queued baseline 及其专属 lane holder；若它已
+   启动，正常发送 `TERM`、等待训练子树退出，并把产物保留为 `interrupted`，不得伪写 `completed`。
+3. 不得误杀 `zcp-selected` 训练树，也不得删除、替换 GPU 锁文件。若 selected 与旧 supervisor 共树，先
+   隔离/等待 selected 进入 terminal manifest，再停止会继续派发 baseline 的旧 service。
+4. 处置后同时验证 `nvidia-smi` 中显存/计算进程已符合预期，并用 `flock -n` 验证对应 kernel flock；只有
+   未授权 baseline 使用的锁应释放，selected 正在执行时持锁是正确行为。
+
+进程终止、manifest 状态、显存释放和 kernel flock 是四项独立证据，缺一项都不能宣布清理完成。
+
 ## 数据输入与结果类型
 
 `evaluate` 和 `search` 默认 `--input-source dataset`，必须提供 `--data-root` 或有效的
@@ -116,7 +134,8 @@ flock -n /path/to/GPU-UUID.lock -c 'echo lock-released'
 
 ## RUN 目录
 
-`--output` 是父目录；实际运行目录为 `<output>/YYYYMMDDTHHMMSS+0800_<run-id>/`。后续报告、监控和
+对于 `evaluate`、`search`、`train` 等创建 run 的命令，`--output` 是父目录；实际运行目录为
+`<output>/YYYYMMDDTHHMMSS+0800_<run-id>/`。后续报告、监控和
 恢复必须使用命令输出 JSON 中的准确 `run` 值：
 
 ```bash
@@ -127,6 +146,24 @@ zcp-test monitor "$RUN" --interval 5
 
 `report bundle` 会把没有直接 artifact 的父目录展开一层，并处理其中全部可识别 timestamp run；
 `monitor` 仅在父目录恰好包含一个可识别 run 时自动进入。父目录有多个 run 时必须传入准确 `RUN`。
+也可直接传 `scores.jsonl`、`search.jsonl`、`events.jsonl` 或 `training.jsonl`；未指定 `--output` 时，
+HTML 始终写入解析后 JSONL 所属 run 的 `reports/monitor.html`。自定义 `--output FILE.html` 表示精确
+HTML 文件，其他值按目录处理并追加 `monitor.html`。`--once` 向 stdout 输出一个 JSON 对象；持续模式
+每次刷新输出一个独立 JSON 对象流，整体不是单个 JSON 文档。稳定字段为 `source`、`output`、
+`row_count`、`new_row_count`、`next_offset`、`ignored_partial_line`。
+
+保留的单文件兼容入口不创建 bundle，且其 `--output` 是**精确文件路径**，不是父目录：
+
+```bash
+zcp-test report --source "$RUN/scores.jsonl" \
+  --format csv --output "$RUN/reports/scores.csv"
+zcp-test report --source "$RUN/training.jsonl" \
+  --format plot --kind training --output "$RUN/reports/training.png"
+```
+
+`--format` 支持 `csv|html|plot`，默认 `csv`；`--kind training|search` 只对 `plot` 生效。成功 stdout
+固定为 `{"rows": N, "output": "..."}`。CSV/HTML 可处理空 JSONL，plot 对空输入明确失败。该入口可
+读取旧 run，但新研究汇总优先使用 `report bundle`。
 训练监控优先读取 `events.jsonl`：rank 0 默认约每 30 秒写入一次
 `training_batch_progress`，每个 train/valid split 的最后一个 batch 也会写入；epoch 完成后写入
 `training_epoch_completed`。`training.jsonl` 仍严格保持每个完成 epoch 一行，训练曲线只从该文件重建。
@@ -136,6 +173,26 @@ heartbeat；若其 epoch 尚未结束，monitor 只能显示已有 artifact。
 `run.log` 长期为 0 字节”。大型图像训练应把 `--data-root` 指向调用者已核验的本机高速盘副本，
 不要根据目录名猜测介质速度；先用 `findmnt -T /path/to/imagenet1k` 确认挂载，再核对类别和文件数。
 CLI 不会硬编码或自动改写数据根。
+
+## 查询类命令的 JSON 契约
+
+`doctor`、`gpu list`、各 registry 的 `list|inspect` 和 `proxy matrix` 默认直接输出缩进 UTF-8 JSON，
+不需要额外 `--json`。为兼容现有脚本，当前保持裸对象/数组，不增加外层 envelope：
+
+| 命令 | 顶层类型与稳定字段 | 顺序/可选字段 |
+|---|---|---|
+| `doctor` | object：`python,python_supported,platform,packages,torch` | `--catalog` 增加 `data_catalog`；`--data-root` 增加 `benchmark_data` |
+| `benchmark|space|proxy list` | 按 ID 排序的 string array | 新插件可增加元素 |
+| `data list` | `DataAsset` object array | 按 `asset_id` 排序；字段为 `asset_id,path,version,sha256,source_url,protocol,trusted` |
+| `gpu list` | GPU object array | PCI Bus ID 顺序；含物理 `index,uuid,bus_id,model`、显存/利用率、`pci_order,visible_logical_index,zcp_test_lock` |
+| `benchmark inspect` | object：`metadata,capabilities` | 提供 `--metric-name` 时增加单架构 `query` |
+| `space inspect` | object：`search_space_id,model_family,model_fidelity,sample` | `sample` 由 `--seed` 决定 |
+| `proxy inspect` | capability object | 字段集合与 `proxy matrix` 每行相同 |
+| `proxy matrix` | capability object array | 按 `proxy_id` 排序；只是静态声明，不是运行时 sweep |
+
+`proxy` capability 的稳定字段详见 [新增代理](ADD_PROXY_CN.md)。新增稳定字段需要同步版本化文档和测试，
+不能再直接把 dataclass `__dict__` 暴露为公共接口。命令失败时退出码非零；除 `proxy validate` 明确先输出
+诊断 JSON 外，调用者不得假定失败 stdout 是完整 JSON。
 
 当前 `search --resume /path/to/search-state.json` 支持从版本化状态恢复。状态包含 population、history、
 组件缓存、累计 evaluations/cache hits、已完成 generation、RNG state 和完整 search identity；恢复时
@@ -182,7 +239,11 @@ zcp-test legacy import --source verified.pkl --output converted.jsonl --trusted
 
 pickle 加载时可执行代码，只能在隔离环境中处理已核验来源。list 按元素输出，mapping 转成
 `{"key": ..., "value": ...}`，其他对象转成单条 `{"value": ...}`。这只是形状迁移，不验证
-score/target schema；使用前必须检查转换后的 JSONL，且不要覆盖源文件。
+score/target schema；使用前必须检查转换后的 JSONL，且不要覆盖源文件。导入是一次性 fail-closed
+转换：`--output` 不存在或是空文件时才可写；若目标已含任何内容必须失败，绝不能向非空 JSONL 追加，
+也不能把旧行和本次从零编号的行混在一起。每条输出都有从 `0` 开始、连续且唯一的 `legacy_index`：
+list 的预期行数为 `len(list)`，mapping 为 `len(mapping)`，其他对象固定为 `1`。命令返回的转换条数、
+JSONL 实际行数和末行 `legacy_index + 1` 必须三者相等；失败或重试前先保留并审计已有目标，不得直接追加。
 
 ## NATS-SSS 跨数据集运行
 
@@ -279,8 +340,8 @@ zcp-test analyze benchmark --scores "${SCORES[@]}" \
 模型结构 fidelity 与正式训练协议是两个独立条件。`darts`、`autoformer`、
 `ofa_proxyless_mbv2` 与 `zennas_plainnet_mbv2` 均拥有 `reference_model` 静态结构；后者使用
 ZenNAS/AZ-NAS structure string、白名单 parser 和独立的 sample/mutate/crossover。只有配置中
-`formal_training_ready: true` 的协议才能启动非 smoke 训练。当前正式放行的是 DARTS profiles；
-AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 配置会列出尚未验收的 blocker并明确拒绝正式训练。`--smoke` 只验证
+`formal_training_ready: true` 的协议才能启动非 smoke 训练。当前正式放行的是 DARTS profiles 与
+AutoFormer AZ-NAS scratch profile；PlainNet-MBV2 与 Proxyless-MBV2 配置仍列出 blocker 并明确拒绝正式训练。`--smoke` 只验证
 合成数据上的构模和训练流水线，不解除协议 blocker。
 
 `--acceptance-smoke` 与 `--smoke` 互斥，使用真实数据且只接受两种代码锁定模式：
@@ -351,12 +412,25 @@ torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
 每个进程内部使用 `cuda:LOCAL_RANK`。训练 loader 使用分布式 repeated-augmentation sampler，
 指标跨 rank 求和，只由 rank 0 写 `manifest.json`、`training.jsonl` 和 checkpoint。AutoFormer 的
 `gradient_accumulation_steps: auto` 将目标 global batch 固定为 2048：4 卡×每卡 256 时累积 2 次，
-8 卡时累积 1 次。当前真实 2 卡 DARTS/AutoFormer smoke 与真实图片夹具的中断恢复已通过；完整
-ImageNet-1k 的双重 1% 协议尚未验收，因此 AutoFormer `formal_training_ready` 仍为 false。
+8 卡时累积 1 次。当前真实 2 卡 DARTS/AutoFormer smoke、真实图片夹具的中断恢复，以及 AutoFormer
+单候选的全数据 5 epoch 与 1% 数据 500 epoch 验收均已通过；因此 AutoFormer
+`formal_training_ready` 已显式置为 true。
 resolved config 分别保存 Cream 静态模型 commit `b799630a29995163f282b15e2f38701160272fd1`
 和 AZ-NAS 训练 recipe commit，禁止用一个模糊 `implementation_commit` 覆盖两者。
-上例是可直接执行的 DDP 流水线 smoke；移除 `--smoke` 的完整数据命令会按设计被协议门禁拒绝，
-不能把未来正式命令伪装成当前可运行示例。
+上例仍只是可直接执行的 DDP 流水线 smoke。要启动正式 500-epoch scratch 训练，必须移除 `--smoke`、
+提供冻结的 AutoFormer 架构和真实 ImageNet 根目录，并保留 profile 的 batch/LR/增强字段：
+
+```bash
+CUDA_DEVICE_ORDER=PCI_BUS_ID \
+CUDA_VISIBLE_DEVICES=GPU-UUID-0,GPU-UUID-1,GPU-UUID-2,GPU-UUID-3 \
+torchrun --standalone --nproc-per-node=4 -m zcp_test.cli train \
+  --config configs/training/autoformer_imagenet.yaml \
+  --architecture /path/to/zcp_selected.json \
+  --data-root /path/to/imagenet1k \
+  --output /path/to/runs/training/autoformer-formal
+```
+
+该命令现在可通过门禁，但仍是高成本启动命令；只有 terminal 500-epoch 全数据产物才能形成论文精度证据。
 
 `ofa_proxyless_mbv2` 的 architecture spec 使用官方 supernet 位置语义：`kernel_size` 和
 `expand_ratio` 均固定 21 项，五个 `depth` 决定每个最大深度 4 stage 激活多少前缀 block，最后一个
@@ -540,8 +614,19 @@ zcp-test search --space ofa_proxyless_mbv2 --proxy naswot \
 
 `--max-macs` 当前严格表示 THOP MAC（`compute_metric=thop_macs`），不是 FLOPs，也不是官方 lookup
 table 或设备 latency；不匹配该口径时直接失败。被资源约束拒绝的候选不会运行 proxy、不会进入缓存，
-恢复状态会保存 attempt/rejection 计数与 RNG，保证中断恢复和连续运行轨迹一致。
-`--constraint-max-attempts` 防止可行域为空时无限采样。PlainNet source-aligned controller 使用其固定
+恢复状态会保存 attempt/rejection 计数与 RNG，保证中断恢复和连续运行轨迹一致。`--max-parameters`
+统计为构造出的完整模型上所有已注册 parameter 的 `numel()` 总和，不只统计可训练参数、backbone 或
+当前激活路径；`--classes` 参与分类头构模，候选 `resolution`（没有时用 `--input-size`）参与资源模型的
+输入协议，因此改动 classes/resolution 后必须重新测量，不能复用旧上限判定。
+
+`--constraint-max-attempts N` 是“为生成下一个可接受候选而允许的连续拒绝上限”，不是整次 search 的
+总采样预算；每接受一个候选后，下一候选重新获得至多 `N` 次机会，第 `N` 次连续拒绝后 fail-closed。
+启用资源约束时，成功候选行和 generation summary 写入
+`cumulative_constraint_attempts`/`cumulative_constraint_rejections`，`search-state.json` 写入
+`constraint_attempts`/`constraint_rejections`，数值均为全 run 累计；拒绝项本身不产生 candidate 行。
+中断会保留已经 fsync 的 `search.jsonl`、manifest 和最近一次原子 checkpoint state（初始 population
+默认每 100 个已接受候选保存一次），因此最后一个 state 之后尚未 checkpoint 的拒绝计数可能需要重放，
+不能据残留行数宣称 search 完成。该上限防止可行域为空时无限采样。PlainNet source-aligned controller 使用其固定
 `--flops-target`，禁止与这些通用上限混用。硬件 latency 约束尚未实现，不能用 MAC 冒充。
 
 ### OFA Proxyless 协议边界
@@ -591,6 +676,54 @@ tools/acceptance/run-autoformer-aznas-random-8000.sh
 会跳过 completed seed，并对最新 incomplete state 自动传入 `--resume`。不得绕过其他进程的 GPU 锁，
 也不得把该 cohort 称为上游控制器逐行复刻：公式与 8,000 候选规模来源对齐，但采样器和 artifact
 系统仍是显式版本化的项目实现。
+
+三个 seed 都完成后，先确认 cohort 根目录已有可解析的 `status.json`，其中预声明
+`primary_selection_seed=20260731`、`supporting_robustness_seeds=[20260732,20260733]`；再为每个 seed
+选择且只选择一个最新的 completed run 目录。每个 run 必须有 terminal-complete `manifest.json`、
+`best_architecture.json`、`search.jsonl` 和 `search-state.json`，且 generation 0、population 8,000、
+组件恰为 `expressivity,trainability,complexity`。可按实际时间戳替换三个 `RUN_*`：
+
+```bash
+COHORT=runs/acceptance/autoformer-aznas-random-8000
+RUN_20260731="$COHORT/seed-20260731/<completed-run-directory>"
+RUN_20260732="$COHORT/seed-20260732/<completed-run-directory>"
+RUN_20260733="$COHORT/seed-20260733/<completed-run-directory>"
+
+zcp-test acceptance reconcile-search-cohort \
+  --cohort-root "$COHORT" \
+  --search-run "$RUN_20260731" \
+  --search-run "$RUN_20260732" \
+  --search-run "$RUN_20260733" \
+  --expected-space autoformer \
+  --expected-population 8000 \
+  --expected-seed 20260731 \
+  --expected-seed 20260732 \
+  --expected-seed 20260733 \
+  --expected-components expressivity,trainability,complexity
+```
+
+`--search-run` 与 `--expected-seed` 都是可重复参数；run 的实际 seed 集必须与 expected seed 集完全相等，
+seed 不得重复。预期 candidate 行总数是 `population × seeds = 8000 × 3 = 24000`，每个 run 另有且仅有
+一条 generation summary。reconcile 还核验 search space、completed generation 0、population/state、
+有限 score 与精确组件集合、重复 architecture ID 一致性、cache/evaluation/summary 计数、best selection
+及跨 seed 搜索协议一致性。
+
+成功后原子写 `$COHORT/cohort-validation.json`，其 schema 为：顶层
+`schema_version="1.0"`、`validated_at`、`status="completed"`、`search_space_id`、
+`expected_population_per_seed`、`expected_components[]`、`primary_selection_seed`、
+`supporting_robustness_seeds[]`、`candidate_rows_total`、`unique_evaluations_total`、`cache_hits_total`、
+`runs[]`、`supervisor_status_before_reconciliation`、`supervisor_detail_before_reconciliation`；每个 `runs[]`
+项包含 `seed`、`run`、`run_id`、`ended_at`、`candidate_rows`、`unique_architectures`、
+`unique_evaluations`、`cache_hits`、`summary_rows`、`best_architecture_id`、`best_selection`、
+`search_manifest_sha256`、`search_config_sha256`、`search_jsonl_sha256`、`search_state_sha256` 和
+`search_identity`。随后单独原子更新 `status.json` 为 `status="completed"`，写入
+`detail`、`ended_at`、`updated_at`、`reconciled_at`、validation 路径/SHA-256 和总计数，同时把原 supervisor
+终态保存在 `supervisor_terminal_status/detail`，即使 launcher 先前因 wait 误报 failed 也不丢失证据。
+
+重复执行会重新完整校验并安全替换这两个 JSON，不追加 candidate、语义幂等；因 `validated_at` 更新，文件
+字节和 SHA-256 不保证不变。任何输入校验失败时两个文件都不改。两个原子替换不是跨文件事务：若
+`cohort-validation.json` 已替换后 `status.json` 写入失败，validation 可能是新的而 status 仍旧；此时先
+核对 validation 内容与 SHA-256，再用完全相同参数重跑，不得手工把 status 改成 completed。
 
 首次机器初始化：
 
@@ -681,10 +814,11 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 
 ## Artifact 行数与最小 schema
 
-所有 `--output` 均先视为父目录；会创建 run 的命令在其下生成北京时间目录
+创建 run 的命令才把 `--output` 视为父目录，并在其下生成北京时间目录
 `YYYYMMDDTHHMMSS+0800_<run-id>/`。manifest、events、status 与隔离文件名统一使用
 `Asia/Shanghai` 和显式 `+08:00`/`+0800`；终端 JSON 的 `run` 才是后续命令应使用的路径。
-旧 `...Z_...` run 只读兼容，不原地改写。
+`report --source` 的输出是精确文件，`monitor --output FILE.html` 也是精确文件；派生工具的其余规则以
+各命令章节为准。旧 `...Z_...` run 只读兼容，不原地改写。
 
 | 命令 | 规范 artifact | 预期行数 | 最小科学身份 |
 |---|---|---:|---|
@@ -855,12 +989,13 @@ export ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes
 export ZCP_EXECUTION_STRATEGY=packed_single_gpu
 export ZCP_PACKED_SINGLE_GPU_ACCEPTED=yes
 export ZCP_DATA_WORKERS=4
-export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
+export ZCP_GPU_UUIDS=GPU-...  # packed_single_gpu 必须且只能声明这一张卡
+export ZCP_CPU_AFFINITIES='32-63,96-127'
 ```
 
 `packed_single_gpu` 在第一张卡上放置两个独立 run；它减少占卡数，不改变单个 run 的 batch/LR。必须先
 确认两进程峰值显存总和有安全余量，并用较少 workers 防止 CPU 解码争用。
-`ZCP_CPU_AFFINITIES` 可选，每段依次对应一个 GPU UUID；应按 `nvidia-smi topo -m` 选择 GPU 所属 NUMA
+`ZCP_CPU_AFFINITIES` 可选，此处唯一一段对应唯一 GPU UUID；应按 `nvidia-smi topo -m` 选择 GPU 所属 NUMA
 节点，不得照抄本机 CPU 编号到其他机器，也不要未经测量就把一个 NUMA 节点机械切成过小的互斥分组。
 本机 16 逻辑核/任务的试验使吞吐下降约 6–8%；共享完整 NUMA1 的短时观察也没有证明优于基线，
 因此现场已完全回退为系统默认 affinity。亲和性只保留为可选实验参数，不作为推荐默认。若没有 smoke
