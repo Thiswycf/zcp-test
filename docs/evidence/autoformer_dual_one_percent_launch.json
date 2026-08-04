@@ -1,0 +1,54 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T11:09:10+08:00",
+  "status": "running",
+  "project_commit": "76a0fcd3936cf63f70faba3f1c5716551133520e",
+  "source_snapshot": {
+    "method": "git_archive_complete_tracked_source",
+    "read_only": true,
+    "launcher_sha256_recorded": true,
+    "python_and_configs_pinned": true
+  },
+  "data": {
+    "location_class": "local_nvme_fast_io_root",
+    "train_classes": 1000,
+    "train_files": 1281167,
+    "validation_files": 50000
+  },
+  "execution": {
+    "strategy": "parallel_single_gpu",
+    "physical_gpu_indices": [0, 1, 3, 5],
+    "gpu_count": 4,
+    "configured_micro_batch": 256,
+    "target_global_batch": 2048,
+    "learning_rate_protocol_changed": false,
+    "active_tasks": [
+      "full_data_5_epoch_zcp_selected",
+      "full_data_5_epoch_fixed_random",
+      "full_data_5_epoch_params_flops_matched",
+      "one_percent_data_500_epoch_zcp_selected"
+    ],
+    "queued_after_lane_completion": [
+      "one_percent_data_500_epoch_fixed_random",
+      "one_percent_data_500_epoch_params_flops_matched"
+    ]
+  },
+  "runtime_sample": {
+    "gpu_utilization_percent": {"0": 100, "1": 100, "3": 100, "5": 100},
+    "gpu_memory_used_mib": {"0": 12245, "1": 10182, "3": 12260, "5": 12404},
+    "full_data_batches_per_second": {
+      "zcp_selected": 4.264,
+      "fixed_random": 4.411,
+      "params_flops_matched": 4.384
+    },
+    "one_percent_schedule_completed_epochs": 6,
+    "run_logs_present": true,
+    "events_interval_seconds": 30
+  },
+  "lock_audit": {
+    "held_gpu_indices": [0, 1, 3, 5],
+    "all_held_locks_have_active_training_children": true,
+    "idle_gpu_locks_held": false
+  },
+  "scientific_boundary": "This is a non-terminal launch/runtime sample. No task is marked accepted until its manifest, training JSONL, checkpoints, recovery behavior, and final protocol counters pass terminal validation."
+}

@@ -378,7 +378,12 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(autoFormerTask?.detail.includes("zcp_selected=42e6457ccb580a092454") && autoFormerTask?.detail.includes("fixed_random=d904aacf51d2b0867df6") && autoFormerTask?.detail.includes("params_flops_matched=41b5e6d4dc3279909487"), "AutoFormer 三个冻结候选身份缺失");
   assert(autoFormerTask?.detail.includes("42dc72f29e141fa97c042c1979f390486962a97fa34cdbcd3394b556148bdb4a") && autoFormerTask?.detail.includes("supporting seed 只作 provenance"), "AutoFormer 冻结 manifest 或 supporting seed 边界缺失");
   assert(autoFormerTask?.detail.includes("batch=256 synthetic full-batch memory smoke") && autoFormerTask?.detail.includes("GPU0/1/3") && autoFormerTask?.detail.includes("completed/exit 0"), "AutoFormer 三候选 memory smoke 状态缺失");
-  assert(autoFormerTask?.detail.includes("不是实际 ImageNet 精度") && autoFormerTask?.detail.includes("双重 1% 训练尚未启动") && autoFormerTask?.detail.includes("项目总体验收仍未完成"), "AutoFormer 剩余验收边界缺失");
+  assert(autoFormerTask?.detail.includes("不是实际 ImageNet 精度") && autoFormerTask?.detail.includes("双重 1% 训练尚未完成") && autoFormerTask?.detail.includes("项目总体验收仍未完成"), "AutoFormer 剩余验收边界缺失");
+  const autoFormerV2Evidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-DUAL-1PCT-V2-RUNNING");
+  assert(autoFormerV2Evidence?.result.includes("11:07:26") && autoFormerV2Evidence?.result.includes("status=running") && autoFormerV2Evidence?.result.includes("snapshot=76a0fcd"), "AutoFormer V2 启动时间、状态或快照身份缺失");
+  assert(autoFormerV2Evidence?.result.includes("<fast-imagenet-root>") && autoFormerV2Evidence?.result.includes("train=1,281,167") && autoFormerV2Evidence?.result.includes("valid=50,000"), "AutoFormer V2 脱敏数据根或完整 ImageNet 计数缺失");
+  assert(autoFormerV2Evidence?.result.includes("GPU0/1/3/5") && autoFormerV2Evidence?.result.includes("四锁均对应活跃训练") && autoFormerV2Evidence?.result.includes("task5/6 将在 lane 完成后启动"), "AutoFormer V2 GPU、锁或 lane 衔接状态缺失");
+  assert(autoFormerV2Evidence?.result.includes("global batch=2048") && autoFormerV2Evidence?.result.includes("LR 不变") && autoFormerV2Evidence?.result.includes("尚不宣称 epoch 完成"), "AutoFormer V2 batch/LR 或 epoch 声明边界缺失");
   assert(autoFormerEvidence?.result.includes("133 项专项相关测试通过"), "AutoFormer 专项测试计数缺失");
   assert(autoFormerEvidence?.result.includes("不是全仓测试总数"), "AutoFormer 专项测试范围未明确");
   const azNasEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-AZNAS-STABLE-SMOKE");
