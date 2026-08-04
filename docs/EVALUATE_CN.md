@@ -54,7 +54,13 @@ zcp-test evaluate \
   --benchmark nats_tss --benchmark-path DATA/NATS-tss-v1_0-3ffb9-simple \
   --trusted --dataset cifar10-valid --target-split valid \
   --target-metric accuracy --epoch-budget 200 \
-  --proxies er,naswot,synflow --count 100
+  --input-source dataset --data-root /path/to/cifar10 \
+  --proxies er,naswot,synflow --count 100 \
+  --output /path/to/runs/evaluate/nats-tss
 ```
+
+前置条件：`/path/to/cifar10` 必须是可读取的 CIFAR-10 根目录；也可先把 `dataset_cifar10`
+注册到当前 catalog。缺失真实数据时命令必须失败，不会回退随机输入。成功 stdout 中复制精确 `run`
+目录，再把其中的 `scores.jsonl` 传给 `correlate` 或 `report bundle`。
 
 普通 evaluate 只创建实际文件，不创建空的 `checkpoints/`、`parts/` 或 `reports/`。这些目录分别在保存 checkpoint、写分片和生成报告时按需创建。

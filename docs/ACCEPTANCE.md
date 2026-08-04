@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-08-04 tree: **581 tests passed** across 38 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, JSON validation, and diff checks passed; panel consistency is rechecked separately after its parallel update; four upstream THOP `distutils` deprecation warnings remain non-failing |
+| Unit/integration baseline | Current 2026-08-04 tree: **597 tests passed** across 38 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, JSON validation, and diff checks passed; panel consistency is rechecked separately after its parallel update; four upstream THOP `distutils` deprecation warnings remain non-failing |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
 | Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
@@ -16,11 +16,11 @@ reproduction or formal benchmark accuracy.
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
 | DARTS CIFAR dual one-percent | Three candidates on CIFAR-10/100: six full-data × 6-epoch runs and six 1%-data × 600-epoch runs; deterministic preflight, two recovery audits, and reporting complete | Scoped protocol passed | Engineering/scoped acceptance only; not 600-epoch full-data accuracy reproduction or multi-seed search gain, and the protocols must not be averaged |
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
-| AutoFormer search and freeze | The AZ-NAS `3×8,000` cohort is reconciled: 24,000 candidates, 23,999 unique evaluations, and one cache hit; three candidates are frozen | Search/freeze passed | The post-completion supervisor failure remains visible but does not overwrite validated scientific artifacts; supporting seeds are provenance-only |
+| Legacy AutoFormer search/freeze evidence | The pre-policy AZ-NAS `3×8,000` cohort is reconciled: 24,000 candidates, 23,999 unique evaluations, and one cache hit | Historical evidence only | It does not define the current approximately-one-percent engineering search gate; only the single `zcp-selected` enters engineering training acceptance |
 | AutoFormer candidate smokes | All three frozen candidates completed batch-256 synthetic memory, atomic-checkpoint, and trusted checkpoint-load/resume smokes | Smoke passed | Construction, memory, optimizer/checkpoint, and recovery plumbing only; random-input accuracy is meaningless and is not ImageNet evidence |
 | AutoFormer selected-candidate real dual one-percent V2 | `zcp-selected` completed full-data 5 epochs and one-percent-data 500 epochs with 5/500 rows, terminal manifests, and last/best checkpoints | **Scoped protocol passed** | Baseline tasks 5/6 were policy-interrupted and excluded; this proves implementation readiness, not full-data paper accuracy or search gain |
 
-The current full gate executes and passes 581 tests across 38 files. First-party source coverage of
+The current full gate executes and passes 597 tests across 38 files. First-party source coverage of
 87% and CLI coverage of 82% remain from the latest retained coverage run. Ruff, compileall, pip check,
 Bash syntax, panel validation, JSON validation, and `git diff --check` pass; four THOP `distutils`
 deprecation warnings are non-failing. Machine-readable summaries and checksums for the real NB201 and
@@ -38,6 +38,12 @@ A sweep means each name was exercised through the common evaluator and produced 
 `ok`, `unsupported`, or `failed` outcome. It does not mean every proxy supports every model
 family, every `portable-v1` implementation matches its paper numerically, or all scores have been
 validated against standard answers.
+
+On 2026-08-04, `meco` and `meco_opt` were corrected against the authors' fixed commit `0d830dd`.
+The former `portable-v1` implementation computed a cross-batch activation log-determinant and
+incorrectly declared the official eight-channel-sampling MeCo-opt variant as an alias. Historical
+equal-score MeCo/MeCo-opt evidence is retained only as an invalid legacy implementation result and
+must be rerun with `hamstermimi-0d830dd-v2` before it is cited as a MeCo reproduction.
 
 The NATS-TSS H1 evidence is recorded in
 [`evidence/NATS_TSS_ONE_PERCENT_CN.md`](evidence/NATS_TSS_ONE_PERCENT_CN.md) and the language-neutral
@@ -94,8 +100,9 @@ The first full-data run used four-GPU DDP while the remaining runs used one GPU,
 BatchNorm sees different per-device batch statistics. This accepts implementation and recovery,
 not a topology-identical search-gain conclusion. The throughput, packing, checkpoint, and six-run
 summary is in [`evidence/gpu_throughput_optimization.json`](evidence/gpu_throughput_optimization.json).
-AutoFormer selected-candidate dual one-percent acceptance is complete; PlainNet-MBV2 and
-Proxyless-MBV2 remain incomplete.
+AutoFormer and Proxyless-MBV2 selected-candidate dual one-percent acceptance are complete;
+PlainNet-MBV2 remains incomplete. Proxyless acceptance releases only the versioned
+candidate-resolution scratch profile, not an official 224 reproduction.
 
 For future launches after 2026-08-04, dual-one-percent **engineering acceptance** is reduced to one
 ZCP-selected architecture under both protocols: full data × at least 1% of epochs, and exact 1% data
@@ -142,9 +149,9 @@ All three truncated runs subsequently completed and passed the public
 `acceptance validate-plainnet-search` status/manifest/state/journal validator. See
 `evidence/plainnet_one_percent_completion_20260804.json`.
 
-Static model fidelity does not grant formal-training readiness. DARTS profiles and the accepted
-AutoFormer AZ-NAS scratch profile set `formal_training_ready: true`; PlainNet-MBV2 and Proxyless-MBV2
-remain explicitly blocked, while PiT is not a formal-training target. PlainNet-MBV2 has a locked 150-epoch candidate profile
+Static model fidelity does not grant formal-training readiness. DARTS profiles, the accepted
+AutoFormer AZ-NAS scratch profile, and the versioned Proxyless candidate-resolution scratch profile
+set `formal_training_ready: true`; PlainNet-MBV2 remains explicitly blocked, while PiT is not a formal-training target. PlainNet-MBV2 has a locked 150-epoch candidate profile
 but remains blocked pending dual one-percent GPU acceptance.
 The boolean is not self-authorizing: a non-smoke run must match a code-owned approved protocol and
 its critical fields, including the accepted batch and input size.
@@ -162,7 +169,7 @@ not either full ImageNet 1% protocol.
 
 ### AutoFormer search, frozen candidates, and V2 training state
 
-The AutoFormer AZ-NAS search cohort is complete and reconciled: three seeds processed 8,000
+The legacy pre-policy AutoFormer AZ-NAS search cohort is complete and reconciled: three seeds processed 8,000
 candidates each, for 24,000 candidate rows, 23,999 unique evaluations, and one cache hit. The
 historical supervisor failed only after all seed artifacts completed. That post-completion
 orchestration state remains auditable but does not relabel completed manifests, generation summaries,
@@ -274,16 +281,12 @@ The following work is explicitly **not accepted** and must not be reported as co
    six scoped DARTS ImageNet dual one-percent runs are complete, with the documented DDP-versus-
    single-GPU BatchNorm caveat. Full-data 250-epoch training is outside this scoped acceptance and
    has not run.
-2. PlainNet-MBV2 and Proxyless-MBV2 selected-candidate dual one-percent training remains incomplete.
-   Both search acceptance budgets are capped at 1,000 evaluations: PlainNet uses 1% of the upstream
-   100k valid-candidate budget, while Proxyless uses 1% of a predeclared 100k project-evaluation
-   budget. The latter is neither a search-space-cardinality fraction nor an OFA controller budget. AutoFormer's
-   selected-candidate dual one-percent gate is complete and its profile launch gate is released, but
-   full-data 500-epoch accuracy reproduction and multi-seed search-gain validation remain incomplete.
-   PlainNet completed its truncated one-percent search with `formal_search_completed=false`;
-   Proxyless run `a353e301f420` completed the new 1,000-evaluation budget and re-froze its single
-   winner. This closes the search-budget restart only, not the dual-one-percent training gate;
-   Proxyless-MBV2 formal 150-epoch training is not released.
+2. PlainNet-MBV2 selected-candidate dual one-percent training remains incomplete. Proxyless-MBV2
+   completed its 1,000-evaluation project search budget, selected-only freeze, full-data 2/150 epochs,
+   exact-one-percent-data 150/150 schedule, two zero-increment checkpoint audits, and a 152-row report
+   bundle. This releases only its versioned candidate-resolution scratch profile. Full-data paper
+   accuracy reproduction and multi-seed search-gain validation remain incomplete for AutoFormer and
+   Proxyless; PlainNet remains `formal_search_completed=false`.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Remaining benchmark protocols beyond the accepted scoped NB101, NB201, NATS-TSS,
    three-dataset NATS-SSS and NB301 deterministic-surrogate runs, including TNB101 and formal

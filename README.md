@@ -10,7 +10,9 @@ checkpoint 与转换后大文件均保存在仓库外部，不修改原有 `TER-
 
 | 类型 | 对象 | 主要实验 | 禁止混用 |
 |---|---|---|---|
-| 有标准答案 benchmark | NB101、NB201、NATS-TSS/SSS、NB301 surrogate、TNB101、ViT-Bench-101 | ZCP—真值相关性、top-k 检索、结构偏置、预算/任务迁移 | 不对 benchmark 全候选重复完整训练；NB301 只能称 surrogate association |
+| 发布标准答案 benchmark | NB101、NB201、NATS-TSS/SSS、TNB101 | ZCP—发布真值相关性、top-k 检索、结构偏置、预算/任务迁移 | 不对 benchmark 全候选重复完整训练；dataset/split/budget/task 必须分开 |
+| 明确 surrogate benchmark | NB301 | ZCP—surrogate prediction 相关性、deterministic/noisy 敏感性 | 只能称 surrogate association，不能称真实训练标准答案 |
+| 发布指标但 fidelity 混合 | ViT-Bench-101 | AutoFormer/PiT 分开，vanilla/KD/inherited 分协议相关性 | 不把 inherited、KD、vanilla 或扩展切片合成单一 accuracy |
 | 无完整 tabular 真值的开放空间 | DARTS、AutoFormer、PlainNet-MBV2、Proxyless-MBV2 | validation-only ZCP 搜索、随机/资源匹配基线、选中架构从头训练 | 不进行伪造的“全空间相关性”；不得用 test 指标选架构 |
 | inherited supernet | OFA 或 ViT inherited protocol | active subnet、静态导出、BN recalibration、inherited accuracy | inherited、scratch 与 predictor 指标不得合并 |
 
@@ -174,8 +176,8 @@ Research manuals:
 - [Retained reproducible examples](examples/studies/README_CN.md)
 - [Acceptance status](docs/ACCEPTANCE.md) / [中文验收状态](docs/ACCEPTANCE_CN.md)
 
-The formal PlainNet-MBV2 AZ-NAS search must not be replaced by a generic
-`population × generations` example. Its stable entry point is:
+The PlainNet-MBV2 engineering-acceptance search must not be replaced by a generic
+`population × generations` example. Its stable one-percent entry point is:
 
 ```bash
 zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
@@ -183,15 +185,16 @@ zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
   --output /path/to/runs/search/plainnet-aznas-450m
 ```
 
-This locks 100,000 valid candidates, population 1,024, batch 64/224, full-history four-component
-log-rank, and no crossover. Run the GPU preflight and CPU rerank estimate in the
-[operations guide](docs/OPERATIONS.md#az-nas-plainnet-mbv2-search) first. The preflight preserves
-the 100k identity but remains `running` after three candidates; it is not a completed search. The
-current host's conservative CPU rerank estimate is about 4.21 hours, while GPU candidate timing is
-still awaiting the queued preflight.
+This evaluates exactly 1,000 valid candidates, or 1% of the upstream 100,000-candidate budget,
+with batch 64/224, source-aligned four-component log-rank, no crossover, and the explicit fidelity
+`source_aligned_control_flow_port_truncated_one_percent_budget`. It is an engineering acceptance,
+not a completed 100k AZ-NAS reproduction. The retained 450M/600M/1G runs each contain 1,000
+candidate rows plus one summary row and are already complete; do not restart them merely to repeat
+acceptance. See the [operations guide](docs/OPERATIONS.md#az-nas-plainnet-mbv2-search) for the
+separate upstream 100k protocol and the one-percent boundary.
 
-Before formally training an open search space, freeze the three candidate roles from a completed,
-versioned search run:
+Before engineering training acceptance, freeze the selected architecture from a completed,
+versioned one-percent search run:
 
 ```bash
 zcp-test acceptance freeze-candidates \
@@ -200,8 +203,10 @@ zcp-test acceptance freeze-candidates \
   --output /path/to/frozen-candidates/autoformer
 ```
 
-The operations manual documents provenance checks, resource matching, dual-one-percent launchers,
-and interruption recovery.
+The freeze utility may also emit research baselines, but the engineering gate reads and trains only
+`zcp_selected.json`. It runs two jobs total for that architecture: full data with 1% of the formal
+epochs, and exactly 1% data with the complete schedule. The operations manual documents provenance
+checks, resource matching, dual-one-percent launchers, and interruption recovery.
 
 ```bash
 zcp-test data list --catalog configs/data.example.json
@@ -329,8 +334,9 @@ Each new run creates `YYYYMMDDTHHMMSS+0800_<run-id>/` in the fixed `Asia/Shangha
   one-percent engineering evidence, not a 250-epoch full-data reproduction. The first attempt exposed
   slow-disk small-file I/O and an empty legacy `run.log`; current runs mirror events to both
   `events.jsonl` and `run.log`, and operators should explicitly select a verified fast local
-  `--data-root`. AutoFormer selected-candidate dual one-percent acceptance is complete; PlainNet-MBV2
-  and Proxyless-MBV2 remain incomplete. For launches after 2026-08-04, engineering acceptance trains only the ZCP-selected
+  `--data-root`. AutoFormer and Proxyless-MBV2 selected-candidate dual one-percent acceptance are
+  complete; PlainNet-MBV2 remains incomplete. Proxyless releases only the versioned candidate-resolution
+  scratch profile, not an official 224 reproduction. For launches after 2026-08-04, engineering acceptance trains only the ZCP-selected
   architecture under the two 1% protocols (two runs total). Historical completed artifacts remain
   unchanged; queued baseline tasks that have not started must be cancelled rather than inherited from
   an old supervisor. Short acceptance training must not be used to claim

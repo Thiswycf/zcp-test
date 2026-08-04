@@ -47,3 +47,4 @@ implementation_source: https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c
 implementation_commit: 5e6683a2cfa5c6d0dc34a1317a842497ba7eae47
 formal_training_ready: true
 formal_training_acceptance: docs/evidence/autoformer_single_candidate_dual_one_percent_completion_20260804.json
+formal_training_acceptance_sha256: f28630ecb42fd7242ccae0b851832f4570c10e48091066818eae0a8d4b4e1a6b

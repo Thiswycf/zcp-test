@@ -83,6 +83,32 @@ def test_nb201_and_nats_tss_share_space_not_identity(tmp_path):
     assert nb_api.calls[0][2]["hp"] == "12"
 
 
+def test_nb201_rejects_unknown_metric_and_unsupported_seed_reduction(tmp_path):
+    data = tmp_path / "benchmark"
+    data.touch()
+    api = FakeApi()
+    adapter = NasBench201Adapter(str(data), version="1.1", api_factory=lambda _: api)
+    architecture = next(adapter.iter_architectures(end=1))
+
+    with pytest.raises(ValueError, match="Metric 'latency'"):
+        adapter.query_metrics(
+            architecture,
+            MetricSpec("cifar10-valid", "valid", "latency", epoch_budget=200),
+        )
+    with pytest.raises(ValueError, match="Seed reduction 'min'"):
+        adapter.query_metrics(
+            architecture,
+            MetricSpec(
+                "cifar10-valid",
+                "valid",
+                "accuracy",
+                epoch_budget=200,
+                seed_reduction="min",
+            ),
+        )
+    assert api.calls == []
+
+
 def test_nats_sss_has_separate_space_and_budget(tmp_path):
     data = tmp_path / "sss"
     data.mkdir()
@@ -154,7 +180,7 @@ def test_nats_seed_reduction_rejects_unknown_or_unavailable_enumeration(tmp_path
     adapter = NatsTssAdapter(str(data), version="1.0", api_factory=lambda _: api)
     architecture = next(adapter.iter_architectures(end=1))
 
-    with pytest.raises(ValueError, match="Unsupported NATS seed reduction"):
+    with pytest.raises(ValueError, match="Seed reduction 'median'.*not supported"):
         adapter.query_metrics(
             architecture,
             MetricSpec(

@@ -316,9 +316,10 @@ scientific validation.
 ## Training and architecture files
 
 Static reference models exist for `darts`, AutoFormer, PiT, PlainNet-MBV2 and Proxyless-MBV2, but
-model fidelity and training-protocol readiness are separate gates. Only DARTS configurations
-currently set `formal_training_ready: true`; all other spaces must remain smoke-only until their
-listed protocol blockers are closed. This flag is not self-authorizing: non-smoke runs must also
+model fidelity and training-protocol readiness are separate gates. DARTS, the accepted AutoFormer
+AZ-NAS scratch profile, and the versioned Proxyless candidate-resolution scratch profile currently
+set `formal_training_ready: true`; PlainNet-MBV2 remains blocked and PiT has no formal profile.
+This flag is not self-authorizing: non-smoke runs must also
 match a code-owned approved protocol and its critical fields, and cannot override accepted batch or
 input size. `--smoke` uses tiny synthetic loaders and validates plumbing, not accuracy.
 
@@ -598,7 +599,11 @@ candidate rows plus one summary. Model initialization and proxy random vectors u
 `architecture-hash-v1`, derived from the search seed and canonical architecture ID. Two independent
 same-seed GPU smokes are identical after removing timing fields.
 
-The source-aligned acceptance cohort uses generation zero with 8,000 random candidates per seed.
+The retained `3×8,000` cohort is legacy pre-policy search evidence, not the current engineering
+acceptance budget. Current engineering search acceptance evaluates approximately 1% of its
+predeclared reference budget and records the reference budget, evaluated count, fraction, and
+truncated-controller fidelity. The legacy command below is only for read-only audit or explicit
+recovery of those historical artifacts; do not launch it as a new acceptance workload.
 The launcher packs two measured-safe processes on one GPU and one process on a second GPU, waits on
 per-GPU locks without blocking the caller, and saves a partial initial-population state every 100
 evaluations:

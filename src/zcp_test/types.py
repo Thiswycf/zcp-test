@@ -55,7 +55,9 @@ class ProxyCapability:
     version: str = "1"
     model_families: tuple[str, ...] = ("cnn",)
     requires_data: bool = True
+    requires_inputs: bool = True
     requires_labels: bool = False
+    requires_loss_fn: bool = False
     supports_cpu: bool = True
     direction: ScoreDirection = ScoreDirection.MAXIMIZE
     components: tuple[str, ...] = ("score",)

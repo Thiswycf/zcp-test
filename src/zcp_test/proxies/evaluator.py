@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import importlib.util
 import time
 from typing import Any
 
@@ -31,6 +32,26 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         return ScoreResult(
             status=RecordStatus.UNSUPPORTED,
             error_message=f"{proxy_id} does not support {model_family}",
+            **result_metadata,
+        )
+    missing_contract = []
+    if proxy.capability.requires_inputs and inputs is None:
+        missing_contract.append("inputs")
+    if proxy.capability.requires_labels and labels is None:
+        missing_contract.append("labels")
+    if proxy.capability.requires_loss_fn and loss_fn is None:
+        missing_contract.append("loss_fn")
+    missing_dependencies = [
+        name for name in proxy.capability.dependencies if importlib.util.find_spec(name) is None
+    ]
+    if missing_dependencies:
+        missing_contract.append("dependencies=" + ",".join(missing_dependencies))
+    if missing_contract:
+        return ScoreResult(
+            status=RecordStatus.UNSUPPORTED,
+            error_message=(
+                f"{proxy_id} input contract is unavailable: " + ", ".join(missing_contract)
+            ),
             **result_metadata,
         )
     started = time.perf_counter()

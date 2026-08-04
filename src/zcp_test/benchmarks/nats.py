@@ -29,6 +29,8 @@ class NatsAdapter(IndexedNativeAdapter):
             "splits": ["train", "valid", "test"],
             "metric_names": ["accuracy", "loss", "time", "latency"],
             "epoch_budgets": list(self.supported_budgets),
+            "seed_reductions": ["mean", "min", "max"],
+            "supports_explicit_seed": True,
             "model_building": True,
             "benchmark_source": f"nats_{self.api_type}",
         }

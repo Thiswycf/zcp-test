@@ -465,6 +465,7 @@
     const ageSeconds = Number.isFinite(generatedAt.getTime()) ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : Infinity;
     const staleAfter = Number(liveData.stale_after_seconds) || 45;
     const autoformer = liveData.autoformer || {};
+    const autoformerTitle = autoformer.display_name || "AutoFormer 搜索状态";
     const workload = autoformer.workload || {};
     const supervisor = autoformer.supervisor || {};
     const workloadStatus = workload.status || autoformer.workload_status || autoformer.status || "unknown";
@@ -519,7 +520,7 @@
         <div class="live-facts"><span class="live-fact">状态更新时间 ${escapeHtml(formatLiveTimestamp(liveData.darts?.updated_at))}</span></div>
       </article>
       <article class="live-run">
-        <div class="live-run-heading"><h3>AutoFormer AZ-NAS 3×8,000</h3><div class="live-badges"><span class="live-status status-${escapeHtml(workloadStatus)}">workload ${escapeHtml(workloadStatus)}</span><span class="live-status status-${escapeHtml(supervisorStatus)}">supervisor ${escapeHtml(supervisorStatus)}</span></div></div>
+        <div class="live-run-heading"><h3>${escapeHtml(autoformerTitle)}</h3><div class="live-badges"><span class="live-status status-${escapeHtml(workloadStatus)}">workload ${escapeHtml(workloadStatus)}</span><span class="live-status status-${escapeHtml(supervisorStatus)}">supervisor ${escapeHtml(supervisorStatus)}</span></div></div>
         <p class="live-run-meta">候选进度 ${escapeHtml(candidateTotal)}/${escapeHtml(candidateTarget)} · unique evaluations ${escapeHtml(uniqueEvaluations)} · cache hits ${escapeHtml(cacheHits)}</p>
         <div class="live-facts"><span class="live-fact">产物归并 ${escapeHtml(autoformer.reconciled ? "已验证" : "待验证")}</span><span class="live-fact">orchestration ${escapeHtml(supervisorDetail)}</span></div>
         <div class="live-seeds">${seedMarkup}</div>

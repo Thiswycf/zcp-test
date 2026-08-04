@@ -10,6 +10,7 @@ import torch
 import yaml
 
 import zcp_test.cli as cli
+import zcp_test.training.protocols as training_protocols
 from zcp_test.artifacts import normalize_score_records
 from zcp_test.cli import _load_architecture_spec, _stratified_subset, main
 from zcp_test.inputs import make_input_batch
@@ -17,6 +18,7 @@ from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training.protocols import (
     resolve_acceptance_protocol,
     validate_candidate_training_protocol,
+    validate_formal_training_protocol,
 )
 
 
@@ -538,19 +540,27 @@ def test_approved_formal_protocol_rejects_modified_recipe(tmp_path):
 def test_approved_formal_protocol_requires_real_data(monkeypatch, tmp_path):
     monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
     config = Path("configs/training/darts_cifar10.yaml")
+    load_builtin_spaces()
+    architecture_path = tmp_path / "darts.json"
+    architecture_path.write_text(
+        json.dumps(SPACES.create("darts").sample(42).to_dict()), encoding="utf-8"
+    )
+    output = tmp_path / "runs"
     with pytest.raises(ValueError, match="data-root"):
         main(
             [
                 "train",
                 "--config",
                 str(config),
+                "--architecture",
+                str(architecture_path),
                 "--device",
                 "cpu",
                 "--output",
-                str(tmp_path),
+                str(output),
             ]
         )
-    assert list(tmp_path.iterdir()) == []
+    assert not output.exists()
 
 
 def test_autoformer_candidate_training_protocol_is_locked():
@@ -577,6 +587,12 @@ def test_autoformer_candidate_training_protocol_is_locked():
 
 def test_autoformer_formal_training_gate_is_released(monkeypatch, tmp_path):
     monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
+    load_builtin_spaces()
+    architecture_path = tmp_path / "autoformer.json"
+    architecture_path.write_text(
+        json.dumps(SPACES.create("autoformer").sample(42).to_dict()), encoding="utf-8"
+    )
+    output = tmp_path / "runs"
 
     with pytest.raises(ValueError, match="data-root"):
         main(
@@ -584,14 +600,16 @@ def test_autoformer_formal_training_gate_is_released(monkeypatch, tmp_path):
                 "train",
                 "--config",
                 "configs/training/autoformer_imagenet.yaml",
+                "--architecture",
+                str(architecture_path),
                 "--device",
                 "cpu",
                 "--output",
-                str(tmp_path),
+                str(output),
             ]
         )
 
-    assert list(tmp_path.iterdir()) == []
+    assert not output.exists()
 
 
 def test_proxyless_candidate_training_protocol_is_locked():
@@ -611,7 +629,119 @@ def test_proxyless_candidate_training_protocol_is_locked():
     assert config["training_protocol_fidelity"] == (
         "project_candidate_resolution_adaptation"
     )
-    assert config["formal_training_ready"] is False
+    assert config["formal_training_ready"] is True
+    assert config["formal_training_acceptance"].endswith(
+        "proxyless_single_candidate_dual_one_percent_completion_20260804.json"
+    )
+    assert "formal_training_blockers" not in config
+    assert validate_formal_training_protocol(config) == (
+        "project-ofa-proxyless-mbv2-scratch-v1"
+    )
+
+
+def test_formal_training_evidence_must_exist_and_match_checksum(monkeypatch, tmp_path):
+    config = yaml.safe_load(
+        Path("configs/training/ofa_proxyless_mbv2_imagenet.yaml").read_text(
+            encoding="utf-8"
+        )
+    )
+    monkeypatch.setattr(training_protocols, "PROJECT_ROOT", tmp_path)
+    with pytest.raises(ValueError, match="evidence is missing"):
+        validate_formal_training_protocol(config)
+
+
+def test_proxyless_formal_training_gate_is_released(monkeypatch, tmp_path):
+    monkeypatch.setattr("zcp_test.cli._resolve_data_root", lambda args, dataset: None)
+    architecture_path = tmp_path / "proxyless.json"
+    architecture_path.write_text(
+        json.dumps(
+            {
+                "kernel_size": [3] * 21,
+                "expand_ratio": [3] * 21,
+                "depth": [2] * 5,
+                "width_mult": 1.3,
+                "resolution": 128,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "runs"
+
+    with pytest.raises(ValueError, match="data-root"):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/ofa_proxyless_mbv2_imagenet.yaml",
+                "--architecture",
+                str(architecture_path),
+                "--device",
+                "cpu",
+                "--output",
+                str(output),
+            ]
+        )
+
+    assert not output.exists()
+
+
+@pytest.mark.parametrize(
+    ("extra", "message"),
+    [
+        (["--epochs", "1"], "epoch schedule"),
+        (["--data-fraction", "0.01"], "complete dataset"),
+        (["--classes", "999"], "exactly 1000 classes"),
+    ],
+)
+def test_proxyless_formal_training_rejects_protocol_overrides(
+    tmp_path, extra, message
+):
+    architecture_path = tmp_path / "proxyless.json"
+    architecture_path.write_text(
+        json.dumps(
+            {
+                "kernel_size": [3] * 21,
+                "expand_ratio": [3] * 21,
+                "depth": [2] * 5,
+                "width_mult": 1.3,
+                "resolution": 128,
+            }
+        ),
+        encoding="utf-8",
+    )
+    output = tmp_path / "runs"
+    with pytest.raises(ValueError, match=message):
+        main(
+            [
+                "train",
+                "--config",
+                "configs/training/ofa_proxyless_mbv2_imagenet.yaml",
+                "--architecture",
+                str(architecture_path),
+                "--device",
+                "cpu",
+                "--output",
+                str(output),
+                *extra,
+            ]
+        )
+    assert not output.exists()
+
+
+def test_formal_training_requires_architecture_file(tmp_path):
+    base = [
+        "train",
+        "--config",
+        "configs/training/ofa_proxyless_mbv2_imagenet.yaml",
+        "--device",
+        "cpu",
+        "--output",
+        str(tmp_path / "runs"),
+    ]
+    with pytest.raises(ValueError, match="explicit frozen"):
+        main(base)
+    with pytest.raises(ValueError, match="existing JSON file"):
+        main([*base, "--architecture", json.dumps({"resolution": 128})])
 
 
 def test_proxyless_acceptance_training_uses_candidate_resolution(monkeypatch, tmp_path):
@@ -1249,6 +1379,62 @@ def test_correlate_normalizes_score_and_target_directions(tmp_path):
     assert row["score_direction"] == "minimize"
     assert row["target_direction"] == "minimize"
     assert row["direction_normalized_to_maximize"] is True
+
+
+def test_correlate_never_merges_disjoint_score_protocols(tmp_path):
+    scores = tmp_path / "scores.jsonl"
+    targets = tmp_path / "targets.jsonl"
+    output = tmp_path / "correlations.jsonl"
+    score_rows = []
+    target_rows = []
+    for seed, pairs in (
+        (1, (("a", 1.0), ("b", 2.0))),
+        (2, (("c", 2.0), ("d", 1.0))),
+    ):
+        for architecture_id, score in pairs:
+            score_rows.append(
+                {
+                    "architecture_id": architecture_id,
+                    "proxy_id": "p",
+                    "score": score,
+                    "status": "ok",
+                    "benchmark_id": "nasbench201",
+                    "benchmark_version": "1.1",
+                    "search_space_id": "nb201_topology",
+                    "dataset": "cifar10-valid",
+                    "target_metric": "accuracy",
+                    "target_split": "valid",
+                    "target_epoch_budget": 200,
+                    "input_source": "dataset",
+                    "input_fingerprint": f"batch-{seed}",
+                    "model_fidelity": "reference_model",
+                    "seed": seed,
+                }
+            )
+            target_rows.append({"architecture_id": architecture_id, "accuracy": score})
+    scores.write_text("".join(json.dumps(row) + "\n" for row in score_rows))
+    targets.write_text("".join(json.dumps(row) + "\n" for row in target_rows))
+
+    main(
+        [
+            "correlate",
+            "--scores",
+            str(scores),
+            "--targets",
+            str(targets),
+            "--output",
+            str(output),
+            "--target-field",
+            "accuracy",
+        ]
+    )
+
+    rows = [json.loads(line) for line in output.read_text().splitlines()]
+    assert len(rows) == 2
+    assert {row["seed"] for row in rows} == {1, 2}
+    assert {row["input_fingerprint"] for row in rows} == {"batch-1", "batch-2"}
+    assert all(row["sample_count"] == 2 for row in rows)
+    assert len({row["protocol_digest"] for row in rows}) == 2
 
 
 @pytest.mark.parametrize("duplicate_source", ["scores", "targets"])

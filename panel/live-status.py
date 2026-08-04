@@ -228,6 +228,9 @@ def build_live_status():
                 "AutoFormer 三个 seed 产物均 completed，但 supervisor status 非 completed；需执行产物归并审计"
             )
     autoformer_status.update({
+        "scope": "legacy_pre_policy",
+        "engineering_gate": False,
+        "display_name": "历史 AutoFormer 3×8,000 cohort（只读、非当前 gate）",
         "supervisor_status": supervisor_status,
         "supervisor_detail": supervisor_detail,
         "reconciled": reconciled,

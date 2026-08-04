@@ -170,11 +170,65 @@ def _activation_matrix(model: Any, inputs: Any) -> Any:
 def _meco(model: Any, inputs: Any, *_: Any) -> float:
     import torch
 
-    matrix = _activation_matrix(model, inputs)
-    matrix = matrix - matrix.mean(0, keepdim=True)
-    matrix = matrix / matrix.std(0, keepdim=True).clamp_min(1e-6)
-    correlation = matrix @ matrix.T / max(1, matrix.shape[1])
-    return float(torch.linalg.slogdet(correlation + torch.eye(correlation.shape[0], device=correlation.device) * 1e-5).logabsdet)
+    layer_scores: list[Any] = []
+    handles: list[Any] = []
+
+    def hook(_: Any, __: Any, output: Any) -> None:
+        if not isinstance(output, torch.Tensor) or output.ndim < 3 or output.shape[0] == 0:
+            return
+        feature_map = output[0].detach().float().reshape(output.shape[1], -1)
+        if feature_map.shape[0] < 2 or feature_map.shape[1] < 2:
+            return
+        correlation = torch.corrcoef(feature_map)
+        correlation = torch.nan_to_num(correlation, nan=0.0, posinf=0.0, neginf=0.0)
+        eigenvalues = torch.linalg.eigvals(correlation).real
+        score = eigenvalues.min()
+        if torch.isfinite(score):
+            layer_scores.append(score)
+
+    try:
+        handles = [module.register_forward_hook(hook) for module in model.modules()]
+        model(inputs)
+    finally:
+        for handle in handles:
+            handle.remove()
+    if not layer_scores:
+        raise ValueError("MeCo found no eligible feature maps")
+    return float(torch.stack(layer_scores).sum().item())
+
+
+def _meco_opt(model: Any, inputs: Any, *_: Any) -> float:
+    import random
+
+    import torch
+
+    layer_scores: list[Any] = []
+    handles: list[Any] = []
+
+    def hook(_: Any, __: Any, output: Any) -> None:
+        if not isinstance(output, torch.Tensor) or output.ndim < 3 or output.shape[0] == 0:
+            return
+        feature_map = output[0].detach().float().reshape(output.shape[1], -1)
+        channel_count = feature_map.shape[0]
+        if channel_count < 8 or feature_map.shape[1] < 2:
+            return
+        indices = random.sample(range(channel_count), 8)
+        correlation = torch.corrcoef(feature_map[indices])
+        correlation = torch.nan_to_num(correlation, nan=0.0, posinf=0.0, neginf=0.0)
+        eigenvalues = torch.linalg.eigvals(correlation).real
+        score = eigenvalues.min() * channel_count / 8
+        if torch.isfinite(score):
+            layer_scores.append(score)
+
+    try:
+        handles = [module.register_forward_hook(hook) for module in model.modules()]
+        model(inputs)
+    finally:
+        for handle in handles:
+            handle.remove()
+    if not layer_scores:
+        raise ValueError("MeCo-opt found no eligible feature maps with at least eight channels")
+    return float(torch.stack(layer_scores).sum().item())
 
 
 def _input_jacobian(model: Any, inputs: Any) -> Any:
@@ -378,24 +432,24 @@ def _unsupported(name: str) -> Callable[..., float]:
 
 
 _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
-    "params": (_params, ProxyCapability("params", version="count-v2", model_families=("cnn", "transformer"), requires_data=False, resource_direction=ScoreDirection.MINIMIZE)),
+    "params": (_params, ProxyCapability("params", version="count-v2", model_families=("cnn", "transformer"), requires_data=False, requires_inputs=False, resource_direction=ScoreDirection.MINIMIZE)),
     "flops": (_flops, ProxyCapability("flops", version="thop-v2", model_families=("cnn", "transformer"), dependencies=("thop",), resource_direction=ScoreDirection.MINIMIZE)),
-    "gradnorm": (_gradnorm, ProxyCapability("gradnorm", requires_labels=True)),
+    "gradnorm": (_gradnorm, ProxyCapability("gradnorm", requires_labels=True, requires_loss_fn=True)),
     "synflow": (_synflow, ProxyCapability("synflow", version="double-v2", model_families=("cnn", "transformer"), requires_data=False)),
     "naswot": (_naswot, ProxyCapability("naswot", model_families=("cnn", "transformer"))),
     "er": (_effective_rank, ProxyCapability("er", model_families=("cnn", "transformer"), components=("mean", "sum"), primary_component="mean")),
     "ter": (_effective_rank, ProxyCapability("ter", model_families=("cnn",), components=("mean", "sum"), primary_component="mean")),
-    "meco": (_meco, ProxyCapability("meco", version="portable-v1", model_families=("cnn", "transformer"))),
-    "meco_opt": (_meco, ProxyCapability("meco_opt", version="portable-v1", model_families=("cnn", "transformer"))),
+    "meco": (_meco, ProxyCapability("meco", version="hamstermimi-0d830dd-v2", model_families=("cnn",), requires_data=False)),
+    "meco_opt": (_meco_opt, ProxyCapability("meco_opt", version="hamstermimi-0d830dd-v2", model_families=("cnn",), requires_data=False)),
     "jacob_cov": (_jacob_cov, ProxyCapability("jacob_cov", version="portable-v1", model_families=("cnn", "transformer"))),
     "vkdnw": (_vkdnw, ProxyCapability("vkdnw", version="portable-v1", model_families=("cnn", "transformer"))),
     "near": (_near, ProxyCapability("near", version="portable-v1", model_families=("cnn", "transformer"))),
     "swap": (_swap, ProxyCapability("swap", version="portable-v1", model_families=("cnn", "transformer"))),
     "zen": (_zen, ProxyCapability("zen", version="portable-v1", model_families=("cnn", "transformer"))),
     "ntkt": (_ntkt, ProxyCapability("ntkt", version="portable-v1", model_families=("cnn", "transformer"))),
-    "zico": (_zico, ProxyCapability("zico", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True)),
-    "te_nas": (_te_nas, ProxyCapability("te_nas", version="portable-v2", model_families=("cnn", "transformer"), requires_labels=True, components=("synflow", "naswot", "gradnorm"), primary_component="synflow")),
-    "az_nas": (_az_nas, ProxyCapability("az_nas", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
+    "zico": (_zico, ProxyCapability("zico", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, requires_loss_fn=True)),
+    "te_nas": (_te_nas, ProxyCapability("te_nas", version="portable-v2", model_families=("cnn", "transformer"), requires_labels=True, requires_loss_fn=True, components=("synflow", "naswot", "gradnorm"), primary_component="synflow")),
+    "az_nas": (_az_nas, ProxyCapability("az_nas", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, requires_loss_fn=True, components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
     "az_nas_autoformer": (_az_nas_autoformer, ProxyCapability("az_nas_autoformer", version="aznas-5e6683-autoformer-stable-v1", model_families=("transformer",), components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
     "az_nas_plainnet": (_az_nas_plainnet, ProxyCapability("az_nas_plainnet", version="aznas-5e6683-plainnet-stabilized-v1", model_families=("cnn",), components=("expressivity", "progressivity", "trainability", "complexity"), primary_component="expressivity")),
     "er_pr": (_topology_er("pr"), ProxyCapability("er_pr", version="fx-v1", model_families=("cnn",))),
@@ -410,7 +464,8 @@ _SOURCES = {
     "gradnorm": "https://arxiv.org/abs/2101.08134",
     "synflow": "https://arxiv.org/abs/2006.05467",
     "naswot": "https://proceedings.mlr.press/v139/mellor21a.html",
-    "meco": "https://papers.nips.cc/paper_files/paper/2023/hash/bfa815ac6f08f4ada34fe22be054f2b9-Abstract-Conference.html",
+    "meco": "https://github.com/HamsterMimi/MeCo/blob/0d830dd2f639f9d1ba3b5831a65df768d70fc93b/zero-cost-nas/foresight/pruners/measures/meco.py",
+    "meco_opt": "https://github.com/HamsterMimi/MeCo/blob/0d830dd2f639f9d1ba3b5831a65df768d70fc93b/correlation/NAS_Bench_201.py",
     "jacob_cov": "https://arxiv.org/abs/2101.08134",
     "zen": "https://arxiv.org/abs/2102.01063",
     "zico": "https://openreview.net/forum?id=rwo-ls5GqGn",
@@ -422,11 +477,11 @@ _SOURCES = {
 for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.items()):
     if _proxy_name in {"params", "flops"}:
         _fidelity = "structural_measure"
-    elif _proxy_name in {"ter", "meco_opt"}:
+    elif _proxy_name == "ter":
         _fidelity = "alias"
     elif _proxy_name in {"te_nas", "az_nas"}:
         _fidelity = "portable_composite_approximation"
-    elif _proxy_name in {"az_nas_autoformer", "az_nas_plainnet"}:
+    elif _proxy_name in {"meco", "meco_opt", "az_nas_autoformer", "az_nas_plainnet"}:
         _fidelity = "paper_formula_port_stabilized"
     elif _proxy_name == "er" or _proxy_name.startswith("er_"):
         _fidelity = "project_extension"
@@ -438,7 +493,7 @@ for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.
             _proxy_capability,
             implementation_fidelity=_fidelity,
             source=_SOURCES.get(_proxy_name),
-            alias_of={"ter": "er", "meco_opt": "meco"}.get(_proxy_name),
+            alias_of={"ter": "er"}.get(_proxy_name),
         ),
     )
 

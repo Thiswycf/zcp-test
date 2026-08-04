@@ -400,8 +400,8 @@ benchmark 仍需分别生成真实 score → 专属表/图证据，不能由 NB2
 shard grouping 缺陷后，专属 topology 输出为 157 条 architecture、942 条 edge、5 类 operation、
 6,720 条 correlation、840 条 operation effect、588 条 matched pair 和 504 条 matched-pair
 summary。完整摘要见
-[`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。H1 仍只能标为
-核心 11 代理的另外两个 seed 现已补齐，三 seed 稳定性见
+[`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。当时单 seed
+结果只能标为“单 seed 完成”；核心 11 代理的另外两个 seed 现已补齐，三 seed 稳定性见
 [`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。当前状态更新为
 **“NB201 既定 seed 协议完成”**。旧报告曾错误地把 `params`/`flops` 的资源优化方向用于 accuracy
 相关性并取负；当前 reader 对旧记录执行显式只读迁移，以 `direction=maximize` 报告原始规模—精度

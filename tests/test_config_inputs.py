@@ -223,14 +223,13 @@ def test_native_benchmark_examples_declare_metric_protocol(
         assert evaluate["metric_seed_reduction"] == "mean"
 
 
-def test_proxyless_training_blockers_match_current_acceptance_state():
+def test_proxyless_training_gate_matches_completed_acceptance_state():
     from zcp_test.config import load_config
 
     root = Path(__file__).resolve().parents[1]
     config = load_config(root / "configs/training/ofa_proxyless_mbv2_imagenet.yaml")
-    blockers = config["formal_training_blockers"]
-
-    assert config["formal_training_ready"] is False
-    assert not any("MAC fixture" in blocker for blocker in blockers)
-    assert any("dual one-percent" in blocker for blocker in blockers)
-    assert any("checkpoint-resume" in blocker for blocker in blockers)
+    assert config["formal_training_ready"] is True
+    assert "formal_training_blockers" not in config
+    assert config["formal_training_acceptance"].endswith(
+        "proxyless_single_candidate_dual_one_percent_completion_20260804.json"
+    )

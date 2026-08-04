@@ -416,7 +416,9 @@ def test_cli_registry_lists_and_inspects(capsys):
         "version",
         "model_families",
         "requires_data",
+        "requires_inputs",
         "requires_labels",
+        "requires_loss_fn",
         "supports_cpu",
         "direction",
         "components",
@@ -449,6 +451,12 @@ def test_cli_registry_lists_and_inspects(capsys):
     assert validation["numpy_rng_unchanged"] is True
     assert validation["torch_rng_unchanged"] is True
     assert validation["primary_component_matches_capability"] is True
+
+    cli.main(["proxy", "validate", "meco_opt"])
+    meco_opt_validation = _output(capsys)
+    assert meco_opt_validation["status"] == "ok"
+    assert meco_opt_validation["hooks_clean"] is True
+    assert meco_opt_validation["python_rng_unchanged"] is True
 
 
 def test_cli_data_register_list_verify_and_replace(capsys, tmp_path):

@@ -55,6 +55,7 @@ from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.research import create_sample_manifest, load_sample_indices
 from zcp_test.reporting import correlation_summary, curve_plot, jsonl_to_csv, static_html
 from zcp_test.reporting.analysis import (
+    PROTOCOL_FIELDS,
     build_report_bundle,
     correlation_table,
     plot_search,
@@ -305,7 +306,7 @@ def _transnas_unsupported_reason(benchmark_id: str | None, task: str, proxy_id: 
         return None
     load_builtin_proxies()
     capability = PROXIES.create(proxy_id).capability
-    if capability.requires_labels and task not in {
+    if (capability.requires_labels or capability.requires_loss_fn) and task not in {
         "class_scene",
         "class_object",
         "jigsaw",
@@ -1015,7 +1016,9 @@ def _proxy_capability_payload(capability: Any) -> dict[str, Any]:
         "version": capability.version,
         "model_families": list(capability.model_families),
         "requires_data": capability.requires_data,
+        "requires_inputs": capability.requires_inputs,
         "requires_labels": capability.requires_labels,
+        "requires_loss_fn": capability.requires_loss_fn,
         "supports_cpu": capability.supports_cpu,
         "direction": capability.direction.value,
         "components": list(capability.components),
@@ -1110,11 +1113,11 @@ def _validate_proxy(name: str) -> None:
 
     proxy = PROXIES.create(name)
     model = torch.nn.Sequential(
-        torch.nn.Conv2d(3, 4, 3, padding=1),
+        torch.nn.Conv2d(3, 8, 3, padding=1),
         torch.nn.ReLU(),
         torch.nn.AdaptiveAvgPool2d(1),
         torch.nn.Flatten(),
-        torch.nn.Linear(4, 3),
+        torch.nn.Linear(8, 3),
     )
     inputs = torch.randn(2, 3, 8, 8)
     labels = torch.tensor([0, 1])
@@ -1817,60 +1820,106 @@ def command_evaluate(args: argparse.Namespace) -> None:
 
 
 def command_correlate(args: argparse.Namespace) -> None:
-    scores: dict[tuple[Any, Any], tuple[Any, str]] = {}
+    target_protocol_fields = tuple(
+        field
+        for field in PROTOCOL_FIELDS
+        if field not in {"input_source", "input_fingerprint", "model_fidelity", "seed"}
+    )
+
+    def protocol_identity(row: dict[str, Any], fields: tuple[str, ...]) -> tuple[str, dict[str, Any]]:
+        payload = {field: row.get(field) for field in fields}
+        serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        return serialized, payload
+
+    score_protocols: dict[str, dict[str, Any]] = {}
+    scores: dict[tuple[str, Any, Any], tuple[Any, str]] = {}
     for row in read_score_records(args.scores):
         if row.get("status", "ok") != "ok":
             continue
-        key = (row[args.id_field], row.get("proxy_id"))
+        protocol_key, protocol = protocol_identity(row, PROTOCOL_FIELDS)
+        score_protocols[protocol_key] = protocol
+        key = (protocol_key, row[args.id_field], row.get("proxy_id"))
         if key in scores:
             raise ValueError(f"Duplicate score key in correlate input: {key}")
         scores[key] = (
             score_component(row, args.component) if args.component else row.get(args.score_field),
             str(row.get("direction", "maximize")),
         )
-    targets: dict[Any, Any] = {}
+    target_protocols: dict[str, dict[str, Any]] = {}
+    targets: dict[tuple[str, Any], Any] = {}
     for row in read_jsonl(args.targets):
         if row.get(args.target_field) is None:
             continue
-        key = row[args.id_field]
+        protocol_key, protocol = protocol_identity(row, target_protocol_fields)
+        target_protocols[protocol_key] = protocol
+        key = (protocol_key, row[args.id_field])
         if key in targets:
-            raise ValueError(f"Duplicate target architecture ID in correlate input: {key}")
+            raise ValueError(f"Duplicate target protocol/architecture key in correlate input: {key}")
         targets[key] = row[args.target_field]
-    groups: dict[str, tuple[list[float], list[float], set[str]]] = {}
-    available_by_proxy: dict[str, int] = {}
-    for (architecture_id, proxy_id), (score, direction) in scores.items():
+
+    matched_target_protocol: dict[str, str] = {}
+    for score_key, score_protocol in score_protocols.items():
+        compatible = [
+            target_key
+            for target_key, target_protocol in target_protocols.items()
+            if all(
+                value is None or score_protocol.get(field) == value
+                for field, value in target_protocol.items()
+            )
+        ]
+        if len(compatible) > 1:
+            raise ValueError(
+                "Ambiguous target protocols for correlate score protocol: "
+                f"{score_protocol}; matches={len(compatible)}"
+            )
+        if compatible:
+            matched_target_protocol[score_key] = compatible[0]
+
+    groups: dict[tuple[str, str], tuple[list[float], list[float], set[str]]] = {}
+    available_by_group: dict[tuple[str, str], int] = {}
+    for (protocol_key, architecture_id, proxy_id), (score, direction) in scores.items():
         proxy_name = str(proxy_id)
-        available_by_proxy[proxy_name] = available_by_proxy.get(proxy_name, 0) + int(
-            score is not None
-        )
-        if architecture_id in targets and score is not None:
+        group_key = (protocol_key, proxy_name)
+        available_by_group[group_key] = available_by_group.get(group_key, 0) + int(score is not None)
+        target_protocol_key = matched_target_protocol.get(protocol_key)
+        target_key = (target_protocol_key, architecture_id)
+        if target_protocol_key is not None and target_key in targets and score is not None:
             if direction not in ("maximize", "minimize"):
                 raise ValueError(f"Unknown score direction {direction!r} for proxy {proxy_id!r}")
-            target_values, score_values, directions = groups.setdefault(proxy_name, ([], [], set()))
-            target = float(targets[architecture_id])
+            target_values, score_values, directions = groups.setdefault(
+                group_key, ([], [], set())
+            )
+            target = float(targets[target_key])
             target_values.append(-target if args.target_direction == "minimize" else target)
             numeric_score = float(score)
             score_values.append(-numeric_score if direction == "minimize" else numeric_score)
             directions.add(direction)
     writer = JsonlWriter(args.output, fsync_every=1)
     records = []
-    for proxy_id, (target_values, score_values, directions) in groups.items():
+    for (protocol_key, proxy_id), (target_values, score_values, directions) in groups.items():
         if len(directions) != 1:
             raise ValueError(f"Mixed score directions for proxy {proxy_id!r}: {sorted(directions)}")
         score_direction = next(iter(directions))
         paired_count = len(score_values)
+        target_protocol_key = matched_target_protocol[protocol_key]
+        available_target_count = sum(
+            1 for candidate_protocol, _ in targets if candidate_protocol == target_protocol_key
+        )
+        protocol = score_protocols[protocol_key]
         record = {
+            **protocol,
+            "protocol_digest": hashlib.sha256(protocol_key.encode("utf-8")).hexdigest(),
             "proxy_id": proxy_id,
             "component": args.component or "primary",
             "target_field": args.target_field,
             "score_direction": score_direction,
             "target_direction": args.target_direction,
             "direction_normalized_to_maximize": True,
-            "available_score_count": available_by_proxy[proxy_id],
-            "available_target_count": len(targets),
+            "available_score_count": available_by_group[(protocol_key, proxy_id)],
+            "available_target_count": available_target_count,
             "paired_count": paired_count,
-            "score_coverage": paired_count / max(1, available_by_proxy[proxy_id]),
-            "target_coverage": paired_count / max(1, len(targets)),
+            "score_coverage": paired_count / max(1, available_by_group[(protocol_key, proxy_id)]),
+            "target_coverage": paired_count / max(1, available_target_count),
             **correlation_summary(target_values, score_values, args.ndcg_k),
         }
         writer.append(record)
@@ -2353,6 +2402,10 @@ def command_train(args: argparse.Namespace) -> None:
     if full_batch_smoke and not args.smoke:
         raise ValueError("--full-batch-smoke requires --smoke")
     formal_training = not args.smoke and not acceptance_smoke and not real_data_preflight
+    dataset = str(config["dataset"])
+    expected_classes = {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(
+        dataset, 10
+    )
     distributed_world_size = int(os.environ.get("WORLD_SIZE", "1"))
     distributed_rank = int(os.environ.get("RANK", "0"))
     distributed_local_rank = int(os.environ.get("LOCAL_RANK", "0"))
@@ -2364,11 +2417,6 @@ def command_train(args: argparse.Namespace) -> None:
         _prepare_gpu(args)
     load_builtin_spaces()
     space = SPACES.create(config["space"])
-    architecture = (
-        space.sample(args.seed)
-        if args.architecture is None
-        else space.canonicalize(_load_architecture_spec(args.architecture))
-    )
     model_provenance = _space_provenance(space)
     model_fidelity = model_provenance["model_fidelity"]
     if not args.smoke and model_fidelity != ModelFidelity.REFERENCE_MODEL.value:
@@ -2386,6 +2434,56 @@ def command_train(args: argparse.Namespace) -> None:
             f"Formal training protocol for {space.search_space_id!r} is not accepted yet; "
             "use --smoke only until the declared recipe is implemented and validated."
             f"{suffix}"
+        )
+    if formal_training:
+        validate_formal_training_protocol(config)
+        if args.epochs is not None and args.epochs != int(config["epochs"]):
+            raise ValueError("Formal training cannot override the accepted epoch schedule")
+        if args.data_fraction != 1.0:
+            raise ValueError("Formal training requires the complete dataset (data_fraction=1.0)")
+        if args.classes is not None and args.classes != expected_classes:
+            raise ValueError(
+                f"Formal training for {dataset} requires exactly {expected_classes} classes"
+            )
+        if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
+            raise ValueError("Formal training cannot override the accepted batch_size")
+        configured_input_size = int(config.get("input_size", 32))
+        cli_input_size_explicit = "input_size" in getattr(
+            args, "_cli_explicit_options", frozenset()
+        )
+        if (
+            str(config.get("candidate_input_size_policy", "fixed_config")) == "fixed_config"
+            and cli_input_size_explicit
+            and args.input_size is not None
+            and args.input_size != configured_input_size
+        ):
+            raise ValueError("Formal training cannot override the accepted input_size")
+        if args.architecture is None:
+            raise ValueError("Formal training requires an explicit frozen --architecture JSON file")
+        architecture_path = Path(args.architecture).expanduser()
+        try:
+            architecture_is_file = architecture_path.is_file()
+        except OSError:
+            architecture_is_file = False
+        if not architecture_is_file:
+            raise ValueError("Formal training requires --architecture to be an existing JSON file")
+    architecture = (
+        space.sample(args.seed)
+        if args.architecture is None
+        else space.canonicalize(_load_architecture_spec(args.architecture))
+    )
+    architecture_argument = _architecture_argument_provenance(args.architecture)
+    declared_space = architecture_argument.get("declared_search_space_id")
+    if declared_space is not None and declared_space != space.search_space_id:
+        raise ValueError(
+            f"Architecture file search_space_id {declared_space!r} does not match "
+            f"training space {space.search_space_id!r}"
+        )
+    declared_id = architecture_argument.get("declared_architecture_id")
+    if declared_id is not None and declared_id != architecture.architecture_id:
+        raise ValueError(
+            f"Architecture file ID {declared_id!r} does not match canonical ID "
+            f"{architecture.architecture_id!r}"
         )
     configured_input_size = int(config.get("input_size", 32))
     cli_input_size_explicit = "input_size" in getattr(
@@ -2406,7 +2504,6 @@ def command_train(args: argparse.Namespace) -> None:
     else:
         raise ValueError(f"Unsupported candidate_input_size_policy: {input_size_policy!r}")
     if formal_training:
-        validate_formal_training_protocol(config)
         if args.batch_size is not None and args.batch_size != int(config["batch_size"]):
             raise ValueError("Formal training cannot override the accepted batch_size")
         expected_input_size = resolved_candidate_input_size or configured_input_size
@@ -2439,8 +2536,7 @@ def command_train(args: argparse.Namespace) -> None:
         )
     if real_data_preflight and (epochs != 1 or args.data_fraction != 1.0):
         raise ValueError("Real-data preflight requires exactly one epoch over the complete dataset")
-    dataset = str(config["dataset"])
-    classes = args.classes or {"cifar10": 10, "cifar100": 100, "imagenet1k": 1000}.get(dataset, 10)
+    classes = args.classes or expected_classes
     configured_batch_size = int(config.get("batch_size", 8))
     batch_size_semantics = str(config.get("batch_size_semantics", "per_device"))
     if not args.smoke and batch_size_semantics == "global":
@@ -2552,6 +2648,7 @@ def command_train(args: argparse.Namespace) -> None:
         resolved = {
             **config,
             "architecture": architecture.to_dict(),
+            "architecture_argument": architecture_argument,
             "epochs": epochs,
             "data_fraction": args.data_fraction,
             "smoke": args.smoke,
@@ -2667,6 +2764,9 @@ def command_train(args: argparse.Namespace) -> None:
                 run_identity={
                     "search_space_id": space.search_space_id,
                     "architecture_id": architecture.architecture_id,
+                    "architecture_file_sha256": architecture_argument.get("sha256"),
+                    "architecture_search_run_id": architecture_argument.get("search_run_id"),
+                    "architecture_candidate_role": architecture_argument.get("candidate_role"),
                     "dataset": dataset,
                     "protocol": config.get("protocol"),
                     "classes": classes,
@@ -2728,6 +2828,38 @@ def _load_architecture_spec(value: str) -> dict[str, Any]:
     if not isinstance(specification, dict):
         raise ValueError("Architecture 'spec' must be an object")
     return specification
+
+
+def _architecture_argument_provenance(value: str | None) -> dict[str, Any]:
+    if value is None:
+        return {"source_kind": "sampled", "sha256": None}
+    stripped = value.lstrip()
+    if stripped.startswith(("{", "[")):
+        payload = json.loads(value)
+        source_kind = "inline"
+        digest = hashlib.sha256(value.encode("utf-8")).hexdigest()
+        source_name = None
+    else:
+        source = Path(value).expanduser()
+        raw = source.read_bytes()
+        payload = json.loads(raw.decode("utf-8"))
+        source_kind = "file"
+        digest = hashlib.sha256(raw).hexdigest()
+        source_name = source.name
+    if not isinstance(payload, dict):
+        payload = {}
+    provenance = payload.get("provenance")
+    provenance = provenance if isinstance(provenance, dict) else {}
+    return {
+        "source_kind": source_kind,
+        "source_name": source_name,
+        "sha256": digest,
+        "declared_search_space_id": payload.get("search_space_id"),
+        "declared_architecture_id": payload.get("architecture_id"),
+        "candidate_role": payload.get("candidate_role"),
+        "search_run_id": provenance.get("search_run_id"),
+        "search_manifest_sha256": provenance.get("search_manifest_sha256"),
+    }
 
 
 def _build_training_model(

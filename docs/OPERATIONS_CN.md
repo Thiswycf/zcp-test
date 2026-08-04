@@ -1,5 +1,30 @@
 # CLI 运维与安全边界
 
+## CLI 命令索引
+
+当前公开 CLI 共 40 个叶子/兼容入口。先用 `zcp-test --help` 查看一级命令，再用
+`zcp-test COMMAND --help` 或 `zcp-test GROUP ACTION --help` 查看参数；以下名称可直接复制：
+
+```text
+doctor
+gpu list
+data list | register | verify | fetch | checklist | bootstrap
+data export-manifest | import-manifest | convert-vit | convert-imagenet16 | prepare-transnas-input
+benchmark list | inspect | sample
+space list | inspect
+proxy list | matrix | inspect | validate | scaffold
+evaluate | correlate | search | train | report | monitor
+report bundle
+analyze correlation | compare | sensitivity | search | training | benchmark
+acceptance freeze-candidates | reconcile-search-cohort | validate-plainnet-search
+legacy import
+```
+
+推荐发现链：`benchmark list → benchmark inspect → benchmark sample/evaluate`；
+`space list → space inspect → evaluate/search`；
+`proxy list/matrix → proxy inspect/validate → evaluate`。`report` 是兼容单文件入口，
+`report bundle` 才是多 run CSV/PNG/SVG/HTML 汇总入口。
+
 ## `--trusted` 信任边界
 
 `--trusted` 只表示操作者已独立核验序列化输入，不会自动计算 checksum、隔离反序列化或让
@@ -340,8 +365,9 @@ zcp-test analyze benchmark --scores "${SCORES[@]}" \
 模型结构 fidelity 与正式训练协议是两个独立条件。`darts`、`autoformer`、
 `ofa_proxyless_mbv2` 与 `zennas_plainnet_mbv2` 均拥有 `reference_model` 静态结构；后者使用
 ZenNAS/AZ-NAS structure string、白名单 parser 和独立的 sample/mutate/crossover。只有配置中
-`formal_training_ready: true` 的协议才能启动非 smoke 训练。当前正式放行的是 DARTS profiles 与
-AutoFormer AZ-NAS scratch profile；PlainNet-MBV2 与 Proxyless-MBV2 配置仍列出 blocker 并明确拒绝正式训练。`--smoke` 只验证
+`formal_training_ready: true` 的协议才能启动非 smoke 训练。当前正式放行的是 DARTS profiles、
+AutoFormer AZ-NAS scratch profile 与版本化的 Proxyless-MBV2 candidate-resolution scratch profile；
+PlainNet-MBV2 配置仍列出 blocker 并明确拒绝正式训练。`--smoke` 只验证
 合成数据上的构模和训练流水线，不解除协议 blocker。
 
 `--acceptance-smoke` 与 `--smoke` 互斥，使用真实数据且只接受两种代码锁定模式：
@@ -659,7 +685,10 @@ AZ-NAS 组件与 log-rank 组合，但不是上游 AutoFormer 候选控制器的
 初始化与代理随机向量使用 `architecture-hash-v1`，由 search seed 和 canonical architecture ID 派生；
 同 seed 的两次独立 GPU smoke 在去除耗时字段后逐行一致。
 
-来源对齐的验收 cohort 使用 generation 0、每个 seed 随机评估 8,000 个候选。launcher 会在一张卡
+保留的 `3×8,000` cohort 是单候选/1% 政策生效前的历史搜索证据，不再定义当前工程验收预算。当前
+搜索工程验收必须约为预声明参考预算的 1%，并记录参考预算、实际评估数、预算比例和截断控制器
+fidelity。下面的旧 launcher 只用于只读审计或显式恢复历史产物，不得作为新验收工作负载启动。
+该 launcher 会在一张卡
 装箱两个已通过显存 smoke 的进程、第二张卡运行一个进程；等待逐卡锁不会阻塞调用者，并且每 100 次
 评估原子保存一次未完成初始 population：
 
@@ -825,7 +854,7 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 | `evaluate` | `scores.jsonl` | `架构数 × 代理数` | architecture/benchmark/space、proxy/version/component/direction、dataset/input fingerprint、fidelity、status |
 | `search` | `search.jsonl` | candidate：`population + generations × (population-elite_count)`；summary：`generations+1` | generation、candidate/parent/mutation、proxy、资源约束、累计预算、模型/输入协议 |
 | `train` | `training.jsonl`、`events.jsonl` | training：每个实际完成 epoch 一行；events：约每 30 秒及 split 末尾一行 | epoch 曲线指标；rank 0 本地 batch heartbeat、ETA 与 epoch 完成事件 |
-| `correlate` | 用户指定 JSONL | 每个实际有 canonical-ID join 的 proxy 一行 | component、score/target direction、paired/coverage、统计量 |
+| `correlate` | 用户指定 JSONL | 每个“完整 score protocol × proxy”且有 canonical-ID join 的组合一行 | protocol digest、benchmark/version/dataset/budget/input/seed/fidelity、component、direction、paired/coverage、统计量 |
 | `report bundle` | CSV/HTML/可选图表 | 由可用 artifact 和字段决定 | 源 run、协议分组和派生产物类型 |
 
 `search` 的 generation summary 与 candidate 是不同 `record_type`，不能把总行数误当候选数。

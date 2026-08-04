@@ -24,7 +24,6 @@ candidate_input_size_policy: architecture_resolution
 training_protocol_fidelity: project_candidate_resolution_adaptation
 implementation_source: https://github.com/mit-han-lab/ProxylessNAS/tree/b23018c9c369d22931f7422b71ca6a7eaa354c46
 implementation_commit: b23018c9c369d22931f7422b71ca6a7eaa354c46
-formal_training_ready: false
-formal_training_blockers:
-  - dual one-percent GPU acceptance is not completed
-  - distributed validation, checkpoint-resume, and reporting acceptance are not completed
+formal_training_ready: true
+formal_training_acceptance: docs/evidence/proxyless_single_candidate_dual_one_percent_completion_20260804.json
+formal_training_acceptance_sha256: 02aa0e98523d98c30dd9760f350bc31bb6f45dc2497eedfff19d91732faa9916

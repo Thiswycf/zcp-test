@@ -30,6 +30,8 @@ class NasBench201Adapter(IndexedNativeAdapter):
             "splits": ["train", "valid", "test"],
             "metric_names": ["accuracy", "loss", "time"],
             "epoch_budgets": [12, 200],
+            "seed_reductions": ["mean"],
+            "supports_explicit_seed": True,
             "model_building": True,
             "benchmark_source": "nasbench201",
         }

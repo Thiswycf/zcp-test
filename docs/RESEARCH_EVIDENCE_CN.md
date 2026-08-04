@@ -18,7 +18,7 @@
 | [TE-NAS](https://arxiv.org/abs/2102.11535) / [代码](https://github.com/VITA-Group/TENAS) | trainability/expressivity、逐操作剪枝、搜索成本和组件消融 | DARTS 搜索空间部分直接；不是 NB301 surrogate 实验 |
 | [NAS-Bench-Suite-Zero](https://arxiv.org/abs/2210.03230) / [代码](https://github.com/automl/naslib/tree/zerocost) | 代理间相关、跨任务/benchmark、条件熵/信息增益、结构偏置、运行时间、代理加入 predictor | NB101、NB301、TNB micro/macro 直接 |
 | [ZiCo](https://arxiv.org/abs/2301.11300) / [代码](https://github.com/SLDGroup/ZiCo) | Spearman/Kendall、Params/FLOPs 基线、NATS/TNB 搜索和多次运行 | NB101、NATS-TSS/SSS、TNB micro 直接 |
-| [MeCo](https://papers.nips.cc/paper_files/paper/2023/hash/bfa815ac6f08f4ada34fe22be054f2b9-Abstract-Conference.html) / [代码](https://github.com/HamsterMimi/MeCo) | 多 benchmark Spearman、输入/channel 消融、ZC-PT 搜索、失败任务披露 | NB101、NATS-TSS/SSS、NB301、TNB micro/macro 直接 |
+| [MeCo](https://papers.nips.cc/paper_files/paper/2023/hash/bfa815ac6f08f4ada34fe22be054f2b9-Abstract-Conference.html) / [代码 `0d830dd`](https://github.com/HamsterMimi/MeCo/tree/0d830dd2f639f9d1ba3b5831a65df768d70fc93b) | 多 benchmark Spearman、输入/channel 消融、ZC-PT 搜索、失败任务披露；项目从 `hamstermimi-0d830dd-v2` 起才使用最小特征值公式 | NB101、NATS-TSS/SSS、NB301、TNB micro/macro 直接；旧 `portable-v1` 结果无效 |
 | [AZ-NAS](https://openaccess.thecvf.com/content/CVPR2024/html/Lee_AZ-NAS_Assembling_Zero-Cost_Proxies_for_Network_Architecture_Search_CVPR_2024_paper.html) / [代码](https://github.com/cvlab-yonsei/AZ-NAS) | 多代理组件消融、非线性 rank aggregation、Kendall/Spearman/时间、MobileNet/AutoFormer 搜索 | AutoFormer 搜索空间部分直接；不是 ViT-Bench GT，PiT 无直接依据 |
 
 ## 从论文实验到本项目接口

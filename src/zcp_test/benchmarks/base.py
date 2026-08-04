@@ -44,10 +44,25 @@ class BenchmarkAdapter(ABC):
         splits = capabilities.get("splits")
         if splits and metric.split not in splits:
             raise ValueError(f"Split {metric.split!r} is not supported by {self.benchmark_id}")
+        metric_names = capabilities.get("metric_names")
+        if metric_names and metric.metric_name not in metric_names:
+            raise ValueError(
+                f"Metric {metric.metric_name!r} is not supported by {self.benchmark_id}"
+            )
         budgets = capabilities.get("epoch_budgets")
         if budgets and metric.epoch_budget is not None and metric.epoch_budget not in budgets:
             raise ValueError(
                 f"Epoch budget {metric.epoch_budget!r} is not supported by {self.benchmark_id}"
+            )
+        reductions = capabilities.get("seed_reductions")
+        if (
+            reductions
+            and metric.seed is None
+            and metric.seed_reduction not in reductions
+        ):
+            raise ValueError(
+                f"Seed reduction {metric.seed_reduction!r} is not supported by "
+                f"{self.benchmark_id}"
             )
         version = self.metadata().get("version")
         if metric.benchmark_version and version and metric.benchmark_version != version:

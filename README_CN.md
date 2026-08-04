@@ -39,15 +39,19 @@ zcp-test doctor --catalog configs/data.example.json
 - [新增代理](docs/ADD_PROXY_CN.md)
 - [分析与监控](docs/ANALYSIS_CN.md)
 - [训练协议、恢复与正式门禁](docs/TRAINING_CN.md)
+- [代理身份、公式 fidelity 与开放风险](docs/PROXIES_CN.md)
 - [配置优先级、RUN 目录与运维边界](docs/OPERATIONS_CN.md)
 - [DARTS 搜索与训练](docs/DARTS_TRAINING_CN.md)
 - [1% Benchmark 相关性验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)
+- [当前完整验收状态](docs/ACCEPTANCE_CN.md)
 
 ```bash
 zcp-test data list --catalog configs/data.example.json
 zcp-test benchmark list
 zcp-test benchmark inspect nasbench201 --trusted --catalog /path/to/data/catalog.json
+zcp-test space list
 zcp-test space inspect autoformer
+zcp-test proxy list
 zcp-test proxy inspect er
 
 zcp-test gpu list
@@ -63,6 +67,10 @@ zcp-test train --config configs/training/darts_cifar10.yaml --smoke \
   --architecture "$ARCH" --output "$OUTPUT" \
   --resume "$RUN/checkpoints/last.pt" --trusted
 ```
+
+`space list` 输出按 ID 排序的 JSON 字符串数组；复制其中的 `SPACE_ID` 后执行
+`zcp-test space inspect SPACE_ID --seed 42`。全部 40 个叶子/兼容入口见
+[CLI 命令索引](docs/OPERATIONS_CN.md#cli-命令索引)，不要依赖猜测命令名。
 
 ViT-Bench-101 的 AutoFormer 主切片、扩展切片与 PiT 分开转换和报告；vanilla、KD 与 inherited-supernet accuracy 不混合。NB301 默认使用 `with_noise=False`。
 
@@ -142,7 +150,7 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 
 ## 正式训练
 
-PlainNet-MBV2 的正式 AZ-NAS 搜索不能使用 generic `population × generations` 示例代替。固定入口为：
+PlainNet-MBV2 的工程验收搜索不能使用 generic `population × generations` 示例代替。固定 1% 入口为：
 
 ```bash
 zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
@@ -150,12 +158,14 @@ zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
   --output /path/to/runs/search/plainnet-aznas-450m
 ```
 
-该入口强制 100,000 个有效候选、population 1024、batch 64/224、四组件全历史 log-rank 和无
-crossover。正式运行前先按[操作手册](docs/OPERATIONS_CN.md#az-nas-plainnet-mbv2-搜索)执行 GPU
-preflight 和 CPU rerank 估时；preflight 保留 100k 身份但在 3 个候选后保持 `running`，不得称为
-完成搜索。本机 CPU rerank 保守估计约 4.21 小时，GPU 单候选耗时尚待排队预验收。
+该入口严格评估 1,000 个有效候选，即上游 100,000 候选预算的 1%；保留 batch 64/224、四组件
+log-rank 和无 crossover 的控制流，并显式标记
+`source_aligned_control_flow_port_truncated_one_percent_budget`。它是工程验收，不是完整 AZ-NAS
+100k 复现。已保留的 450M/600M/1G 三档运行均为 1,000 条候选记录加 1 条汇总且已经完成，不得为了
+重复验收再次启动。上游 100k 协议与 1% 边界见
+[操作手册](docs/OPERATIONS_CN.md#az-nas-plainnet-mbv2-搜索)。
 
-无标准答案搜索空间在正式训练前，先从一个 `completed` search run 冻结三类候选：
+无标准答案搜索空间在工程训练验收前，从一个 `completed` 的 1% search run 冻结选中架构：
 
 ```bash
 zcp-test acceptance freeze-candidates \
@@ -164,8 +174,10 @@ zcp-test acceptance freeze-candidates \
   --output /path/to/frozen-candidates/autoformer
 ```
 
-该命令拒绝缺少 proxy/version、输入指纹或 search JSONL 证据的手工候选。详细 provenance、资源
-匹配语义、双重 1% 启动与恢复见[操作手册](docs/OPERATIONS_CN.md)。
+该命令拒绝缺少 proxy/version、输入指纹或 search JSONL 证据的手工候选。工具仍可为独立科学
+对照导出其他角色，但工程 gate 只读取并训练 `zcp_selected.json`：同一架构共运行两项，即全数据 ×
+正式 epoch 的 1%，以及精确 1% 数据 × 完整 schedule。详细 provenance、资源匹配语义、双重 1%
+启动与恢复见[操作手册](docs/OPERATIONS_CN.md)。
 
 - AutoFormer：AZ-NAS Tiny/Small 为 500 epoch、Base 为 300 epoch；基础 LR `5e-4` 按
   `per_device_batch × world_size / 512` 线性缩放（官方 8×256 时有效 LR `0.002`），AdamW、
@@ -197,7 +209,8 @@ DDP，其余五项为单卡，因而 per-device BatchNorm 统计粒度不可严�
 全数据精度复现。首轮发现低速盘小文件 I/O 与旧版空 `run.log` 问题；当前实现会把事件同时 flush
 到 `events.jsonl` 和 `run.log`，重启时应通过
 `--data-root` 显式选择经 `findmnt` 核验的高速本地副本。AutoFormer 单候选双重 1% 已完成；
-PlainNet-MBV2 和 Proxyless-MBV2 的双重 1% 验收仍未完成。
+Proxyless-MBV2 单候选双重 1%、恢复与报告已完成；PlainNet-MBV2 仍未完成。Proxyless 的放行仅针对
+版本化 candidate-resolution scratch profile，不是官方 224 精度复现。
 
 自 2026-08-04 起，未来工程验收固定只训练一个 `zcp-selected` 架构的两项 1% 协议，共 2 runs；
 历史已完成产物保持不变，但旧 supervisor 中尚未启动的基线任务必须取消，不能在政策生效后自动继承。

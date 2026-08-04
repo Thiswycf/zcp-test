@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 from collections.abc import Mapping
+from pathlib import Path
 from typing import Any
 
 ONE_PERCENT_DATA_FRACTION = 0.01
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 FORMAL_TRAINING_PROTOCOLS: dict[str, dict[str, Any]] = {
@@ -200,6 +204,14 @@ FORMAL_TRAINING_PROTOCOLS["aznas-autoformer-scratch"] = {
     **CANDIDATE_TRAINING_PROTOCOLS["aznas-autoformer-scratch"],
     "formal_training_ready": True,
     "formal_training_acceptance": "docs/evidence/autoformer_single_candidate_dual_one_percent_completion_20260804.json",
+    "formal_training_acceptance_sha256": "f28630ecb42fd7242ccae0b851832f4570c10e48091066818eae0a8d4b4e1a6b",
+}
+
+FORMAL_TRAINING_PROTOCOLS["project-ofa-proxyless-mbv2-scratch-v1"] = {
+    **CANDIDATE_TRAINING_PROTOCOLS["project-ofa-proxyless-mbv2-scratch-v1"],
+    "formal_training_ready": True,
+    "formal_training_acceptance": "docs/evidence/proxyless_single_candidate_dual_one_percent_completion_20260804.json",
+    "formal_training_acceptance_sha256": "02aa0e98523d98c30dd9760f350bc31bb6f45dc2497eedfff19d91732faa9916",
 }
 
 
@@ -287,6 +299,31 @@ def validate_formal_training_protocol(config: Mapping[str, Any]) -> str:
             f"Formal training protocol {protocol!r} does not match its accepted profile: "
             + "; ".join(mismatches)
         )
+    evidence_name = expected.get("formal_training_acceptance")
+    if evidence_name is not None:
+        evidence_path = (PROJECT_ROOT / str(evidence_name)).resolve()
+        try:
+            evidence_path.relative_to(PROJECT_ROOT.resolve())
+        except ValueError as error:
+            raise ValueError("Formal training acceptance evidence escapes the project root") from error
+        if not evidence_path.is_file():
+            raise ValueError(f"Formal training acceptance evidence is missing: {evidence_name}")
+        raw = evidence_path.read_bytes()
+        digest = hashlib.sha256(raw).hexdigest()
+        if digest != expected.get("formal_training_acceptance_sha256"):
+            raise ValueError(
+                f"Formal training acceptance evidence checksum mismatch: {evidence_name}"
+            )
+        evidence = json.loads(raw.decode("utf-8"))
+        accepted_status = str(evidence.get("status", ""))
+        if accepted_status != "completed" and not accepted_status.endswith("_completed"):
+            raise ValueError(
+                f"Formal training acceptance evidence is not completed: {accepted_status!r}"
+            )
+        if evidence.get("search_space_id") != expected.get("space"):
+            raise ValueError("Formal training acceptance evidence search_space_id mismatch")
+        if evidence.get("training_protocol") != protocol:
+            raise ValueError("Formal training acceptance evidence protocol mismatch")
     return protocol
 
 

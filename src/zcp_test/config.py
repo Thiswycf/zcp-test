@@ -35,6 +35,7 @@ TRAIN_PROFILE_KEYS = frozenset(
         "exclude_norm_from_weight_decay",
         "formal_training_blockers",
         "formal_training_acceptance",
+        "formal_training_acceptance_sha256",
         "formal_training_ready",
         "global_pool",
         "grad_clip",

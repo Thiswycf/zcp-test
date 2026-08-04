@@ -2,15 +2,16 @@
 
 本手册用于没有 tabular“标准答案”的开放搜索空间。Benchmark 固定候选集应做 ZCP—真值相关性，
 不重复把全部 benchmark 架构完整训练；DARTS、AutoFormer 和 MobileNet 搜索空间则先用 validation
-协议搜索，再对选中、随机和参数/FLOPs 匹配架构从头训练。
+协议搜索。当前工程验收只对唯一 `zcp-selected` 从头训练；随机和参数/FLOPs 匹配候选仅属于另行
+预声明、充分收敛且多 seed 的科学比较，不进入通用工程 gate。
 
 ## 1. 当前训练能力矩阵
 
 | Space | 静态模型 fidelity | 正式训练 | 当前边界 |
 |---|---|---|---|
 | `darts` | `reference_model` | 已放行，尚未完成高成本精度验收 | CIFAR-10/100、原始 DARTS ImageNet、TE-NAS retrain 分 profile |
-| `autoformer` | `reference_model` | **阻断** | AZ-NAS Tiny/Small 500-epoch profile、no-decay、warmup/min-LR、plain validation CE 已锁定；双重 1% GPU 验收未完成 |
-| `ofa_proxyless_mbv2` | `reference_model` | **阻断** | scratch 与 inherited 已分离；`he_fout`、batch-cosine、TF color jitter、BN no-decay/recalibration 和 MAC golden 已锁定，仍缺双重 1% GPU 验收 |
+| `autoformer` | `reference_model` | **项目 profile 已放行** | 单候选双重 1% 与恢复/报告已完成；不等于 500 epoch 全数据论文精度复现 |
+| `ofa_proxyless_mbv2` | `reference_model` | **项目 profile 已放行** | 单候选双重 1%、恢复和报告已完成；仅放行 candidate-resolution scratch profile，不冒充官方 224 复现 |
 | `zennas_plainnet_mbv2` | `reference_model` | **阻断** | structure-string、12 类 residual block、SE、参数/MAC golden 与 150-epoch candidate profile 已锁定；仍缺双重 1% GPU 验收 |
 | `pit` | `reference_topology_pytorch_port` | **尚无正式配置** | Auto-Prox `90ed458` 三阶段拓扑、参数/MAC fixture 已核对；缺 checkpoint/逐层数值对照，ViT-Bench vanilla/KD 真值只用于查询 |
 | `ofa_mbv3` | `reference_model` | **尚无正式配置** | 官方五阶段/20-block 静态子网与 BN recalibration；尚未接入 inherited checkpoint/active weight export |
@@ -33,17 +34,23 @@ synthetic smoke，峰值分配显存约 4.63 GiB；证据见
 模型为 `reference_model` 不自动表示训练协议完备。非 smoke 训练同时要求配置
 `formal_training_ready: true`，并且 `protocol` 及关键超参数必须匹配当前版本代码内置的已验收
 profile；用户自写 YAML 不能通过设置该布尔值自行放行。未满足时 CLI 会列出 blocker 或不一致字段
-并退出，不静默降级。正式运行不能覆盖已验收 profile 的 batch size 和 input size。
+并退出，不静默降级。正式运行必须提供现有架构 JSON 文件，记录文件 SHA-256、candidate role 和
+search run provenance；不得使用内联 JSON 或随机采样。正式运行也不能覆盖 epoch schedule、完整数据
+比例、类别数、batch size 和 input size。验收 evidence 的路径、SHA-256、完成状态、space 和 protocol
+均由代码再次校验，删除或替换 evidence 后门禁会 fail closed。
 
 ## 2. 从搜索结果选择架构
 
-搜索 run 的架构必须来自 validation-only 选择，不得使用 benchmark test 指标调参。建议保留三组：
+搜索 run 的架构必须来自 validation-only 选择，不得使用 benchmark test 指标调参。独立设计的充分
+收敛科学对比可预声明三组：
 
 1. ZCP 搜索 best；
 2. 固定 seed 随机候选；
 3. 参数量或 FLOPs 匹配候选。
 
-`--architecture` 接受文件或内联 JSON：
+双重 1% 工程验收只训练唯一 `zcp-selected`，不自动执行后两组，也不能据短训声明搜索收益。
+
+`--architecture` 在 smoke/acceptance 中接受文件或内联 JSON；正式训练只接受现有 JSON 文件：
 
 ```bash
 zcp-test train \

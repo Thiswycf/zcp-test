@@ -9,7 +9,7 @@ from zcp_test.artifacts import JsonlWriter, RunContext, merge_jsonl, read_jsonl
 from zcp_test.artifacts.run import PROJECT_TIMEZONE_NAME, _package_versions, project_now_iso
 from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
-from zcp_test.proxies.builtin import FunctionProxy
+from zcp_test.proxies.builtin import FunctionProxy, _meco, _meco_opt
 from zcp_test.reporting import correlation_summary
 from zcp_test.search import EvolutionSearch, cache_key, load_search_state
 from zcp_test.spaces import SPACES, load_builtin_spaces
@@ -194,6 +194,7 @@ def test_synflow_uses_float64_for_deep_models_and_restores_dtype():
     assert all(parameter.dtype == torch.float32 for parameter in model.parameters())
     assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
     assert PROXIES.create("synflow").capability.requires_data is False
+    assert PROXIES.create("synflow").capability.requires_inputs is True
 
 
 def test_proxy_can_be_explicitly_marked_unsupported_by_input_contract():
@@ -210,7 +211,7 @@ def test_proxy_can_be_explicitly_marked_unsupported_by_input_contract():
     assert result.primary_component == "score"
 
 
-def test_failed_multicomponent_proxy_preserves_declared_primary_component():
+def test_unsupported_multicomponent_proxy_preserves_declared_primary_component():
     model = torch.nn.Sequential(torch.nn.Flatten(), torch.nn.Linear(4, 2))
 
     result = evaluate_proxy(
@@ -221,8 +222,78 @@ def test_failed_multicomponent_proxy_preserves_declared_primary_component():
         loss_fn=None,
     )
 
-    assert result.status.value == "failed"
+    assert result.status.value == "unsupported"
+    assert "labels, loss_fn" in result.error_message
     assert result.primary_component == "expressivity"
+
+
+@pytest.mark.parametrize(
+    ("capability", "inputs", "labels", "loss_fn", "missing"),
+    [
+        (ProxyCapability("needs_inputs"), None, None, None, "inputs"),
+        (
+            ProxyCapability("needs_labels", requires_labels=True),
+            torch.ones(1, 2),
+            None,
+            None,
+            "labels",
+        ),
+        (
+            ProxyCapability("needs_loss", requires_loss_fn=True),
+            torch.ones(1, 2),
+            None,
+            None,
+            "loss_fn",
+        ),
+    ],
+)
+def test_proxy_input_contract_fails_before_compute(
+    monkeypatch, capability, inputs, labels, loss_fn, missing
+):
+    calls = 0
+
+    def compute(*args):
+        nonlocal calls
+        calls += 1
+        return 1.0
+
+    monkeypatch.setitem(
+        PROXIES._entries,
+        capability.proxy_id,
+        lambda: FunctionProxy(capability, compute),
+    )
+    result = evaluate_proxy(
+        capability.proxy_id,
+        torch.nn.Linear(2, 2),
+        inputs,
+        labels,
+        loss_fn,
+    )
+    assert result.status.value == "unsupported"
+    assert missing in result.error_message
+    assert calls == 0
+
+
+def test_input_independent_proxy_runs_without_tensor(monkeypatch):
+    capability = ProxyCapability("no_inputs", requires_data=False, requires_inputs=False)
+    monkeypatch.setitem(
+        PROXIES._entries,
+        capability.proxy_id,
+        lambda: FunctionProxy(capability, lambda *args: 2.0),
+    )
+    result = evaluate_proxy("no_inputs", torch.nn.Linear(2, 2), inputs=None)
+    assert result.status.value == "ok"
+    assert result.score == 2.0
+
+
+def test_builtin_loss_contracts_are_explicit():
+    load_builtin_proxies()
+    for proxy_id in ("gradnorm", "zico", "te_nas", "az_nas"):
+        capability = PROXIES.create(proxy_id).capability
+        assert capability.requires_inputs is True
+        assert capability.requires_labels is True
+        assert capability.requires_loss_fn is True
+    assert PROXIES.create("params").capability.requires_inputs is False
 
 
 def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
@@ -250,7 +321,85 @@ def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
             continue
         assert result.status.value == "ok", (proxy_id, result.error_message)
         assert result.score is not None and math.isfinite(result.score)
-        assert result.implementation_fidelity != "unverified"
+    assert result.implementation_fidelity != "unverified"
+
+
+def test_meco_matches_pinned_upstream_feature_map_formula_and_cleans_hooks():
+    class FeatureNetwork(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.convolution = torch.nn.Conv2d(3, 4, 3, padding=1, bias=False)
+            self.activation = torch.nn.ReLU()
+
+        def forward(self, inputs):
+            return self.activation(self.convolution(inputs))
+
+    torch.manual_seed(29)
+    model = FeatureNetwork().eval()
+    inputs = torch.randn(2, 3, 6, 6)
+    with torch.no_grad():
+        convolution = model.convolution(inputs)
+        activation = model.activation(convolution)
+
+    def minimum_channel_correlation_eigenvalue(output):
+        feature_map = output[0].reshape(output.shape[1], -1)
+        correlation = torch.nan_to_num(torch.corrcoef(feature_map))
+        return torch.linalg.eigvals(correlation).real.min()
+
+    expected = minimum_channel_correlation_eigenvalue(convolution)
+    expected += 2 * minimum_channel_correlation_eigenvalue(activation)
+    actual = _meco(model, inputs)
+
+    assert actual == pytest.approx(float(expected), abs=1e-6)
+    assert all(not module._forward_hooks for module in model.modules())
+
+
+def test_meco_opt_is_an_official_variant_not_an_alias():
+    load_builtin_proxies()
+    meco = PROXIES.create("meco").capability
+    optimized = PROXIES.create("meco_opt").capability
+
+    assert meco.version == "hamstermimi-0d830dd-v2"
+    assert optimized.version == "hamstermimi-0d830dd-v2"
+    assert optimized.alias_of is None
+    assert optimized.requires_data is False
+    assert optimized.requires_inputs is True
+    assert optimized.implementation_fidelity == "paper_formula_port_stabilized"
+    assert "HamsterMimi/MeCo" in (optimized.source or "")
+
+
+def test_meco_opt_matches_pinned_upstream_channel_sampling_formula():
+    import random
+
+    class FeatureNetwork(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.convolution = torch.nn.Conv2d(3, 12, 3, padding=1, bias=False)
+            self.activation = torch.nn.ReLU()
+
+        def forward(self, inputs):
+            return self.activation(self.convolution(inputs))
+
+    torch.manual_seed(31)
+    model = FeatureNetwork().eval()
+    inputs = torch.randn(2, 3, 6, 6)
+    with torch.no_grad():
+        convolution = model.convolution(inputs)
+        activation = model.activation(convolution)
+
+    random.seed(37)
+    expected = 0.0
+    for output in (convolution, activation, activation):
+        feature_map = output[0].reshape(output.shape[1], -1)
+        indices = random.sample(range(feature_map.shape[0]), 8)
+        correlation = torch.nan_to_num(torch.corrcoef(feature_map[indices]))
+        minimum = torch.linalg.eigvals(correlation).real.min()
+        expected += float(minimum * feature_map.shape[0] / 8)
+
+    random.seed(37)
+    actual = _meco_opt(model, inputs)
+    assert actual == pytest.approx(expected, abs=1e-6)
+    assert all(not module._forward_hooks for module in model.modules())
 
 
 def test_aznas_autoformer_residual_features_components_and_rank_aggregation():
