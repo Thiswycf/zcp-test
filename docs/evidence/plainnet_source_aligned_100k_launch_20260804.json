@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T13:52:06+08:00",
+  "timezone": "Asia/Shanghai",
+  "status": "running_not_accepted",
+  "project_commit": "0d8658864078983fa103f4d96805086c8de0a162",
+  "controller": "plainnet_source_aligned",
+  "controller_fidelity": "source_aligned_control_flow_port",
+  "valid_candidates_per_target": 100000,
+  "targets": [
+    {
+      "flops_target": "450m",
+      "run_id": "3de9d5652b7d",
+      "gpu_index_at_launch": 0,
+      "gpu_uuid": "GPU-f6d65591-f1dc-df0c-5ae6-269c19a9d139",
+      "gpu_model": "NVIDIA GeForce RTX 4090 D",
+      "started_at": "2026-08-04T13:50:18.101974+08:00",
+      "early_snapshot": {"accepted_count": 146, "attempts": 165, "evaluations": 134, "cache_hits": 12, "rejected_flops": 18, "rejected_layers": 1}
+    },
+    {
+      "flops_target": "600m",
+      "run_id": "fd859cc76c46",
+      "gpu_index_at_launch": 1,
+      "gpu_uuid": "GPU-3ebef771-98d5-bb9b-2115-18c02e49f676",
+      "gpu_model": "NVIDIA GeForce RTX 4090 D",
+      "started_at": "2026-08-04T13:50:18.093094+08:00",
+      "early_snapshot": {"accepted_count": 142, "attempts": 153, "evaluations": 130, "cache_hits": 12, "rejected_flops": 11, "rejected_layers": 0}
+    },
+    {
+      "flops_target": "1g",
+      "run_id": "a40a3e3c8b32",
+      "gpu_index_at_launch": 3,
+      "gpu_uuid": "GPU-daafeb38-33bd-25b5-59a9-9375f6283a8f",
+      "gpu_model": "NVIDIA GeForce RTX 4090 D",
+      "started_at": "2026-08-04T13:50:18.102757+08:00",
+      "early_snapshot": {"accepted_count": 136, "attempts": 139, "evaluations": 125, "cache_hits": 11, "rejected_flops": 3, "rejected_layers": 0}
+    }
+  ],
+  "runtime": {
+    "cuda_device_order": "PCI_BUS_ID",
+    "independent_services": true,
+    "independent_gpu_locks": true,
+    "gpu_lock_timeout_seconds": 0,
+    "preflight_state_reused": false,
+    "launcher": "tools/acceptance/run-plainnet-source-search-100k.sh"
+  },
+  "resume_boundary": "Only a state produced by the same formal CLI identity and its source journal may resume. The three-candidate preflight state was intentionally not reused because it lacks the complete formal CLI identity.",
+  "acceptance_boundary": "Early rows and held locks prove active execution only. Each target remains unaccepted until its manifest and launcher status are terminal completed, search.jsonl has exactly 100000 candidate rows plus one summary, state counters and journal SHA agree, and the best architecture/report artifacts validate.",
+  "scientific_boundary": "The controller is a source-aligned control-flow port with a stabilized proxy implementation, not a bitwise reproduction. Cross-target runtime comparisons use the same 4090D model family but are not accuracy results."
+}

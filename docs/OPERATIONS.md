@@ -751,6 +751,22 @@ training identities. Their launchers are respectively
 and 2/150 epochs; the companion protocol runs the complete 500/150/150 schedule on an exact,
 deterministic 1% data subset.
 
+Proxyless candidate selection uses a separately scoped project transfer rather than an official OFA
+tutorial controller:
+
+```bash
+zcp-test search --config configs/search/proxyless_mbv2_zen_project_transfer.yaml \
+  --gpu auto --output /path/to/runs/search/proxyless-zen
+```
+
+It fixes 1,000 candidates, generation 0, seed `20260731`, Zen, candidate-resolution random input,
+and scratch initialization. Rows must retain `experiment_kind=project_zcp_transfer`,
+`controller_fidelity=project_controller_not_ofa_tutorial`, and
+`direct_search_protocol_evidence=false`. ZenNAS is same-family MobileNet-style evidence; applying it
+to this OFA-Proxyless domain is a project extension, not a direct paper reproduction. The retained
+three-candidate GPU run is compatibility smoke only; see
+`docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`.
+
 From 2026-08-04 onward, engineering acceptance trains only one `zcp_selected.json`; its
 `candidates-manifest.json` must bind search provenance, architecture ID, and checksum. The freeze
 utility may still emit fixed-random and parameter/FLOPs-matched candidates for separately designed

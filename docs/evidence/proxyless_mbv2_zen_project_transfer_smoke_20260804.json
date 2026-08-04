@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T13:55:25+08:00",
+  "timezone": "Asia/Shanghai",
+  "status": "smoke_completed",
+  "scope": "three_candidate_gpu_compatibility_not_formal_search",
+  "run_id": "ac0c9ad2ec7b",
+  "run": "runs/smoke/proxyless-mbv2-zen-project-transfer-3/20260804T135423+0800_ac0c9ad2ec7b",
+  "search_space_id": "ofa_proxyless_mbv2",
+  "search_space_protocol": "ofa_proxyless_active_subnet_domain_f03b267",
+  "proxy_id": "zen",
+  "proxy_version": "portable-v1",
+  "population": 3,
+  "generations": 0,
+  "seed": 20260731,
+  "input_source": "random",
+  "input_size_protocol": "candidate_resolution",
+  "weight_mode": "independent_scratch",
+  "experiment_kind": "project_zcp_transfer",
+  "controller_id": "zcp_test_generic_evolution_v1",
+  "controller_fidelity": "project_controller_not_ofa_tutorial",
+  "direct_search_protocol_evidence": false,
+  "gpu": {
+    "index_at_launch": 5,
+    "uuid": "GPU-bee8080a-7101-87ee-b02f-9370594b3a56",
+    "model": "NVIDIA GeForce RTX 4090"
+  },
+  "result": {
+    "candidate_rows": 3,
+    "summary_rows": 1,
+    "best_architecture_id": "940ca42b96e27b3cb879",
+    "best_score": -3.342740774154663,
+    "best_resolution": 144,
+    "all_candidate_scores_finite": true
+  },
+  "artifacts": {
+    "manifest.json": {"bytes": 1924, "sha256": "fb60549cf7925258c85059f395d247a2448492a1435cfd0fd432a4a499971970"},
+    "config.yaml": {"bytes": 2164, "sha256": "5d1a03c6051cfef9d1ccd62ef8b6a2276fda8c88c2aa2ef60c39333eaa15af1c"},
+    "search.jsonl": {"bytes": 8607, "sha256": "214dda4c0617370acc4ac242c3d1a29a19e0d31e4799940336a3426eae2fbb1b"},
+    "search-state.json": {"bytes": 20950, "sha256": "26258b7c53c68414ec83abe1bc73866d9f0dd59fd1689aea3f08613285182ef4"},
+    "best_architecture.json": {"bytes": 678, "sha256": "9072f3c99722183093f19c181d70b24c51f707caa63e08e1ad4bc432ca555b2c"}
+  },
+  "evidence_scope": "ZenNAS provides same-family MobileNet-style evidence, but this exact OFA-Proxyless candidate domain and the project generic controller are a project transfer rather than a direct paper search reproduction.",
+  "acceptance_boundary": "This smoke validates compatibility and result identity only. It does not count as the predeclared 1000-candidate project search, candidate training acceptance, inherited accuracy, or an official OFA controller result."
+}

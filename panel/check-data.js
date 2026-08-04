@@ -305,10 +305,14 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${httpRecoveryEvidence?.result || ""} ${httpRecoveryEvidence?.command || ""}`), "看板 HTTP 恢复证据不得泄露绝对路径或 PID");
   const panelTask = data.tasks.find((entry) => entry.id === "F4");
   assert(panelTask?.detail.includes("8768/8769") && panelTask?.detail.includes("curl 超时") && panelTask?.detail.includes("已重启服务") && panelTask?.detail.includes("monitor 根目录"), "F4 未同步 HTTP 服务恢复状态");
+  const fullGate565 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-565");
+  const fullGate564 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-564");
   const fullGate563 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-563");
   const fullGate545 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-545");
-  assert(fullGate563?.result.includes("38 个测试文件") && fullGate563?.result.includes("563 tests 全部通过"), "当前工作树 563 pytest 结果缺失");
-  assert(fullGate563?.result.includes("Ruff") && fullGate563?.result.includes("compileall") && fullGate563?.result.includes("pip check") && fullGate563?.result.includes("Bash") && fullGate563?.result.includes("JSON") && fullGate563?.result.includes("diff"), "当前工作树 563 静态门禁缺失");
+  assert(fullGate565?.result.includes("38 个测试文件") && fullGate565?.result.includes("565 tests 全部通过"), "当前工作树 565 pytest 结果缺失");
+  assert(fullGate565?.result.includes("Ruff") && fullGate565?.result.includes("compileall") && fullGate565?.result.includes("pip check") && fullGate565?.result.includes("Bash") && fullGate565?.result.includes("JSON") && fullGate565?.result.includes("diff"), "当前工作树 565 静态门禁缺失");
+  assert(fullGate564?.result.includes("38 个测试文件") && fullGate564?.result.includes("564 tests 全部通过"), "历史工作树 564 pytest 结果缺失");
+  assert(fullGate563?.result.includes("38 个测试文件") && fullGate563?.result.includes("563 tests 全部通过"), "历史工作树 563 pytest 结果缺失");
   assert(fullGate545?.result.includes("37 个测试文件") && fullGate545?.result.includes("545 tests 全部通过"), "历史工作树 545 pytest 结果缺失");
   const fullGate467 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-467");
   assert(fullGate467?.result.includes("collected 467 tests 且全部通过"), "历史主仓 467 coverage pytest 结果缺失");
@@ -317,7 +321,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
   for (const task of [baselineTask, qualityGateTask]) {
-    assert(task?.detail.includes("38 files") && task?.detail.includes("563 tests"), `任务 ${task?.id || "?"} 缺少当前 563 gate`);
+    assert(task?.detail.includes("38 files") && task?.detail.includes("565 tests"), `任务 ${task?.id || "?"} 缺少当前 565 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
   }
   const releaseTask = data.tasks.find((entry) => entry.id === "I1");
@@ -489,7 +493,12 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const plainnetWaitingEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-GPU-PREFLIGHT-WAITING-20260804");
   assert(plainnetWaitingEvidence?.result.includes("12:08:31") && plainnetWaitingEvidence?.result.includes("immutable commit 17f54d7") && plainnetWaitingEvidence?.result.includes("waiting_for_gpu_lock"), "PlainNet GPU preflight V2 历史启动身份或等待状态缺失");
   assert(plainnetWaitingEvidence?.result.includes("尚未取得 flock") && plainnetWaitingEvidence?.result.includes("未占 GPU") && plainnetWaitingEvidence?.result.includes("未开始任何候选"), "PlainNet GPU preflight 历史等待资源边界缺失");
-  assert(plainnetSearchTask?.detail.includes("3 accepted") && plainnetSearchTask?.detail.includes("2 evaluations") && plainnetSearchTask?.detail.includes("1 cache hit") && plainnetSearchTask?.detail.includes("formal_search_completed=false") && plainnetSearchTask?.detail.includes("正式 100k 搜索尚未启动"), "PlainNet GPU preflight 当前终态或正式 100k 边界缺失");
+  assert(plainnetSearchTask?.detail.includes("3 accepted") && plainnetSearchTask?.detail.includes("2 evaluations") && plainnetSearchTask?.detail.includes("1 cache hit"), "PlainNet GPU preflight 完成结果缺失");
+  assert(plainnetSearchTask?.detail.includes("正式 100k 搜索已经启动但尚未完成") && plainnetSearchTask?.detail.includes("status=running") && plainnetSearchTask?.detail.includes("formal_search_completed=false"), "PlainNet 正式 100k 当前运行边界缺失");
+  const plainnetFormalLaunch = data.evidence.find((entry) => entry.id === "EV-PLAINNET-FORMAL-100K-LAUNCHED-20260804");
+  assert(plainnetFormalLaunch?.result.includes("commit 0d86588") && plainnetFormalLaunch?.result.includes("3de9d5652b7d") && plainnetFormalLaunch?.result.includes("fd859cc76c46") && plainnetFormalLaunch?.result.includes("a40a3e3c8b32"), "PlainNet 三档正式 launcher 或 run identity 缺失");
+  assert(plainnetFormalLaunch?.result.includes("GPU-f6d...") && plainnetFormalLaunch?.result.includes("GPU-3ebe...") && plainnetFormalLaunch?.result.includes("GPU-daaf...") && plainnetFormalLaunch?.result.includes("独立 service、kernel flock 与 run"), "PlainNet 三档 GPU 或资源隔离身份缺失");
+  assert(plainnetFormalLaunch?.result.includes("缺完整 CLI identity 未被续接") && plainnetFormalLaunch?.result.includes("从头开始") && plainnetFormalLaunch?.result.includes("不得写成完成"), "PlainNet preflight 不续接或科学状态边界缺失");
   assert(plainnetSearchTask?.detail.includes("formal_valid_candidates=100000") && plainnetSearchTask?.detail.includes("stop_after=3") && plainnetSearchTask?.detail.includes("batch=64") && plainnetSearchTask?.detail.includes("input=224"), "PlainNet GPU preflight 协议字段缺失");
   const plainnetRerankEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-RERANK-SCALING-20260804");
   assert(plainnetRerankEvidence?.command.includes("docs/evidence/plainnet_rerank_scaling_20260804.json") && plainnetRerankEvidence?.result.includes("15,165.56 秒"), "PlainNet rerank scaling JSON 证据缺失");

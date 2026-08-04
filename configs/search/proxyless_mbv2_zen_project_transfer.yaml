@@ -1,0 +1,17 @@
+search:
+  controller: generic
+  space: ofa_proxyless_mbv2
+  proxy: zen
+  aggregator: primary
+  population: 1000
+  generations: 0
+  elite_ratio: 0.2
+  seed: 20260731
+  input_source: random
+  batch_size: 16
+  classes: 1000
+  dataset: imagenet1k
+  weight_mode: independent_scratch
+  bn_recalibration_batches: 0
+  gpu: auto
+  output: runs/search/proxyless-mbv2-zen-project-transfer

@@ -605,6 +605,35 @@ def test_proxyless_candidate_training_protocol_is_locked():
     assert config["formal_training_ready"] is False
 
 
+def test_proxyless_project_zcp_transfer_search_profile_is_explicitly_scoped():
+    config = yaml.safe_load(
+        Path("configs/search/proxyless_mbv2_zen_project_transfer.yaml").read_text(
+            encoding="utf-8"
+        )
+    )["search"]
+
+    assert config == {
+        "controller": "generic",
+        "space": "ofa_proxyless_mbv2",
+        "proxy": "zen",
+        "aggregator": "primary",
+        "population": 1000,
+        "generations": 0,
+        "elite_ratio": 0.2,
+        "seed": 20260731,
+        "input_source": "random",
+        "batch_size": 16,
+        "classes": 1000,
+        "dataset": "imagenet1k",
+        "weight_mode": "independent_scratch",
+        "bn_recalibration_batches": 0,
+        "gpu": "auto",
+        "output": "runs/search/proxyless-mbv2-zen-project-transfer",
+    }
+    assert "input_size" not in config
+    assert "model_checkpoint" not in config
+
+
 def test_plainnet_candidate_training_protocol_is_locked():
     config = yaml.safe_load(
         Path("configs/training/zennas_plainnet_mbv2_imagenet.yaml").read_text(

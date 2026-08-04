@@ -7,7 +7,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-08-04 当前工作树：**564 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
+| 单元/集成基线 | 2026-08-04 当前工作树：**565 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
 | 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
@@ -19,7 +19,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 | AutoFormer 单候选 real dual-1% V2 | `zcp-selected` 完成 full-data 5 epoch 与 one-percent-data 500 epoch，分别为 5/500 行，均有 terminal manifest、`last.pt` 与 `best.pt` | **限定协议通过** | task 5/6 基线因违反新政策而中止并排除；只证明实现、调度和恢复就绪，不是 500-epoch 全数据论文精度或搜索收益 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-当前完整 gate 实际执行并通过 564 tests（38 个测试文件）。第一方 source coverage 87%、CLI
+当前完整 gate 实际执行并通过 565 tests（38 个测试文件）。第一方 source coverage 87%、CLI
 coverage 82% 仍来自最近一次保留的 coverage gate；Ruff、compileall、pip check、Bash 语法、看板、
 JSON 与 `git diff --check` 均通过，仅有 4 条来自 THOP 上游 `distutils` 的非失败弃用警告。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
@@ -106,8 +106,11 @@ PlainNet-MBV2 的 structure-string port、golden 与训练门禁见
 parent、无 crossover 与逐插入全历史四组件 log-rank；1024 来自固定 commit 的官方启动脚本覆盖值，
 不是 Python parser 的默认 512，来源 SHA 见
 [`evidence/plainnet_source_protocol_20260804.json`](evidence/plainnet_source_protocol_20260804.json)。
-CPU rerank 的本机保守累计估计为 15,165.56 秒（约 4.21 小时），但 GPU batch64/224 preflight 和
-正式 100k 搜索尚未完成，因此不能称搜索验收通过。
+CPU rerank 的本机保守累计估计为 15,165.56 秒（约 4.21 小时）；GPU batch64/224 preflight 已完成。
+450M/600M/1G 三档正式 100k 搜索于北京时间 2026-08-04 13:50 从 commit `0d86588` 在三张独立
+4090D 上启动，当前均为 `running` 且 `formal_search_completed=false`，因此仍不能称搜索验收通过。
+启动身份与早期 state 见
+[`evidence/plainnet_source_aligned_100k_launch_20260804.json`](evidence/plainnet_source_aligned_100k_launch_20260804.json)。
 
 AutoFormer 仓库配置已在单候选双重 1% 终态核验后置为 `formal_training_ready: true`；PlainNet-MBV2
 与 Proxyless-MBV2 仍为 false。AutoFormer 已有

@@ -891,6 +891,21 @@ CLI 会在创建 run 前拒绝只用主组件排名或搜索空间不匹配。�
 
 三个空间使用独立配置、候选目录和结果目录，不能互换 architecture ID 或训练 recipe：
 
+Proxyless-MBV2 的候选选择采用独立项目迁移配置，不冒充官方 OFA tutorial controller：
+
+```bash
+zcp-test search \
+  --config configs/search/proxyless_mbv2_zen_project_transfer.yaml \
+  --gpu auto --output /path/to/runs/search/proxyless-zen
+```
+
+该配置固定 1,000 个候选、generation 0、seed `20260731`、Zen、逐候选分辨率随机输入和 scratch
+初始化。结果必须带 `experiment_kind=project_zcp_transfer`、
+`controller_fidelity=project_controller_not_ofa_tutorial`、`direct_search_protocol_evidence=false`。
+ZenNAS 只提供 MobileNet-style 同族依据；本项目 OFA-Proxyless 域上的应用是推广实验，不是论文直接复现。
+3-candidate GPU smoke 仅证明兼容性，见
+`docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`。
+
 | 空间 | 启动器 | 全数据协议 | 1% 数据协议 |
 |---|---|---:|---:|
 | AutoFormer scratch | `run-autoformer-imagenet-dual-one-percent.sh` | 5/500 epoch | 500 epoch |
