@@ -336,6 +336,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const plainnetEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-FIDELITY-AUDIT");
   const plainnetRisk = data.risks.find((entry) => entry.id === "R-PLAINNET-FIDELITY");
   const ofaEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-MBV2-TRAINING-PROTOCOL-FIDELITY");
+  const ofaProtocolCorrection = data.evidence.find((entry) => entry.id === "EV-OFA-PROXYLESS-PROTOCOL-CORRECTION-20260804");
+  const ofaDirectSearchRisk = data.risks.find((entry) => entry.id === "R-OFA-DIRECT-SEARCH-FIDELITY");
   assert(plainnetTask?.status === "已完成" && plainnetTask?.progress === 100, "PlainNet 结构与候选协议任务未标记完成");
   assert(plainnetTask?.title.includes("PlainNet 真实 structure-string 与候选协议"), "PlainNet 任务标题未更新");
   for (const phrase of ["structure-string parser", "12 类 SuperResIDWE block", "SE", "sample/mutate/crossover", "参数/MAC golden", "150 epoch candidate profile"]) {
@@ -354,10 +356,20 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ofaTask?.detail.includes("c5234b8"), "OFA MAC golden commit 缺失");
   assert(ofaTask?.detail.includes("265,526,256"), "OFA MAC golden 数值缺失");
   assert(ofaTask?.detail.includes("265,526,240"), "OFA float32 profile 数值缺失");
-  assert(ofaTask?.detail.includes("双重 1% / distributed validation / reporting"), "OFA 训练阻断边界缺失");
+  assert(ofaTask?.detail.includes("现有 ofa_proxyless_mbv2 模型域正确"), "Proxyless-MBV2 模型域结论缺失");
+  for (const marker of ["project_zcp_transfer", "project_resource_baseline", "controller_fidelity=project_controller_not_ofa_tutorial", "direct_search_protocol_evidence=false"]) {
+    assert(ofaTask?.detail.includes(marker), `OFA 任务缺少协议标记 ${marker}`);
+    assert(ofaProtocolCorrection?.result.includes(marker), `OFA 纠错证据缺少协议标记 ${marker}`);
+  }
   assert(ofaEvidence?.result.includes("c5234b8"), "OFA 证据缺少 MAC golden commit");
   assert(ofaEvidence?.result.includes("265,526,256") && ofaEvidence?.result.includes("265,526,240"), "OFA 证据缺少 MAC 数值");
   assert(ofaEvidence?.result.includes("双重 1% / distributed validation / reporting"), "OFA 证据缺少训练阻断边界");
+  assert(ofaProtocolCorrection?.result.includes("commit f03b267") && ofaProtocolCorrection?.result.includes("20-block/5-stage") && ofaProtocolCorrection?.result.includes("resolution={160,176,192,208,224}") && ofaProtocolCorrection?.result.includes("OFA-MBV3"), "OFA-MBV3 tutorial 归属纠错缺失");
+  assert(ofaProtocolCorrection?.result.includes("21 个动态 ks/e 位置") && ofaProtocolCorrection?.result.includes("6 个 block groups") && ofaProtocolCorrection?.result.includes("前 5 组 depth 可变") && ofaProtocolCorrection?.result.includes("最后一组 depth 固定为 1"), "Proxyless 动态位置或 block-group depth 边界缺失");
+  assert(ofaProtocolCorrection?.result.includes("width=1.3") && ofaProtocolCorrection?.result.includes("resolution=128..224"), "Proxyless width 或 resolution 范围缺失");
+  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("模型域") && ofaDirectSearchRisk?.description.includes("不是官方 OFA tutorial 的直接搜索协议证据"), "Proxyless direct-search fidelity 风险缺失");
+  assert(ofaDirectSearchRisk?.mitigation.includes("只有新增独立官方直接搜索协议证据后才能调整 fidelity"), "Proxyless fidelity 升级门槛缺失");
+  assert(!JSON.stringify(data).includes("ofa_proxyless_official_tutorial"), "不得新增或宣称虚构的 Proxyless official tutorial 协议名");
   const pitTask = data.tasks.find((entry) => entry.id === "C4");
   const pitEvidence = data.evidence.find((entry) => entry.id === "EV-PIT-REFERENCE");
   const pitRisk = data.risks.find((entry) => entry.id === "R-PIT");

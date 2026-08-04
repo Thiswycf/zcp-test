@@ -10,6 +10,9 @@
 - 大型 benchmark 和训练数据不复制进仓库，由数据注册器记录路径、版本、协议和校验值。
 - 任意 pickle、`.pth` benchmark 或 checkpoint 均不得隐式加载；旧数据转换必须显式声明 `--trusted`。
 - 原生序列化 benchmark 查询和 checkpoint 恢复也必须显式添加 `--trusted`；该参数仅表示操作者已核验来源，不替代 SHA-256 校验。
+- OFA tutorial 的 20-block/5-stage 域属于 MobileNetV3；Proxyless-MBV2 官方域为 21 个 `ks/e`
+  位置、width 1.3、resolution 128–224。Proxyless 上的项目通用 ZCP evolution 是
+  `project_zcp_transfer`，不得称为官方 OFA ZCP 协议。
 
 ## 安装
 

@@ -512,6 +512,24 @@ limit prevents an empty feasible region from sampling forever. PlainNet source-a
 its pinned `--flops-target` and rejects these generic limits. Hardware-latency constraints are not yet
 implemented and MACs must not be relabelled as latency.
 
+### OFA Proxyless protocol boundary
+
+Do not transfer the OFA tutorial's 20-block, five-stage, `{160,176,192,208,224}` domain to
+Proxyless-MobileNetV2. At commit `f03b267`, that tutorial loads OFA-MobileNetV3. The released
+Proxyless supernet instead exposes 21 configurable `ks/e` positions across six block groups: the
+first five depths vary over `{2,3,4}`, the final group depth is fixed to one, width is 1.3, and the
+published resolution domain is 128–224. The project therefore keeps the 21-position
+`ofa_proxyless_mbv2` encoding and does not register a misleading
+`ofa_proxyless_official_tutorial` space.
+
+A source-backed active-subnet domain does not make the project's ZCP objective or generic evolution
+an official OFA search protocol. Search artifacts automatically label ZCP objectives as
+`experiment_kind=project_zcp_transfer`, `params`/`flops` objectives as
+`project_resource_baseline`, and both as
+`controller_fidelity=project_controller_not_ofa_tutorial` with
+`direct_search_protocol_evidence=false`. See
+[`evidence/ofa_proxyless_protocol_boundary_20260804.json`](evidence/ofa_proxyless_protocol_boundary_20260804.json).
+
 `az_nas_autoformer` pins AZ-NAS commit `5e6683a`. It captures the attention and MLP residual outputs
 of each block as `[B,N,C]`, computes spectral-entropy expressivity, adjacent-residual Jacobian
 trainability, and Cream `official_complexity_ops`. Covariance eigenvalues are clamped only at zero

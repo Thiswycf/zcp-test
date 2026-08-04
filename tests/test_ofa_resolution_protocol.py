@@ -200,7 +200,13 @@ def test_ofa_evaluate_reuses_one_candidate_batch_for_multiple_proxies(monkeypatc
     assert calls[2][1] == (132, 132)
 
 
-def test_ofa_search_rows_record_resolution_fingerprint_and_cache_identity(monkeypatch, tmp_path):
+@pytest.mark.parametrize(
+    ("proxy_id", "experiment_kind"),
+    [("params", "project_resource_baseline"), ("naswot", "project_zcp_transfer")],
+)
+def test_ofa_search_rows_record_resolution_fingerprint_and_cache_identity(
+    monkeypatch, tmp_path, proxy_id, experiment_kind
+):
     space = _TinyOFAResolutionSpace()
     monkeypatch.setattr(cli.SPACES, "create", lambda name: space)
     monkeypatch.setattr(
@@ -215,7 +221,7 @@ def test_ofa_search_rows_record_resolution_fingerprint_and_cache_identity(monkey
             "--space",
             "ofa_proxyless_mbv2",
             "--proxy",
-            "params",
+            proxy_id,
             "--population",
             "2",
             "--generations",
@@ -243,6 +249,14 @@ def test_ofa_search_rows_record_resolution_fingerprint_and_cache_identity(monkey
     assert len({row["input_fingerprint"] for row in rows}) == 2
     assert len({row["evaluation_cache_key"] for row in rows}) == 2
     assert all(row["input_size_policy"] == "architecture_resolution" for row in rows)
+    assert all(
+        row["search_space_protocol"]
+        == "ofa_proxyless_active_subnet_domain_f03b267"
+        for row in rows
+    )
+    assert all(row["controller_fidelity"] == "project_controller_not_ofa_tutorial" for row in rows)
+    assert all(row["experiment_kind"] == experiment_kind for row in rows)
+    assert all(row["direct_search_protocol_evidence"] is False for row in rows)
 
 
 def test_ofa_search_resume_preserves_candidate_input_identity(monkeypatch, capsys, tmp_path):

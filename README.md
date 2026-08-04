@@ -18,6 +18,9 @@ PiT 已按 Auto-Prox `90ed458` 发布编码实现三阶段静态参考拓扑；O
 Once-for-All 五阶段/20-block 编码实现独立静态子网和 BatchNorm recalibration。它们与
 AutoFormer、两类 MBV2 虽已有静态参考模型，但正式训练或 inherited-supernet 协议仍有 blocker。
 是否允许完整训练以配置中的 `formal_training_ready` 为准，而不是只看 `reference_model` 标签。
+OFA Proxyless 的官方 active-subnet 域是 21 个 `ks/e` 位置、width 1.3、resolution 128–224；OFA
+tutorial 的 20-block/5-stage 域属于 MobileNetV3，不能移植后称为官方 Proxyless tutorial。项目在
+Proxyless 域上运行 ZCP + 通用进化控制器时固定标记为 `project_zcp_transfer`，不是官方 OFA 搜索协议。
 
 ### 首次使用 checklist
 

@@ -1975,6 +1975,23 @@ def command_search(args: argparse.Namespace) -> None:
             "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
             "bn_recalibration_fingerprint": weight_provenance.get("bn_recalibration_fingerprint"),
         }
+        if space.search_space_id == "ofa_proxyless_mbv2":
+            resource_objectives = {"params", "flops"}
+            search_identity.update(
+                {
+                    "search_space_protocol": (
+                        "ofa_proxyless_active_subnet_domain_f03b267"
+                    ),
+                    "controller_id": "zcp_test_generic_evolution_v1",
+                    "controller_fidelity": "project_controller_not_ofa_tutorial",
+                    "experiment_kind": (
+                        "project_resource_baseline"
+                        if args.proxy in resource_objectives
+                        else "project_zcp_transfer"
+                    ),
+                    "direct_search_protocol_evidence": False,
+                }
+            )
         if resource_limits:
             search_identity.update(
                 {

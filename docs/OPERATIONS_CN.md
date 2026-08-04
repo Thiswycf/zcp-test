@@ -544,6 +544,21 @@ table 或设备 latency；不匹配该口径时直接失败。被资源约束拒
 `--constraint-max-attempts` 防止可行域为空时无限采样。PlainNet source-aligned controller 使用其固定
 `--flops-target`，禁止与这些通用上限混用。硬件 latency 约束尚未实现，不能用 MAC 冒充。
 
+### OFA Proxyless 协议边界
+
+不要把 OFA tutorial 的 20-block、5-stage、`{160,176,192,208,224}` 域套到 Proxyless-MBV2。
+固定 commit `f03b267` 的该 tutorial 实际加载 OFA-MobileNetV3；官方 Proxyless supernet 则包含 21 个
+可配置 `ks/e` 位置和 6 个 block group，前 5 组 depth 为 `{2,3,4}`，最后一组 depth 固定为 1，
+发布域为 width 1.3、resolution 128–224。项目因此保留 `ofa_proxyless_mbv2` 的 21-position 编码，
+不注册伪 `ofa_proxyless_official_tutorial`。
+
+模型/active-subnet 域有官方来源，不代表 ZCP 搜索协议也是官方的。使用项目通用进化控制器时，
+`search_identity` 和每条 `search.jsonl` 会自动记录：ZCP 目标为
+`experiment_kind=project_zcp_transfer`，`params`/`flops` 资源目标为
+`project_resource_baseline`，两者均为 `controller_fidelity=project_controller_not_ofa_tutorial`、
+`direct_search_protocol_evidence=false`。不得把这些结果写成官方 OFA ZCP search。完整来源见
+[`evidence/ofa_proxyless_protocol_boundary_20260804.json`](evidence/ofa_proxyless_protocol_boundary_20260804.json)。
+
 `az_nas_autoformer` 固定上游 AZ-NAS commit `5e6683a`：每个 block 保存 attention 残差后和 MLP
 残差后的 `[B,N,C]` token，计算谱熵 expressivity、相邻残差 Jacobian trainability，以及 Cream
 `official_complexity_ops`。协方差仅对浮点误差产生的负特征值执行 `clamp_min(0)`，因此版本为
