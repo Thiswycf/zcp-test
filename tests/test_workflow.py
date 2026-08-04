@@ -1092,3 +1092,39 @@ def test_correlate_rejects_duplicate_architecture_keys(tmp_path, duplicate_sourc
                 "accuracy",
             ]
         )
+
+
+def test_plainnet_throughput_preflight_is_not_formal_search():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "tools" / "acceptance" / "run-plainnet-throughput-preflight.sh"
+    subprocess.run(["bash", "-n", str(script)], check=True)
+    source = script.read_text(encoding="utf-8")
+    assert "acceptance_exec_immutable" in source
+    assert "preflight-plainnet-source-aligned.py" in source
+    assert "--accepted 3" in source
+    assert "--flops-target 450m" in source
+    assert "--lock-timeout" in source
+    assert "--controller plainnet_source_aligned" not in source
+    assert "/home/" not in source and "/public/" not in source
+
+    runner = (
+        root / "tools" / "acceptance" / "preflight-plainnet-source-aligned.py"
+    ).read_text(encoding="utf-8")
+    assert "valid_candidates=100_000" in runner
+    assert "parent_pool=1_024" in runner
+    assert "stop_after_accepted=args.accepted" in runner
+    assert '"status": "waiting_for_gpu_lock"' in runner
+    assert '"lock_acquired_at": timestamp()' in runner
+    assert 'state.get("status") != "running"' in runner
+    assert '"formal_search_completed": False' in runner
+    assert "record_kind" in runner and "search summary" in runner
+
+
+def test_plainnet_rerank_benchmark_is_planning_only():
+    root = Path(__file__).resolve().parents[1]
+    source = (
+        root / "tools" / "acceptance" / "benchmark-plainnet-rerank.py"
+    ).read_text(encoding="utf-8")
+    assert "cpu_only_planning_benchmark_not_formal_search" in source
+    assert "formal_candidate_count" in source
+    assert "conservative_cumulative_rerank_seconds" in source

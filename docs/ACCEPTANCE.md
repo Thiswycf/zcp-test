@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-08-04 tree: **543 tests passed** across 37 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, panel validation, JSON validation, and diff checks passed; four upstream THOP `distutils` deprecation warnings remain non-failing |
+| Unit/integration baseline | Current 2026-08-04 tree: **545 tests passed** across 37 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, panel validation, JSON validation, and diff checks passed; four upstream THOP `distutils` deprecation warnings remain non-failing |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
 | Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
@@ -20,7 +20,7 @@ reproduction or formal benchmark accuracy.
 | AutoFormer candidate smokes | All three frozen candidates completed batch-256 synthetic memory, atomic-checkpoint, and trusted checkpoint-load/resume smokes | Smoke passed | Construction, memory, optimizer/checkpoint, and recovery plumbing only; random-input accuracy is meaningless and is not ImageNet evidence |
 | AutoFormer real dual one-percent V2 | Running since 2026-08-04 11:07+08 from commit/source snapshot `76a0fcd`; tasks 1/2/3 run full-data 5 epochs, task 4 runs one-percent-data 500 epochs, and tasks 5/6 are queued | **Running, not accepted** | A non-terminal launch/runtime sample under a complete source snapshot; no task is complete before terminal artifact validation |
 
-The current full gate executes and passes 543 tests across 37 files. First-party source coverage of
+The current full gate executes and passes 545 tests across 37 files. First-party source coverage of
 87% and CLI coverage of 82% remain from the latest retained coverage run. Ruff, compileall, pip check,
 Bash syntax, panel validation, JSON validation, and `git diff --check` pass; four THOP `distutils`
 deprecation warnings are non-failing. Machine-readable summaries and checksums for the real NB201 and
@@ -119,6 +119,12 @@ fidelity, multi-GPU scaling, arbitrary-epoch recovery or cross-hardware reproduc
 
 The upstream comparison and reference-upgrade requirements are recorded in
 [`evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md`](evidence/PLAINNET_MBV2_FIDELITY_AUDIT_CN.md).
+The formal controller now locks the pinned upstream 100k run, population 1,024, batch 64, 1/2 block
+replacement, top-1,023 parent pool, no crossover, and per-insertion full-history four-component
+log-rank. The official launch script overrides the parser's default 512 with 1,024; pinned source
+hashes are recorded in `evidence/plainnet_source_protocol_20260804.json`. The host-specific
+conservative cumulative CPU rerank estimate is 15,165.56 seconds (about 4.21 hours), but the GPU
+batch64/224 preflight and formal 100k search remain incomplete.
 
 Static model fidelity does not grant formal-training readiness. Only DARTS profiles currently set
 `formal_training_ready: true`; AutoFormer, PlainNet-MBV2 and Proxyless-MBV2 are explicitly blocked,

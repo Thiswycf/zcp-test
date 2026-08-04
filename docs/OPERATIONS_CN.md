@@ -666,17 +666,36 @@ version 与 protocol；校验失败会停止。显式 `--benchmark-path` 是高�
 ## AZ-NAS PlainNet-MBV2 搜索
 
 `az_nas_plainnet` 只定义于 `zennas_plainnet_mbv2`，不能用于 OFA/Proxyless。它移植固定上游 MBV2
-公式的 expressivity、progressivity、trainability 和 `MasterNet.get_FLOPs()` complexity；正式排名
-必须使用全部四组件：
+公式的 expressivity、progressivity、trainability 和 `MasterNet.get_FLOPs()` complexity。正式
+AZ-NAS 对齐入口固定为 100,000 个有效候选、parent 参数 1024、前 11 个候选从初始结构替换一个
+block、其后替换两个 block、无 crossover，并在每次插入后对全部历史候选四组件重新 log-rank：
+固定 commit 的 Python 参数默认值虽为 512，但官方 450M/600M/1G 启动脚本显式覆盖为 1024；来源
+脚本 SHA 与控制流证据见 `docs/evidence/plainnet_source_protocol_20260804.json`。
 
 ```bash
-zcp-test search --space zennas_plainnet_mbv2 \
-  --proxy az_nas_plainnet --aggregator az_nas_log_rank \
-  --population 32 --generations 20 --elite-ratio 0.25 \
-  --dataset imagenet1k --input-source random --batch-size 2 --input-size 224 \
-  --classes 1000 --seed 20260731 --gpu auto \
-  --output /path/to/runs/search/plainnet-aznas
+zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
+  --flops-target 450m --gpu auto \
+  --output /path/to/runs/search/plainnet-aznas-450m
 ```
+
+可将 `450m` 改为 `600m` 或 `1g`；CLI 会锁定 `valid_candidates=100000`、batch 64、resolution 224、
+ImageNet-1k 随机输入、四组件 `az_nas_log_rank` 和独立 scratch 初始化。不得通过 CLI 缩小候选数后
+把结果称为正式搜索。启动前先运行 GPU 显存/吞吐预验收与 CPU rerank 估时：
+
+```bash
+python tools/acceptance/benchmark-plainnet-rerank.py \
+  --output docs/evidence/plainnet_rerank_scaling.json
+export ZCP_PLAINNET_PREFLIGHT_GPU_UUID=GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+bash tools/acceptance/run-plainnet-throughput-preflight.sh
+```
+
+GPU 预验收保留 `valid_candidates=100000` 和全部正式 controller 身份，只在 3 个已接受候选后通过
+API 暂停；state 必须保持 `running`、不得出现 `search_summary`，并写明
+`formal_search_completed=false`。它固定 batch 64/224，用于估算显存和单候选耗时，不是缩小版正式
+搜索。CPU benchmark
+只测每次插入后的全历史 rank，不包含构模、proxy、mutation、拒绝候选和 JSONL I/O。本机 2026-08-04
+测得该 CPU rerank 的保守累计估计约 15,166 秒，因此正式 100k 启动前还必须结合 GPU 单候选实测评估
+48 小时预算；若预测超预算，应记录 `incomplete_budget`，不得偷偷更换 controller。
 
 CLI 会在创建 run 前拒绝只用主组件排名或搜索空间不匹配。稳定化端口会裁剪协方差负特征值浮点噪声，
 并令退化奇异值计算保持有限，因此版本为 `aznas-5e6683-plainnet-stabilized-v1`，不声明逐位一致。

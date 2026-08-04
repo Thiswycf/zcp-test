@@ -49,6 +49,18 @@ def _wait_until(predicate, timeout: float = 5.0) -> None:
     raise AssertionError("condition did not become true")
 
 
+def _flock_available(path: Path) -> bool:
+    return (
+        subprocess.run(
+            ["flock", "-n", str(path), "-c", "true"],
+            check=False,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        ).returncode
+        == 0
+    )
+
+
 def _environment() -> dict[str, str]:
     return {
         **os.environ,
@@ -121,13 +133,14 @@ sleep 2
 
     _wait_for(task_done)
     _wait_until(lambda: not metadata.exists())
+    _wait_until(lambda: _flock_available(lock_path))
     assert process.poll() is None
     assert not supervisor_done.exists()
     assert lock_path.exists()
     assert lock_path.stat().st_ino == inode
     assert lock_path.read_text(encoding="utf-8") == ""
     assert child_fds.read_text(encoding="utf-8") == ""
-    subprocess.run(["flock", "-n", str(lock_path), "-c", "true"], check=True)
+    assert _flock_available(lock_path)
 
     process.terminate()
     process.wait(timeout=5)

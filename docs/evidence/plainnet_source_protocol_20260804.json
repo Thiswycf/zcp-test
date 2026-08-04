@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T12:00:38+08:00",
+  "upstream_repository": "https://github.com/cvlab-yonsei/AZ-NAS",
+  "upstream_commit": "5e6683a2cfa5c6d0dc34a1317a842497ba7eae47",
+  "source_files": [
+    {
+      "path": "ImageNet_MBV2/scripts/search_AZ-NAS_flops450M-bs64.sh",
+      "url": "https://github.com/cvlab-yonsei/AZ-NAS/blob/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_MBV2/scripts/search_AZ-NAS_flops450M-bs64.sh",
+      "sha256": "e1a92cb45ac9974128bd20b5d87a5299f18c563be3e83522b77c9d0cd3b147b3",
+      "establishes": {
+        "population_size": 1024,
+        "evolution_max_iter": 100000,
+        "batch_size": 64,
+        "resolution": 224,
+        "flops_budget": 450000000,
+        "max_layers": 14,
+        "classes": 1000,
+        "dataset": "imagenet-1k",
+        "random_input": true
+      }
+    },
+    {
+      "path": "ImageNet_MBV2/evolution_search_az.py",
+      "url": "https://github.com/cvlab-yonsei/AZ-NAS/blob/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_MBV2/evolution_search_az.py",
+      "sha256": "f59d8265b37b841989424a8f54e7d7cd00f7b9f5b2bfb08235374febf3bbb130",
+      "establishes": {
+        "first_candidate_rule": "history length <= 10: initial structure with one replacement",
+        "early_parent_rule": "history length < population_size - 1: uniform random parent from all history",
+        "mature_parent_rule": "uniform random parent from top population_size - 1",
+        "subsequent_replacements": 2,
+        "crossover": false,
+        "full_history_rerank_after_insert": true
+      }
+    }
+  ],
+  "interpretation": "The Python parser default is 512, but the pinned official 450M launch script explicitly overrides it with 1024. The project therefore records the launch script, not the parser default, as the formal 450M protocol source.",
+  "project_fidelity": "source_aligned_control_flow_port",
+  "known_differences": [
+    "The project adds canonical architecture caching, deterministic architecture-hash initialization, safe JSONL, atomic state, and resumability.",
+    "These safety and reproducibility additions prevent a bitwise or identical-random-process claim."
+  ]
+}

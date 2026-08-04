@@ -1,0 +1,82 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T11:55:11.851937+08:00",
+  "scope": "cpu_only_planning_benchmark_not_formal_search",
+  "controller_semantics": "full-history four-component log-rank after every accepted candidate",
+  "formal_candidate_count": 100000,
+  "components": [
+    "expressivity",
+    "progressivity",
+    "trainability",
+    "complexity"
+  ],
+  "seed": 20260804,
+  "repeats": 3,
+  "measurements": [
+    {
+      "candidates": 1000,
+      "durations_seconds": [
+        0.2780608022585511,
+        0.0019024712964892387,
+        0.0018769726157188416
+      ],
+      "median_seconds": 0.0019024712964892387,
+      "seconds_per_n_log2_n": 1.909003087110014e-07
+    },
+    {
+      "candidates": 5000,
+      "durations_seconds": [
+        0.00954890064895153,
+        0.008781397715210915,
+        0.008607415482401848
+      ],
+      "median_seconds": 0.008781397715210915,
+      "seconds_per_n_log2_n": 1.4292974060535262e-07
+    },
+    {
+      "candidates": 10000,
+      "durations_seconds": [
+        0.01831479649990797,
+        0.01736815832555294,
+        0.01715578231960535
+      ],
+      "median_seconds": 0.01736815832555294,
+      "seconds_per_n_log2_n": 1.307084156358135e-07
+    },
+    {
+      "candidates": 25000,
+      "durations_seconds": [
+        0.04322344250977039,
+        0.04337900225073099,
+        0.044333381578326225
+      ],
+      "median_seconds": 0.04337900225073099,
+      "seconds_per_n_log2_n": 1.1876815812581647e-07
+    },
+    {
+      "candidates": 50000,
+      "durations_seconds": [
+        0.09426088072359562,
+        0.0867831027135253,
+        0.08710156101733446
+      ],
+      "median_seconds": 0.08710156101733446,
+      "seconds_per_n_log2_n": 1.1159970168432344e-07
+    },
+    {
+      "candidates": 100000,
+      "durations_seconds": [
+        0.1807726537808776,
+        0.19885791931301355,
+        0.18760792538523674
+      ],
+      "median_seconds": 0.18760792538523674,
+      "seconds_per_n_log2_n": 1.1295122593049265e-07
+    }
+  ],
+  "conservative_cumulative_rerank_seconds": 15165.558688838157,
+  "limitations": [
+    "This estimates CPU aggregation only and excludes model construction, proxy evaluation, JSONL fsync, mutation, and rejected candidates.",
+    "The estimate is hardware- and software-version-specific and is not a completed 100000-candidate search."
+  ]
+}

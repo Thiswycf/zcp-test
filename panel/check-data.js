@@ -305,17 +305,17 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${httpRecoveryEvidence?.result || ""} ${httpRecoveryEvidence?.command || ""}`), "看板 HTTP 恢复证据不得泄露绝对路径或 PID");
   const panelTask = data.tasks.find((entry) => entry.id === "F4");
   assert(panelTask?.detail.includes("8768/8769") && panelTask?.detail.includes("curl 超时") && panelTask?.detail.includes("已重启服务") && panelTask?.detail.includes("monitor 根目录"), "F4 未同步 HTTP 服务恢复状态");
-  const fullGate543 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-543");
-  assert(fullGate543?.result.includes("37 个测试文件") && fullGate543?.result.includes("543 tests 全部通过"), "当前工作树 543 pytest 结果缺失");
-  assert(fullGate543?.result.includes("Ruff") && fullGate543?.result.includes("compileall") && fullGate543?.result.includes("pip check"), "当前工作树 543 静态门禁缺失");
+  const fullGate545 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-545");
+  assert(fullGate545?.result.includes("37 个测试文件") && fullGate545?.result.includes("545 tests 全部通过"), "当前工作树 545 pytest 结果缺失");
+  assert(fullGate545?.result.includes("Ruff") && fullGate545?.result.includes("compileall") && fullGate545?.result.includes("pip check"), "当前工作树 545 静态门禁缺失");
   const fullGate467 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-467");
   assert(fullGate467?.result.includes("collected 467 tests 且全部通过"), "历史主仓 467 coverage pytest 结果缺失");
   assert(fullGate467?.result.includes("source coverage 87%") && fullGate467?.result.includes("CLI coverage 82%"), "历史主仓 467 coverage 缺失");
-  assert(fullGate467?.result.includes("已由 EV-FULL-GATE-543 取代"), "历史 467 门禁未标记为被 543 取代");
+  assert(fullGate467?.result.includes("已由 EV-FULL-GATE-545 取代"), "历史 467 门禁未标记为被 545 取代");
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
   for (const task of [baselineTask, qualityGateTask]) {
-    assert(task?.detail.includes("37 files") && task?.detail.includes("543 tests"), `任务 ${task?.id || "?"} 缺少当前 543 gate`);
+    assert(task?.detail.includes("37 files") && task?.detail.includes("545 tests"), `任务 ${task?.id || "?"} 缺少当前 545 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
   }
   const releaseTask = data.tasks.find((entry) => entry.id === "I1");
@@ -434,7 +434,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ddpRankRngEvidence?.command.includes("docs/evidence/ddp_rank_local_rng_roundtrip.json"), "DDP rank-local RNG JSON 证据链接缺失");
   const gpuOwnerTask = data.tasks.find((entry) => entry.id === "J6");
   assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("禁止 rm lock 文件伪解锁") && gpuOwnerTask?.detail.includes("尚未据此宣称当前所有锁"), "GPU owner 实时巡检任务或未验收边界缺失");
-  assert(gpuOwnerTask?.detail.includes("acceptance_with_gpu_lock") && gpuOwnerTask?.detail.includes("80 项通过") && gpuOwnerTask?.detail.includes("不进行热修改"), "GPU task-scoped wrapper、专项测试或旧 snapshot 边界缺失");
+  assert(gpuOwnerTask?.detail.includes("acceptance_with_gpu_lock") && gpuOwnerTask?.detail.includes("80 项通过") && gpuOwnerTask?.detail.includes("不热修改旧快照"), "GPU task-scoped wrapper、专项测试或旧 snapshot 边界缺失");
+  assert(gpuOwnerTask?.detail.includes("11:54") && gpuOwnerTask?.detail.includes("四把 kernel flock 均被持有") && gpuOwnerTask?.detail.includes("active/running"), "AutoFormer 当前四锁运行时巡检快照缺失");
   const gpuOwnerRisk = data.risks.find((entry) => entry.id === "R-GPU-LOCK-RUNTIME-OWNER");
   assert(gpuOwnerRisk?.status === "监控" && gpuOwnerRisk?.mitigation.includes("非阻塞 flock") && gpuOwnerRisk?.mitigation.includes("无活跃 child"), "GPU runtime owner 监控风险或处置边界缺失");
   assert(gpuOwnerRisk?.mitigation.includes("唯一权威") && gpuOwnerRisk?.description.includes(".lease heartbeat") && gpuOwnerRisk?.description.includes("四锁均对应活跃训练"), "GPU kernel flock 权威、lease 或活跃旧 snapshot 边界缺失");
@@ -444,6 +445,21 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(gpuLeaseEvidence?.result.includes("80 passed") && gpuLeaseEvidence?.result.includes("不热修改") && gpuLeaseEvidence?.command.includes("docs/evidence/gpu_lock_lease_runtime_20260804.json"), "GPU lock 专项结果、immutable snapshot 或 JSON 证据引用缺失");
   const gpuOwnerEvidence = data.evidence.find((entry) => entry.id === "EV-GPU-LOCK-OWNER-DIAGNOSTIC-GUIDE");
   assert(gpuOwnerEvidence?.result.includes("lslocks") && gpuOwnerEvidence?.result.includes("禁止 rm lock pathname") && gpuOwnerEvidence?.result.includes("不声称当前机器全部锁"), "GPU owner 诊断手册证据边界缺失");
+  const autoformerProgressEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-DUAL-1PCT-V2-PROGRESS-1154");
+  assert(autoformerProgressEvidence?.result.includes("2/5") && autoformerProgressEvidence?.result.includes("180/500") && autoformerProgressEvidence?.result.includes("manifest 均为 running"), "AutoFormer dual-1% 完整 epoch 中间进度缺失");
+  assert(autoformerProgressEvidence?.result.includes("四个活跃 lane") && autoformerProgressEvidence?.result.includes("不把 partial epoch") && !autoformerProgressEvidence?.result.includes("dual-1% 已完成"), "AutoFormer partial epoch 或 GPU 锁科学边界缺失");
+  for (const taskId of ["C1", "H2", "H3"]) {
+    const task = data.tasks.find((entry) => entry.id === taskId);
+    assert(task?.status === "进行中" && task?.detail.includes("manifest") && !task?.detail.includes("dual-1% 已完成"), `任务 ${taskId} 的 AutoFormer running 边界缺失`);
+  }
+  const plainnetSearchTask = data.tasks.find((entry) => entry.id === "J7");
+  assert(plainnetSearchTask?.status === "进行中" && plainnetSearchTask?.detail.includes("source-aligned controller 已完成"), "PlainNet source-aligned controller 阶段任务缺失");
+  assert(plainnetSearchTask?.detail.includes("15,165.56 秒") && plainnetSearchTask?.detail.includes("4.21 小时"), "PlainNet CPU full-history rerank 估计缺失");
+  assert(plainnetSearchTask?.detail.includes("preflight 工具已实现但尚未启动") && plainnetSearchTask?.detail.includes("正式 100k 搜索尚未启动"), "PlainNet GPU preflight 或正式 100k 未启动边界缺失");
+  const plainnetRerankEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-RERANK-SCALING-20260804");
+  assert(plainnetRerankEvidence?.command.includes("docs/evidence/plainnet_rerank_scaling_20260804.json") && plainnetRerankEvidence?.result.includes("15,165.56 秒"), "PlainNet rerank scaling JSON 证据缺失");
+  const plainnetControllerEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-SOURCE-ALIGNED-CONTROLLER-STAGE");
+  assert(plainnetControllerEvidence?.result.includes("source_aligned_control_flow_port") && plainnetControllerEvidence?.result.includes("正式 100k 搜索未启动"), "PlainNet controller fidelity 或正式搜索边界缺失");
   for (const [source, label] of [[operationsCnSource, "中文"], [operationsSource, "英文"]]) {
     assert(source.includes("flock -n") && source.includes("lslocks") && source.includes("fuser"), `${label} OPERATIONS 缺少真实 flock owner 诊断命令`);
     assert(source.includes("pstree") && source.includes("pgrep") && source.includes("kill -TERM"), `${label} OPERATIONS 缺少 supervisor child/TERM 诊断流程`);
