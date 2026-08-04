@@ -66,6 +66,14 @@ reserve idle GPUs during data validation, artifact work, or while waiting for an
 holder closes the task-side descriptors before launching pipelines, and Python fork children close
 inherited copies so `tee`, DataLoader workers, and orphan descendants cannot extend lock lifetime.
 
+Before a high-cost acceptance launcher waits for or acquires GPU locks, it requires a clean worktree,
+copies the effective launcher into the run's `launcher-snapshots/` directory, records SHA-256, makes
+the snapshot read-only, and `exec`s that copy. Repository edits made while the job runs therefore
+cannot change the commands read after a long `wait`. The structured `supervisor.log` records launcher,
+lock acquire/release, child wait, failing `BASH_COMMAND`, and exit status. This prevents control-flow
+drift from keeping locks after GPU work ends; it does not replace kernel `flock` inspection and never
+justifies deleting an active lock path.
+
 ## Evaluation inputs and result types
 
 Dataset input is the default and requires `--data-root` or a valid `dataset_<name>` catalog asset.

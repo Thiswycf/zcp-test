@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 PYTHON=${ZCP_PYTHON:-python}
 GPU_UUIDS=${ZCP_GPU_UUIDS:?Set ZCP_GPU_UUIDS to two comma-separated GPU UUIDs}
 OUTPUT_ROOT=${ZCP_ACCEPTANCE_ROOT:-$PROJECT_ROOT/runs/acceptance/autoformer-aznas-random-8000}
@@ -9,7 +9,11 @@ LOCK_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks
 LOCK_TIMEOUT=${ZCP_GPU_LOCK_TIMEOUT_SECONDS:-7200}
 POPULATION=${ZCP_AZNAS_POPULATION:-8000}
 STATUS=$OUTPUT_ROOT/status.json
+SUPERVISOR_LOG=$OUTPUT_ROOT/supervisor.log
 SEEDS=(20260731 20260732 20260733)
+
+source "$PROJECT_ROOT/tools/acceptance/lib/launcher-runtime.sh"
+acceptance_exec_immutable "$PROJECT_ROOT" "$OUTPUT_ROOT" "${BASH_SOURCE[0]}" "$@"
 
 IFS=',' read -r -a gpu_array <<< "$GPU_UUIDS"
 [[ ${#gpu_array[@]} == 2 ]] || { echo "Exactly two GPU UUIDs are required" >&2; exit 2; }
@@ -19,16 +23,20 @@ done
 [[ "$POPULATION" =~ ^[1-9][0-9]*$ ]] || { echo "Population must be positive" >&2; exit 2; }
 
 mkdir -p "$LOCK_DIR" "$OUTPUT_ROOT"
-commit=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
-[[ -z "$(git -C "$PROJECT_ROOT" status --porcelain)" ]] || {
-  echo "Project worktree must be clean before acceptance search" >&2
-  exit 2
-}
+commit=${ZCP_LAUNCHER_COMMIT:-$(git -C "$PROJECT_ROOT" rev-parse HEAD)}
 
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export TZ=Asia/Shanghai
 export OMP_NUM_THREADS=${OMP_NUM_THREADS:-1}
 export PYTHONPATH=$PROJECT_ROOT/src
+
+supervisor_event() {
+  local event=$1
+  shift
+  printf '[%s] event=%q pid=%s snapshot=%q %s\n' \
+    "$(date -Is)" "$event" "$$" "${ZCP_LAUNCHER_SNAPSHOT:-unknown}" "$*" \
+    >> "$SUPERVISOR_LOG"
+}
 
 write_status() {
   local state=$1 detail=$2
@@ -120,27 +128,47 @@ lane_a() {
   local uuid=${gpu_array[0]} descriptor
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
+  supervisor_event lock_acquired "lane=a gpu=$uuid holder=$BASHPID"
   touch "$OUTPUT_ROOT/lane-a.lock-acquired"
-  (
-    exec {descriptor}>&-
-    run_search "$uuid" "${SEEDS[0]}" &
-    local first=$!
-    run_search "$uuid" "${SEEDS[1]}" &
-    local second=$!
-    wait "$first"
-    wait "$second"
-  )
+  local exit_code
+  if (
+      exec {descriptor}>&-
+      run_search "$uuid" "${SEEDS[0]}" &
+      local first=$!
+      run_search "$uuid" "${SEEDS[1]}" &
+      local second=$!
+      wait "$first"
+      wait "$second"
+    ); then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+  : > "$LOCK_DIR/$uuid.lock"
+  flock -u "$descriptor"
+  supervisor_event lock_released "lane=a gpu=$uuid holder=$BASHPID exit_code=$exit_code"
+  return "$exit_code"
 }
 
 lane_b() {
   local uuid=${gpu_array[1]} descriptor
   exec {descriptor}>"$LOCK_DIR/$uuid.lock"
   flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
+  supervisor_event lock_acquired "lane=b gpu=$uuid holder=$BASHPID"
   touch "$OUTPUT_ROOT/lane-b.lock-acquired"
-  (
-    exec {descriptor}>&-
-    run_search "$uuid" "${SEEDS[2]}"
-  )
+  local exit_code
+  if (
+      exec {descriptor}>&-
+      run_search "$uuid" "${SEEDS[2]}"
+    ); then
+    exit_code=0
+  else
+    exit_code=$?
+  fi
+  : > "$LOCK_DIR/$uuid.lock"
+  flock -u "$descriptor"
+  supervisor_event lock_released "lane=b gpu=$uuid holder=$BASHPID exit_code=$exit_code"
+  return "$exit_code"
 }
 
 children=()
@@ -152,18 +180,23 @@ stop_children() {
 }
 on_error() {
   local exit_code=$?
+  set +e
+  supervisor_event launcher_error "line=$1 exit_code=$exit_code command=$2"
   stop_children
-  write_status failed "search lane failed at line $1 with exit code $exit_code"
+  write_status failed "search lane failed at line $1 with exit code $exit_code; command=$2"
   exit "$exit_code"
 }
 on_signal() {
+  set +e
+  supervisor_event launcher_signal "signal=INT_OR_TERM"
   stop_children
   write_status interrupted "search launcher received signal"
   exit 130
 }
-trap 'on_error $LINENO' ERR
+trap 'on_error "$LINENO" "$BASH_COMMAND"' ERR
 trap on_signal INT TERM
 
+supervisor_event launcher_started "commit=$commit gpus=$GPU_UUIDS population=$POPULATION"
 write_status queued "waiting for per-GPU locks; launch is automatic and does not block the main workflow"
 rm -f "$OUTPUT_ROOT/lane-a.lock-acquired" "$OUTPUT_ROOT/lane-b.lock-acquired"
 lane_a & children+=("$!")
@@ -176,5 +209,7 @@ done
 write_status running "at least one GPU lane acquired; three 8000-candidate seeds are assigned 2+1 across two GPUs"
 for pid in "${children[@]}"; do
   wait "$pid"
+  supervisor_event lane_wait_completed "child_pid=$pid exit_code=0"
 done
 write_status completed "all three 8000-candidate AutoFormer AZ-NAS searches completed"
+supervisor_event launcher_completed "seeds=${SEEDS[*]}"

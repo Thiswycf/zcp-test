@@ -139,6 +139,12 @@ assert(appSource.includes("静态看板不受影响") && appSource.includes("继
 assert(appSource.includes("stale_after_seconds") && appSource.includes("live.json 已"), "live.json 陈旧判断或警告缺失");
 assert(appSource.includes("rate_per_second") && appSource.includes("eta_seconds"), "实时卡缺少速率或 ETA 展示");
 assert(appSource.includes("utilization_percent") && appSource.includes("memory_used_mib"), "实时卡缺少 GPU 利用率或显存展示");
+assert(appSource.includes("candidateTotal") && appSource.includes("candidateTarget"), "AutoFormer workload 进度未使用 candidate rows");
+assert(appSource.includes("uniqueEvaluations") && appSource.includes("cacheHits"), "AutoFormer 实时卡缺少 unique evaluations 或 cache hits");
+assert(appSource.includes("workloadStatus") && appSource.includes("supervisorStatus"), "AutoFormer workload 与 supervisor 状态未独立归并");
+assert(appSource.includes("workload ${escapeHtml(workloadStatus)}") && appSource.includes("supervisor ${escapeHtml(supervisorStatus)}"), "AutoFormer 双状态 badge 未渲染");
+assert(stylesSource.includes(".live-badges") && stylesSource.includes(".live-status.status-failed"), "AutoFormer 双 badge 或 supervisor failed 样式缺失");
+assert(appSource.includes("独立 orchestration warning"), "Supervisor failure 未明确保持为独立 orchestration warning");
 assert(readmeSource.includes("python -m http.server 8768 --directory panel"), "README 缺少静态服务器命令");
 assert(readmeSource.includes("python panel/live-status.py --once"), "README 缺少 live-status --once 命令");
 assert(readmeSource.includes("python panel/live-status.py --watch --interval 15"), "README 缺少 live-status watch 命令");
@@ -367,8 +373,9 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const autoFormerTask = data.tasks.find((entry) => entry.id === "C1");
   const autoFormerEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-TRAINING-PROTOCOL-FIDELITY");
   assert(autoFormerTask?.detail.includes("source-pinned commit 5e6683a") && autoFormerTask?.detail.includes("aznas-5e6683-autoformer-stable-v1") && autoFormerTask?.detail.includes("paper_formula_port_stabilized"), "AutoFormer AZ-NAS 代理身份缺失");
-  assert(autoFormerTask?.detail.includes("status=running") && autoFormerTask?.detail.includes("不再 queued") && autoFormerTask?.detail.includes("100/100/200"), "AutoFormer AZ-NAS 任务运行状态缺失");
-  assert(autoFormerTask?.detail.includes("尚未完成") && autoFormerTask?.detail.includes("候选未冻结") && autoFormerTask?.detail.includes("不是上游控制器逐行复现"), "AutoFormer AZ-NAS 任务边界缺失");
+  assert(autoFormerTask?.detail.includes("24,000/24,000 candidate rows") && autoFormerTask?.detail.includes("unique evaluations=23,999") && autoFormerTask?.detail.includes("cache hits=1"), "AutoFormer cohort 完成度或缓存语义缺失");
+  assert(autoFormerTask?.detail.includes("workload completed") && autoFormerTask?.detail.includes("failed/exit 127") && autoFormerTask?.detail.includes("orchestration warning"), "AutoFormer workload/supervisor 双状态边界缺失");
+  assert(autoFormerTask?.detail.includes("候选冻结") && autoFormerTask?.detail.includes("项目总体验收仍未完成") && autoFormerTask?.detail.includes("不是上游控制器逐行复现"), "AutoFormer 剩余验收边界缺失");
   assert(autoFormerEvidence?.result.includes("133 项专项相关测试通过"), "AutoFormer 专项测试计数缺失");
   assert(autoFormerEvidence?.result.includes("不是全仓测试总数"), "AutoFormer 专项测试范围未明确");
   const azNasEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-AZNAS-STABLE-SMOKE");
@@ -386,7 +393,14 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(azNasEvidence?.command.includes("docs/evidence/aznas_autoformer_rank_smoke.json"), "AutoFormer AZ-NAS 仓库相对证据文档缺失");
   assert(azNasEvidence?.command.includes("docs/evidence/gpu_throughput_optimization.json"), "AutoFormer GPU 吞吐证据文档缺失");
   const autoFormerRisk = data.risks.find((entry) => entry.id === "R-AUTOFORMER");
-  assert(autoFormerRisk?.status === "开放" && autoFormerRisk?.description.includes("status=running") && autoFormerRisk?.description.includes("100/100/200") && autoFormerRisk?.description.includes("尚未完成") && autoFormerRisk?.description.includes("候选仍未冻结"), "AutoFormer 风险未保持运行与候选冻结边界");
+  assert(autoFormerRisk?.status === "开放" && autoFormerRisk?.description.includes("24,000/24,000 candidate rows") && autoFormerRisk?.description.includes("23,999 unique evaluations") && autoFormerRisk?.description.includes("1 cache hit"), "AutoFormer 风险未记录最新 workload 事实");
+  assert(autoFormerRisk?.description.includes("failed/exit 127") && autoFormerRisk?.description.includes("orchestration warning") && autoFormerRisk?.description.includes("双重 1% 完整训练"), "AutoFormer 风险未区分 supervisor 与剩余高成本验收");
+  const cohortEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-COHORT-RECONCILED");
+  assert(cohortEvidence?.result.includes("24,000/24,000 candidate rows") && cohortEvidence?.result.includes("23,999 unique evaluations") && cohortEvidence?.result.includes("1 cache hit"), "AutoFormer cohort 归并证据缺失");
+  assert(cohortEvidence?.result.includes("workload 状态为 completed") && cohortEvidence?.result.includes("独立 orchestration warning") && cohortEvidence?.result.includes("总体验收仍未完成"), "AutoFormer cohort 证据科学边界缺失");
+  const immutableLauncherEvidence = data.evidence.find((entry) => entry.id === "EV-LAUNCHER-IMMUTABLE-SNAPSHOT");
+  assert(immutableLauncherEvidence?.result.includes("运行中的 launcher 脚本被工作树改写") && immutableLauncherEvidence?.result.includes("只读 snapshot") && immutableLauncherEvidence?.result.includes("SHA-256"), "Launcher exit 127 根因或不可变快照证据缺失");
+  assert(immutableLauncherEvidence?.result.includes("lock_acquired/lock_released") && immutableLauncherEvidence?.result.includes("supervisor.log"), "Launcher 结构化 supervisor/锁日志证据缺失");
   const budgetRisk = data.risks.find((entry) => entry.id === "R-BUDGET");
   assert(budgetRisk?.description.includes("允许增加高成本验收时间预算"), "高成本验收追加时间预算授权缺失");
   for (const riskId of ["R-DDP-RANK-RNG"]) {
@@ -394,7 +408,10 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     assert(risk && ["开放", "受阻"].includes(risk.status), `关键风险 ${riskId} 未保持开放或受阻`);
   }
   assert(data.risks.find((entry) => entry.id === "R-DARTS-IMAGENET-DATA")?.status === "监控", "DARTS 完成后 BatchNorm 粒度风险应保持监控");
-  assert(data.risks.find((entry) => entry.id === "R-LAUNCHER-EXIT-CODE")?.status === "关闭", "旧 supervisor 继承锁风险未关闭");
+  const launcherExitRisk = data.risks.find((entry) => entry.id === "R-LAUNCHER-EXIT-CODE");
+  assert(launcherExitRisk?.status === "关闭", "旧 launcher exit 127 风险未关闭");
+  assert(launcherExitRisk?.description.includes("运行中的 launcher 脚本被工作树改写") && launcherExitRisk?.description.includes("只读 snapshot") && launcherExitRisk?.description.includes("SHA-256"), "旧 launcher exit 127 根因或治理缺失");
+  assert(launcherExitRisk?.mitigation.includes("lock_acquired") && launcherExitRisk?.mitigation.includes("lock_released"), "结构化锁 acquire/release 日志治理缺失");
   for (const taskId of ["H2", "H3"]) {
     const task = data.tasks.find((entry) => entry.id === taskId);
     assert(task?.status !== "已完成", `任务 ${taskId} 不应标记为全部完成`);

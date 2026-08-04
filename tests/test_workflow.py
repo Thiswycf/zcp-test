@@ -55,7 +55,7 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
     assert 'CUDA_VISIBLE_DEVICES="$uuid"' in common_source
     assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in common_source
     assert "ZoneInfo(\"Asia/Shanghai\")" in common_source
-    assert "Project worktree must be clean" in common_source
+    assert "acceptance_exec_immutable" in common_source
     assert 'flock -n "$descriptor"' in common_source
     assert "with_all_gpu_locks run_one 1" in common_source
     assert 'with_gpu_lock "${gpu_array[0]}" lane_zero' in common_source
@@ -112,8 +112,117 @@ def test_autoformer_aznas_acceptance_launcher_is_resumable_and_packed():
     assert 'flock -w "$LOCK_TIMEOUT"' in source
     assert 'CUDA_VISIBLE_DEVICES="$uuid"' in source
     assert source.count("exec {descriptor}>&-") == 2
+    assert "acceptance_exec_immutable" in source
+    assert "supervisor_event lock_acquired" in source
+    assert "supervisor_event lock_released" in source
+    assert 'command=$2' in source
     assert "architecture-hash-v1" in source
     assert 'ZoneInfo("Asia/Shanghai")' in source
+
+
+def test_acceptance_launcher_snapshot_survives_source_rewrite(tmp_path):
+    root = tmp_path / "repo"
+    library_dir = root / "tools" / "acceptance" / "lib"
+    library_dir.mkdir(parents=True)
+    source_library = (
+        Path(__file__).resolve().parents[1]
+        / "tools"
+        / "acceptance"
+        / "lib"
+        / "launcher-runtime.sh"
+    )
+    (library_dir / "launcher-runtime.sh").write_text(
+        source_library.read_text(encoding="utf-8"), encoding="utf-8"
+    )
+    launcher = root / "tools" / "acceptance" / "long-launcher.sh"
+    launcher.write_text(
+        """#!/usr/bin/env bash
+set -Eeuo pipefail
+PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
+OUTPUT_ROOT=$PROJECT_ROOT/output
+source "$PROJECT_ROOT/tools/acceptance/lib/launcher-runtime.sh"
+acceptance_exec_immutable "$PROJECT_ROOT" "$OUTPUT_ROOT" "${BASH_SOURCE[0]}" "$@"
+printf 'before\\n' >> "$OUTPUT_ROOT/result.txt"
+sleep 1
+printf 'after\\n' >> "$OUTPUT_ROOT/result.txt"
+""",
+        encoding="utf-8",
+    )
+    launcher.chmod(0o755)
+    subprocess.run(["git", "init", "-q", "-b", "main"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.name", "zcp-test"], cwd=root, check=True)
+    subprocess.run(["git", "config", "user.email", "test@example.invalid"], cwd=root, check=True)
+    subprocess.run(["git", "add", "."], cwd=root, check=True)
+    subprocess.run(["git", "commit", "-qm", "fixture"], cwd=root, check=True)
+
+    process = subprocess.Popen(["bash", str(launcher)], cwd=root)
+    snapshot_dir = root / "output" / "launcher-snapshots"
+    for _ in range(100):
+        if list(snapshot_dir.glob("long-launcher-*.sh")):
+            break
+        process.poll()
+        assert process.returncode is None
+        import time
+
+        time.sleep(0.02)
+    else:
+        process.kill()
+        raise AssertionError("launcher snapshot was not created")
+
+    launcher.write_text("#!/usr/bin/env bash\nexit 127\n", encoding="utf-8")
+    assert process.wait(timeout=5) == 0
+    assert (root / "output" / "result.txt").read_text(encoding="utf-8") == "before\nafter\n"
+    snapshots = list(snapshot_dir.glob("long-launcher-*.sh"))
+    assert len(snapshots) == 1
+    assert snapshots[0].stat().st_mode & 0o222 == 0
+    assert snapshots[0].with_suffix(".sh.sha256").is_file()
+
+
+def test_failed_lane_releases_flock_before_supervisor_finishes(tmp_path):
+    lock_path = tmp_path / "gpu.lock"
+    released = tmp_path / "released"
+    supervisor = tmp_path / "supervisor.sh"
+    supervisor.write_text(
+        """#!/usr/bin/env bash
+set -Eeuo pipefail
+lock_path=$1
+released=$2
+exec {descriptor}>"$lock_path"
+flock -n "$descriptor"
+if (
+    exec {descriptor}>&-
+    sleep 0.1
+    exit 7
+  ); then
+  exit_code=0
+else
+  exit_code=$?
+fi
+: > "$lock_path"
+flock -u "$descriptor"
+printf '%s\\n' "$exit_code" > "$released"
+sleep 2
+""",
+        encoding="utf-8",
+    )
+    process = subprocess.Popen(["bash", str(supervisor), str(lock_path), str(released)])
+    for _ in range(100):
+        if released.is_file():
+            break
+        process.poll()
+        assert process.returncode is None
+        import time
+
+        time.sleep(0.02)
+    else:
+        process.kill()
+        raise AssertionError("failed lane did not report lock release")
+
+    assert released.read_text(encoding="utf-8").strip() == "7"
+    assert process.poll() is None
+    subprocess.run(["flock", "-n", str(lock_path), "-c", "true"], check=True)
+    process.terminate()
+    process.wait(timeout=5)
 
 
 def test_acceptance_freeze_candidates_cli_is_exposed():
@@ -134,6 +243,27 @@ def test_acceptance_freeze_candidates_cli_is_exposed():
     assert arguments.pool_size == 32
     assert arguments.classes == 1000
     assert arguments.supporting_search_run == []
+
+    reconciliation = parser.parse_args(
+        [
+            "acceptance",
+            "reconcile-search-cohort",
+            "--cohort-root",
+            "cohort",
+            "--search-run",
+            "run-a",
+            "--expected-space",
+            "autoformer",
+            "--expected-population",
+            "8000",
+            "--expected-seed",
+            "20260731",
+            "--expected-components",
+            "expressivity,trainability,complexity",
+        ]
+    )
+    assert reconciliation.action == "reconcile-search-cohort"
+    assert reconciliation.expected_seed == [20260731]
 
 
 def test_evaluate_one_row_per_proxy_and_lazy_directories(tmp_path):

@@ -2682,6 +2682,8 @@ def command_legacy(args: argparse.Namespace) -> None:
 
 
 def command_acceptance(args: argparse.Namespace) -> None:
+    from zcp_test.acceptance import reconcile_search_cohort
+
     if args.action == "freeze-candidates":
         _json(
             freeze_training_candidates(
@@ -2692,6 +2694,22 @@ def command_acceptance(args: argparse.Namespace) -> None:
                 pool_size=args.pool_size,
                 classes=args.classes,
                 supporting_search_runs=args.supporting_search_run,
+            )
+        )
+        return
+    if args.action == "reconcile-search-cohort":
+        _json(
+            reconcile_search_cohort(
+                cohort_root=args.cohort_root,
+                search_runs=args.search_run,
+                expected_space=args.expected_space,
+                expected_population=args.expected_population,
+                expected_seeds=args.expected_seed,
+                expected_components=tuple(
+                    component.strip()
+                    for component in args.expected_components.split(",")
+                    if component.strip()
+                ),
             )
         )
         return
@@ -3096,6 +3114,14 @@ def build_parser() -> argparse.ArgumentParser:
     freeze_candidates.add_argument("--pool-size", type=int, default=32)
     freeze_candidates.add_argument("--classes", type=int, default=1000)
     freeze_candidates.set_defaults(function=command_acceptance)
+    reconcile_cohort = acceptance_actions.add_parser("reconcile-search-cohort")
+    reconcile_cohort.add_argument("--cohort-root", required=True)
+    reconcile_cohort.add_argument("--search-run", action="append", required=True)
+    reconcile_cohort.add_argument("--expected-space", required=True)
+    reconcile_cohort.add_argument("--expected-population", type=int, required=True)
+    reconcile_cohort.add_argument("--expected-seed", action="append", type=int, required=True)
+    reconcile_cohort.add_argument("--expected-components", required=True)
+    reconcile_cohort.set_defaults(function=command_acceptance)
     legacy = subparsers.add_parser("legacy")
     legacy_actions = legacy.add_subparsers(dest="action", required=True)
     legacy_import = legacy_actions.add_parser("import")

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-PROJECT_ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
 DATA_ROOT=${ZCP_IMAGENET_ROOT:?Set ZCP_IMAGENET_ROOT to a verified ImageNet-1k root}
 CANDIDATE_ROOT=${ZCP_DARTS_CANDIDATES:?Set ZCP_DARTS_CANDIDATES to the three architecture JSON files}
 GPU_UUIDS=${ZCP_GPU_UUIDS:?Set ZCP_GPU_UUIDS to four comma-separated GPU UUIDs}
@@ -13,6 +13,9 @@ WORKERS=${ZCP_DATA_WORKERS:-8}
 VALID_WORKERS=${ZCP_VALID_DATA_WORKERS:-2}
 LOCK_DIR=${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks
 STATUS=$OUTPUT_ROOT/status.json
+
+source "$PROJECT_ROOT/tools/acceptance/lib/launcher-runtime.sh"
+acceptance_exec_immutable "$PROJECT_ROOT" "$OUTPUT_ROOT" "${BASH_SOURCE[0]}" "$@"
 
 [[ "$START_AT" =~ ^[1-6]$ ]] || { echo "ZCP_START_AT must be in 1..6" >&2; exit 2; }
 for name in zcp_selected.json fixed_random.json params_matched_random_pool.json; do
@@ -78,11 +81,7 @@ for name in zcp_selected.json fixed_random.json params_matched_random_pool.json;
 done
 CANDIDATE_ROOT=$OUTPUT_ROOT/candidates
 
-commit=$(git -C "$PROJECT_ROOT" rev-parse HEAD)
-[[ -z "$(git -C "$PROJECT_ROOT" status --porcelain)" ]] || {
-  echo "Project worktree must be clean before acceptance training" >&2
-  exit 2
-}
+commit=${ZCP_LAUNCHER_COMMIT:-$(git -C "$PROJECT_ROOT" rev-parse HEAD)}
 
 write_status() {
   local state=$1 current=$2 detail=$3

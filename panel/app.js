@@ -464,27 +464,46 @@
     const generatedAt = new Date(liveData.generated_at);
     const ageSeconds = Number.isFinite(generatedAt.getTime()) ? Math.max(0, Math.round((Date.now() - generatedAt.getTime()) / 1000)) : Infinity;
     const staleAfter = Number(liveData.stale_after_seconds) || 45;
-    const staleSeeds = liveData.autoformer?.seeds?.filter((seed) => seed.stale) || [];
+    const autoformer = liveData.autoformer || {};
+    const workload = autoformer.workload || {};
+    const supervisor = autoformer.supervisor || {};
+    const workloadStatus = workload.status || autoformer.workload_status || autoformer.status || "unknown";
+    const supervisorStatus = supervisor.status || autoformer.supervisor_status || "unknown";
+    const supervisorDetail = supervisor.detail || autoformer.supervisor_detail || "无 supervisor 详情";
+    const candidateTotal = Number(workload.candidate_rows ?? autoformer.candidates_total ?? autoformer.evaluations_total ?? 0);
+    const candidateTarget = Number(workload.candidate_target ?? autoformer.target_total ?? 24_000);
+    const uniqueEvaluations = Number(workload.unique_evaluations ?? autoformer.unique_evaluations_total ?? candidateTotal);
+    const cacheHits = Number(workload.cache_hits ?? autoformer.cache_hits_total ?? 0);
+    const staleSeeds = autoformer.seeds?.filter((seed) => seed.stale) || [];
     const isStale = ageSeconds > staleAfter;
     freshness.textContent = `更新 ${formatLiveTimestamp(liveData.generated_at)}`;
     warning.className = `live-warning${isStale || liveError ? " is-stale" : ""}`;
-    const warnings = [...(liveData.warnings || [])];
+    const warnings = [...(liveData.warnings || [])].filter((message) => !(
+      autoformer.reconciled
+      && message.includes("三个 seed 产物均 completed")
+      && message.includes("需执行产物归并审计")
+    ));
     if (liveError) warnings.unshift(liveError);
     if (isStale) warnings.unshift(`live.json 已 ${ageSeconds} 秒未更新`);
     if (staleSeeds.length) warnings.push(`${staleSeeds.length} 个 seed 的 partial state 较旧`);
+    if (workloadStatus === "completed" && supervisorStatus !== "completed") {
+      warnings.push(`AutoFormer workload 已完成；supervisor ${supervisorStatus} 作为独立 orchestration warning 保留`);
+    }
     warning.textContent = warnings.length ? `数据提示：${warnings.join("；")}` : "实时状态源正常。";
 
-    const autoformer = liveData.autoformer || {};
     const seeds = Array.isArray(autoformer.seeds) ? autoformer.seeds : [];
     const targetUuids = new Set(autoformer.gpu_uuids || []);
     const gpus = (liveData.gpus || []).filter((gpu) => !targetUuids.size || targetUuids.has(gpu.uuid));
     const seedMarkup = seeds.length ? seeds.map((seed) => {
-      const percent = Math.min(100, Math.max(0, seed.total ? seed.evaluations / seed.total * 100 : 0));
+      const candidates = Number(seed.candidates ?? seed.candidate_rows ?? seed.evaluations ?? 0);
+      const unique = Number(seed.unique_evaluations ?? candidates);
+      const cacheHitsForSeed = Number(seed.cache_hits ?? Math.max(0, candidates - unique));
+      const percent = Math.min(100, Math.max(0, seed.total ? candidates / seed.total * 100 : 0));
       const rate = Number.isFinite(seed.rate_per_second) ? `${seed.rate_per_second.toFixed(2)} eval/s` : "速率 —";
       return `<div class="live-seed">
-        <div class="live-seed-line"><strong>seed ${escapeHtml(seed.seed)}</strong><span>${escapeHtml(seed.evaluations)}/${escapeHtml(seed.total)}</span></div>
+        <div class="live-seed-line"><strong>seed ${escapeHtml(seed.seed)}</strong><span>${escapeHtml(candidates)}/${escapeHtml(seed.total)}</span></div>
         <div class="live-progress" aria-hidden="true"><span style="width:${percent.toFixed(2)}%"></span></div>
-        <small>${escapeHtml(rate)} · ETA ${escapeHtml(formatDuration(seed.eta_seconds))} · ${escapeHtml(formatLiveTimestamp(seed.updated_at))}</small>
+        <small>${escapeHtml(rate)} · unique ${escapeHtml(unique)} · cache hits ${escapeHtml(cacheHitsForSeed)} · ETA ${escapeHtml(formatDuration(seed.eta_seconds))} · ${escapeHtml(formatLiveTimestamp(seed.updated_at))}</small>
       </div>`;
     }).join("") : '<div class="live-empty">search-state.json 暂缺，等待下一次原子保存。</div>';
     const gpuMarkup = gpus.length ? gpus.map((gpu) => `
@@ -500,8 +519,9 @@
         <div class="live-facts"><span class="live-fact">状态更新时间 ${escapeHtml(formatLiveTimestamp(liveData.darts?.updated_at))}</span></div>
       </article>
       <article class="live-run">
-        <div class="live-run-heading"><h3>AutoFormer AZ-NAS 3×8,000</h3><span class="live-status status-${escapeHtml(autoformer.status || "unknown")}">${escapeHtml(autoformer.status || "unknown")}</span></div>
-        <p class="live-run-meta">总进度 ${escapeHtml(autoformer.evaluations_total || 0)}/${escapeHtml(autoformer.target_total || 24_000)}</p>
+        <div class="live-run-heading"><h3>AutoFormer AZ-NAS 3×8,000</h3><div class="live-badges"><span class="live-status status-${escapeHtml(workloadStatus)}">workload ${escapeHtml(workloadStatus)}</span><span class="live-status status-${escapeHtml(supervisorStatus)}">supervisor ${escapeHtml(supervisorStatus)}</span></div></div>
+        <p class="live-run-meta">候选进度 ${escapeHtml(candidateTotal)}/${escapeHtml(candidateTarget)} · unique evaluations ${escapeHtml(uniqueEvaluations)} · cache hits ${escapeHtml(cacheHits)}</p>
+        <div class="live-facts"><span class="live-fact">产物归并 ${escapeHtml(autoformer.reconciled ? "已验证" : "待验证")}</span><span class="live-fact">orchestration ${escapeHtml(supervisorDetail)}</span></div>
         <div class="live-seeds">${seedMarkup}</div>
         <div class="live-gpus">${gpuMarkup}</div>
       </article>`;

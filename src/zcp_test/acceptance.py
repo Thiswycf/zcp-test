@@ -414,8 +414,209 @@ def freeze_training_candidates(
     return {"output": str(destination), **manifest}
 
 
+def _validate_zero_generation_search_run(
+    search_run: str | Path,
+    *,
+    expected_space: str,
+    expected_population: int,
+    expected_components: Sequence[str],
+) -> dict[str, Any]:
+    run = Path(search_run).expanduser().resolve()
+    best, provenance = _load_search_selection(run, expected_space)
+    manifest = json.loads((run / "manifest.json").read_text(encoding="utf-8"))
+    if manifest.get("status") != "completed" or not manifest.get("ended_at"):
+        raise ValueError("Search run manifest is not terminal-complete")
+    state = json.loads((run / "search-state.json").read_text(encoding="utf-8"))
+    if int(state.get("completed_generation", -1)) != 0:
+        raise ValueError("Search cohort reconciliation requires a completed generation-0 run")
+    population = state.get("population")
+    if not isinstance(population, list) or len(population) != expected_population:
+        raise ValueError("Search state population size does not match the expected cohort size")
+    rows = []
+    with (run / "search.jsonl").open(encoding="utf-8") as handle:
+        for line_number, line in enumerate(handle, start=1):
+            if not line.strip():
+                continue
+            try:
+                rows.append(json.loads(line))
+            except json.JSONDecodeError as error:
+                raise ValueError(
+                    f"Search JSONL contains invalid JSON at line {line_number}"
+                ) from error
+    candidates = [row for row in rows if row.get("record_kind") == "candidate"]
+    summaries = [row for row in rows if row.get("record_kind") == "generation_summary"]
+    if len(candidates) != expected_population or len(summaries) != 1:
+        raise ValueError("Search JSONL must contain the expected candidates and one summary")
+    component_names = set(expected_components)
+    architecture_rows: dict[str, tuple[Any, Any]] = {}
+    for row in candidates:
+        architecture_id = str(row.get("architecture_id", ""))
+        components = row.get("components")
+        try:
+            score = float(row["score"])
+        except (KeyError, TypeError, ValueError) as error:
+            raise ValueError("Search candidate contains an invalid score") from error
+        if not architecture_id or not math.isfinite(score):
+            raise ValueError("Search candidate contains a non-finite or unidentified score")
+        if not isinstance(components, dict) or set(components) != component_names:
+            raise ValueError("Search candidate components do not match the expected protocol")
+        if not all(math.isfinite(float(value)) for value in components.values()):
+            raise ValueError("Search candidate contains a non-finite component")
+        identity = (
+            json.dumps(row.get("architecture"), sort_keys=True),
+            json.dumps(components, sort_keys=True),
+        )
+        previous = architecture_rows.setdefault(architecture_id, identity)
+        if previous != identity:
+            raise ValueError("Duplicate architecture ID has conflicting search records")
+    row_cache_hits = sum(bool(row.get("cache_hit")) for row in candidates)
+    unique_evaluations = int(state.get("evaluations", -1))
+    state_cache_hits = int(state.get("cache_hits", -1))
+    expected_cache_hits = expected_population - unique_evaluations
+    if expected_cache_hits < 0 or row_cache_hits != expected_cache_hits:
+        raise ValueError("Search candidate cache-hit count does not match unique evaluations")
+    if state_cache_hits != expected_cache_hits:
+        raise ValueError("Search state cache-hit count does not match unique evaluations")
+    summary = summaries[0]
+    if (
+        int(summary.get("cumulative_evaluations", -1)) != unique_evaluations
+        or int(summary.get("cumulative_cache_hits", -1)) != state_cache_hits
+    ):
+        raise ValueError("Search summary counters do not match the final state")
+    identity = provenance["search_identity"]
+    return {
+        "seed": int(identity["seed"]),
+        "run": str(run),
+        "run_id": manifest.get("run_id", run.name),
+        "ended_at": manifest["ended_at"],
+        "candidate_rows": len(candidates),
+        "unique_architectures": len(architecture_rows),
+        "unique_evaluations": unique_evaluations,
+        "cache_hits": state_cache_hits,
+        "summary_rows": len(summaries),
+        "best_architecture_id": best["architecture_id"],
+        "best_selection": provenance["best_selection"],
+        "search_manifest_sha256": provenance["search_manifest_sha256"],
+        "search_config_sha256": provenance["search_config_sha256"],
+        "search_jsonl_sha256": provenance["search_jsonl_sha256"],
+        "search_state_sha256": provenance["search_state_sha256"],
+        "search_identity": identity,
+    }
+
+
+def reconcile_search_cohort(
+    *,
+    cohort_root: str | Path,
+    search_runs: Sequence[str | Path],
+    expected_space: str,
+    expected_population: int,
+    expected_seeds: Sequence[int],
+    expected_components: Sequence[str],
+) -> dict[str, Any]:
+    if expected_population <= 0:
+        raise ValueError("expected_population must be positive")
+    if not search_runs:
+        raise ValueError("At least one search run is required")
+    expected_seed_set = {int(seed) for seed in expected_seeds}
+    if len(expected_seed_set) != len(expected_seeds):
+        raise ValueError("Expected cohort seeds must be unique")
+    records = [
+        _validate_zero_generation_search_run(
+            run,
+            expected_space=expected_space,
+            expected_population=expected_population,
+            expected_components=expected_components,
+        )
+        for run in search_runs
+    ]
+    actual_seeds = {record["seed"] for record in records}
+    if actual_seeds != expected_seed_set:
+        raise ValueError(
+            f"Search cohort seeds do not match: {sorted(actual_seeds)} != {sorted(expected_seed_set)}"
+        )
+    root = Path(cohort_root).expanduser().resolve()
+    status_path = root / "status.json"
+    status = json.loads(status_path.read_text(encoding="utf-8"))
+    primary_seed = int(status.get("primary_selection_seed", min(expected_seed_set)))
+    if primary_seed not in expected_seed_set:
+        raise ValueError("Predeclared primary seed is not part of the expected cohort")
+    primary = next(record for record in records if record["seed"] == primary_seed)
+    supporting = [
+        (
+            {"architecture_id": record["best_architecture_id"]},
+            {
+                key: value
+                for key, value in record.items()
+                if key.startswith("search_") or key == "best_selection"
+            },
+        )
+        for record in records
+        if record["seed"] != primary_seed
+    ]
+    _validate_supporting_searches(
+        {
+            "search_identity": primary["search_identity"],
+            "best_selection": primary["best_selection"],
+        },
+        supporting,
+    )
+    declared_primary = status.get("primary_selection_seed")
+    declared_supporting = status.get("supporting_robustness_seeds")
+    if declared_primary is not None and int(declared_primary) != primary_seed:
+        raise ValueError("Cohort primary seed contradicts the predeclared status")
+    if declared_supporting is not None and {
+        int(seed) for seed in declared_supporting
+    } != expected_seed_set - {primary_seed}:
+        raise ValueError("Cohort supporting seeds contradict the predeclared status")
+    validation = {
+        "schema_version": "1.0",
+        "validated_at": project_now_iso(),
+        "status": "completed",
+        "search_space_id": expected_space,
+        "expected_population_per_seed": expected_population,
+        "expected_components": list(expected_components),
+        "primary_selection_seed": primary_seed,
+        "supporting_robustness_seeds": sorted(expected_seed_set - {primary_seed}),
+        "candidate_rows_total": sum(record["candidate_rows"] for record in records),
+        "unique_evaluations_total": sum(record["unique_evaluations"] for record in records),
+        "cache_hits_total": sum(record["cache_hits"] for record in records),
+        "runs": sorted(records, key=lambda record: record["seed"]),
+        "supervisor_status_before_reconciliation": status.get(
+            "supervisor_terminal_status", status.get("status")
+        ),
+        "supervisor_detail_before_reconciliation": status.get(
+            "supervisor_terminal_detail", status.get("detail")
+        ),
+    }
+    validation_path = root / "cohort-validation.json"
+    _atomic_json(validation_path, validation)
+    validation_sha256 = file_sha256(validation_path)
+    reconciled_status = {
+        **status,
+        "status": "completed",
+        "detail": "all seed artifacts passed cohort reconciliation",
+        "ended_at": max(record["ended_at"] for record in records),
+        "updated_at": validation["validated_at"],
+        "supervisor_terminal_status": status.get(
+            "supervisor_terminal_status", status.get("status")
+        ),
+        "supervisor_terminal_detail": status.get(
+            "supervisor_terminal_detail", status.get("detail")
+        ),
+        "reconciled_at": validation["validated_at"],
+        "cohort_validation": str(validation_path),
+        "cohort_validation_sha256": validation_sha256,
+        "candidate_rows_total": validation["candidate_rows_total"],
+        "unique_evaluations_total": validation["unique_evaluations_total"],
+        "cache_hits_total": validation["cache_hits_total"],
+    }
+    _atomic_json(status_path, reconciled_status)
+    return {**validation, "output": str(validation_path), "sha256": validation_sha256}
+
+
 __all__ = [
     "ResourceMeasurement",
     "freeze_training_candidates",
     "measure_architecture_resources",
+    "reconcile_search_cohort",
 ]

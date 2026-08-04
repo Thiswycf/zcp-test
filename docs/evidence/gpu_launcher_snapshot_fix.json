@@ -1,0 +1,36 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T10:54:20+08:00",
+  "issue": "A long-running Bash launcher could be modified in place while blocked in wait, then read changed commands and exit abnormally after GPU work completed.",
+  "observed_case": {
+    "workload": "AutoFormer AZ-NAS 3 seeds x 8000 candidates",
+    "scientific_workload_status": "completed",
+    "supervisor_status": "failed_after_workload_completion",
+    "exit_code": 127,
+    "evidence_boundary": "The empty historical supervisor.log prevents uniquely reconstructing the exact misread command. Runtime script mutation is the strongest evidence-supported cause, not a mathematically proven unique cause."
+  },
+  "remediation": [
+    "Acceptance launchers create a read-only, SHA-256-recorded launcher snapshot before entering long waits or GPU lock scopes.",
+    "The running shell execs the snapshot, so later repository edits cannot alter its remaining control flow.",
+    "The launch commit is propagated explicitly instead of being recomputed after snapshot exec.",
+    "AutoFormer supervisor logging records launcher lifecycle, lock acquisition and release, child waits, failing BASH_COMMAND, line, and exit code.",
+    "Per-lane lock holders explicitly unlock immediately after their active workload exits."
+  ],
+  "runtime_audit_at_recording": {
+    "gpu_lock_files": 8,
+    "kernel_locks_held": 0,
+    "interpretation": "Persistent lock pathnames are normal; all non-blocking flock probes succeeded."
+  },
+  "validation": [
+    "bash -n tools/acceptance/lib/launcher-runtime.sh tools/acceptance/*.sh",
+    "pytest tests/test_workflow.py tests/test_gpu.py",
+    "Regression test rewrites the original launcher to exit 127 during sleep and verifies the snapshotted process still exits 0 and writes both lifecycle markers.",
+    "git diff --check"
+  ],
+  "scientific_protocol_changed": false,
+  "limitations": [
+    "The lock protocol coordinates only same-user zcp-test processes.",
+    "Automatic termination is intentionally not based only on low GPU utilization because CPU preprocessing, checkpointing, or validation may legitimately use little GPU.",
+    "A supervisor with an active child retains its lane lock by design; the lock is released when that lane exits."
+  ]
+}

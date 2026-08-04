@@ -113,9 +113,11 @@ main { display: grid; gap: 18px; padding-bottom: 56px; }
 .live-run { display: grid; gap: 12px; }
 .live-run-heading { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
 .live-run-heading h3 { margin: 0; font-size: 1rem; }
+.live-badges { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 6px; }
 .live-status { border-radius: 999px; padding: 4px 8px; color: var(--accent); background: var(--accent-soft); font-size: .75rem; font-weight: 800; }
 .live-status.status-running { color: var(--warning); }
 .live-status.status-completed { color: var(--success); }
+.live-status.status-failed, .live-status.status-interrupted { color: var(--danger); }
 .live-seeds, .live-gpus { display: grid; gap: 8px; }
 .live-seed, .live-gpu { padding: 10px; }
 .live-seed-line, .live-gpu-line { display: flex; justify-content: space-between; gap: 10px; font-variant-numeric: tabular-nums; }

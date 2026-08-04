@@ -66,10 +66,17 @@ def latest_search_states():
         candidates = list(seed_dir.glob("*/search-state.json"))
         if not candidates:
             continue
-        try:
-            latest = max(candidates, key=lambda path: path.stat().st_mtime)
-        except OSError:
+        ranked = []
+        for candidate in candidates:
+            try:
+                manifest = json.loads((candidate.parent / "manifest.json").read_text(encoding="utf-8"))
+                completed = manifest.get("status") == "completed"
+                ranked.append((completed, candidate.stat().st_mtime, candidate))
+            except (OSError, json.JSONDecodeError):
+                continue
+        if not ranked:
             continue
+        latest = max(ranked, key=lambda item: (item[0], item[1]))[2]
         states.append((seed_dir.name.removeprefix("seed-"), latest))
     return states
 
@@ -80,7 +87,10 @@ def search_progress(seed, path, warnings, generated_at):
         return {
             "seed": int(seed) if seed.isdigit() else seed,
             "status": "unavailable",
+            "candidates": 0,
             "evaluations": 0,
+            "unique_evaluations": 0,
+            "cache_hits": 0,
             "total": DEFAULT_TOTAL,
             "rate_per_second": None,
             "eta_seconds": None,
@@ -88,22 +98,37 @@ def search_progress(seed, path, warnings, generated_at):
             "stale": True,
         }
     identity = state.get("identity") if isinstance(state.get("identity"), dict) else {}
-    evaluations = max(0, int(state.get("evaluations") or 0))
+    unique_evaluations = max(0, int(state.get("evaluations") or 0))
+    population = state.get("population") if isinstance(state.get("population"), list) else []
+    candidates = len(population)
+    cache_hits = max(0, int(state.get("cache_hits") or 0))
     total = max(1, int(identity.get("population_size") or state.get("population_size") or DEFAULT_TOTAL))
     elapsed = float(state.get("elapsed_seconds") or 0.0)
-    rate = evaluations / elapsed if evaluations > 0 and elapsed > 0 else None
-    eta = (total - evaluations) / rate if rate and evaluations < total else 0 if evaluations >= total else None
+    rate = candidates / elapsed if candidates > 0 and elapsed > 0 else None
+    eta = (total - candidates) / rate if rate and candidates < total else 0 if candidates >= total else None
+    manifest = read_json(path.parent / "manifest.json", warnings, f"AutoFormer seed {seed} manifest.json")
+    manifest_status = manifest.get("status") if isinstance(manifest, dict) else None
+    completed = (
+        manifest_status == "completed"
+        and int(state.get("completed_generation", -1)) >= 0
+        and candidates >= total
+    )
+    status = "completed" if completed else "failed" if manifest_status == "failed" else "running"
     try:
         modified_at = path.stat().st_mtime
         updated_at = iso_from_timestamp(modified_at)
-        stale = generated_at.timestamp() - modified_at > 90
+        stale = status == "running" and generated_at.timestamp() - modified_at > 90
     except OSError:
         updated_at = None
         stale = True
     return {
         "seed": int(seed) if seed.isdigit() else seed,
-        "status": "completed" if evaluations >= total else "running",
-        "evaluations": evaluations,
+        "status": status,
+        "manifest_status": manifest_status,
+        "candidates": candidates,
+        "evaluations": candidates,
+        "unique_evaluations": unique_evaluations,
+        "cache_hits": cache_hits,
         "total": total,
         "rate_per_second": round(rate, 3) if rate is not None else None,
         "eta_seconds": round(eta) if eta is not None else None,
@@ -146,12 +171,71 @@ def build_live_status():
     warnings = []
     darts_source = read_json(DARTS_STATUS, warnings, "DARTS status.json")
     autoformer_source = read_json(AUTOFORMER_STATUS, warnings, "AutoFormer status.json")
-    seeds = [search_progress(seed, path, warnings, generated_at) for seed, path in latest_search_states()]
+    discovered_states = dict(latest_search_states())
+    expected_seeds = (
+        [str(seed) for seed in autoformer_source.get("seeds", [])]
+        if isinstance(autoformer_source, dict) and autoformer_source.get("seeds")
+        else sorted(discovered_states)
+    )
+    population_per_seed = (
+        int(autoformer_source.get("population_per_seed") or DEFAULT_TOTAL)
+        if isinstance(autoformer_source, dict)
+        else DEFAULT_TOTAL
+    )
+    seeds = []
+    for seed in expected_seeds:
+        path = discovered_states.get(seed)
+        if path is not None:
+            seeds.append(search_progress(seed, path, warnings, generated_at))
+            continue
+        warnings.append(f"AutoFormer seed {seed} search-state.json 暂缺")
+        seeds.append({
+            "seed": int(seed) if seed.isdigit() else seed,
+            "status": "missing",
+            "manifest_status": None,
+            "candidates": 0,
+            "evaluations": 0,
+            "unique_evaluations": 0,
+            "cache_hits": 0,
+            "total": population_per_seed,
+            "rate_per_second": None,
+            "eta_seconds": None,
+            "updated_at": None,
+            "stale": False,
+        })
     if not seeds:
         warnings.append("AutoFormer search-state.json 暂缺")
     autoformer_status = public_status(autoformer_source, AUTOFORMER_STATUS)
+    supervisor_status = (
+        autoformer_source.get("supervisor_terminal_status")
+        if isinstance(autoformer_source, dict)
+        else None
+    ) or autoformer_status["status"]
+    supervisor_detail = (
+        autoformer_source.get("supervisor_terminal_detail")
+        if isinstance(autoformer_source, dict)
+        else None
+    )
+    seed_complete = bool(seeds) and all(seed["status"] == "completed" for seed in seeds)
+    reconciled = bool(
+        isinstance(autoformer_source, dict)
+        and autoformer_source.get("cohort_validation_sha256")
+    )
+    if seed_complete:
+        autoformer_status["status"] = "completed"
+        if supervisor_status != "completed" and not reconciled:
+            warnings.append(
+                "AutoFormer 三个 seed 产物均 completed，但 supervisor status 非 completed；需执行产物归并审计"
+            )
     autoformer_status.update({
-        "evaluations_total": sum(seed["evaluations"] for seed in seeds),
+        "supervisor_status": supervisor_status,
+        "supervisor_detail": supervisor_detail,
+        "reconciled": reconciled,
+        "cohort_status_source": "seed_manifests" if seed_complete else "supervisor",
+        "candidates_total": sum(seed["candidates"] for seed in seeds),
+        "evaluations_total": sum(seed["candidates"] for seed in seeds),
+        "unique_evaluations_total": sum(seed["unique_evaluations"] for seed in seeds),
+        "cache_hits_total": sum(seed["cache_hits"] for seed in seeds),
         "target_total": sum(seed["total"] for seed in seeds),
         "seeds": seeds,
     })
