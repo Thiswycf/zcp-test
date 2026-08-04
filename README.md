@@ -166,6 +166,22 @@ Research manuals:
 - [Retained reproducible examples](examples/studies/README_CN.md)
 - [Acceptance status](docs/ACCEPTANCE.md) / [中文验收状态](docs/ACCEPTANCE_CN.md)
 
+The formal PlainNet-MBV2 AZ-NAS search must not be replaced by a generic
+`population × generations` example. Its stable entry point is:
+
+```bash
+zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
+  --flops-target 450m --gpu auto \
+  --output /path/to/runs/search/plainnet-aznas-450m
+```
+
+This locks 100,000 valid candidates, population 1,024, batch 64/224, full-history four-component
+log-rank, and no crossover. Run the GPU preflight and CPU rerank estimate in the
+[operations guide](docs/OPERATIONS.md#az-nas-plainnet-mbv2-search) first. The preflight preserves
+the 100k identity but remains `running` after three candidates; it is not a completed search. The
+current host's conservative CPU rerank estimate is about 4.21 hours, while GPU candidate timing is
+still awaiting the queued preflight.
+
 Before formally training an open search space, freeze the three candidate roles from a completed,
 versioned search run:
 

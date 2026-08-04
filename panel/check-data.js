@@ -455,11 +455,17 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const plainnetSearchTask = data.tasks.find((entry) => entry.id === "J7");
   assert(plainnetSearchTask?.status === "进行中" && plainnetSearchTask?.detail.includes("source-aligned controller 已完成"), "PlainNet source-aligned controller 阶段任务缺失");
   assert(plainnetSearchTask?.detail.includes("15,165.56 秒") && plainnetSearchTask?.detail.includes("4.21 小时"), "PlainNet CPU full-history rerank 估计缺失");
-  assert(plainnetSearchTask?.detail.includes("preflight 工具已实现但尚未启动") && plainnetSearchTask?.detail.includes("正式 100k 搜索尚未启动"), "PlainNet GPU preflight 或正式 100k 未启动边界缺失");
+  assert(plainnetSearchTask?.detail.includes("12:08:31") && plainnetSearchTask?.detail.includes("immutable commit 17f54d7") && plainnetSearchTask?.detail.includes("waiting_for_gpu_lock"), "PlainNet GPU preflight V2 启动身份或等待状态缺失");
+  assert(plainnetSearchTask?.detail.includes("尚未取得 flock、未占用 GPU、未开始候选") && plainnetSearchTask?.detail.includes("正式 100k 搜索尚未启动"), "PlainNet GPU preflight 资源边界或正式 100k 未启动边界缺失");
+  assert(plainnetSearchTask?.detail.includes("formal_valid_candidates=100000") && plainnetSearchTask?.detail.includes("stop_after=3") && plainnetSearchTask?.detail.includes("batch=64") && plainnetSearchTask?.detail.includes("input=224"), "PlainNet GPU preflight 协议字段缺失");
   const plainnetRerankEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-RERANK-SCALING-20260804");
   assert(plainnetRerankEvidence?.command.includes("docs/evidence/plainnet_rerank_scaling_20260804.json") && plainnetRerankEvidence?.result.includes("15,165.56 秒"), "PlainNet rerank scaling JSON 证据缺失");
   const plainnetControllerEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-SOURCE-ALIGNED-CONTROLLER-STAGE");
   assert(plainnetControllerEvidence?.result.includes("source_aligned_control_flow_port") && plainnetControllerEvidence?.result.includes("正式 100k 搜索未启动"), "PlainNet controller fidelity 或正式搜索边界缺失");
+  const plainnetPreflightEvidence = data.evidence.find((entry) => entry.id === "EV-PLAINNET-GPU-PREFLIGHT-WAITING-20260804");
+  assert(plainnetPreflightEvidence?.result.includes("zcp-test-plainnet-source-preflight-v2.service") && plainnetPreflightEvidence?.result.includes("status=waiting_for_gpu_lock"), "PlainNet GPU preflight unit 或 manifest 状态证据缺失");
+  assert(plainnetPreflightEvidence?.result.includes("未占 GPU") && plainnetPreflightEvidence?.result.includes("未开始任何候选") && plainnetPreflightEvidence?.result.includes("不是正式 100k 搜索"), "PlainNet GPU preflight 科学边界缺失");
+  assert(plainnetPreflightEvidence?.result.includes("两次更早启动") && plainnetPreflightEvidence?.result.includes("不记科学失败") && plainnetPreflightEvidence?.result.includes("冗余目录已删除"), "PlainNet 更早 preflight 启动失败处置边界缺失");
   for (const [source, label] of [[operationsCnSource, "中文"], [operationsSource, "英文"]]) {
     assert(source.includes("flock -n") && source.includes("lslocks") && source.includes("fuser"), `${label} OPERATIONS 缺少真实 flock owner 诊断命令`);
     assert(source.includes("pstree") && source.includes("pgrep") && source.includes("kill -TERM"), `${label} OPERATIONS 缺少 supervisor child/TERM 诊断流程`);

@@ -137,6 +137,19 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 
 ## 正式训练
 
+PlainNet-MBV2 的正式 AZ-NAS 搜索不能使用 generic `population × generations` 示例代替。固定入口为：
+
+```bash
+zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
+  --flops-target 450m --gpu auto \
+  --output /path/to/runs/search/plainnet-aznas-450m
+```
+
+该入口强制 100,000 个有效候选、population 1024、batch 64/224、四组件全历史 log-rank 和无
+crossover。正式运行前先按[操作手册](docs/OPERATIONS_CN.md#az-nas-plainnet-mbv2-搜索)执行 GPU
+preflight 和 CPU rerank 估时；preflight 保留 100k 身份但在 3 个候选后保持 `running`，不得称为
+完成搜索。本机 CPU rerank 保守估计约 4.21 小时，GPU 单候选耗时尚待排队预验收。
+
 无标准答案搜索空间在正式训练前，先从一个 `completed` search run 冻结三类候选：
 
 ```bash
