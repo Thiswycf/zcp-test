@@ -92,7 +92,8 @@ def test_plainnet_one_percent_source_search_launcher_is_scoped_and_resumable():
     assert '--flops-target "$FLOPS_TARGET"' in source
     assert '--gpu "$GPU_UUID"' in source
     assert '--resume "$state"' in source
-    assert "formal_search_completed" in source
+    assert '"formal_search_completed": False' in source
+    assert '"one_percent_search_completed": sys.argv[2] == "completed"' in source
 
 
 def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
