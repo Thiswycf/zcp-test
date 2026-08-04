@@ -1,0 +1,19 @@
+search:
+  controller: plainnet_source_aligned
+  space: zennas_plainnet_mbv2
+  proxy: az_nas_plainnet
+  aggregator: az_nas_log_rank
+  valid_candidates: 100000
+  population: 1024
+  generations: 0
+  flops_target: 450m
+  seed: 123
+  input_source: random
+  batch_size: 64
+  input_size: 224
+  classes: 1000
+  dataset: imagenet1k
+  weight_mode: independent_scratch
+  bn_recalibration_batches: 0
+  gpu: auto
+  output: runs/search/plainnet-mbv2-source-aligned

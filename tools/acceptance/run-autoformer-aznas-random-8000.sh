@@ -124,51 +124,31 @@ run_search() {
     --output "$seed_root" "${resume_args[@]}" 2>&1 | tee -a "$launcher_log"
 }
 
-lane_a() {
-  local uuid=${gpu_array[0]} descriptor
-  exec {descriptor}>"$LOCK_DIR/$uuid.lock"
-  flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
-  supervisor_event lock_acquired "lane=a gpu=$uuid holder=$BASHPID"
+lane_a_tasks() {
+  local uuid=${gpu_array[0]}
   touch "$OUTPUT_ROOT/lane-a.lock-acquired"
-  local exit_code
-  if (
-      exec {descriptor}>&-
-      run_search "$uuid" "${SEEDS[0]}" &
-      local first=$!
-      run_search "$uuid" "${SEEDS[1]}" &
-      local second=$!
-      wait "$first"
-      wait "$second"
-    ); then
-    exit_code=0
-  else
-    exit_code=$?
-  fi
-  : > "$LOCK_DIR/$uuid.lock"
-  flock -u "$descriptor"
-  supervisor_event lock_released "lane=a gpu=$uuid holder=$BASHPID exit_code=$exit_code"
-  return "$exit_code"
+  run_search "$uuid" "${SEEDS[0]}" &
+  local first=$!
+  run_search "$uuid" "${SEEDS[1]}" &
+  local second=$!
+  wait "$first"
+  wait "$second"
+}
+
+lane_b_tasks() {
+  local uuid=${gpu_array[1]}
+  touch "$OUTPUT_ROOT/lane-b.lock-acquired"
+  run_search "$uuid" "${SEEDS[2]}"
+}
+
+lane_a() {
+  local uuid=${gpu_array[0]}
+  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" "$LOCK_TIMEOUT" autoformer-search-lane-a lane_a_tasks
 }
 
 lane_b() {
-  local uuid=${gpu_array[1]} descriptor
-  exec {descriptor}>"$LOCK_DIR/$uuid.lock"
-  flock -w "$LOCK_TIMEOUT" "$descriptor" || { echo "GPU lock timeout: $uuid" >&2; exit 4; }
-  supervisor_event lock_acquired "lane=b gpu=$uuid holder=$BASHPID"
-  touch "$OUTPUT_ROOT/lane-b.lock-acquired"
-  local exit_code
-  if (
-      exec {descriptor}>&-
-      run_search "$uuid" "${SEEDS[2]}"
-    ); then
-    exit_code=0
-  else
-    exit_code=$?
-  fi
-  : > "$LOCK_DIR/$uuid.lock"
-  flock -u "$descriptor"
-  supervisor_event lock_released "lane=b gpu=$uuid holder=$BASHPID exit_code=$exit_code"
-  return "$exit_code"
+  local uuid=${gpu_array[1]}
+  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" "$LOCK_TIMEOUT" autoformer-search-lane-b lane_b_tasks
 }
 
 children=()

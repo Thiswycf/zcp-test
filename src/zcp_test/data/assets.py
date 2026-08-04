@@ -32,6 +32,24 @@ def sha256_file(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
     return digest.hexdigest()
 
 
+def sha256_path(path: str | Path, chunk_size: int = 1024 * 1024) -> str:
+    target = Path(path)
+    if target.is_file():
+        return sha256_file(target, chunk_size)
+    if not target.is_dir():
+        raise FileNotFoundError(target)
+    digest = hashlib.sha256()
+    for item in sorted(candidate for candidate in target.rglob("*") if candidate.is_file()):
+        relative = item.relative_to(target).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(8, "big"))
+        digest.update(relative)
+        digest.update(item.stat().st_size.to_bytes(8, "big"))
+        with item.open("rb") as handle:
+            while chunk := handle.read(chunk_size):
+                digest.update(chunk)
+    return digest.hexdigest()
+
+
 class DataRegistry:
     def __init__(self, path: str | Path) -> None:
         self.path = Path(path).expanduser()
@@ -67,9 +85,7 @@ class DataRegistry:
             return result
         result["size"] = path.stat().st_size if path.is_file() else None
         if asset.sha256:
-            if not path.is_file():
-                raise ValueError("SHA-256 verification is supported only for files")
-            actual = sha256_file(path)
+            actual = sha256_path(path)
             result.update(actual_sha256=actual, valid=actual == asset.sha256)
         else:
             result["valid"] = True

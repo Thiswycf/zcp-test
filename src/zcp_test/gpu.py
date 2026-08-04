@@ -3,11 +3,14 @@ from __future__ import annotations
 import csv
 import fcntl
 import os
+import socket
 import subprocess
 import time
 from contextlib import contextmanager
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Callable, Iterator, Mapping, MutableMapping, Sequence
+from zoneinfo import ZoneInfo
 
 
 NVIDIA_SMI_FIELDS = (
@@ -20,6 +23,7 @@ NVIDIA_SMI_FIELDS = (
     "utilization.gpu",
 )
 _ACTIVE_GPU_LOCK_FDS: set[int] = set()
+_SHANGHAI = ZoneInfo("Asia/Shanghai")
 
 
 def _close_inherited_gpu_lock_fds() -> None:
@@ -246,6 +250,39 @@ def gpu_lock_path(
     return directory / f"{safe_identity}.lock"
 
 
+def gpu_lock_status(
+    selection: Mapping[str, Any], cache_dir: str | Path | None = None
+) -> dict[str, Any]:
+    """Inspect the kernel lock without treating a stale lock file as held."""
+
+    path = gpu_lock_path(selection, cache_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = path.open("a+", encoding="utf-8")
+    locked = True
+    try:
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            pass
+        else:
+            locked = False
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        handle.seek(0)
+        metadata = {}
+        for line in handle:
+            key, separator, value = line.rstrip("\n").partition("=")
+            if separator and key:
+                metadata[key] = value
+    finally:
+        handle.close()
+    return {
+        "path": str(path),
+        "kernel_locked": locked,
+        "owner": metadata if locked else None,
+        "stale_metadata": metadata if metadata and not locked else None,
+    }
+
+
 @contextmanager
 def gpu_lock(
     selection: Mapping[str, Any],
@@ -279,6 +316,9 @@ def gpu_lock(
         handle.seek(0)
         handle.truncate()
         handle.write(f"pid={os.getpid()}\n")
+        handle.write(f"host={socket.gethostname()}\n")
+        handle.write(f"uuid={selection.get('uuid', '')}\n")
+        handle.write(f"acquired_at={datetime.now(_SHANGHAI).isoformat()}\n")
         handle.flush()
         yield path
     finally:

@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T11:16:00+08:00",
+  "status": "completed",
+  "protocol": "two_rank_gloo_checkpoint_rng_round_trip_v1",
+  "world_size": 2,
+  "backend": "gloo",
+  "coverage": [
+    "Python random state",
+    "NumPy random state",
+    "PyTorch CPU random state",
+    "all_gather_object rank-local collection",
+    "atomic checkpoint save",
+    "trusted checkpoint load",
+    "rank-indexed restore",
+    "wrong-world-size and legacy-checkpoint rejection"
+  ],
+  "result": {
+    "rank_states_distinct": true,
+    "rank_0_next_values_reproduced": true,
+    "rank_1_next_values_reproduced": true,
+    "rank_order": [0, 1]
+  },
+  "validation": [
+    "pytest -q tests/test_distributed_rng.py",
+    "pytest unit coverage for legacy checkpoint and world-size mismatch rejection"
+  ],
+  "scientific_boundary": "This closes the engineering risk for rank-local RNG checkpoint collection and restore on a real two-process distributed group. It does not prove bitwise reproducibility across different GPU models, CUDA versions, kernels, or world sizes."
+}

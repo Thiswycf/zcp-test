@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T11:21:00+08:00",
+  "status": "completed",
+  "operation": "idempotent_bootstrap_all_and_checklist",
+  "downloaded_assets": 0,
+  "catalog_behavior": "Valid external runtime paths were preserved and pinned in place.",
+  "benchmarks": [
+    "nasbench101",
+    "nasbench201",
+    "nats_tss",
+    "nats_sss",
+    "transnasbench101",
+    "nasbench301_surrogate",
+    "vitbench101",
+    "ofa_proxyless_supernet"
+  ],
+  "result": {
+    "operational_ready": 8,
+    "runtime_integrity_verified": 8,
+    "runtime_integrity_unpinned": 0,
+    "catalog_external_preserved": [
+      "nasbench201",
+      "nats_tss",
+      "nats_sss",
+      "nasbench301_surrogate"
+    ]
+  },
+  "integrity_semantics": {
+    "file": "raw file SHA-256",
+    "directory": "deterministic local tree digest over relative path, file size, and content",
+    "warning": "A locally locked tree digest is not an upstream-published checksum and does not independently establish provenance."
+  },
+  "validation": [
+    "data bootstrap --all --yes returned ok=true with no failed benchmarks",
+    "subsequent data checklist reported runtime_integrity=verified and operational_ready=true for all eight entries",
+    "unit tests detect file and directory tampering and preserve valid external catalog paths"
+  ]
+}

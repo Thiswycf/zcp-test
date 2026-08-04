@@ -120,6 +120,10 @@ zcp-test analyze training --source "$RUN/training.jsonl" --output "$RUN/reports/
 
 恢复会比较 architecture ID、space、dataset、protocol、classes、input size 和训练配置，并恢复 model、
 optimizer、scheduler、AMP scaler 与 RNG。`--trusted` 只确认操作者信任 checkpoint，不负责验证来源。
+DDP checkpoint 通过 `all_gather_object` 保存每个 rank 独立的 Python、NumPy、PyTorch CPU/CUDA RNG，
+恢复时按当前 rank 取回对应状态；旧 checkpoint 缺少 `rng_by_rank` 或恢复 world size 不一致会明确失败，
+不会静默复制 rank 0 状态。真实两进程 Gloo 往返测试已验证两个 rank 的状态不同，保存、可信加载和
+恢复后的下一组随机值分别精确重现；该证据不代表跨 GPU 型号、CUDA 版本或 world size 的逐位复现。
 训练期间 rank 0 默认约每 30 秒把 `training_batch_progress` 写入 `events.jsonl`，并在每个 split 的
 最后一个 batch 和 epoch 完成时立即写入。`zcp-test monitor "$RUN" --interval 5` 优先展示这些实时
 事件；`training.jsonl` 只在 epoch 完成后追加一行，仍是训练曲线的唯一规范来源。heartbeat 中的

@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-07-31 tree: **468 tests passed** across 31 test files | Passed | Small fixtures, schemas, adapters, reporting, GPU selection, reference construction, training heartbeat, run logging and workflow contracts; not high-cost scientific validation |
+| Unit/integration baseline | Current 2026-08-04 tree: **543 tests passed** across 37 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, panel validation, JSON validation, and diff checks passed; four upstream THOP `distutils` deprecation warnings remain non-failing |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
 | Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
@@ -16,11 +16,14 @@ reproduction or formal benchmark accuracy.
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
 | DARTS CIFAR dual one-percent | Three candidates on CIFAR-10/100: six full-data × 6-epoch runs and six 1%-data × 600-epoch runs; deterministic preflight, two recovery audits, and reporting complete | Scoped protocol passed | Engineering/scoped acceptance only; not 600-epoch full-data accuracy reproduction or multi-seed search gain, and the protocols must not be averaged |
 | Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
-| Search smoke | Two-candidate AutoFormer AZ-NAS GPU rank smoke with components, aggregate scores, and resumable state | Partial pass | Formula/artifact contract only, not a scientific population/generation result; the historical failed ER run remains visible |
+| AutoFormer search and freeze | The AZ-NAS `3×8,000` cohort is reconciled: 24,000 candidates, 23,999 unique evaluations, and one cache hit; three candidates are frozen | Search/freeze passed | The post-completion supervisor failure remains visible but does not overwrite validated scientific artifacts; supporting seeds are provenance-only |
+| AutoFormer candidate smokes | All three frozen candidates completed batch-256 synthetic memory, atomic-checkpoint, and trusted checkpoint-load/resume smokes | Smoke passed | Construction, memory, optimizer/checkpoint, and recovery plumbing only; random-input accuracy is meaningless and is not ImageNet evidence |
+| AutoFormer real dual one-percent V2 | Running since 2026-08-04 11:07+08 from commit/source snapshot `76a0fcd`; tasks 1/2/3 run full-data 5 epochs, task 4 runs one-percent-data 500 epochs, and tasks 5/6 are queued | **Running, not accepted** | A non-terminal launch/runtime sample under a complete source snapshot; no task is complete before terminal artifact validation |
 
-The 468-test run across 31 test files, first-party source coverage of 87%, CLI coverage of 82%, and
-passing Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` form the
-current low-cost software baseline. Machine-readable summaries and checksums for the real NB201 and
+The current full gate executes and passes 543 tests across 37 files. First-party source coverage of
+87% and CLI coverage of 82% remain from the latest retained coverage run. Ruff, compileall, pip check,
+Bash syntax, panel validation, JSON validation, and `git diff --check` pass; four THOP `distutils`
+deprecation warnings are non-failing. Machine-readable summaries and checksums for the real NB201 and
 NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
 external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
 entry point may carry the wrong Python shebang.
@@ -135,6 +138,39 @@ fixture made from real ImageNet images now validates an `interrupted` manifest, 
 source-run lineage, continuous epoch 0–4 logs and `.tmp` cleanup. This is recovery-mechanism evidence,
 not either full ImageNet 1% protocol.
 
+### AutoFormer search, frozen candidates, and V2 training state
+
+The AutoFormer AZ-NAS search cohort is complete and reconciled: three seeds processed 8,000
+candidates each, for 24,000 candidate rows, 23,999 unique evaluations, and one cache hit. The
+historical supervisor failed only after all seed artifacts completed. That post-completion
+orchestration state remains auditable but does not relabel completed manifests, generation summaries,
+or the reconciled cohort as a scientific failure. Launcher protection uses `git archive` to pin all
+tracked Shell, Python, and configuration files at the launch commit into a read-only
+`launcher-snapshots` tree. Later lanes execute from that tree and do not import newer main-worktree
+code. Per-lane locks are released when their active workload completes or is interrupted. See
+[`evidence/gpu_launcher_snapshot_fix.json`](evidence/gpu_launcher_snapshot_fix.json).
+
+The predeclared primary/supporting protocol froze three unique candidates:
+`zcp_selected=42e6457ccb580a092454`, `fixed_random=d904aacf51d2b0867df6`, and
+`params_flops_matched=41b5e6d4dc3279909487`. Supporting seeds are provenance-only and cannot be
+averaged, substituted for the primary winner, or cherry-picked. The frozen manifest SHA-256 is
+`42dc72f29e141fa97c042c1979f390486962a97fa34cdbcd3394b556148bdb4a`; see
+[`evidence/autoformer_frozen_candidates.json`](evidence/autoformer_frozen_candidates.json).
+
+All three candidates completed configured micro-batch-256 synthetic memory smokes, atomic
+`last.pt`/`best.pt` writes, and trusted checkpoint-load/resume smokes. This validates memory,
+training control flow, and checkpoint identity/recovery only. Random-input accuracy is meaningless;
+see [`evidence/autoformer_frozen_candidate_smokes.json`](evidence/autoformer_frozen_candidate_smokes.json).
+
+Real dual-one-percent V2 started at 2026-08-04 11:07+08 from commit/source snapshot `76a0fcd` and is
+still `running`. Under `parallel_single_gpu`, tasks 1/2/3 run the three full-data five-epoch jobs,
+task 4 runs the primary one-percent-data 500-epoch schedule, and tasks 5/6 start after lanes become
+available. Data preflight records 1,000 classes, 1,281,167 training files, and 50,000 validation files.
+Gradient accumulation preserves global batch 2,048 and the LR protocol from micro-batch 256.
+`run.log`/`events.jsonl` and instantaneous GPU samples establish liveness only. No task is accepted
+before terminal manifest, training JSONL, checkpoint, recovery, and protocol-counter validation. See
+[`evidence/autoformer_dual_one_percent_launch.json`](evidence/autoformer_dual_one_percent_launch.json).
+
 NAS-Bench-101/201, NATS and converted TransNAS records are **standard answers** only for their
 explicit dataset/split/budget/seed protocol. NAS-Bench-301 is a **surrogate** prediction, and its
 deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, distillation, or
@@ -152,8 +188,9 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
   cache. Architecture-hash initialization makes two independent same-seed GPU runs identical after
   timing fields are removed; see `docs/evidence/aznas_autoformer_rank_smoke.json`. The stabilized covariance clamp is
   explicitly versioned, and the project evolution controller is not a line-for-line upstream
-  candidate controller. Formal AutoFormer search and candidate freezing remain incomplete; the
-  historical failed ER search is retained.
+  candidate controller. The `3×8,000` cohort and candidate freeze are complete; the post-completion
+  supervisor failure remains as orchestration evidence. Real dual-one-percent V2 is non-terminal and
+  must not be reported as accepted training.
 - Explicit `--full-batch-smoke` completed one synthetic epoch for a sampled reference AutoFormer at
   the configured micro-batch 256. Peak allocated/reserved memory was `8920/10390 MiB`; see
   `docs/evidence/autoformer_full_batch_memory_smoke.json`. This proves only the single-process memory
@@ -207,8 +244,10 @@ The following work is explicitly **not accepted** and must not be reported as co
    single-GPU BatchNorm caveat. Full-data 250-epoch training is outside this scoped acceptance and
    has not run.
 2. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains incomplete.
-   AutoFormer sampler/LR/static fixtures and fixture-level recovery do not substitute for either
-   full ImageNet acceptance protocol.
+   AutoFormer search, candidate freezing, and three-candidate memory/checkpoint smokes are complete,
+   but real dual-one-percent V2 is still non-terminal `running`, with tasks 5/6 queued. Every task
+   still requires terminal manifest, training JSONL, checkpoint, recovery, and final protocol-counter
+   validation. Proxyless-MBV2 formal 150-epoch training is not released.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Remaining benchmark protocols beyond the accepted scoped NB101, NB201, NATS-TSS,
    three-dataset NATS-SSS and NB301 deterministic-surrogate runs, including TNB101 and formal

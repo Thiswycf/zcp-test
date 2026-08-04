@@ -14,6 +14,7 @@ from zcp_test.gpu import (
     configure_cuda,
     enumerate_gpus,
     gpu_lock,
+    gpu_lock_status,
     select_gpu,
 )
 
@@ -115,11 +116,16 @@ def test_gpu_lock_is_exclusive_and_released(tmp_path):
     with gpu_lock(selection, cache_dir=tmp_path, timeout=0) as path:
         assert path.parent == tmp_path
         assert path.read_text(encoding="utf-8").startswith("pid=")
+        status = gpu_lock_status(selection, cache_dir=tmp_path)
+        assert status["kernel_locked"] is True
+        assert status["owner"]["pid"] == str(os.getpid())
+        assert status["owner"]["acquired_at"].endswith("+08:00")
         with pytest.raises(GPULockError, match="Timed out"):
             with gpu_lock(selection, cache_dir=tmp_path, timeout=0):
                 pass
 
     assert path.read_text(encoding="utf-8") == ""
+    assert gpu_lock_status(selection, cache_dir=tmp_path)["kernel_locked"] is False
     with gpu_lock(selection, cache_dir=tmp_path, timeout=0) as reacquired:
         assert reacquired == path
 

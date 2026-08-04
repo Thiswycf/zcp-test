@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T11:31:00+08:00",
+  "status": "completed",
+  "protocol": "catalog_adapter_query_build_params_index0_v1",
+  "input_source": "explicit_random_smoke",
+  "device": "cpu",
+  "records_per_benchmark": 1,
+  "benchmarks": [
+    {"benchmark_id": "nasbench101", "search_space_id": "nb101_dag", "dataset": "cifar10", "split": "valid", "metric": "final_accuracy", "epoch_budget": 108, "target_value": 0.9264155824979147, "params": 8555530},
+    {"benchmark_id": "nasbench201", "search_space_id": "nb201_topology", "dataset": "cifar10-valid", "split": "valid", "metric": "accuracy", "epoch_budget": 200, "target_value": 81.98266665690103, "params": 129306},
+    {"benchmark_id": "nats_tss", "search_space_id": "nb201_topology", "dataset": "cifar10-valid", "split": "valid", "metric": "accuracy", "epoch_budget": 200, "target_value": 81.98266665690103, "params": 129306},
+    {"benchmark_id": "nats_sss", "search_space_id": "nats_size", "dataset": "cifar10-valid", "split": "valid", "metric": "accuracy", "epoch_budget": 90, "target_value": 76.88799998779297, "params": 11714},
+    {"benchmark_id": "nasbench301_surrogate", "search_space_id": "darts", "dataset": "cifar10", "split": "test", "metric": "accuracy", "surrogate_noise": false, "target_value": 93.45854187011719, "params": 239802},
+    {"benchmark_id": "transnasbench101", "search_space_id": "transnas_micro", "dataset": "class_object", "split": "valid", "metric": "valid_top1", "epoch_budget": 25, "target_value": 26.547571182250977, "params": 57963},
+    {"benchmark_id": "vitbench101", "search_space_id": "autoformer", "slice_id": "autoformer_main", "dataset": "cifar100", "split": "test", "metric": "accuracy_vanilla", "target_value": 68.66, "params": 5321956}
+  ],
+  "validation": [
+    "Every run manifest completed.",
+    "Every scores.jsonl contained exactly one architecture-proxy record.",
+    "Every record had status=ok and finite params and target_value.",
+    "TransNAS config now declares class_object instead of inheriting the unrelated global cifar10 default.",
+    "ViT-Bench config now declares the AutoFormer-main CIFAR-100 vanilla test protocol instead of producing a null target.",
+    "NAS-Bench-201 and NATS-TSS retain distinct benchmark IDs even though they share the topology codec and index-zero architecture."
+  ],
+  "scientific_boundary": "The random-input params smoke validates catalog resolution, adapter query, architecture decoding, model construction, target protocol, and schema only. It is not a ZCP correlation result."
+}

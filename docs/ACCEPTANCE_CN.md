@@ -7,19 +7,21 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-07-31 当前工作树：**468 tests passed**（31 个测试文件） | 通过 | 小型 fixture、schema、adapter、报告、GPU、reference 构模、训练 heartbeat、run log 和工作流契约；不替代真实数据或高成本科学验收 |
+| 单元/集成基线 | 2026-08-04 当前工作树：**543 tests passed**（37 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、看板、JSON 与 diff 检查均通过；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
 | 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | DARTS CIFAR 双重 1% | CIFAR-10/100 三候选：全数据 × 6 epoch 共 6 runs；1% 数据 × 600 epoch 共 6 runs；确定性预检、两次恢复审计和报告完成 | **限定协议通过** | 关闭工程与限定协议验收；不是 600 epoch 全数据精度复现或多 seed 搜索收益，两个协议不得平均 |
 | Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
-| Search smoke | AutoFormer AZ-NAS 两候选 GPU rank smoke，组件、聚合分数和恢复 state 完整 | 部分通过 | 证明公式端口与 artifact 合同，不是正式 population/generation 搜索结论；旧 ER 失败记录仍保留 |
+| AutoFormer 搜索与冻结 | AZ-NAS `3×8,000` cohort 已 reconcile：24,000 candidates、23,999 unique evaluations、1 cache hit；三个候选已冻结 | 搜索与冻结通过 | supervisor 在工作负载完成后失败的历史状态继续保留，但不得覆盖已验证的科学产物；supporting seed 仅作 provenance |
+| AutoFormer 三候选 smoke | 三个冻结候选均完成 batch 256 synthetic memory smoke、原子 checkpoint 与可信 checkpoint-load/resume smoke | smoke 通过 | 证明构模、显存、optimizer/checkpoint 与恢复路径；随机输入精度无意义，不是 ImageNet 训练证据 |
+| AutoFormer real dual-1% V2 | 2026-08-04 11:07+08，commit/source snapshot `76a0fcd`；task 1/2/3 full-data 5 epoch 与 task 4 one-percent-data 500 epoch 并行，task 5/6 排队 | **running，未验收** | 仅证明完整源码快照下的非终态启动和运行样本；任何任务均不得在 terminal artifact 校验前称完成 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-468 tests（31 个测试文件）、第一方 source coverage 87%、CLI coverage 82%，以及已通过的 Ruff、
-compileall、pip check、repository hygiene、panel check 和 `git diff --check`，共同构成当前可复核的
-低成本软件基线。
+当前完整 gate 实际执行并通过 543 tests（37 个测试文件）。第一方 source coverage 87%、CLI
+coverage 82% 仍来自最近一次保留的 coverage gate；Ruff、compileall、pip check、Bash 语法、看板、
+JSON 与 `git diff --check` 均通过，仅有 4 条来自 THOP 上游 `distutils` 的非失败弃用警告。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
 `scores.jsonl` SHA、失败键和相关性摘要见
 [`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
@@ -113,6 +115,37 @@ profile。两者仍缺双重 1% GPU、distributed validation 和完整报告验�
 训练。
 配置中的布尔值不能自行授权；正式训练还必须匹配代码内置的 DARTS 协议白名单及关键字段。
 
+### AutoFormer 搜索、冻结与 V2 训练状态
+
+AutoFormer AZ-NAS 搜索 cohort 已完成并 reconcile：三个 seed 各处理 8,000 个候选，合计
+24,000 candidate rows、23,999 次 unique evaluation 和 1 次 cache hit。历史 supervisor 在全部 seed
+产物完成后以 failed 终止；该 post-completion orchestration 状态保留用于审计，但不能把三个已完成
+manifest、generation summary 和 cohort 归并结果改写为科学失败。完整 launcher 防护不再只复制 Shell：
+它使用 `git archive` 固化启动 commit 的全部已跟踪 Shell、Python 和 configs，写入只读
+`launcher-snapshots` 并从该树执行；后续 lane 不导入主仓新代码。逐 lane 锁只在活跃 workload
+期间持有，完成或中断后立即释放。实现边界和历史 exit 127 的证据见
+[`evidence/gpu_launcher_snapshot_fix.json`](evidence/gpu_launcher_snapshot_fix.json)。
+
+候选已按预声明 primary/supporting 协议冻结并通过审计：`zcp_selected` 为
+`42e6457ccb580a092454`，`fixed_random` 为 `d904aacf51d2b0867df6`，
+`params_flops_matched` 为 `41b5e6d4dc3279909487`。三者 canonical ID 唯一，supporting seeds
+只作 provenance，不参与平均、替换 winner 或事后挑选。冻结 manifest SHA-256 为
+`42dc72f29e141fa97c042c1979f390486962a97fa34cdbcd3394b556148bdb4a`；详见
+[`evidence/autoformer_frozen_candidates.json`](evidence/autoformer_frozen_candidates.json)。
+
+三个冻结候选均完成 configured micro-batch 256 的 synthetic full-batch memory smoke，写出原子
+`last.pt`/`best.pt`，并分别通过 trusted checkpoint-load/resume smoke。该证据只验证显存容量、训练
+控制路径和 checkpoint 身份恢复，随机输入 accuracy 无意义；详见
+[`evidence/autoformer_frozen_candidate_smokes.json`](evidence/autoformer_frozen_candidate_smokes.json)。
+
+real dual-1% V2 于 2026-08-04 11:07+08 以 commit/source snapshot `76a0fcd` 启动，状态为
+`running`。执行策略为 `parallel_single_gpu`：task 1/2/3 分别运行三个候选的 full-data 5 epoch，
+task 4 运行 primary 候选的 1%-data 500 epoch，task 5/6 在 lane 完成后启动。数据预检为 1,000 类、
+1,281,167 train 和 50,000 validation 文件；micro-batch 256，global batch 2,048 由梯度累积实现，
+学习率协议未改变。现有 `run.log`/`events.jsonl` 和瞬时 GPU 样本只证明运行活性；即使证据采样时
+1%-data schedule 已出现若干 epoch，也不得据此称任一任务完成。状态、锁审计和科学边界见
+[`evidence/autoformer_dual_one_percent_launch.json`](evidence/autoformer_dual_one_percent_launch.json)。
+
 NAS-Bench-101/201、NATS 和转换后的 TransNAS 记录只有在明确 dataset/split/budget/seed 下才是
 **standard answer**。NAS-Bench-301 是 **surrogate**，deterministic/noisy 属于不同协议。
 ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混合。
@@ -122,7 +155,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 - 保留 evaluate 只有 3 个代理，不是 22；其 40 行历史 score 是旧 component-long schema。
 - Git 不保存 3,454 行原始 score；当前树可独立复核精简摘要、四个 score SHA、失败键和 registry
   provenance，但逐行重算仍需要外部审计目录或按手册重新运行。
-- AutoFormer 成功 run 只证明搜索机制；同时保留一次 failed run。
+- AutoFormer `3×8,000` 搜索 cohort 与候选冻结已经完成；post-completion supervisor failure 仍作为
+  orchestration 证据保留。V2 dual-1% 仍为非终态 `running`，不得称训练验收完成。
 - 多个上游原生资产没有固定 checksum，路径存在不等于真实性。
 - bootstrap 和 index-0 smoke 不证明全记录、全部 budget/split 或跨机器覆盖。
 - `--start/--count` 没有已验收 launcher/merge CLI；多文件分析可用，端到端多 GPU 尚未验收。
@@ -204,9 +238,10 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 1. DARTS CIFAR-10/CIFAR-100 的 600 epoch **全数据精度复现**与多 seed 搜索收益验证仍未完成；
    已完成的是上述双重 1% 限定协议。DARTS ImageNet 六项双重 1% 已完成，但首项 DDP 与其余单卡
    存在 BatchNorm 粒度差异；250 epoch 全数据正式训练不在本次限定验收范围内且尚未执行。
-2. AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 的双重 1% 均未完成；AutoFormer 500 epoch 与
-   Proxyless-MBV2 150 epoch 正式训练协议尚未放行。AutoFormer 的 sampler、LR、静态 fixture 和
-   真实图片夹具恢复机制已验收，但不能替代任一完整 ImageNet 双重 1% 协议。
+2. AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 的双重 1% 均未完成。AutoFormer 搜索、候选冻结、
+   三候选 memory/checkpoint smoke 已完成，V2 real dual-1% 已启动但仍为非终态 `running`；task 5/6
+   仍排队，且所有任务都必须经过 terminal manifest、training JSONL、checkpoint、恢复行为和最终
+   protocol counter 校验后才能验收。Proxyless-MBV2 150 epoch 正式训练仍未放行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
    NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，

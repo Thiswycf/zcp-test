@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 from typing import Any, Iterable
 
-from zcp_test.data.assets import DataAsset, DataRegistry, sha256_file
+from zcp_test.data.assets import DataAsset, DataRegistry, sha256_file, sha256_path
 from zcp_test.data.bootstrap import (
     BENCHMARK_ASSETS,
     BUILTIN_ASSETS,
@@ -340,20 +340,33 @@ def _download(url: str, destination: Path, *, sha256: str | None) -> Path:
 
 def _register_catalog(root: Path, catalog: Path, benchmarks: Iterable[str]) -> None:
     registry = DataRegistry(catalog)
+    registered = {asset.asset_id: asset for asset in registry.list()}
     for benchmark in benchmarks:
         runtime_paths = _runtime_paths(root, benchmark)
-        if not all(path.exists() for path in runtime_paths):
-            continue
         for index, runtime_path in enumerate(runtime_paths):
             version, protocol = runtime_catalog_contract(benchmark, index)
             suffix = "" if len(runtime_paths) == 1 else f"_{index}"
+            asset_id = f"{benchmark}{suffix}"
+            current = registered.get(asset_id)
+            current_path = Path(current.path).expanduser() if current is not None else None
+            if (
+                current is not None
+                and current.version == version
+                and (protocol is None or current.protocol == protocol)
+                and current_path is not None
+                and current_path.exists()
+            ):
+                runtime_path = current_path
+            if not runtime_path.exists():
+                continue
             registry.register(
                 DataAsset(
-                    f"{benchmark}{suffix}",
+                    asset_id,
                     str(runtime_path),
                     str(version),
-                    sha256=sha256_file(runtime_path) if runtime_path.is_file() else None,
-                    protocol=protocol,
+                    sha256=sha256_path(runtime_path),
+                    source_url=current.source_url if current is not None else None,
+                    protocol=current.protocol if current is not None and protocol is None else protocol,
                     trusted=benchmark
                     in {
                         "nasbench201",

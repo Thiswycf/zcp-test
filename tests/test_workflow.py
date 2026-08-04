@@ -109,12 +109,11 @@ def test_autoformer_aznas_acceptance_launcher_is_resumable_and_packed():
     assert "--proxy az_nas_autoformer --aggregator az_nas_log_rank" in source
     assert '--generations 0' in source
     assert '--resume "$state"' in source
-    assert 'flock -w "$LOCK_TIMEOUT"' in source
+    assert 'acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" "$LOCK_TIMEOUT"' in source
     assert 'CUDA_VISIBLE_DEVICES="$uuid"' in source
-    assert source.count("exec {descriptor}>&-") == 2
     assert "acceptance_exec_immutable" in source
-    assert "supervisor_event lock_acquired" in source
-    assert "supervisor_event lock_released" in source
+    assert "lane_a_tasks" in source
+    assert "lane_b_tasks" in source
     assert 'command=$2' in source
     assert "architecture-hash-v1" in source
     assert 'ZoneInfo("Asia/Shanghai")' in source

@@ -2,6 +2,13 @@ evaluate:
   benchmark: transnasbench101
   benchmark_version: v10141024
   transnas_space: micro
+  dataset: class_object
+  target_split: valid
+  target_metric: valid_top1
+  target_direction: maximize
+  epoch_budget: 25
+  input_size: 256
+  classes: 75
   catalog: ~/.config/zcp-test/data.json
 provenance:
   benchmark_id: transnasbench101

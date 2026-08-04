@@ -1,6 +1,12 @@
 evaluate:
   benchmark: nasbench101
   benchmark_version: full
+  dataset: cifar10
+  target_split: valid
+  target_metric: final_accuracy
+  target_direction: maximize
+  epoch_budget: 108
+  metric_seed_reduction: mean
   catalog: ~/.config/zcp-test/data.json
 provenance:
   benchmark_id: nasbench101

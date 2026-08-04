@@ -1,6 +1,11 @@
 evaluate:
   benchmark: vitbench101
   slice_id: autoformer_main
+  dataset: cifar100
+  target_split: test
+  target_metric: accuracy_vanilla
+  target_direction: maximize
+  classes: 100
   catalog: ~/.config/zcp-test/data.json
 provenance:
   benchmark_id: vitbench101

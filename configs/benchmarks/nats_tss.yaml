@@ -1,6 +1,12 @@
 evaluate:
   benchmark: nats_tss
   benchmark_version: "1.0"
+  dataset: cifar10-valid
+  target_split: valid
+  target_metric: accuracy
+  target_direction: maximize
+  epoch_budget: 200
+  metric_seed_reduction: mean
   catalog: ~/.config/zcp-test/data.json
 provenance:
   benchmark_id: nats_tss

@@ -75,6 +75,55 @@ lock acquire/release, child wait, failing `BASH_COMMAND`, and exit status. This 
 drift from keeping locks after GPU work ends; it does not replace kernel `flock` inspection and never
 justifies deleting an active lock path.
 
+### Diagnosing the real `flock` owner
+
+A persistent lock pathname is normal, and PID text inside the file is only a hint. Probe the kernel
+lock first. A successful non-blocking probe means the lock was available at that instant and is
+released automatically when the probe exits; no file removal is needed or permitted:
+
+```bash
+LOCK_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks"
+for lock in "$LOCK_DIR"/*.lock; do
+  [[ -e "$lock" ]] || continue
+  if flock -n "$lock" -c true; then
+    printf 'FREE  %s\n' "$lock"
+  else
+    printf 'HELD  %s\n' "$lock"
+    lslocks -o PID,PPID,COMMAND,TYPE,MODE,PATH | grep -F -- "$lock" || true
+    fuser -v "$lock" 2>/dev/null || true
+  fi
+done
+```
+
+`lslocks` reports the kernel lock owner. `fuser` or `lsof` only proves that a process opened the file,
+so use it to locate candidates rather than as the sole lock decision. Inspect the owner and its child
+tree before intervening:
+
+```bash
+OWNER_PID=<pid-from-lslocks>
+ps -o pid,ppid,stat,lstart,etime,cmd -p "$OWNER_PID"
+pstree -aps "$OWNER_PID"
+pgrep -a -P "$OWNER_PID" || true
+```
+
+Only an actual task or lane may hold a lock temporarily, and it must release the lock immediately on
+exit. Low GPU utilization alone is not proof of idleness: input loading, validation, and checkpoint
+writes can legitimately leave the GPU quiet. Cross-check active children, `run.log`, `events.jsonl`,
+the manifest, and GPU processes. If an old supervisor has no active training child but still owns the
+kernel lock, terminate it gracefully through its user unit or PID, wait for cleanup, and probe again:
+
+```bash
+systemctl --user stop <unit>          # preferred when a user unit exists
+# or: kill -TERM "$OWNER_PID"
+flock -n /path/to/GPU-UUID.lock -c 'echo lock-released'
+```
+
+Never use `rm *.lock` as a fake unlock. Removing the pathname does not release a kernel lock on the
+old inode and can let another process create a same-named file and enter the critical section at the
+same time. Do not stop a supervisor that still has an active child merely to free a GPU; conversely,
+a supervisor with no active child must not reserve an idle GPU. Because every probe has a race window,
+re-check PID, children, and run identity immediately before termination.
+
 ## Evaluation inputs and result types
 
 Dataset input is the default and requires `--data-root` or a valid `dataset_<name>` catalog asset.

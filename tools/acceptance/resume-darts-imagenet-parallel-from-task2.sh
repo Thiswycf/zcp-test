@@ -149,13 +149,7 @@ PY
 with_gpu_lock() {
   local uuid=$1
   shift
-  local descriptor
-  exec {descriptor}>"$LOCK_DIR/$uuid.lock"
-  flock -n "$descriptor" || { echo "GPU lock unavailable: $uuid" >&2; exit 4; }
-  (
-    exec {descriptor}>&-
-    "$@"
-  )
+  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" 0 "darts-resume-lane:$uuid" "$@"
 }
 
 short_lane() {

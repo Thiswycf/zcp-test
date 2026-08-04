@@ -170,6 +170,40 @@ def test_external_catalog_honors_declared_checksum_and_bootstrap_skips_ready_ass
     assert result["checklist"][0]["catalog_state"] == "external_ready"
 
 
+def test_bootstrap_pins_unpinned_external_runtime_without_relocating(
+    monkeypatch, tmp_path, tiny_benchmark
+):
+    _, _, _ = tiny_benchmark
+    external = tmp_path / "external/runtime"
+    external.mkdir(parents=True)
+    (external / "part.bin").write_bytes(b"trusted-local-download")
+    catalog = tmp_path / "catalog.json"
+    DataRegistry(catalog).register(
+        DataAsset(
+            "tiny",
+            str(external),
+            "test-1",
+            protocol="test-protocol",
+            trusted=True,
+        )
+    )
+    monkeypatch.setattr(
+        data_setup,
+        "bootstrap_data",
+        lambda *args, **kwargs: pytest.fail("ready external asset must not be downloaded"),
+    )
+
+    result = data_setup.bootstrap_benchmarks(
+        tmp_path / "empty-root", ["tiny"], catalog=catalog
+    )
+
+    asset = DataRegistry(catalog).get("tiny")
+    assert Path(asset.path) == external
+    assert asset.sha256 == data_setup.sha256_path(external)
+    assert result["checklist"][0]["catalog_state"] == "external_ready"
+    assert result["checklist"][0]["runtime_integrity"] == "verified"
+
+
 def test_benchmark_group_expansion_preserves_order_and_deduplicates_groups():
     expanded = data_setup._expand_benchmarks(
         ["vitbench101", "nasbench101", "vitbench101"]
@@ -301,6 +335,22 @@ def test_export_and_verify_manifest_detects_digest_changes(tmp_path, tiny_benchm
     assert tampered["valid"] is False
     assert tampered["records"][0]["exists"] is True
     assert tampered["records"][0]["actual_sha256"] != payload["records"][0]["sha256"]
+
+
+def test_export_and_verify_manifest_detects_directory_tree_changes(
+    tmp_path, monkeypatch
+):
+    runtime = tmp_path / "benchmark/runtime"
+    runtime.mkdir(parents=True)
+    (runtime / "part.bin").write_bytes(b"part-one")
+    monkeypatch.setattr(data_setup, "_transfer_paths", lambda _root, _benchmark: (runtime,))
+    manifest = data_setup.export_data_manifest(
+        tmp_path / "benchmark", tmp_path / "directory-manifest.json", ["tiny"]
+    )
+
+    assert data_setup.verify_data_manifest(tmp_path / "benchmark", manifest)["valid"] is True
+    (runtime / "part.bin").write_bytes(b"part-two")
+    assert data_setup.verify_data_manifest(tmp_path / "benchmark", manifest)["valid"] is False
 
 
 def test_export_manifest_rejects_runtime_path_outside_data_root(monkeypatch, tmp_path):

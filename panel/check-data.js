@@ -11,6 +11,8 @@ const stylesPath = path.join(__dirname, "styles.css");
 const readmePath = path.join(__dirname, "README.md");
 const liveStatusPath = path.join(__dirname, "live-status.py");
 const gitignorePath = path.join(__dirname, "..", ".gitignore");
+const operationsCnPath = path.join(__dirname, "..", "docs", "OPERATIONS_CN.md");
+const operationsPath = path.join(__dirname, "..", "docs", "OPERATIONS.md");
 const context = { window: {} };
 vm.runInNewContext(fs.readFileSync(dataPath, "utf8"), context, { filename: dataPath });
 const data = context.window.ZCP_PANEL_DATA;
@@ -20,6 +22,8 @@ const stylesSource = fs.readFileSync(stylesPath, "utf8");
 const readmeSource = fs.readFileSync(readmePath, "utf8");
 const liveStatusSource = fs.readFileSync(liveStatusPath, "utf8");
 const gitignoreSource = fs.readFileSync(gitignorePath, "utf8");
+const operationsCnSource = fs.readFileSync(operationsCnPath, "utf8");
+const operationsSource = fs.readFileSync(operationsPath, "utf8");
 const errors = [];
 
 function assert(condition, message) {
@@ -301,17 +305,17 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${httpRecoveryEvidence?.result || ""} ${httpRecoveryEvidence?.command || ""}`), "看板 HTTP 恢复证据不得泄露绝对路径或 PID");
   const panelTask = data.tasks.find((entry) => entry.id === "F4");
   assert(panelTask?.detail.includes("8768/8769") && panelTask?.detail.includes("curl 超时") && panelTask?.detail.includes("已重启服务") && panelTask?.detail.includes("monitor 根目录"), "F4 未同步 HTTP 服务恢复状态");
-  const fullGate468 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-468");
-  assert(fullGate468?.result.includes("commit c0c7815") && fullGate468?.result.includes("468 tests 全部通过"), "当前主仓 468 pytest 结果缺失");
-  assert(fullGate468?.result.includes("Ruff") && fullGate468?.result.includes("compileall") && fullGate468?.result.includes("pip check"), "当前主仓 468 静态门禁缺失");
+  const fullGate543 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-543");
+  assert(fullGate543?.result.includes("37 个测试文件") && fullGate543?.result.includes("543 tests 全部通过"), "当前工作树 543 pytest 结果缺失");
+  assert(fullGate543?.result.includes("Ruff") && fullGate543?.result.includes("compileall") && fullGate543?.result.includes("pip check"), "当前工作树 543 静态门禁缺失");
   const fullGate467 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-467");
   assert(fullGate467?.result.includes("collected 467 tests 且全部通过"), "历史主仓 467 coverage pytest 结果缺失");
   assert(fullGate467?.result.includes("source coverage 87%") && fullGate467?.result.includes("CLI coverage 82%"), "历史主仓 467 coverage 缺失");
-  assert(fullGate467?.result.includes("已由 EV-FULL-GATE-468 取代"), "历史 467 门禁未标记为被 468 取代");
+  assert(fullGate467?.result.includes("已由 EV-FULL-GATE-543 取代"), "历史 467 门禁未标记为被 543 取代");
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
   for (const task of [baselineTask, qualityGateTask]) {
-    assert(task?.detail.includes("commit c0c7815") && task?.detail.includes("468 tests 全部通过"), `任务 ${task?.id || "?"} 缺少当前 468 gate`);
+    assert(task?.detail.includes("37 files") && task?.detail.includes("543 tests"), `任务 ${task?.id || "?"} 缺少当前 543 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
   }
   const releaseTask = data.tasks.find((entry) => entry.id === "I1");
@@ -420,9 +424,30 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(interruptedTrainingEvidence?.result.includes("不记科学失败") && interruptedTrainingEvidence?.result.includes("所有 GPU 锁已释放") && interruptedTrainingEvidence?.result.includes("待修复提交后重新启动"), "AutoFormer 首次中断科学边界、锁释放或重启条件缺失");
   const budgetRisk = data.risks.find((entry) => entry.id === "R-BUDGET");
   assert(budgetRisk?.description.includes("允许增加高成本验收时间预算"), "高成本验收追加时间预算授权缺失");
-  for (const riskId of ["R-DDP-RANK-RNG"]) {
-    const risk = data.risks.find((entry) => entry.id === riskId);
-    assert(risk && ["开放", "受阻"].includes(risk.status), `关键风险 ${riskId} 未保持开放或受阻`);
+  const ddpRankRngRisk = data.risks.find((entry) => entry.id === "R-DDP-RANK-RNG");
+  assert(ddpRankRngRisk?.status === "关闭" && ddpRankRngRisk?.description.includes("commit 53ddd69") && ddpRankRngRisk?.description.includes("rng_by_rank"), "DDP rank-local RNG 风险未关闭或实现身份缺失");
+  assert(ddpRankRngRisk?.description.includes("2 进程 Gloo") && ddpRankRngRisk?.description.includes("fail-closed"), "DDP rank-local RNG 真实往返或拒绝边界缺失");
+  assert(ddpRankRngRisk?.mitigation.includes("不证明跨 GPU 型号、CUDA 版本、kernel 或 world-size"), "DDP rank-local RNG 科学边界缺失");
+  const ddpRankRngEvidence = data.evidence.find((entry) => entry.id === "EV-DDP-RANK-LOCAL-RNG-ROUNDTRIP");
+  assert(ddpRankRngEvidence?.result.includes("两个 rank 状态不同") && ddpRankRngEvidence?.result.includes("下一组随机值精确恢复"), "DDP rank-local RNG 往返结果缺失");
+  assert(ddpRankRngEvidence?.result.includes("legacy checkpoint 缺字段") && ddpRankRngEvidence?.result.includes("world-size 不匹配") && ddpRankRngEvidence?.result.includes("fail-closed"), "DDP rank-local RNG 旧格式或 world-size 拒绝证据缺失");
+  assert(ddpRankRngEvidence?.command.includes("docs/evidence/ddp_rank_local_rng_roundtrip.json"), "DDP rank-local RNG JSON 证据链接缺失");
+  const gpuOwnerTask = data.tasks.find((entry) => entry.id === "J6");
+  assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("禁止 rm lock 文件伪解锁") && gpuOwnerTask?.detail.includes("尚未据此宣称当前所有锁"), "GPU owner 实时巡检任务或未验收边界缺失");
+  assert(gpuOwnerTask?.detail.includes("acceptance_with_gpu_lock") && gpuOwnerTask?.detail.includes("80 项通过") && gpuOwnerTask?.detail.includes("不进行热修改"), "GPU task-scoped wrapper、专项测试或旧 snapshot 边界缺失");
+  const gpuOwnerRisk = data.risks.find((entry) => entry.id === "R-GPU-LOCK-RUNTIME-OWNER");
+  assert(gpuOwnerRisk?.status === "监控" && gpuOwnerRisk?.mitigation.includes("非阻塞 flock") && gpuOwnerRisk?.mitigation.includes("无活跃 child"), "GPU runtime owner 监控风险或处置边界缺失");
+  assert(gpuOwnerRisk?.mitigation.includes("唯一权威") && gpuOwnerRisk?.description.includes(".lease heartbeat") && gpuOwnerRisk?.description.includes("四锁均对应活跃训练"), "GPU kernel flock 权威、lease 或活跃旧 snapshot 边界缺失");
+  const gpuLeaseEvidence = data.evidence.find((entry) => entry.id === "EV-GPU-LOCK-LEASE-RUNTIME-20260804");
+  assert(gpuLeaseEvidence?.result.includes("ImageNet candidate") && gpuLeaseEvidence?.result.includes("DARTS resume") && gpuLeaseEvidence?.result.includes("AutoFormer 8,000-candidate"), "GPU lock wrapper launcher 接入范围缺失");
+  assert(gpuLeaseEvidence?.result.includes("内核 flock 是唯一权威") && gpuLeaseEvidence?.result.includes(".lease heartbeat") && gpuLeaseEvidence?.result.includes("supervisor 可继续存活"), "GPU lock/lease 权威或释放边界缺失");
+  assert(gpuLeaseEvidence?.result.includes("80 passed") && gpuLeaseEvidence?.result.includes("不热修改") && gpuLeaseEvidence?.command.includes("docs/evidence/gpu_lock_lease_runtime_20260804.json"), "GPU lock 专项结果、immutable snapshot 或 JSON 证据引用缺失");
+  const gpuOwnerEvidence = data.evidence.find((entry) => entry.id === "EV-GPU-LOCK-OWNER-DIAGNOSTIC-GUIDE");
+  assert(gpuOwnerEvidence?.result.includes("lslocks") && gpuOwnerEvidence?.result.includes("禁止 rm lock pathname") && gpuOwnerEvidence?.result.includes("不声称当前机器全部锁"), "GPU owner 诊断手册证据边界缺失");
+  for (const [source, label] of [[operationsCnSource, "中文"], [operationsSource, "英文"]]) {
+    assert(source.includes("flock -n") && source.includes("lslocks") && source.includes("fuser"), `${label} OPERATIONS 缺少真实 flock owner 诊断命令`);
+    assert(source.includes("pstree") && source.includes("pgrep") && source.includes("kill -TERM"), `${label} OPERATIONS 缺少 supervisor child/TERM 诊断流程`);
+    assert(source.includes("rm *.lock") && source.includes("inode"), `${label} OPERATIONS 缺少禁止删除锁文件边界`);
   }
   assert(data.risks.find((entry) => entry.id === "R-DARTS-IMAGENET-DATA")?.status === "监控", "DARTS 完成后 BatchNorm 粒度风险应保持监控");
   const launcherExitRisk = data.risks.find((entry) => entry.id === "R-LAUNCHER-EXIT-CODE");

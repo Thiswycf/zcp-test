@@ -1,0 +1,44 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T11:40:47+08:00",
+  "base_commit": "45409b074a1153d2dc14555494378655526c1dd0",
+  "scope": {
+    "runtime": "tools/acceptance/lib/launcher-runtime.sh",
+    "tests": "tests/test_gpu_lock_runtime.py",
+    "evidence": "docs/evidence/gpu_lock_lease_runtime_20260804.json"
+  },
+  "mechanism": {
+    "lock_authority": "kernel_flock",
+    "metadata_suffix": ".lease",
+    "lock_file_metadata": "pid, host, uuid and acquired_at fields compatible with zcp_test.gpu.gpu_lock_status; cleared in place before unlock",
+    "lease_metadata_role": "owner, heartbeat, lease and command observability only",
+    "expired_lease_behavior": "never unlink or otherwise bypass a kernel-held lock",
+    "fd_scope": "the lock wrapper only; heartbeat and task subprocesses explicitly close the descriptor before execution",
+    "release_boundary": "immediately after the task subprocess exits, independently of the outer supervisor lifetime",
+    "cleanup": "lease-matched metadata is removed on success, task failure, INT and TERM"
+  },
+  "verified_invariants": [
+    "The lock-file inode remains unchanged across acquisition, timeout, release and reacquisition.",
+    "While held, the lock file exposes pid, host, uuid and Beijing acquired_at owner metadata; release truncates this metadata without unlinking the inode.",
+    "A task subprocess has no file descriptor referencing the GPU lock path.",
+    "The kernel lock is reacquirable while the outer supervisor remains alive after its task finishes.",
+    "Heartbeat updates preserve the same lease ID and owner PID.",
+    "A timed-out contender neither replaces active owner metadata nor removes the lock file.",
+    "TERM returns 143, terminates the task, removes matching metadata and releases flock.",
+    "A task exit status of 7 is propagated after metadata cleanup and flock release.",
+    "Invalid lease configuration fails before acquiring a lock."
+  ],
+  "validation": {
+    "bash_syntax": "passed",
+    "ruff": "passed",
+    "pytest_command": "pytest -q tests/test_gpu_lock_runtime.py tests/test_workflow.py",
+    "pytest_result": "80 passed (16 GPU + 6 lock runtime + 58 workflow)",
+    "shellcheck": "not_run_unavailable"
+  },
+  "limitations": [
+    "SIGKILL cannot run shell metadata cleanup; kernel flock still releases automatically, and a later real acquirer atomically replaces stale observability metadata.",
+    "Lease expiry is intentionally not an unlock mechanism.",
+    "Single-GPU ImageNet candidate, DARTS resume, and AutoFormer search lanes use the shared task-scoped wrapper; the all-GPU DDP path retains atomic multi-lock acquisition for one active DDP task and releases all descriptors when that task exits.",
+    "Acceptance jobs launched from older immutable source snapshots retain their snapshotted lock implementation until they finish; they are audited through kernel flock and active child/GPU PID checks rather than modified in place."
+  ]
+}

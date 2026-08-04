@@ -55,6 +55,51 @@ commit 导入 Python 与 config。结构化 `supervisor.log` 分别记录 lane �
 child wait 状态及失败时的 `BASH_COMMAND`。这用于避免“GPU 已空闲但旧 supervisor 因控制流漂移仍
 持锁”的低效情形；不得通过删除锁文件替代正常退出或 `flock` 探测。
 
+### 诊断真实 `flock` owner
+
+锁路径长期存在是正常现象，文件内容中的 PID 也只能作为提示。先用非阻塞 `flock` 探测内核锁；
+探测成功表示该瞬间可获取，命令退出后会自动释放，不需要也不允许删除文件：
+
+```bash
+LOCK_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/zcp-test/gpu-locks"
+for lock in "$LOCK_DIR"/*.lock; do
+  [[ -e "$lock" ]] || continue
+  if flock -n "$lock" -c true; then
+    printf 'FREE  %s\n' "$lock"
+  else
+    printf 'HELD  %s\n' "$lock"
+    lslocks -o PID,PPID,COMMAND,TYPE,MODE,PATH | grep -F -- "$lock" || true
+    fuser -v "$lock" 2>/dev/null || true
+  fi
+done
+```
+
+`lslocks` 显示内核记录的 lock owner；`fuser`/`lsof` 只表示进程打开了文件，应作为定位候选而不是
+单独的持锁结论。诊断到 PID 后核对 supervisor 和子进程树：
+
+```bash
+OWNER_PID=<pid-from-lslocks>
+ps -o pid,ppid,stat,lstart,etime,cmd -p "$OWNER_PID"
+pstree -aps "$OWNER_PID"
+pgrep -a -P "$OWNER_PID" || true
+```
+
+只有实际 task/lane 可以临时持锁。低 GPU 利用率本身不能证明任务空闲，因为数据加载、验证、保存
+checkpoint 时 GPU 可能短暂空闲；应同时检查 child、`run.log`、`events.jsonl`、manifest 和 GPU
+进程。task/lane 结束后必须立即释放。若旧 supervisor 已无活跃训练 child，却仍持有内核锁，应先
+通过对应 user service 或 PID 发送 `TERM`，等待正常清理，再重复非阻塞探测：
+
+```bash
+systemctl --user stop <unit>          # 有对应 user unit 时优先
+# 或：kill -TERM "$OWNER_PID"
+flock -n /path/to/GPU-UUID.lock -c 'echo lock-released'
+```
+
+禁止 `rm *.lock`“伪解锁”：删除 pathname 不会释放旧 inode 上的 kernel lock，反而可能让另一个
+进程创建同名新文件并同时进入临界区。若仍有活跃 child，不得仅为释放 GPU 而终止 supervisor；
+若没有活跃 child，则不应让 supervisor 继续预占空闲卡。所有判定都具有竞争窗口，执行终止操作前
+应再次核对 PID、child 和 run identity。
+
 ## 数据输入与结果类型
 
 `evaluate` 和 `search` 默认 `--input-source dataset`，必须提供 `--data-root` 或有效的
@@ -90,9 +135,13 @@ heartbeat；若其 epoch 尚未结束，monitor 只能显示已有 artifact。
 不要根据目录名猜测介质速度；先用 `findmnt -T /path/to/imagenet1k` 确认挂载，再核对类别和文件数。
 CLI 不会硬编码或自动改写数据根。
 
-当前 `search` 尚无 `--resume`：`search.jsonl` 是可审计记录，不是 population/RNG/cache checkpoint。
-中断后必须新建 run；不得把向旧文件追加记录称为恢复。训练恢复则使用同一架构、配置和协议身份，
-并显式传入可信 `last.pt`。
+当前 `search --resume /path/to/search-state.json` 支持从版本化状态恢复。状态包含 population、history、
+组件缓存、累计 evaluations/cache hits、已完成 generation、RNG state 和完整 search identity；恢复时
+space、proxy/version、aggregator、dataset、输入指纹、seed、population 等科学协议必须完全一致。
+恢复会创建新的 run 并保存来源状态，不向旧 `search.jsonl` 直接追加；只有 manifest、state 和 JSONL
+计数一致的 terminal run 才能称为完成。训练恢复则使用同一架构、配置和协议身份，并显式传入可信
+`last.pt`。专用 PlainNet source-aligned controller 在完成独立状态 schema 验收前不得借用 generic
+`search-state.json` 宣称上游搜索可恢复。
 
 ## 范围切分与合并
 

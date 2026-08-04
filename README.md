@@ -111,6 +111,11 @@ In the latter case, checklist reports `catalog_state=external_ready` and
 `location=catalog_external`; it does not imply that files were copied below `--root`. Native
 pickle/PyTorch files are not deserialized by a read-only checklist, so run the documented adapter
 smoke before research use.
+For a file, `runtime_integrity=verified` means its file SHA-256 matches. For a directory, it means a
+deterministic directory-tree digest matches; that digest is locked locally during a trusted
+bootstrap and is not presented as an upstream-published checksum. Rerunning the same explicit
+bootstrap preserves a valid external catalog path, skips ready downloads, and pins an `unpinned`
+runtime before the next checklist.
 
 ```bash
 # 1. Plan and inspect source, size, paths, partial downloads, and free space.

@@ -133,3 +133,59 @@ def test_cutout_and_proxy_scaffold_in_temporary_checkout(monkeypatch, capsys, tm
         cli._scaffold_proxy("research_proxy")
     with pytest.raises(ValueError, match="public Python identifier"):
         cli._scaffold_proxy("invalid-name")
+
+
+def test_transnas_benchmark_example_declares_a_real_task_protocol():
+    from zcp_test.config import load_config
+
+    root = Path(__file__).resolve().parents[1]
+    evaluate = load_config(root / "configs/benchmarks/transnasbench101.yaml")["evaluate"]
+
+    assert evaluate["dataset"] == "class_object"
+    assert evaluate["target_split"] == "valid"
+    assert evaluate["target_metric"] == "valid_top1"
+    assert evaluate["target_direction"] == "maximize"
+    assert evaluate["epoch_budget"] == 25
+    assert evaluate["input_size"] == 256
+    assert evaluate["classes"] == 75
+
+
+def test_vitbench_example_keeps_release_metric_protocol_explicit():
+    from zcp_test.config import load_config
+
+    root = Path(__file__).resolve().parents[1]
+    evaluate = load_config(root / "configs/benchmarks/vitbench101.yaml")["evaluate"]
+
+    assert evaluate["slice_id"] == "autoformer_main"
+    assert evaluate["dataset"] == "cifar100"
+    assert evaluate["target_split"] == "test"
+    assert evaluate["target_metric"] == "accuracy_vanilla"
+    assert evaluate["target_direction"] == "maximize"
+    assert evaluate["classes"] == 100
+
+
+@pytest.mark.parametrize(
+    ("name", "dataset", "split", "metric", "budget"),
+    [
+        ("nasbench101", "cifar10", "valid", "final_accuracy", 108),
+        ("nasbench201", "cifar10-valid", "valid", "accuracy", 200),
+        ("nats_tss", "cifar10-valid", "valid", "accuracy", 200),
+        ("nats_sss", "cifar10-valid", "valid", "accuracy", 90),
+        ("nasbench301_surrogate", "cifar10", "test", "accuracy", None),
+    ],
+)
+def test_native_benchmark_examples_declare_metric_protocol(
+    name, dataset, split, metric, budget
+):
+    from zcp_test.config import load_config
+
+    root = Path(__file__).resolve().parents[1]
+    evaluate = load_config(root / f"configs/benchmarks/{name}.yaml")["evaluate"]
+
+    assert evaluate["dataset"] == dataset
+    assert evaluate["target_split"] == split
+    assert evaluate["target_metric"] == metric
+    assert evaluate["target_direction"] == "maximize"
+    assert evaluate.get("epoch_budget") == budget
+    if budget is not None:
+        assert evaluate["metric_seed_reduction"] == "mean"

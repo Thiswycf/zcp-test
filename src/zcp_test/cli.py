@@ -44,6 +44,7 @@ from zcp_test.gpu import (
     configure_cuda,
     enumerate_gpus,
     gpu_lock,
+    gpu_lock_status,
     select_gpu,
 )
 from zcp_test.inputs import CandidateInputResolver, make_dataset_batch_stream
@@ -80,8 +81,11 @@ from zcp_test.reporting.benchmark_studies import (
 from zcp_test.reporting.monitor import refresh_once
 from zcp_test.search import (
     EvolutionSearch,
+    PlainNetSourceAlignedSearch,
     cache_key,
+    load_plainnet_search_state,
     load_search_state,
+    resolve_target_profile,
     validate_search_state_identity,
 )
 from zcp_test.spaces import SPACES, load_builtin_spaces
@@ -977,6 +981,7 @@ def command_gpu(args: argparse.Namespace) -> None:
         row["visible_logical_index"] = (
             visible.index(row["uuid"]) if row["uuid"] in visible else None
         )
+        row["zcp_test_lock"] = gpu_lock_status(row)
     _json(rows)
 
 
@@ -1803,8 +1808,55 @@ def command_correlate(args: argparse.Namespace) -> None:
 
 def command_search(args: argparse.Namespace) -> None:
     _prepare_gpu(args)
+    if not args.space:
+        raise ValueError("search requires --space or a config-provided space")
     load_builtin_spaces()
     space = SPACES.create(args.space)
+    source_aligned_plainnet = args.controller == "plainnet_source_aligned"
+    source_target = None
+    if source_aligned_plainnet:
+        source_target = resolve_target_profile(args.flops_target)
+        required = {
+            "space": (args.space, "zennas_plainnet_mbv2"),
+            "proxy": (args.proxy, "az_nas_plainnet"),
+            "aggregator": (args.aggregator, "az_nas_log_rank"),
+            "population": (args.population, 1024),
+            "generations": (args.generations, 0),
+            "batch_size": (args.batch_size, 64),
+            "input_size": (args.input_size, 224),
+            "classes": (args.classes, 1000),
+            "dataset": (args.dataset, "imagenet1k"),
+            "input_source": (args.input_source, "random"),
+            "weight_mode": (args.weight_mode, "independent_scratch"),
+            "bn_recalibration_batches": (args.bn_recalibration_batches, 0),
+        }
+        mismatched = {
+            name: {"actual": actual, "required": expected}
+            for name, (actual, expected) in required.items()
+            if actual != expected
+        }
+        if mismatched:
+            raise ValueError(
+                "PlainNet source-aligned controller protocol mismatch: "
+                f"{mismatched}"
+            )
+        if args.valid_candidates is None:
+            args.valid_candidates = 100_000
+        if args.valid_candidates != 100_000:
+            raise ValueError(
+                "PlainNet source-aligned production search requires exactly "
+                "100000 valid candidates"
+            )
+        if args.model_checkpoint or args.allow_approximation:
+            raise ValueError(
+                "PlainNet source-aligned search uses independent scratch models "
+                "and does not allow approximation"
+            )
+    elif args.flops_target is not None or args.valid_candidates is not None:
+        raise ValueError(
+            "--flops-target and --valid-candidates require "
+            "--controller plainnet_source_aligned"
+        )
     model_provenance = _require_research_model(space, args.allow_approximation)
     weight_loader, weight_provenance = _prepare_model_weights(args, space)
     if space.search_space_id == "ofa_proxyless_mbv2" and _argument_was_explicit(args, "input_size"):
@@ -1903,8 +1955,27 @@ def command_search(args: argparse.Namespace) -> None:
             "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
             "bn_recalibration_fingerprint": weight_provenance.get("bn_recalibration_fingerprint"),
         }
-        resume_state = load_search_state(args.resume) if args.resume else None
-        if resume_state is not None:
+        if source_aligned_plainnet:
+            assert source_target is not None
+            search_identity.update(
+                {
+                    "controller_id": "plainnet_source_aligned",
+                    "controller_fidelity": "source_aligned_control_flow_port",
+                    "valid_candidates": args.valid_candidates,
+                    "flops_target": source_target.target_id,
+                    "flops_budget": source_target.flops_budget,
+                    "max_layers": source_target.max_layers,
+                    "crossover": False,
+                }
+            )
+        resume_state = (
+            load_plainnet_search_state(args.resume)
+            if args.resume and source_aligned_plainnet
+            else load_search_state(args.resume)
+            if args.resume
+            else None
+        )
+        if resume_state is not None and not source_aligned_plainnet:
             validate_search_state_identity(resume_state, search_identity)
         record_metadata = {
             **model_provenance,
@@ -2003,21 +2074,46 @@ def command_search(args: argparse.Namespace) -> None:
                     return result.components
                 return result.score if result.direction.value == "maximize" else -result.score
 
-            search = EvolutionSearch(
-                space,
-                evaluator,
-                JsonlWriter(run.directory / "search.jsonl", 1),
-                args.population,
-                args.elite_ratio,
-                args.seed,
-                record_metadata=record_metadata,
-                evaluation_identity=evaluation_identity,
-                component_aggregator=component_aggregator,
-                state_path=run.directory / "search-state.json",
-                resume_state=resume_state,
-                state_identity=search_identity,
-            )
-            best = search.run(args.generations)
+            if source_aligned_plainnet:
+                assert source_target is not None
+                search = PlainNetSourceAlignedSearch(
+                    space=space,
+                    evaluator=evaluator,
+                    writer=JsonlWriter(run.directory / "search.jsonl", 1),
+                    state_path=run.directory / "search-state.json",
+                    seed=args.seed,
+                    target=source_target,
+                    valid_candidates=args.valid_candidates,
+                    parent_pool=args.population,
+                    classes=args.classes,
+                    record_metadata=record_metadata,
+                    state_identity=search_identity,
+                    resume_state=resume_state,
+                    resume_journal_path=(
+                        Path(args.resume).expanduser().resolve().with_name("search.jsonl")
+                        if args.resume
+                        else None
+                    ),
+                )
+                best = search.run()
+                if best is None:
+                    raise RuntimeError("PlainNet source-aligned search stopped before completion")
+            else:
+                search = EvolutionSearch(
+                    space,
+                    evaluator,
+                    JsonlWriter(run.directory / "search.jsonl", 1),
+                    args.population,
+                    args.elite_ratio,
+                    args.seed,
+                    record_metadata=record_metadata,
+                    evaluation_identity=evaluation_identity,
+                    component_aggregator=component_aggregator,
+                    state_path=run.directory / "search-state.json",
+                    resume_state=resume_state,
+                    state_identity=search_identity,
+                )
+                best = search.run(args.generations)
             (run.directory / "best_architecture.json").write_text(
                 json.dumps(best.architecture.to_dict(), indent=2), encoding="utf-8"
             )
@@ -2928,7 +3024,12 @@ def build_parser() -> argparse.ArgumentParser:
     correlate.set_defaults(function=command_correlate)
     search = subparsers.add_parser("search")
     search.add_argument("--config")
-    search.add_argument("--space", required=True)
+    search.add_argument(
+        "--controller",
+        choices=("generic", "plainnet_source_aligned"),
+        default="generic",
+    )
+    search.add_argument("--space")
     search.add_argument("--proxy", default="er")
     search.add_argument(
         "--aggregator",
@@ -2938,6 +3039,8 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--population", type=int, default=10)
     search.add_argument("--generations", type=int, default=3)
     search.add_argument("--elite-ratio", type=float, default=0.2)
+    search.add_argument("--valid-candidates", type=int)
+    search.add_argument("--flops-target", choices=("450m", "600m", "1g"))
     search.add_argument("--seed", type=int, default=42)
     search.add_argument(
         "--resume",

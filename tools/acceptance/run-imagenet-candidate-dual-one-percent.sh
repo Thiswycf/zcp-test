@@ -125,20 +125,7 @@ done
 with_gpu_lock() {
   local uuid=$1
   shift
-  local descriptor
-  exec {descriptor}>"$LOCK_DIR/$uuid.lock"
-  flock -n "$descriptor" || {
-    exec {descriptor}>&-
-    echo "GPU lock unavailable: $uuid" >&2
-    return 4
-  }
-  (
-    exec {descriptor}>&-
-    "$@"
-  )
-  local exit_code=$?
-  exec {descriptor}>&-
-  return "$exit_code"
+  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" 0 "imagenet-lane:$uuid" "$@"
 }
 
 with_all_gpu_locks() {

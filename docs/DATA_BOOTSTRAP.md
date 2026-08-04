@@ -225,14 +225,21 @@ A benchmark group is exactly `ready` through one of two routes:
 2. Every runtime path declared for the benchmark exists.
 
 Alternatively, all expected machine-local catalog IDs may resolve to existing runtime paths and
-pass each catalog entry's declared SHA-256 check. This route reports
+pass each catalog entry's declared digest check. Regular files use their byte-level SHA-256;
+directories use a deterministic tree digest over relative paths, file sizes, and file contents.
+This route reports
 `catalog_state=external_ready` and `location=catalog_external`; it does not claim that raw files
-exist below `--root`. Catalog entries without SHA-256 are existence-checked only.
+exist below `--root`. A successful trusted bootstrap pins a previously unpinned runtime file or
+directory in the machine-local catalog without relocating a valid external runtime path. Catalog
+entries that predate this mechanism and still have no digest are existence-checked only until
+bootstrap is rerun.
 
 The checklist deliberately does not deserialize native `.pth`/pickle benchmark files merely to
 claim readiness: doing so would violate its read-only safety boundary and can be expensive.
 Therefore `ready` is followed by the documented adapter smoke. NAS-Bench-101 conversion and
 offline transfer manifests additionally bind the index, offsets, and shards with SHA-256.
+For directory runtimes, a locally generated tree digest detects later local changes, but it is
+not an upstream-published checksum and does not independently establish provenance.
 
 State priority is `corrupt`, then `partial`/`missing`, then `conversion_required`, then `ready`.
 Consequently, `ready` is a precise installation-state predicate, not proof of upstream
@@ -321,6 +328,9 @@ Repository configuration keeps `/path/to/data` placeholders and never stores hos
   version of `zcp-test`. Record that output with each acquisition.
 - A missing built-in checksum means **not pinned**, not “checksum passed.” Obtain an upstream
   digest or generate and record an organization-approved digest before adding `--trusted`.
+- Runtime catalog files are pinned with byte-level SHA-256. Runtime directories are pinned with
+  the deterministic local tree digest described above. Both detect later local mutation; only an
+  upstream-published checksum can independently bind the payload to an upstream release.
 - `--trusted` permits loading native Python/PyTorch serialization. It does not verify origin,
   checksum, benchmark protocol, or safety.
 - Bootstrap does not accept licenses or grant redistribution rights. Review the upstream source

@@ -70,6 +70,10 @@ checklist 现在分别报告 `raw_state`、`runtime_state`、`runtime_integrity`
 native benchmark 的外部 catalog 路径本身就是 raw/runtime 时会显示 `location=catalog_external`，
 不表示文件已复制到 `--root`。只读 checklist 不会反序列化原生 pickle/PyTorch 文件，正式研究前
 仍需执行 adapter smoke。
+`runtime_integrity=verified` 对文件表示文件 SHA-256 匹配，对目录表示确定性的目录树摘要匹配；后者
+是首次可信 bootstrap 在本机锁定的摘要，不应误称为上游公布 checksum。已有 catalog 条目为
+`unpinned` 时，可重新运行同一 `data bootstrap --benchmarks ... --yes`：工具保留有效外部路径、不
+重下载 ready 资产，只补写摘要，然后再次 checklist。
 
 ```bash
 # 1. 表格查看来源、大小、目标路径和断点文件；磁盘余量字段见 --json。

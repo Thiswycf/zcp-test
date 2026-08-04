@@ -17,6 +17,26 @@ def test_registry_round_trip_and_checksum(tmp_path):
     assert registry.verify("nb")["valid"] is True
 
 
+def test_registry_verifies_directory_tree_checksum(tmp_path):
+    from zcp_test.data.assets import sha256_path
+
+    directory = tmp_path / "benchmark"
+    (directory / "nested").mkdir(parents=True)
+    (directory / "metadata.json").write_text("{}\n", encoding="utf-8")
+    (directory / "nested" / "weights.bin").write_bytes(b"weights")
+    registry = DataRegistry(tmp_path / "registry.json")
+    registry.register(
+        DataAsset("directory", str(directory), "1", sha256=sha256_path(directory))
+    )
+
+    verified = registry.verify("directory")
+    assert verified["valid"] is True
+    assert verified["actual_sha256"] == registry.get("directory").sha256
+
+    (directory / "nested" / "weights.bin").write_bytes(b"tampered")
+    assert registry.verify("directory")["valid"] is False
+
+
 def test_registry_rejects_duplicate(tmp_path):
     registry = DataRegistry(tmp_path / "registry.json")
     asset = DataAsset("nb", "/missing", "1")
