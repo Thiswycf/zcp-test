@@ -2,7 +2,7 @@
 set -Eeuo pipefail
 
 PROJECT_ROOT=${ZCP_PROJECT_ROOT:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}
-OUTPUT_ROOT=${ZCP_PLAINNET_PREFLIGHT_ROOT:-$PROJECT_ROOT/runs/acceptance/plainnet-source-aligned-throughput-preflight}
+OUTPUT_ROOT=${ZCP_PLAINNET_PREFLIGHT_ROOT:-${ZCP_ACCEPTANCE_ROOT:-$PROJECT_ROOT/runs/acceptance/plainnet-source-aligned-throughput-preflight}}
 GPU_UUID=${ZCP_PLAINNET_PREFLIGHT_GPU_UUID:?set ZCP_PLAINNET_PREFLIGHT_GPU_UUID to a GPU UUID}
 LOCK_TIMEOUT=${ZCP_GPU_LOCK_TIMEOUT_SECONDS:-21600}
 PYTHON=${ZCP_PYTHON:-$(command -v python)}

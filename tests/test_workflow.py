@@ -1100,6 +1100,7 @@ def test_plainnet_throughput_preflight_is_not_formal_search():
     subprocess.run(["bash", "-n", str(script)], check=True)
     source = script.read_text(encoding="utf-8")
     assert "acceptance_exec_immutable" in source
+    assert "ZCP_ACCEPTANCE_ROOT" in source
     assert "preflight-plainnet-source-aligned.py" in source
     assert "--accepted 3" in source
     assert "--flops-target 450m" in source
