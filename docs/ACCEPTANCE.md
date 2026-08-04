@@ -8,7 +8,7 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-08-04 tree: **563 tests passed** across 38 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, JSON validation, and diff checks passed; panel consistency is rechecked separately after its parallel update; four upstream THOP `distutils` deprecation warnings remain non-failing |
+| Unit/integration baseline | Current 2026-08-04 tree: **564 tests passed** across 38 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, JSON validation, and diff checks passed; panel consistency is rechecked separately after its parallel update; four upstream THOP `distutils` deprecation warnings remain non-failing |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
 | Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
 | Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
@@ -20,7 +20,7 @@ reproduction or formal benchmark accuracy.
 | AutoFormer candidate smokes | All three frozen candidates completed batch-256 synthetic memory, atomic-checkpoint, and trusted checkpoint-load/resume smokes | Smoke passed | Construction, memory, optimizer/checkpoint, and recovery plumbing only; random-input accuracy is meaningless and is not ImageNet evidence |
 | AutoFormer selected-candidate real dual one-percent V2 | `zcp-selected` completed full-data 5 epochs and one-percent-data 500 epochs with 5/500 rows, terminal manifests, and last/best checkpoints | **Scoped protocol passed** | Baseline tasks 5/6 were policy-interrupted and excluded; this proves implementation readiness, not full-data paper accuracy or search gain |
 
-The current full gate executes and passes 563 tests across 38 files. First-party source coverage of
+The current full gate executes and passes 564 tests across 38 files. First-party source coverage of
 87% and CLI coverage of 82% remain from the latest retained coverage run. Ruff, compileall, pip check,
 Bash syntax, panel validation, JSON validation, and `git diff --check` pass; four THOP `distutils`
 deprecation warnings are non-failing. Machine-readable summaries and checksums for the real NB201 and

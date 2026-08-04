@@ -74,6 +74,24 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
         assert f"ZCP_FULL_DATA_EPOCHS={full_epochs}" in source
 
 
+def test_plainnet_formal_source_search_launcher_is_scoped_and_resumable():
+    root = Path(__file__).resolve().parents[1]
+    script = root / "tools" / "acceptance" / "run-plainnet-source-search-100k.sh"
+    subprocess.run(["bash", "-n", str(script)], check=True)
+    source = script.read_text(encoding="utf-8")
+
+    assert "acceptance_exec_immutable" in source
+    assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in source
+    assert "ZoneInfo(\"Asia/Shanghai\")" in source
+    assert 'valid_candidates": 100000' in source
+    assert 'controller": "plainnet_source_aligned"' in source
+    assert "configs/search/plainnet_mbv2_source_aligned.yaml" in source
+    assert '--flops-target "$FLOPS_TARGET"' in source
+    assert '--gpu "$GPU_UUID"' in source
+    assert '--resume "$state"' in source
+    assert "formal_search_completed" in source
+
+
 def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
     root = Path(__file__).resolve().parents[1]
     script = root / "tools" / "acceptance" / "resume-darts-imagenet-parallel-from-task2.sh"

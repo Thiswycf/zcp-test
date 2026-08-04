@@ -718,6 +718,23 @@ host, the 2026-08-04 conservative cumulative rerank estimate was about 15,166 se
 with measured GPU time before committing to the 48-hour budget; an over-budget run remains
 `incomplete_budget` rather than silently changing controllers.
 
+Use the one-target immutable launcher for a formal background run. Assign one UUID per target;
+450M/600M/1G may run independently on three GPUs:
+
+```bash
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export ZCP_PYTHON=/path/to/conda/envs/zcp-test/bin/python
+export ZCP_PLAINNET_SEARCH_GPU_UUID=GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+export ZCP_PLAINNET_FLOPS_TARGET=450m  # or 600m / 1g
+bash tools/acceptance/run-plainnet-source-search-100k.sh
+```
+
+The default root is `runs/acceptance/plainnet-source-aligned-100k/<target>/`. `status.json` sets
+`formal_search_completed=true` only after a terminal CLI run. Existing completed runs are skipped;
+an interrupted formal run resumes into a new run from its latest state with full identity/journal
+validation. A preflight state lacks the complete formal CLI identity and must not be passed off as a
+formal resume; production starts in a separate clean run.
+
 The CLI rejects primary-component-only ranking and any mismatched search space. The stabilized port
 clamps covariance eigenvalue noise and keeps degenerate singular-value calculations finite, so it
 is versioned `aznas-5e6683-plainnet-stabilized-v1`, not claimed bitwise parity. The two-candidate GPU

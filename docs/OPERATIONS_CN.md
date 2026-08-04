@@ -865,6 +865,23 @@ API 暂停；state 必须保持 `running`、不得出现 `search_summary`，并�
 测得该 CPU rerank 的保守累计估计约 15,166 秒，因此正式 100k 启动前还必须结合 GPU 单候选实测评估
 48 小时预算；若预测超预算，应记录 `incomplete_budget`，不得偷偷更换 controller。
 
+正式后台运行优先使用单目标 immutable launcher；每个目标声明一张 GPU UUID，三档可在三张卡上互不
+共享 state 地并行：
+
+```bash
+export CUDA_DEVICE_ORDER=PCI_BUS_ID
+export ZCP_PYTHON=/path/to/conda/envs/zcp-test/bin/python
+export ZCP_PLAINNET_SEARCH_GPU_UUID=GPU-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+export ZCP_PLAINNET_FLOPS_TARGET=450m  # 也可为 600m 或 1g
+bash tools/acceptance/run-plainnet-source-search-100k.sh
+```
+
+输出根默认为 `runs/acceptance/plainnet-source-aligned-100k/<target>/`。`status.json` 只在 CLI terminal
+run 完成后写 `formal_search_completed=true`。launcher 会跳过已有 completed run；若存在未完成 run，
+则从最新 `search-state.json` 创建新 run 恢复，并由 CLI 严格核对完整 identity 和源 journal SHA。
+预检 state 不含正式 CLI 的完整 identity，不能传给该 launcher 伪装续跑；正式 100k 必须从独立新 run
+开始。
+
 CLI 会在创建 run 前拒绝只用主组件排名或搜索空间不匹配。稳定化端口会裁剪协方差负特征值浮点噪声，
 并令退化奇异值计算保持有限，因此版本为 `aznas-5e6683-plainnet-stabilized-v1`，不声明逐位一致。
 `docs/evidence/aznas_plainnet_rank_smoke.json` 的两候选 GPU 证据只验证四组件、聚合与 artifact；其中

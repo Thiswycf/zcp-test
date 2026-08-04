@@ -63,6 +63,6 @@
     "monitor_custom_output_semantics": "resolved_code_docs_cli_tests_full_code_gate_passed",
     "machine_readable_json_output_contracts": "resolved_explicit_proxy_serializer_docs_tests_full_code_gate_passed"
   },
-  "latest_code_gate": {"tests": 563, "test_files": 38, "status": "passed"},
+  "latest_code_gate": {"tests": 564, "test_files": 38, "status": "passed"},
   "correction": "An earlier exploratory note reported 33 level-two commands. Direct parser introspection proves 32; the earlier number must not be reused."
 }
