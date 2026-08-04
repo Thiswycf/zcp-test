@@ -1285,3 +1285,82 @@ def test_cli_data_verify_all_and_vit_conversion(monkeypatch, capsys, tmp_path):
         "--trusted",
     ])
     assert _output(capsys) == {"path": str(converted), "slice_id": "pit"}
+
+
+def test_cli_search_applies_resource_constraints_before_proxy(monkeypatch, capsys, tmp_path):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+    output = tmp_path / "resource-search"
+
+    cli.main(
+        [
+            "search",
+            "--space",
+            "tiny_reference",
+            "--proxy",
+            "params",
+            "--population",
+            "2",
+            "--generations",
+            "0",
+            "--device",
+            "cpu",
+            "--input-source",
+            "random",
+            "--batch-size",
+            "2",
+            "--input-size",
+            "8",
+            "--classes",
+            "3",
+            "--max-parameters",
+            "1000",
+            "--max-macs",
+            "1000",
+            "--output",
+            str(output),
+        ]
+    )
+
+    run = Path(_output(capsys)["run"])
+    rows = [row for row in read_jsonl(run / "search.jsonl") if row["record_kind"] == "candidate"]
+    assert len(rows) == 2
+    assert all(row["parameters"] == 579 for row in rows)
+    assert all(row["compute_value"] == 576 for row in rows)
+    assert all(row["compute_metric"] == "thop_macs" for row in rows)
+    assert all(row["resource_constraints"] == {"max_macs": 1000, "max_parameters": 1000} for row in rows)
+    assert all(row["cumulative_constraint_rejections"] == 0 for row in rows)
+
+
+def test_cli_search_resource_constraints_fail_closed(monkeypatch, tmp_path):
+    monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
+
+    with pytest.raises(RuntimeError, match="maximum number of consecutive attempts"):
+        cli.main(
+            [
+                "search",
+                "--space",
+                "tiny_reference",
+                "--proxy",
+                "params",
+                "--population",
+                "2",
+                "--generations",
+                "0",
+                "--device",
+                "cpu",
+                "--input-source",
+                "random",
+                "--batch-size",
+                "2",
+                "--input-size",
+                "8",
+                "--classes",
+                "3",
+                "--max-parameters",
+                "1",
+                "--constraint-max-attempts",
+                "3",
+                "--output",
+                str(tmp_path / "rejected-resource-search"),
+            ]
+        )

@@ -383,11 +383,17 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(autoFormerTask?.detail.includes("42dc72f29e141fa97c042c1979f390486962a97fa34cdbcd3394b556148bdb4a") && autoFormerTask?.detail.includes("supporting seed 只作 provenance"), "AutoFormer 冻结 manifest 或 supporting seed 边界缺失");
   assert(autoFormerTask?.detail.includes("batch=256 synthetic full-batch memory smoke") && autoFormerTask?.detail.includes("GPU0/1/3") && autoFormerTask?.detail.includes("completed/exit 0"), "AutoFormer 三候选 memory smoke 状态缺失");
   assert(autoFormerTask?.detail.includes("不是实际 ImageNet 精度") && autoFormerTask?.detail.includes("双重 1% 训练尚未完成") && autoFormerTask?.detail.includes("项目总体验收仍未完成"), "AutoFormer 剩余验收边界缺失");
-  const autoFormerV2Evidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-DUAL-1PCT-V2-RUNNING");
-  assert(autoFormerV2Evidence?.result.includes("11:07:26") && autoFormerV2Evidence?.result.includes("status=running") && autoFormerV2Evidence?.result.includes("snapshot=76a0fcd"), "AutoFormer V2 启动时间、状态或快照身份缺失");
-  assert(autoFormerV2Evidence?.result.includes("<fast-imagenet-root>") && autoFormerV2Evidence?.result.includes("train=1,281,167") && autoFormerV2Evidence?.result.includes("valid=50,000"), "AutoFormer V2 脱敏数据根或完整 ImageNet 计数缺失");
-  assert(autoFormerV2Evidence?.result.includes("GPU0/1/3/5") && autoFormerV2Evidence?.result.includes("四锁均对应活跃训练") && autoFormerV2Evidence?.result.includes("task5/6 将在 lane 完成后启动"), "AutoFormer V2 GPU、锁或 lane 衔接状态缺失");
-  assert(autoFormerV2Evidence?.result.includes("global batch=2048") && autoFormerV2Evidence?.result.includes("LR 不变") && autoFormerV2Evidence?.result.includes("尚不宣称 epoch 完成"), "AutoFormer V2 batch/LR 或 epoch 声明边界缺失");
+  const dualOnePercentPolicy = data.evidence.find((entry) => entry.id === "EV-DUAL-ONE-PERCENT-ZCP-ONLY-POLICY-20260804");
+  assert(dualOnePercentPolicy?.result.includes("一个 zcp-selected 架构") && dualOnePercentPolicy?.result.includes("全数据 × 1% epoch") && dualOnePercentPolicy?.result.includes("1% 数据 × 完整 schedule"), "未来双重 1% 单架构两协议政策缺失");
+  assert(dualOnePercentPolicy?.result.includes("不能证明 ZCP 优于") && dualOnePercentPolicy?.result.includes("约 3 倍资源") && dualOnePercentPolicy?.result.includes("退出工程 gate"), "短训科学边界或三候选资源理由缺失");
+  assert(dualOnePercentPolicy?.result.includes("immutable 三候选任务") && dualOnePercentPolicy?.result.includes("自然完成") && dualOnePercentPolicy?.result.includes("不重启、不改写"), "历史三候选 workload 保留政策缺失");
+  assert(dualOnePercentPolicy?.result.includes("另行预声明") && dualOnePercentPolicy?.result.includes("充分训练") && dualOnePercentPolicy?.result.includes("多 seed"), "验收比较研究前置条件缺失");
+  for (const taskId of ["H2", "H3"]) {
+    const policyTask = data.tasks.find((entry) => entry.id === taskId);
+    assert(policyTask?.evidence.includes(dualOnePercentPolicy?.id), `任务 ${taskId} 未引用双重 1% 新政策`);
+    assert(policyTask?.detail.includes("zcp-selected") && policyTask?.detail.includes("工程 gate"), `任务 ${taskId} 未同步单架构工程 gate`);
+    assert(policyTask?.detail.includes("不重启、不改写") && policyTask?.detail.includes("充分训练") && policyTask?.detail.includes("多 seed"), `任务 ${taskId} 未同步历史运行或比较研究边界`);
+  }
   assert(autoFormerEvidence?.result.includes("133 项专项相关测试通过"), "AutoFormer 专项测试计数缺失");
   assert(autoFormerEvidence?.result.includes("不是全仓测试总数"), "AutoFormer 专项测试范围未明确");
   const azNasEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-AZNAS-STABLE-SMOKE");
@@ -433,9 +439,9 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ddpRankRngEvidence?.result.includes("legacy checkpoint 缺字段") && ddpRankRngEvidence?.result.includes("world-size 不匹配") && ddpRankRngEvidence?.result.includes("fail-closed"), "DDP rank-local RNG 旧格式或 world-size 拒绝证据缺失");
   assert(ddpRankRngEvidence?.command.includes("docs/evidence/ddp_rank_local_rng_roundtrip.json"), "DDP rank-local RNG JSON 证据链接缺失");
   const gpuOwnerTask = data.tasks.find((entry) => entry.id === "J6");
-  assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("禁止 rm lock 文件伪解锁") && gpuOwnerTask?.detail.includes("尚未据此宣称当前所有锁"), "GPU owner 实时巡检任务或未验收边界缺失");
-  assert(gpuOwnerTask?.detail.includes("acceptance_with_gpu_lock") && gpuOwnerTask?.detail.includes("80 项通过") && gpuOwnerTask?.detail.includes("不热修改旧快照"), "GPU task-scoped wrapper、专项测试或旧 snapshot 边界缺失");
-  assert(gpuOwnerTask?.detail.includes("11:54") && gpuOwnerTask?.detail.includes("四把 kernel flock 均被持有") && gpuOwnerTask?.detail.includes("active/running"), "AutoFormer 当前四锁运行时巡检快照缺失");
+  assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("不得通过删除 lock 文件伪解锁") && gpuOwnerTask?.detail.includes("运行时巡检继续进行"), "GPU owner 实时巡检任务或安全边界缺失");
+  assert(gpuOwnerTask?.detail.includes("每个科学任务独立获取") && gpuOwnerTask?.detail.includes("任务结束立即释放") && gpuOwnerTask?.detail.includes("kernel flock 是锁是否被持有的唯一权威"), "GPU task-scoped 新治理或 kernel 权威缺失");
+  assert(gpuOwnerTask?.detail.includes("四把 kernel flock") && gpuOwnerTask?.detail.includes("活跃 lane 和训练进程") && gpuOwnerTask?.detail.includes("未强制解锁"), "AutoFormer 当前四锁安全处置边界缺失");
   const gpuOwnerRisk = data.risks.find((entry) => entry.id === "R-GPU-LOCK-RUNTIME-OWNER");
   assert(gpuOwnerRisk?.status === "监控" && gpuOwnerRisk?.mitigation.includes("非阻塞 flock") && gpuOwnerRisk?.mitigation.includes("无活跃 child"), "GPU runtime owner 监控风险或处置边界缺失");
   assert(gpuOwnerRisk?.mitigation.includes("唯一权威") && gpuOwnerRisk?.description.includes(".lease heartbeat") && gpuOwnerRisk?.description.includes("四锁均对应活跃训练"), "GPU kernel flock 权威、lease 或活跃旧 snapshot 边界缺失");
@@ -445,13 +451,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(gpuLeaseEvidence?.result.includes("80 passed") && gpuLeaseEvidence?.result.includes("不热修改") && gpuLeaseEvidence?.command.includes("docs/evidence/gpu_lock_lease_runtime_20260804.json"), "GPU lock 专项结果、immutable snapshot 或 JSON 证据引用缺失");
   const gpuOwnerEvidence = data.evidence.find((entry) => entry.id === "EV-GPU-LOCK-OWNER-DIAGNOSTIC-GUIDE");
   assert(gpuOwnerEvidence?.result.includes("lslocks") && gpuOwnerEvidence?.result.includes("禁止 rm lock pathname") && gpuOwnerEvidence?.result.includes("不声称当前机器全部锁"), "GPU owner 诊断手册证据边界缺失");
-  const autoformerProgressEvidence = data.evidence.find((entry) => entry.id === "EV-AUTOFORMER-DUAL-1PCT-V2-PROGRESS-1154");
-  assert(autoformerProgressEvidence?.result.includes("2/5") && autoformerProgressEvidence?.result.includes("180/500") && autoformerProgressEvidence?.result.includes("manifest 均为 running"), "AutoFormer dual-1% 完整 epoch 中间进度缺失");
-  assert(autoformerProgressEvidence?.result.includes("四个活跃 lane") && autoformerProgressEvidence?.result.includes("不把 partial epoch") && !autoformerProgressEvidence?.result.includes("dual-1% 已完成"), "AutoFormer partial epoch 或 GPU 锁科学边界缺失");
-  for (const taskId of ["C1", "H2", "H3"]) {
-    const task = data.tasks.find((entry) => entry.id === taskId);
-    assert(task?.status === "进行中" && task?.detail.includes("manifest") && !task?.detail.includes("dual-1% 已完成"), `任务 ${taskId} 的 AutoFormer running 边界缺失`);
-  }
+  assert(autoFormerTask?.status === "进行中" && autoFormerTask?.evidence.includes("EV-DUAL-ONE-PERCENT-ZCP-ONLY-POLICY-20260804"), "AutoFormer 任务未关联新政策或状态错误");
   const plainnetSearchTask = data.tasks.find((entry) => entry.id === "J7");
   assert(plainnetSearchTask?.status === "进行中" && plainnetSearchTask?.detail.includes("source-aligned controller 已完成"), "PlainNet source-aligned controller 阶段任务缺失");
   assert(plainnetSearchTask?.detail.includes("15,165.56 秒") && plainnetSearchTask?.detail.includes("4.21 小时"), "PlainNet CPU full-history rerank 估计缺失");

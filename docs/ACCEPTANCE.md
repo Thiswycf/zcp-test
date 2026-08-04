@@ -97,6 +97,13 @@ summary is in [`evidence/gpu_throughput_optimization.json`](evidence/gpu_through
 AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual
 one-percent acceptance remains incomplete.
 
+For future launches after 2026-08-04, dual-one-percent **engineering acceptance** is reduced to one
+ZCP-selected architecture under both protocols: full data × at least 1% of epochs, and exact 1% data
+× the complete schedule. Historical three-candidate runs are retained as immutable evidence but do
+not define the new gate. Short training is not a valid test of ZCP search gain, so fixed-random and
+parameter/FLOPs-matched candidates are no longer multiplied into this engineering gate. Any
+superiority claim requires a separate predeclared, sufficiently trained, multi-seed experiment.
+
 The retained historical synthetic smoke run executed:
 
 ```bash
@@ -153,7 +160,9 @@ orchestration state remains auditable but does not relabel completed manifests, 
 or the reconciled cohort as a scientific failure. Launcher protection uses `git archive` to pin all
 tracked Shell, Python, and configuration files at the launch commit into a read-only
 `launcher-snapshots` tree. Later lanes execute from that tree and do not import newer main-worktree
-code. Per-lane locks are released when their active workload completes or is interrupted. See
+code. Current launchers use task-scoped locks for serial work and packed-scope locks only while all
+packed workloads remain active. Older immutable snapshots retain their original scope until exit and
+must be audited, not hot-patched or bypassed by deleting lock files. See
 [`evidence/gpu_launcher_snapshot_fix.json`](evidence/gpu_launcher_snapshot_fix.json).
 
 The predeclared primary/supporting protocol froze three unique candidates:
@@ -253,7 +262,9 @@ The following work is explicitly **not accepted** and must not be reported as co
    AutoFormer search, candidate freezing, and three-candidate memory/checkpoint smokes are complete,
    but real dual-one-percent V2 is still non-terminal `running`, with tasks 5/6 queued. Every task
    still requires terminal manifest, training JSONL, checkpoint, recovery, and final protocol-counter
-   validation. Proxyless-MBV2 formal 150-epoch training is not released.
+   validation. This already-running immutable snapshot predates the single-candidate policy and may
+   finish without being restarted; future acceptance requires only the selected candidate's two
+   protocols. Proxyless-MBV2 formal 150-epoch training is not released.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Remaining benchmark protocols beyond the accepted scoped NB101, NB201, NATS-TSS,
    three-dataset NATS-SSS and NB301 deterministic-surrogate runs, including TNB101 and formal

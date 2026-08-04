@@ -22,7 +22,7 @@ from zcp_test.artifacts import (
     score_component,
 )
 from zcp_test.artifacts.run import file_sha256
-from zcp_test.acceptance import freeze_training_candidates
+from zcp_test.acceptance import freeze_training_candidates, measure_architecture_resources
 from zcp_test.benchmarks import BENCHMARKS, load_builtin_benchmarks
 from zcp_test.config import TRAIN_PROFILE_KEYS, load_config, reject_unknown_config_keys
 from zcp_test.doctor import diagnostics
@@ -1813,8 +1813,28 @@ def command_search(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     space = SPACES.create(args.space)
     source_aligned_plainnet = args.controller == "plainnet_source_aligned"
+    resource_limits = {
+        name: int(value)
+        for name, value in {
+            "max_parameters": args.max_parameters,
+            "max_macs": args.max_macs,
+        }.items()
+        if value is not None
+    }
+    invalid_limits = {
+        name: value for name, value in resource_limits.items() if value <= 0
+    }
+    if invalid_limits:
+        raise ValueError(f"Search resource limits must be positive: {invalid_limits}")
+    if args.constraint_max_attempts <= 0:
+        raise ValueError("constraint_max_attempts must be positive")
     source_target = None
     if source_aligned_plainnet:
+        if resource_limits:
+            raise ValueError(
+                "PlainNet source-aligned search uses --flops-target and does not accept "
+                "generic --max-parameters/--max-macs limits"
+            )
         source_target = resolve_target_profile(args.flops_target)
         required = {
             "space": (args.space, "zennas_plainnet_mbv2"),
@@ -1955,6 +1975,13 @@ def command_search(args: argparse.Namespace) -> None:
             "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
             "bn_recalibration_fingerprint": weight_provenance.get("bn_recalibration_fingerprint"),
         }
+        if resource_limits:
+            search_identity.update(
+                {
+                    "resource_constraints": resource_limits,
+                    "constraint_max_attempts": args.constraint_max_attempts,
+                }
+            )
         if source_aligned_plainnet:
             assert source_target is not None
             search_identity.update(
@@ -2012,6 +2039,50 @@ def command_search(args: argparse.Namespace) -> None:
             ),
         }
         with RunContext(args.output, sys.argv, config, runtime=runtime) as run:
+            resource_cache: dict[str, dict[str, Any]] = {}
+
+            def candidate_constraint(architecture: Any) -> dict[str, Any] | None:
+                if not resource_limits:
+                    return {}
+                architecture_id = str(architecture.architecture_id)
+                if architecture_id not in resource_cache:
+                    measurement = measure_architecture_resources(
+                        space,
+                        architecture,
+                        {
+                            "input_size": int(
+                                architecture.spec.get("resolution", args.input_size)
+                            )
+                        },
+                        args.classes,
+                    )
+                    resource_cache[architecture_id] = {
+                        "parameters": int(measurement.parameters),
+                        "compute_value": int(measurement.compute_value),
+                        "compute_metric": measurement.compute_metric,
+                        "generic_flops": bool(measurement.generic_flops),
+                        "resource_input_size": int(measurement.input_size),
+                    }
+                metadata = resource_cache[architecture_id]
+                if (
+                    "max_macs" in resource_limits
+                    and metadata["compute_metric"] != "thop_macs"
+                ):
+                    raise ValueError(
+                        "--max-macs requires the thop_macs resource protocol; "
+                        f"{space.search_space_id} reported {metadata['compute_metric']}"
+                    )
+                if (
+                    "max_parameters" in resource_limits
+                    and metadata["parameters"] > resource_limits["max_parameters"]
+                ):
+                    return None
+                if (
+                    "max_macs" in resource_limits
+                    and metadata["compute_value"] > resource_limits["max_macs"]
+                ):
+                    return None
+                return {**metadata, "resource_constraints": resource_limits}
 
             def candidate_input(architecture: Any) -> tuple[Any, dict[str, Any]]:
                 batch = input_resolver.resolve(architecture)
@@ -2112,6 +2183,10 @@ def command_search(args: argparse.Namespace) -> None:
                     state_path=run.directory / "search-state.json",
                     resume_state=resume_state,
                     state_identity=search_identity,
+                    candidate_constraint=(
+                        candidate_constraint if resource_limits else None
+                    ),
+                    max_constraint_attempts=args.constraint_max_attempts,
                 )
                 best = search.run(args.generations)
             (run.directory / "best_architecture.json").write_text(
@@ -3041,6 +3116,22 @@ def build_parser() -> argparse.ArgumentParser:
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--valid-candidates", type=int)
     search.add_argument("--flops-target", choices=("450m", "600m", "1g"))
+    search.add_argument(
+        "--max-parameters",
+        type=int,
+        help="reject generic-search candidates above this parameter count before ZCP evaluation",
+    )
+    search.add_argument(
+        "--max-macs",
+        type=int,
+        help="reject generic-search candidates above this declared MAC/complexity count before ZCP evaluation",
+    )
+    search.add_argument(
+        "--constraint-max-attempts",
+        type=int,
+        default=10_000,
+        help="fail closed after this many consecutive resource-constraint attempts",
+    )
     search.add_argument("--seed", type=int, default=42)
     search.add_argument(
         "--resume",

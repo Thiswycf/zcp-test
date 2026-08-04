@@ -10,7 +10,7 @@
   ],
   "remediation": [
     "Sequential DDP acquires the four-lock set for one active task and releases it before the next task.",
-    "Parallel and packed single-GPU execution acquires one lock per active lane and releases completed lanes independently.",
+    "Parallel single-GPU execution acquires and releases one lock per scientific task; packed execution holds one lock only while its concurrently packed tasks remain active.",
     "Python gpu_lock clears owner metadata before unlocking.",
     "The shell lock-holder closes its descriptor in the task subshell before launching Python or tee, and Python closes active lock descriptors in fork children.",
     "Recovery checks kernel flock state and never deletes an active lock pathname."

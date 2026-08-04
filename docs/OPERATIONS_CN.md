@@ -43,7 +43,8 @@ YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 
 锁文件存在不代表锁仍被持有，判定必须以操作系统 `flock` 为准，禁止仅凭文件名或旧 PID 文本删除
 锁文件。Python 锁会在正常释放时清空 owner 文本；验收 launcher 只在实际 GPU 任务期间持锁：
-四卡 DDP 每个任务单独获取并释放四锁，单卡并行按 lane 获取并在 lane 完成时立即释放。supervisor
+四卡 DDP 每个任务单独获取并释放四锁，单卡并行也按科学任务获取并在该任务结束时立即释放。同一
+lane 上的下一个串行任务必须重新竞争锁，不能由 lane/supervisor 跨任务续持。supervisor
 做数据校验、候选复制、报告整理或等待其他 lane 时不得预占空闲 GPU。锁 holder 在启动训练子进程前
 关闭任务侧继承的锁 FD；Python `fork` 子进程也会关闭继承副本，避免 `tee`、DataLoader worker 或
 孤儿后代在 GPU 工作结束后继续持锁。
@@ -51,7 +52,7 @@ YAML 中的 `trusted: true` 不能替代命令行 `--trusted`。
 高成本验收 launcher 会在启动时要求工作树干净，并用 `git archive` 将启动 commit 的完整已跟踪源码
 固化到该 run 的 `launcher-snapshots/`，写入 launcher SHA-256、整体设为只读后再 `exec`。长任务运行
 期间可以继续修改主仓；已启动 supervisor 不再从被修改的原脚本继续读取，后启动的 lane 也只从固定
-commit 导入 Python 与 config。结构化 `supervisor.log` 分别记录 lane 持锁和释放时间、
+commit 导入 Python 与 config。结构化 `supervisor.log` 分别记录 task/packed-scope 持锁和释放时间、
 child wait 状态及失败时的 `BASH_COMMAND`。这用于避免“GPU 已空闲但旧 supervisor 因控制流漂移仍
 持锁”的低效情形；不得通过删除锁文件替代正常退出或 `flock` 探测。
 
@@ -84,9 +85,10 @@ pstree -aps "$OWNER_PID"
 pgrep -a -P "$OWNER_PID" || true
 ```
 
-只有实际 task/lane 可以临时持锁。低 GPU 利用率本身不能证明任务空闲，因为数据加载、验证、保存
+只有实际 task（或同时运行多个任务的 packed scope）可以临时持锁。低 GPU 利用率本身不能证明任务
+空闲，因为数据加载、验证、保存
 checkpoint 时 GPU 可能短暂空闲；应同时检查 child、`run.log`、`events.jsonl`、manifest 和 GPU
-进程。task/lane 结束后必须立即释放。若旧 supervisor 已无活跃训练 child，却仍持有内核锁，应先
+进程。task/packed scope 结束后必须立即释放。若旧 supervisor 已无活跃训练 child，却仍持有内核锁，应先
 通过对应 user service 或 PID 发送 `TERM`，等待正常清理，再重复非阻塞探测：
 
 ```bash
@@ -525,6 +527,23 @@ zcp-test search --space autoformer \
   --output /path/to/runs/search/autoformer-aznas
 ```
 
+通用进化控制器可在调用 ZCP 前施加显式资源上限，例如：
+
+```bash
+zcp-test search --space ofa_proxyless_mbv2 --proxy naswot \
+  --population 100 --generations 500 --elite-ratio 0.25 \
+  --max-parameters 10000000 --max-macs 600000000 \
+  --constraint-max-attempts 1000 \
+  --dataset imagenet1k --input-source dataset --data-root /path/to/imagenet1k \
+  --gpu auto --output /path/to/runs/search/proxyless-resource-bounded
+```
+
+`--max-macs` 当前严格表示 THOP MAC（`compute_metric=thop_macs`），不是 FLOPs，也不是官方 lookup
+table 或设备 latency；不匹配该口径时直接失败。被资源约束拒绝的候选不会运行 proxy、不会进入缓存，
+恢复状态会保存 attempt/rejection 计数与 RNG，保证中断恢复和连续运行轨迹一致。
+`--constraint-max-attempts` 防止可行域为空时无限采样。PlainNet source-aligned controller 使用其固定
+`--flops-target`，禁止与这些通用上限混用。硬件 latency 约束尚未实现，不能用 MAC 冒充。
+
 `az_nas_autoformer` 固定上游 AZ-NAS commit `5e6683a`：每个 block 保存 attention 残差后和 MLP
 残差后的 `[B,N,C]` token，计算谱熵 expressivity、相邻残差 Jacobian trainability，以及 Cream
 `official_complexity_ops`。协方差仅对浮点误差产生的负特征值执行 `clamp_min(0)`，因此版本为
@@ -712,10 +731,16 @@ CLI 会在创建 run 前拒绝只用主组件排名或搜索空间不匹配。�
 | ZenNAS PlainNet-MBV2 | `run-plainnet-mbv2-imagenet-dual-one-percent.sh` | 2/150 epoch | 150 epoch |
 | Proxyless-MBV2 scratch | `run-proxyless-mbv2-imagenet-dual-one-percent.sh` | 2/150 epoch | 150 epoch |
 
-每个候选目录必须先冻结三个结构化 JSON 文件：`zcp_selected.json`、`fixed_random.json` 和
-`params_flops_matched.json`。第一个必须来自记录完整输入协议和代理版本的 ZCP 搜索；第二个使用固定
-seed；第三个从独立随机池中同时匹配参数量与 FLOPs。不得把官方发布 architecture、手选 architecture
-或只匹配参数量的候选标成 `zcp_selected`/`params_flops_matched`。
+从 2026-08-04 起，工程验收只训练一个结构化 `zcp_selected.json`，并要求
+`candidates-manifest.json` 锁定其搜索来源、架构 ID 和 checksum。该候选必须来自记录完整输入协议和
+代理版本的 ZCP 搜索，不得把官方发布或手选架构改标为 `zcp_selected`。冻结工具仍可产生
+`fixed_random.json` 和 `params_flops_matched.json`，但它们只供另行设计的充分训练研究实验使用，通用
+双重 1% acceptance launcher 不再读取或训练它们。
+
+原因是 1% 短训只能验证模型构建、真实数据、优化器/scheduler、checkpoint、恢复、日志和报告链路，
+不能可靠证明 ZCP 候选优于随机或朴素资源代理。把三个候选都纳入工程验收会消耗约三倍 GPU 资源，
+却不能形成有统计效力的搜索收益结论。若要比较候选优劣，必须另建预声明、多 seed、充分训练的研究
+协议，不得复用 acceptance 结果作优越性声明。
 
 候选冻结使用已完成的搜索 run，而不是直接传入一个任意 architecture 文件：
 
@@ -760,14 +785,16 @@ MobileNet 使用同一模型实现上的 THOP MAC 作为计算量约定。AutoFo
 `get_complexity` 口径，并明确写入 `generic_flops=false`；它不能被重命名为通用 FLOPs。匹配距离为参数量
 和该空间计算量的 log-ratio L1，因此只表示资源相近，不表示精度、延迟或训练成本完全相同。
 
-四卡后台启动示例：
+通过单卡显存 smoke 后的双卡后台启动示例：
 
 ```bash
 export TZ=Asia/Shanghai
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export ZCP_IMAGENET_ROOT=/path/to/imagenet1k
 export ZCP_TRAINING_CANDIDATES=/path/to/frozen-candidates/autoformer
-export ZCP_GPU_UUIDS=GPU-...,GPU-...,GPU-...,GPU-...
+export ZCP_GPU_UUIDS=GPU-...,GPU-...  # parallel_single_gpu 只需两张卡
+export ZCP_EXECUTION_STRATEGY=parallel_single_gpu
+export ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes
 setsid -f env ZCP_START_AT=1 \
   bash tools/acceptance/run-autoformer-imagenet-dual-one-percent.sh
 ```
@@ -776,8 +803,8 @@ PlainNet 和 Proxyless 只替换候选目录与启动器。启动器会验证 Im
 文件和 50,000 个验证文件，校验 config 的 space/epoch，使用按任务/lane 持有的 GPU UUID 文件锁，
 并在工作树不干净时拒绝启动。完成的 lane 会立即释放 GPU；supervisor 不会为了尚未开始或已经完成的
 任务继续占锁。状态位于 `runs/acceptance/<space>-imagenet/status.json`，所有新时间使用北京时间。中断后先
-审计最近 run 的 manifest/checkpoint，再用 `ZCP_START_AT=2..6` 从尚未完成的任务恢复；不要重复已完成
-候选，也不要把 interrupted 记作 completed。
+审计最近 run 的 manifest/checkpoint，再用 `ZCP_START_AT=2` 从第二种协议恢复；不要重复已完成
+协议，也不要把 interrupted 记作 completed。
 
 在启动真实数据 1% 验收前，应先验证正式配置的单卡 micro-batch 显存。普通 `--smoke` 会主动缩小
 ImageNet batch，因此不能作为显存证据；使用下列显式模式执行一个 synthetic epoch，保留配置中的
@@ -802,11 +829,12 @@ export ZCP_EXECUTION_STRATEGY=parallel_single_gpu
 export ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes
 ```
 
-此模式以四条单卡 lane 运行六项任务，但不会覆盖 config 的 batch、梯度累积或 LR。第二个变量是人为
+此模式在两张单卡上分别运行同一 ZCP 候选的两个协议，但不会覆盖 config 的 batch、梯度累积或 LR。
+其余 GPU 不持锁，可供其他任务使用。第二个变量是人为
 验收闸门，不是自动显存证明；未做真实模型 forward/backward smoke 时不得设置。AutoFormer、PlainNet
 和 Proxyless 必须分别验收，不能因为 DARTS 单卡可运行就直接放行。
 
-如果“两进程同卡”的真实 forward/backward smoke 也已通过，可进一步同时启动六项任务：
+如果“两进程同卡”的真实 forward/backward smoke 也已通过，可让两个协议共享一张 GPU：
 
 ```bash
 export ZCP_EXECUTION_STRATEGY=packed_single_gpu
@@ -815,9 +843,9 @@ export ZCP_DATA_WORKERS=4
 export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
 ```
 
-`packed_single_gpu` 在两张卡上各放置两个独立 run，其余两张卡各一个；它提高的是项目总吞吐，不改变
-单个 run 的 batch/LR。必须先确认两进程峰值显存总和有安全余量，并用较少 workers 防止 CPU 解码争用。
-`ZCP_CPU_AFFINITIES` 可选，四段依次对应四个 GPU UUID；应按 `nvidia-smi topo -m` 选择 GPU 所属 NUMA
+`packed_single_gpu` 在第一张卡上放置两个独立 run；它减少占卡数，不改变单个 run 的 batch/LR。必须先
+确认两进程峰值显存总和有安全余量，并用较少 workers 防止 CPU 解码争用。
+`ZCP_CPU_AFFINITIES` 可选，每段依次对应一个 GPU UUID；应按 `nvidia-smi topo -m` 选择 GPU 所属 NUMA
 节点，不得照抄本机 CPU 编号到其他机器，也不要未经测量就把一个 NUMA 节点机械切成过小的互斥分组。
 本机 16 逻辑核/任务的试验使吞吐下降约 6–8%；共享完整 NUMA1 的短时观察也没有证明优于基线，
 因此现场已完全回退为系统默认 affinity。亲和性只保留为可选实验参数，不作为推荐默认。若没有 smoke
@@ -832,7 +860,7 @@ batch，因此验收脚本默认使用 2 个验证 worker；这不改变样本�
 `deterministic: true` 冲突并会直接报错；TF32/非确定性设置可能改变数值轨迹，必须形成新的版本化训练
 协议，不能用于续跑旧 checkpoint 或与旧候选结果无标记混合。
 
-六项顺序固定为三个候选的全数据最少 1% epoch，再运行三个候选的 1% 数据完整 schedule。每个 run
+两项固定为同一 `zcp-selected` 候选的“全数据 × 最少 1% epoch”和“1% 数据 × 完整 schedule”。每个 run
 必须有持续增长的 `run.log`/`events.jsonl`、每 epoch 的 `training.jsonl`、`last.pt`、`best.pt` 与最终
 manifest。该验收用于放行训练实现，不等于论文完整数据完整 schedule 精度复现。
 
@@ -840,5 +868,6 @@ DARTS ImageNet 的正式 global batch 为 128。四卡 DDP 会把它拆成每卡
 1.8 GiB 且同步开销明显；不能为追求利用率擅自扩大科学 batch。首项已完成后，可使用
 `resume-darts-imagenet-parallel-from-task2.sh`：它将 task2–6 分成四条独立单卡 lane，每个 run 仍使用
 global batch 128，但并行不同候选/协议。三个 250-epoch 任务优先在三条 lane 启动，task2/3 共用第四条；
-每条 lane 只持有并在结束时释放自己的 GPU 锁，已完成 lane 可立即被后续任务复用，不再等待最慢任务。
+task2 与 task3 分别获取和释放第四张 GPU 的锁；两项串行任务之间不由 lane/supervisor 续持，因此可被
+其他合格任务重新竞争。其余 task 也在各自结束时立即释放，不再等待最慢任务。
 这提高总吞吐而不改变单个实验的 batch/LR 协议；结果仍需逐 run 验证，不能把并行完成顺序当科学顺序。

@@ -24,5 +24,5 @@ implementation_source: https://github.com/mit-han-lab/ProxylessNAS/tree/b23018c9
 implementation_commit: b23018c9c369d22931f7422b71ca6a7eaa354c46
 formal_training_ready: false
 formal_training_blockers:
-  - official static-subnet MAC fixture is not accepted
   - dual one-percent GPU acceptance is not completed
+  - distributed validation, checkpoint-resume, and reporting acceptance are not completed

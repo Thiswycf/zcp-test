@@ -194,6 +194,10 @@ DDP，其余五项为单卡，因而 per-device BatchNorm 统计粒度不可严�
 `--data-root` 显式选择经 `findmnt` 核验的高速本地副本。AutoFormer、PlainNet-MBV2 和
 Proxyless-MBV2 的双重 1% 验收均未完成。
 
+自 2026-08-04 起，未来工程验收固定只训练一个 `zcp-selected` 架构的两项 1% 协议，共 2 runs；
+历史已完成或已启动的三候选结果保持不变。短训不能可靠证明 ZCP 比随机或参数量/FLOPs 基线更优，
+因此不再为工程验收消耗三倍资源。候选优越性必须由独立、预声明、充分训练且多 seed 的研究实验验证。
+
 `--smoke` 只使用合成数据验证流水线。`--acceptance-smoke` 使用真实数据，并只允许“全数据且至少
 1% epoch”或“恰好 1% 数据且完整 schedule”；它仍不解除 `formal_training_ready` 门禁，也不代表
 论文精度复现。`--real-data-preflight --epochs 1 --data-fraction 1.0` 只用于在启动高成本任务前

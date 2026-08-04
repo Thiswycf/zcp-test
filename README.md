@@ -322,7 +322,11 @@ Each new run creates `YYYYMMDDTHHMMSS+0800_<run-id>/` in the fixed `Asia/Shangha
   slow-disk small-file I/O and an empty legacy `run.log`; current runs mirror events to both
   `events.jsonl` and `run.log`, and operators should explicitly select a verified fast local
   `--data-root`. AutoFormer, PlainNet-MBV2, and Proxyless-MBV2 dual one-percent acceptance remains
-  incomplete.
+  incomplete. For launches after 2026-08-04, engineering acceptance trains only the ZCP-selected
+  architecture under the two 1% protocols (two runs total). Historical completed/running
+  three-candidate artifacts remain unchanged. Short acceptance training must not be used to claim
+  superiority over random or parameter/FLOPs baselines; that requires a separate sufficiently
+  trained, multi-seed research protocol.
 - MobileNetV3 now has an official-structure static subnet and BN-recalibration utility, but inherited
   OFA checkpoints and a formal training profile remain unaccepted. AutoFormer now has a real repeated-
   augmentation sampler, the AZ-NAS linear LR rule (`base_lr * global_batch / 512`), and six exact

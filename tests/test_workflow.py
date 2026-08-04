@@ -40,27 +40,27 @@ def test_candidate_acceptance_launchers_lock_protocols_and_parse_as_shell():
         subprocess.run(["bash", "-n", str(path)], check=True)
 
     common_source = common.read_text(encoding="utf-8")
-    for candidate in (
-        "zcp_selected.json",
-        "fixed_random.json",
-        "params_flops_matched.json",
-        "candidates-manifest.json",
-    ):
+    for candidate in ("zcp_selected.json", "candidates-manifest.json"):
         assert candidate in common_source
+    assert "fixed_random.json" not in common_source
+    assert "params_flops_matched.json" not in common_source
     assert "candidate manifest checksum/role mismatch" in common_source
     assert "parallel_single_gpu requires ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes" in common_source
     assert "packed_single_gpu requires ZCP_PACKED_SINGLE_GPU_ACCEPTED=yes" in common_source
+    assert '"acceptance_scope": "single_zcp_dual_one_percent"' in common_source
+    assert "both zcp-selected $SPACE ImageNet dual-one-percent acceptance runs completed" in common_source
     assert "ZCP_CPU_AFFINITIES" in common_source
-    assert "four independent one-GPU lanes" in common_source
+    assert "one ZCP candidate; two dual-one-percent protocols" in common_source
     assert 'CUDA_VISIBLE_DEVICES="$uuid"' in common_source
     assert "CUDA_DEVICE_ORDER=PCI_BUS_ID" in common_source
     assert "ZoneInfo(\"Asia/Shanghai\")" in common_source
     assert "acceptance_exec_immutable" in common_source
     assert 'flock -n "$descriptor"' in common_source
     assert "with_all_gpu_locks run_one 1" in common_source
-    assert 'with_gpu_lock "${gpu_array[0]}" lane_zero' in common_source
-    assert 'with_gpu_lock "${gpu_array[0]}" packed_zero' in common_source
-    assert "GPU locks are acquired only while each task lane is active" in common_source
+    assert 'with_gpu_lock "${gpu_array[0]}" "imagenet-task:1:zcp-selected:full-data"' in common_source
+    assert 'with_gpu_lock "${gpu_array[1]}" "imagenet-task:2:zcp-selected:one-percent-data"' in common_source
+    assert 'with_gpu_lock "${gpu_array[0]}" "imagenet-packed-tasks:1,2:zcp-selected"' in common_source
+    assert "GPU locks are acquired only while each scientific task is active" in common_source
     assert 'eval "exec ${descriptor}' not in common_source
     assert common_source.count("exec {descriptor}>&-") >= 4
 
@@ -82,8 +82,11 @@ def test_darts_parallel_resume_preserves_global_batch_and_assigns_all_tasks():
     assert "torchrun" not in source
     assert "with_gpu_lock" in source
     assert "longest tasks 4-6 start first" in source
-    assert source.index('with_gpu_lock "${gpu_array[0]}" run_single 4') < source.index(
-        'with_gpu_lock "${gpu_array[3]}" short_lane'
+    assert 'with_gpu_lock "$uuid" "darts-task:2:fixed-random"' in source
+    assert 'with_gpu_lock "$uuid" "darts-task:3:params-matched"' in source
+    assert 'with_gpu_lock "${gpu_array[3]}" short_lane' not in source
+    assert source.index('with_gpu_lock "${gpu_array[0]}" "darts-task:4:zcp-selected"') < source.index(
+        'short_lane "${gpu_array[3]}"'
     )
     for task_index in range(2, 7):
         assert f"run_single {task_index} " in source

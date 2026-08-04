@@ -61,7 +61,9 @@ it is not a system-wide reservation. `--device` bypasses physical GPU selection 
 The presence of a lock file does not mean that its kernel `flock` is held. Never delete a lock based
 only on a filename or stale PID text. Python lock owners are cleared on normal release. Acceptance
 launchers scope locks to active GPU work: four-GPU DDP acquires the set for each task, while single-GPU
-execution owns one lock per lane and releases it as soon as that lane completes. A supervisor must not
+execution acquires and releases one lock for each scientific task. A later serial task on the same lane
+must compete for the lock again; the lane or supervisor cannot carry it across the task boundary. A
+supervisor must not
 reserve idle GPUs during data validation, artifact work, or while waiting for another lane. The lock
 holder closes the task-side descriptors before launching pipelines, and Python fork children close
 inherited copies so `tee`, DataLoader workers, and orphan descendants cannot extend lock lifetime.
@@ -491,6 +493,25 @@ zcp-test search --space autoformer \
   --output /path/to/runs/search/autoformer-aznas
 ```
 
+The generic evolutionary controller can reject candidates against explicit resource ceilings before
+running a ZCP:
+
+```bash
+zcp-test search --space ofa_proxyless_mbv2 --proxy naswot \
+  --population 100 --generations 500 --elite-ratio 0.25 \
+  --max-parameters 10000000 --max-macs 600000000 \
+  --constraint-max-attempts 1000 \
+  --dataset imagenet1k --input-source dataset --data-root /path/to/imagenet1k \
+  --gpu auto --output /path/to/runs/search/proxyless-resource-bounded
+```
+
+`--max-macs` strictly means THOP MACs (`compute_metric=thop_macs`), not FLOPs, an official lookup
+table, or device latency. A metric mismatch fails closed. Rejected candidates never run the proxy or
+enter its cache; resumable state records attempt/rejection counters and RNG state. The maximum-attempt
+limit prevents an empty feasible region from sampling forever. PlainNet source-aligned search keeps
+its pinned `--flops-target` and rejects these generic limits. Hardware-latency constraints are not yet
+implemented and MACs must not be relabelled as latency.
+
 `az_nas_autoformer` pins AZ-NAS commit `5e6683a`. It captures the attention and MLP residual outputs
 of each block as `[B,N,C]`, computes spectral-entropy expressivity, adjacent-residual Jacobian
 trainability, and Cream `official_complexity_ops`. Covariance eigenvalues are clamped only at zero
@@ -621,10 +642,14 @@ training identities. Their launchers are respectively
 and 2/150 epochs; the companion protocol runs the complete 500/150/150 schedule on an exact,
 deterministic 1% data subset.
 
-Each candidate directory must contain `zcp_selected.json`, `fixed_random.json`, and
-`params_flops_matched.json`. Those labels require, respectively, a provenance-recorded ZCP search,
-a fixed-seed sample, and an independently sampled candidate matched on both parameters and FLOPs.
-Do not relabel published, hand-picked, or parameter-only candidates.
+From 2026-08-04 onward, engineering acceptance trains only one `zcp_selected.json`; its
+`candidates-manifest.json` must bind search provenance, architecture ID, and checksum. The freeze
+utility may still emit fixed-random and parameter/FLOPs-matched candidates for separately designed
+research experiments, but the generic dual-one-percent acceptance launcher neither reads nor trains
+them. A 1% short run validates construction, data, optimizer/scheduler, checkpoint, recovery, logging,
+and reporting. It cannot reliably establish that ZCP selection beats random or a resource baseline;
+tripling acceptance compute would therefore not provide a valid search-gain conclusion. Such claims
+require a separately predeclared, multi-seed, sufficiently trained comparison.
 
 Freeze candidates from a completed search run, not from an arbitrary architecture file:
 
@@ -667,7 +692,9 @@ export TZ=Asia/Shanghai
 export CUDA_DEVICE_ORDER=PCI_BUS_ID
 export ZCP_IMAGENET_ROOT=/path/to/imagenet1k
 export ZCP_TRAINING_CANDIDATES=/path/to/frozen-candidates/autoformer
-export ZCP_GPU_UUIDS=GPU-...,GPU-...,GPU-...,GPU-...
+export ZCP_GPU_UUIDS=GPU-...,GPU-...  # two GPUs for parallel_single_gpu
+export ZCP_EXECUTION_STRATEGY=parallel_single_gpu
+export ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes
 setsid -f env ZCP_START_AT=1 \
   bash tools/acceptance/run-autoformer-imagenet-dual-one-percent.sh
 ```
@@ -675,17 +702,17 @@ setsid -f env ZCP_START_AT=1 \
 The common launcher verifies the canonical ImageNet file counts, the config space/schedule, four
 GPU UUID locks, candidate staging, and a clean Git worktree. New workflow times use
 `Asia/Shanghai`. After interruption, audit the latest manifest/checkpoint and resume at the first
-unfinished task with `ZCP_START_AT=2..6`; never relabel `interrupted` as `completed`. A passing dual
+unfinished protocol with `ZCP_START_AT=2`; never relabel `interrupted` as `completed`. A passing dual
 1% run validates the implementation and recovery protocol, not full-data/full-schedule paper
 accuracy reproduction.
 
 The common launcher defaults to `sequential_ddp`. After a real single-GPU memory smoke proves that
 the profile's unchanged batch fits, set `ZCP_EXECUTION_STRATEGY=parallel_single_gpu` and
-`ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes` to schedule the six runs over four independent candidate
-lanes. This never overrides batch, accumulation, or LR. The acceptance flag is a manual gate, not
+`ZCP_PARALLEL_SINGLE_GPU_ACCEPTED=yes` to schedule the two protocols for the same ZCP-selected
+architecture on two GPUs. Other GPUs remain unlocked. This never overrides batch, accumulation, or LR. The acceptance flag is a manual gate, not
 automatic memory evidence; AutoFormer, PlainNet, and Proxyless require separate smokes.
 
-After a real two-process-per-GPU forward/backward smoke also passes, the six runs may start at once:
+After a real two-process-per-GPU forward/backward smoke also passes, both protocols may share one GPU:
 
 ```bash
 export ZCP_EXECUTION_STRATEGY=packed_single_gpu
@@ -694,9 +721,9 @@ export ZCP_DATA_WORKERS=4
 export ZCP_CPU_AFFINITIES='32-63,96-127;32-63,96-127;32-63,96-127;32-63,96-127'
 ```
 
-This raises aggregate project throughput without changing any run's batch or LR. Verify combined
+This reduces occupied GPU count without changing either run's batch or LR. Verify combined
 peak memory first and reduce workers to avoid CPU decode contention. The optional four affinity
-lists correspond to the four GPU UUIDs and must be derived from `nvidia-smi topo -m`; never copy
+lists correspond one-to-one with the GPU UUIDs and must be derived from `nvidia-smi topo -m`; never copy
 host-specific CPU IDs to another machine or mechanically split a NUMA node into undersized groups.
 On this host, a 16-logical-CPU-per-run trial reduced throughput by about 6–8%, while a short trial
 with the complete shared NUMA-1 list did not establish a gain over baseline. The live jobs were
@@ -719,12 +746,13 @@ is not allowed. After the already completed first task, use
 `resume-darts-imagenet-parallel-from-task2.sh` to run tasks 2–6 as four independent one-GPU lanes.
 Every run retains global batch 128 and the locked LR, while different candidate/protocol runs execute
 concurrently. The three 250-epoch tasks start first on separate lanes; tasks 2 and 3 share the
-fourth lane. Each lane owns and releases only its own GPU lock, so a completed lane can be reused
-immediately instead of remaining locked until the slowest task exits.
+fourth lane. Tasks 2 and 3 acquire and release the fourth GPU separately, so another eligible process
+can use it between tasks instead of a lane-level supervisor retaining it.
 
 The generic AutoFormer/PlainNet/Proxyless launcher follows the same rule. `sequential_ddp` releases the
-four-lock set between candidate runs; `parallel_single_gpu` and `packed_single_gpu` release each lane
-independently. Lock-file deletion is not a recovery mechanism because an active lock remains attached
+four-lock set between candidate runs; `parallel_single_gpu` releases and reacquires between serial tasks.
+`packed_single_gpu` holds a lock only while its concurrently packed tasks remain active. Lock-file
+deletion is not a recovery mechanism because an active lock remains attached
 to its old inode and deletion can create two independently locked files at the same pathname.
 
 Before a real-data 1% run, validate the configured per-device micro-batch with

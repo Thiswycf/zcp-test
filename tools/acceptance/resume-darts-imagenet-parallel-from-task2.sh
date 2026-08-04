@@ -147,22 +147,27 @@ PY
 }
 
 with_gpu_lock() {
-  local uuid=$1
-  shift
-  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" 0 "darts-resume-lane:$uuid" "$@"
+  local uuid=$1 owner_label=$2
+  shift 2
+  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" 0 "$owner_label" "$@"
 }
 
 short_lane() {
   local uuid=$1
-  run_single 2 "$uuid" fixed-random "$CANDIDATE_ROOT/fixed_random.json" full-data-3epoch 3 1.0
-  run_single 3 "$uuid" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" full-data-3epoch 3 1.0
+  with_gpu_lock "$uuid" "darts-task:2:fixed-random" \
+    run_single 2 "$uuid" fixed-random "$CANDIDATE_ROOT/fixed_random.json" full-data-3epoch 3 1.0
+  with_gpu_lock "$uuid" "darts-task:3:params-matched" \
+    run_single 3 "$uuid" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" full-data-3epoch 3 1.0
 }
 
-write_status running "longest tasks 4-6 start first; task 2-3 share the fourth lane; each lane releases its own lock when complete"
-with_gpu_lock "${gpu_array[0]}" run_single 4 "${gpu_array[0]}" zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
-with_gpu_lock "${gpu_array[1]}" run_single 5 "${gpu_array[1]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
-with_gpu_lock "${gpu_array[2]}" run_single 6 "${gpu_array[2]}" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
-with_gpu_lock "${gpu_array[3]}" short_lane "${gpu_array[3]}" & child_pids+=("$!")
+write_status running "longest tasks 4-6 start first; tasks 2-3 share the fourth GPU but reacquire its lock per task"
+with_gpu_lock "${gpu_array[0]}" "darts-task:4:zcp-selected" \
+  run_single 4 "${gpu_array[0]}" zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+with_gpu_lock "${gpu_array[1]}" "darts-task:5:fixed-random" \
+  run_single 5 "${gpu_array[1]}" fixed-random "$CANDIDATE_ROOT/fixed_random.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+with_gpu_lock "${gpu_array[2]}" "darts-task:6:params-matched" \
+  run_single 6 "${gpu_array[2]}" params-matched "$CANDIDATE_ROOT/params_matched_random_pool.json" one-percent-data-250epoch 250 0.01 & child_pids+=("$!")
+short_lane "${gpu_array[3]}" & child_pids+=("$!")
 
 for _ in "${child_pids[@]}"; do
   wait -n

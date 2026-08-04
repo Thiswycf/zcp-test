@@ -14,7 +14,7 @@
     "The running shell execs the launcher inside that source snapshot, so later repository edits cannot alter its remaining control flow, Python modules, or configs used by later lanes.",
     "The launch commit is propagated explicitly instead of being recomputed after snapshot exec.",
     "AutoFormer supervisor logging records launcher lifecycle, lock acquisition and release, child waits, failing BASH_COMMAND, line, and exit code.",
-    "Per-lane lock holders explicitly unlock immediately after their active workload exits."
+    "Task-scoped lock holders explicitly unlock immediately after each serial scientific task exits; packed scopes unlock when all concurrently active workloads exit."
   ],
   "runtime_audit_at_recording": {
     "gpu_lock_files": 8,
@@ -31,6 +31,6 @@
   "limitations": [
     "The lock protocol coordinates only same-user zcp-test processes.",
     "Automatic termination is intentionally not based only on low GPU utilization because CPU preprocessing, checkpointing, or validation may legitimately use little GPU.",
-    "A supervisor with an active child retains its lane lock by design; the lock is released when that lane exits."
+    "A task-scoped holder with an active child retains its lock by design; a serial lane must release and reacquire between tasks."
   ]
 }

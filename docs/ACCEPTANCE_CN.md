@@ -76,6 +76,11 @@ ZCP-selected/fixed-random/params-matched）。首个 full-data run 使用 4-GPU 
 [`evidence/gpu_throughput_optimization.json`](evidence/gpu_throughput_optimization.json)。
 AutoFormer、PlainNet-MBV2、Proxyless-MBV2 的双重 1% 仍未完成。
 
+自 2026-08-04 起，未来“双重 1% 工程验收”只对一个 `zcp-selected` 架构执行两项协议：全数据 ×
+至少 1% epoch，以及恰好 1% 数据 × 完整 schedule。历史已完成或已启动的三候选产物保持不变，不重跑、
+不改写，但不再定义新验收门槛。短训无法可靠证明 ZCP 优于随机或参数量/FLOPs 基线，因此工程验收不再
+为这两个对照额外消耗三倍资源；优越性结论必须来自另行预声明、充分训练且多 seed 的研究实验。
+
 另有历史合成 smoke run 执行：
 
 ```bash
@@ -247,7 +252,8 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 2. AutoFormer、PlainNet-MBV2 与 Proxyless-MBV2 的双重 1% 均未完成。AutoFormer 搜索、候选冻结、
    三候选 memory/checkpoint smoke 已完成，V2 real dual-1% 已启动但仍为非终态 `running`；task 5/6
    仍排队，且所有任务都必须经过 terminal manifest、training JSONL、checkpoint、恢复行为和最终
-   protocol counter 校验后才能验收。Proxyless-MBV2 150 epoch 正式训练仍未放行。
+   protocol counter 校验后才能验收。该运行中的 immutable snapshot 早于单候选新政策，可自然完成而
+   不重启；未来验收仅要求选中候选的两项协议。Proxyless-MBV2 150 epoch 正式训练仍未放行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
    NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，

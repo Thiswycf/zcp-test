@@ -42,8 +42,9 @@ zcp-test evaluate ... --device cuda:0
 上的内核锁，进程退出后自动释放，锁文件可以继续存在。正常释放会清空文件内的 owner PID。若看到
 GPU 空闲但怀疑被锁，应使用 `flock -n <lock-file> -c true` 做无破坏探测；返回成功表示可用，返回失败
 才表示某个活跃进程持锁。不得直接 `rm`，因为删除路径不能解除旧 inode 上的活跃锁，反而可能让两个
-进程分别锁住不同 inode。高成本 launcher 必须按实际任务/lane 持锁，完成 lane 立即释放，禁止
-supervisor 在数据预检或等待其他 lane 时预占四张卡。锁 holder 会在任务子进程一侧关闭继承 FD，
+进程分别锁住不同 inode。高成本 launcher 必须按实际科学任务持锁；同一 lane 的两个串行任务之间也要
+释放并重新竞争，禁止 supervisor 在数据预检、任务间隙或等待其他 lane 时预占 GPU。只有同时运行多个
+科学任务的 packed scope 才能在这些活跃任务共同结束前持锁。锁 holder 会在任务子进程一侧关闭继承 FD，
 Python 也注册了 fork 后关闭逻辑，防止 pipeline、DataLoader 或孤儿 worker 延长锁生命周期。
 
 所有高成本 acceptance launcher 在进入等待或持锁阶段前，都会用 `git archive` 将启动 commit 的完整

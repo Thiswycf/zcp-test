@@ -189,3 +189,16 @@ def test_native_benchmark_examples_declare_metric_protocol(
     assert evaluate.get("epoch_budget") == budget
     if budget is not None:
         assert evaluate["metric_seed_reduction"] == "mean"
+
+
+def test_proxyless_training_blockers_match_current_acceptance_state():
+    from zcp_test.config import load_config
+
+    root = Path(__file__).resolve().parents[1]
+    config = load_config(root / "configs/training/ofa_proxyless_mbv2_imagenet.yaml")
+    blockers = config["formal_training_blockers"]
+
+    assert config["formal_training_ready"] is False
+    assert not any("MAC fixture" in blocker for blocker in blockers)
+    assert any("dual one-percent" in blocker for blocker in blockers)
+    assert any("checkpoint-resume" in blocker for blocker in blockers)

@@ -23,7 +23,7 @@ STATUS=$OUTPUT_ROOT/status.json
 source "$PROJECT_ROOT/tools/acceptance/lib/launcher-runtime.sh"
 acceptance_exec_immutable "$PROJECT_ROOT" "$OUTPUT_ROOT" "${BASH_SOURCE[0]}" "$@"
 
-[[ "$START_AT" =~ ^[1-6]$ ]] || { echo "ZCP_START_AT must be in 1..6" >&2; exit 2; }
+[[ "$START_AT" =~ ^[1-2]$ ]] || { echo "ZCP_START_AT must be 1 or 2" >&2; exit 2; }
 [[ "$EXECUTION_STRATEGY" =~ ^(sequential_ddp|parallel_single_gpu|packed_single_gpu)$ ]] || {
   echo "ZCP_EXECUTION_STRATEGY must be sequential_ddp, parallel_single_gpu, or packed_single_gpu" >&2
   exit 2
@@ -44,7 +44,7 @@ fi
 }
 CONFIG_PATH=$PROJECT_ROOT/$CONFIG
 [[ -f "$CONFIG_PATH" ]] || { echo "Missing training config: $CONFIG_PATH" >&2; exit 2; }
-for name in zcp_selected.json fixed_random.json params_flops_matched.json; do
+for name in zcp_selected.json; do
   [[ -f "$CANDIDATE_ROOT/$name" ]] || { echo "Missing candidate: $CANDIDATE_ROOT/$name" >&2; exit 2; }
 done
 [[ -f "$CANDIDATE_ROOT/candidates-manifest.json" ]] || {
@@ -83,8 +83,6 @@ if manifest.get("search_space_id") != space:
     )
 expected = {
     "zcp_selected.json": "zcp_selected",
-    "fixed_random.json": "fixed_random",
-    "params_flops_matched.json": "params_flops_matched",
 }
 for name, role in expected.items():
     path = root / name
@@ -108,12 +106,23 @@ val_files=$(find "$DATA_ROOT/val" -type f | wc -l)
 }
 
 IFS=',' read -r -a gpu_array <<< "$GPU_UUIDS"
-[[ ${#gpu_array[@]} == 4 ]] || { echo "Exactly four GPU UUIDs are required" >&2; exit 2; }
+if [[ "$EXECUTION_STRATEGY" == sequential_ddp && ${#gpu_array[@]} != 4 ]]; then
+  echo "sequential_ddp requires exactly four GPU UUIDs" >&2
+  exit 2
+fi
+if [[ "$EXECUTION_STRATEGY" == parallel_single_gpu && ${#gpu_array[@]} -lt 2 ]]; then
+  echo "parallel_single_gpu requires at least two GPU UUIDs" >&2
+  exit 2
+fi
+if [[ "$EXECUTION_STRATEGY" == packed_single_gpu && ${#gpu_array[@]} -lt 1 ]]; then
+  echo "packed_single_gpu requires at least one GPU UUID" >&2
+  exit 2
+fi
 cpu_affinities=()
 if [[ -n "$CPU_AFFINITIES" ]]; then
   IFS=';' read -r -a cpu_affinities <<< "$CPU_AFFINITIES"
-  [[ ${#cpu_affinities[@]} == 4 ]] || {
-    echo "ZCP_CPU_AFFINITIES must contain four semicolon-separated CPU lists" >&2
+  [[ ${#cpu_affinities[@]} == ${#gpu_array[@]} ]] || {
+    echo "ZCP_CPU_AFFINITIES must contain one semicolon-separated CPU list per GPU UUID" >&2
     exit 2
   }
 fi
@@ -123,9 +132,9 @@ for uuid in "${gpu_array[@]}"; do
 done
 
 with_gpu_lock() {
-  local uuid=$1
-  shift
-  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" 0 "imagenet-lane:$uuid" "$@"
+  local uuid=$1 owner_label=$2
+  shift 2
+  acceptance_with_gpu_lock "$LOCK_DIR/$uuid.lock" 0 "$owner_label" "$@"
 }
 
 with_all_gpu_locks() {
@@ -159,7 +168,7 @@ with_all_gpu_locks() {
   return "$exit_code"
 }
 
-for name in zcp_selected.json fixed_random.json params_flops_matched.json candidates-manifest.json; do
+for name in zcp_selected.json candidates-manifest.json; do
   source_path=$(realpath "$CANDIDATE_ROOT/$name")
   destination_path=$(realpath -m "$OUTPUT_ROOT/candidates/$name")
   if [[ "$source_path" != "$destination_path" ]]; then
@@ -193,6 +202,7 @@ payload = {
     "gpu_uuids": sys.argv[7].split(","),
     "search_space_id": sys.argv[8],
     "execution_strategy": sys.argv[9],
+    "acceptance_scope": "single_zcp_dual_one_percent",
     "pid": os.getppid(),
     "started_at": existing.get("started_at", now),
     "updated_at": now,
@@ -236,7 +246,7 @@ export PYTHONPATH=$PROJECT_ROOT/src
   date -Is
   findmnt -T "$DATA_ROOT"
   df -hT "$DATA_ROOT"
-  printf 'space=%s ImageNet classes=%s train_files=%s val_files=%s workers=%s strategy=%s\n' \
+  printf 'space=%s ImageNet classes=%s train_files=%s val_files=%s workers=%s strategy=%s scope=single_zcp_dual_one_percent\n' \
     "$SPACE" "$train_classes" "$train_files" "$val_files" "$WORKERS" "$EXECUTION_STRATEGY"
   nvidia-smi --query-gpu=index,pci.bus_id,uuid,name,memory.used,memory.free,utilization.gpu \
     --format=csv,noheader,nounits
@@ -252,7 +262,7 @@ run_one() {
   local output=$OUTPUT_ROOT/$protocol-$role
   local launcher_log=$OUTPUT_ROOT/$protocol-$role.launcher.log
   current_task=$protocol/$role
-  write_status running "$current_task" "epochs=$epochs data_fraction=$fraction task=$task_index/6"
+  write_status running "$current_task" "epochs=$epochs data_fraction=$fraction task=$task_index/2"
   printf '\n[%s] starting task=%s role=%s protocol=%s epochs=%s fraction=%s\n' \
     "$(date -Is)" "$task_index" "$role" "$protocol" "$epochs" "$fraction" \
     | tee -a "$launcher_log" "$OUTPUT_ROOT/supervisor.log"
@@ -319,52 +329,28 @@ PY
 
 full_protocol=full-data-${FULL_DATA_EPOCHS}epoch
 schedule_protocol=one-percent-data-${FORMAL_EPOCHS}epoch
-write_status running initializing "validated data/config/candidates; GPU locks are acquired only while each task lane is active"
+write_status running initializing "validated data/config/ZCP candidate; GPU locks are acquired only while each scientific task is active"
 if [[ "$EXECUTION_STRATEGY" == sequential_ddp ]]; then
   with_all_gpu_locks run_one 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-  with_all_gpu_locks run_one 2 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-  with_all_gpu_locks run_one 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-  with_all_gpu_locks run_one 4 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-  with_all_gpu_locks run_one 5 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-  with_all_gpu_locks run_one 6 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
+  with_all_gpu_locks run_one 2 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
 elif [[ "$EXECUTION_STRATEGY" == parallel_single_gpu ]]; then
-  lane_zero() {
-    run_one_single 1 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-    run_one_single 5 0 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-  }
-  lane_one() {
-    run_one_single 2 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0
-    run_one_single 6 1 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01
-  }
-  write_status running parallel_tasks "four independent one-GPU lanes; each run retains its configured batch/LR protocol"
-  with_gpu_lock "${gpu_array[0]}" lane_zero & child_pids+=("$!")
-  with_gpu_lock "${gpu_array[1]}" lane_one & child_pids+=("$!")
-  with_gpu_lock "${gpu_array[2]}" run_one_single 3 2 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
-  with_gpu_lock "${gpu_array[3]}" run_one_single 4 3 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
+  write_status running parallel_tasks "one ZCP candidate; two dual-one-percent protocols run independently without changing batch/LR"
+  with_gpu_lock "${gpu_array[0]}" "imagenet-task:1:zcp-selected:full-data" \
+    run_one_single 1 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
+  with_gpu_lock "${gpu_array[1]}" "imagenet-task:2:zcp-selected:one-percent-data" \
+    run_one_single 2 1 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
   for _ in "${child_pids[@]}"; do
     wait -n
   done
 else
-  packed_zero() {
+  packed_zcp() {
     local pids=()
     run_one_single 1 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & pids+=("$!")
-    run_one_single 4 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & pids+=("$!")
+    run_one_single 2 0 zcp-selected "$CANDIDATE_ROOT/zcp_selected.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & pids+=("$!")
     wait "${pids[@]}"
   }
-  packed_one() {
-    local pids=()
-    run_one_single 2 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & pids+=("$!")
-    run_one_single 5 1 fixed-random "$CANDIDATE_ROOT/fixed_random.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & pids+=("$!")
-    wait "${pids[@]}"
-  }
-  write_status running packed_tasks "six independent runs packed onto four GPUs; batch/LR unchanged"
-  with_gpu_lock "${gpu_array[0]}" packed_zero & child_pids+=("$!")
-  with_gpu_lock "${gpu_array[1]}" packed_one & child_pids+=("$!")
-  with_gpu_lock "${gpu_array[2]}" run_one_single 3 2 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$full_protocol" "$FULL_DATA_EPOCHS" 1.0 & child_pids+=("$!")
-  with_gpu_lock "${gpu_array[3]}" run_one_single 6 3 params-flops-matched "$CANDIDATE_ROOT/params_flops_matched.json" "$schedule_protocol" "$FORMAL_EPOCHS" 0.01 & child_pids+=("$!")
-  for _ in "${child_pids[@]}"; do
-    wait -n
-  done
+  write_status running packed_tasks "one ZCP candidate; two protocols share one GPU only after packed memory acceptance"
+  with_gpu_lock "${gpu_array[0]}" "imagenet-packed-tasks:1,2:zcp-selected" packed_zcp
 fi
 current_task=all
-write_status completed all "all six $SPACE ImageNet acceptance runs completed"
+write_status completed all "both zcp-selected $SPACE ImageNet dual-one-percent acceptance runs completed"

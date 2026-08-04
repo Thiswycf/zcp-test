@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T12:25:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "finding": "Serial scientific tasks must not inherit a GPU lock from a long-lived lane or supervisor.",
+  "runtime_audit": {
+    "active_kernel_flocks": 4,
+    "active_lock_owners": "four AutoFormer immutable-snapshot lane processes",
+    "idle_lock_files_ignored": true,
+    "forced_unlock_performed": false,
+    "reason": "Each held flock still had an active training process and allocated CUDA memory; low instantaneous utilization alone is not proof of idleness."
+  },
+  "source_remediation": [
+    "parallel_single_gpu reacquires the lock independently for every ImageNet scientific task",
+    "DARTS resume tasks 2 and 3 reacquire the shared fourth GPU independently",
+    "lock owner labels identify the task or active packed task set rather than a generic lane",
+    "packed execution retains one lock only while its concurrently packed scientific tasks remain active"
+  ],
+  "immutable_snapshot_boundary": "The AutoFormer run started from an older read-only source snapshot. It was not hot-patched or terminated because all four held locks mapped to active training lanes. Future launches use the corrected source after commit.",
+  "safety_policy": [
+    "kernel flock is the only lock authority",
+    "never unlink a lock pathname to bypass a held flock",
+    "verify owner PID, child tree, run identity, logs and CUDA processes before TERM",
+    "release and reacquire between serial tasks even when they share a scheduler lane"
+  ],
+  "scientific_protocol_changed": false
+}

@@ -63,7 +63,7 @@
   },
   "implemented_controls": [
     "longest tasks start first",
-    "each lane releases only its own GPU lock",
+    "each serial scientific task releases its own GPU lock; packed scopes release after all concurrently active tasks exit",
     "two independent searches can share one GPU after a measured memory smoke",
     "training metrics stay on GPU until epoch-end reduction",
     "training and validation DataLoader worker counts are independent",

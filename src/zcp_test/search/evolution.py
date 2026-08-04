@@ -24,6 +24,7 @@ class Candidate:
     operation: str = "sample"
     evaluation_metadata: dict[str, Any] | None = None
     components: dict[str, float] | None = None
+    constraint_metadata: dict[str, Any] | None = None
 
 
 def cache_key(
@@ -115,6 +116,9 @@ class EvolutionSearch:
         resume_state: Mapping[str, Any] | None = None,
         state_identity: Mapping[str, Any] | None = None,
         initial_checkpoint_interval: int = 100,
+        candidate_constraint: Callable[[Architecture], Mapping[str, Any] | None]
+        | None = None,
+        max_constraint_attempts: int = 10_000,
     ) -> None:
         if population_size < 2 or not 0 < elite_ratio <= 1:
             raise ValueError("Invalid population settings")
@@ -136,7 +140,13 @@ class EvolutionSearch:
         self.state_identity = dict(state_identity or {})
         if initial_checkpoint_interval <= 0:
             raise ValueError("Initial checkpoint interval must be positive")
+        if max_constraint_attempts <= 0:
+            raise ValueError("Maximum constraint attempts must be positive")
         self.initial_checkpoint_interval = initial_checkpoint_interval
+        self.candidate_constraint = candidate_constraint
+        self.max_constraint_attempts = max_constraint_attempts
+        self.constraint_attempts = 0
+        self.constraint_rejections = 0
         self._restored_population: list[Candidate] | None = None
         self._partial_population: list[Candidate] | None = None
         self._partial_cache_hits: list[bool] = []
@@ -173,6 +183,7 @@ class EvolutionSearch:
                     for key, value in payload["components"].items()
                 }
             ),
+            dict(payload.get("constraint_metadata") or {}),
         )
 
     def _restore(self, state: Mapping[str, Any]) -> None:
@@ -232,8 +243,18 @@ class EvolutionSearch:
             candidate.evaluation_metadata = metadata
         cache_hits = int(state["cache_hits"])
         evaluations = int(state["evaluations"])
+        constraint_attempts = int(state.get("constraint_attempts", 0))
+        constraint_rejections = int(state.get("constraint_rejections", 0))
         elapsed_seconds = float(state.get("elapsed_seconds", 0.0))
-        if cache_hits < 0 or evaluations < 0 or not math.isfinite(elapsed_seconds) or elapsed_seconds < 0:
+        if (
+            cache_hits < 0
+            or evaluations < 0
+            or constraint_attempts < 0
+            or constraint_rejections < 0
+            or constraint_rejections > constraint_attempts
+            or not math.isfinite(elapsed_seconds)
+            or elapsed_seconds < 0
+        ):
             raise ValueError("Search state counters are invalid")
         if partial_initial_population:
             if history:
@@ -251,6 +272,10 @@ class EvolutionSearch:
             if (
                 history[-1].get("cumulative_cache_hits") != cache_hits
                 or history[-1].get("cumulative_evaluations") != evaluations
+                or history[-1].get("cumulative_constraint_attempts", 0)
+                != constraint_attempts
+                or history[-1].get("cumulative_constraint_rejections", 0)
+                != constraint_rejections
             ):
                 raise ValueError("Search state history counters do not match")
         restored_rng = random.Random()
@@ -269,6 +294,8 @@ class EvolutionSearch:
         self.cache = restored_cache
         self.cache_hits = cache_hits
         self.evaluations = evaluations
+        self.constraint_attempts = constraint_attempts
+        self.constraint_rejections = constraint_rejections
         self.elapsed_offset = elapsed_seconds
         self.started = time.perf_counter()
         self.rng.setstate(restored_rng.getstate())
@@ -281,6 +308,7 @@ class EvolutionSearch:
             "operation": candidate.operation,
             "evaluation_metadata": candidate.evaluation_metadata or {},
             "components": candidate.components,
+            "constraint_metadata": candidate.constraint_metadata or {},
         }
 
     def _save_state(self, generation: int, population: list[Candidate]) -> None:
@@ -296,6 +324,8 @@ class EvolutionSearch:
             "cache": self.cache,
             "cache_hits": self.cache_hits,
             "evaluations": self.evaluations,
+            "constraint_attempts": self.constraint_attempts,
+            "constraint_rejections": self.constraint_rejections,
             "elapsed_seconds": self._elapsed(),
             "rng_state": self.rng.getstate(),
             "history": list(read_jsonl(self.writer.path)),
@@ -318,6 +348,8 @@ class EvolutionSearch:
             "cache": self.cache,
             "cache_hits": self.cache_hits,
             "evaluations": self.evaluations,
+            "constraint_attempts": self.constraint_attempts,
+            "constraint_rejections": self.constraint_rejections,
             "elapsed_seconds": self._elapsed(),
             "rng_state": self.rng.getstate(),
             "history": [],
@@ -362,6 +394,33 @@ class EvolutionSearch:
         self.cache[identity] = score
         return score, None, False, metadata
 
+    def _apply_candidate_constraint(
+        self, architecture: Architecture
+    ) -> dict[str, Any] | None:
+        if self.candidate_constraint is None:
+            return {}
+        self.constraint_attempts += 1
+        metadata = self.candidate_constraint(architecture)
+        if metadata is None:
+            self.constraint_rejections += 1
+            return None
+        if not isinstance(metadata, Mapping):
+            raise TypeError("Candidate constraint must return resource metadata or None")
+        return {str(name): value for name, value in metadata.items()}
+
+    def _constrained_candidate(
+        self, generator: Callable[[], tuple[Architecture, tuple[str, ...], str]]
+    ) -> tuple[Architecture, tuple[str, ...], str, dict[str, Any]]:
+        for _attempt in range(self.max_constraint_attempts):
+            architecture, parents, operation = generator()
+            constraint_metadata = self._apply_candidate_constraint(architecture)
+            if constraint_metadata is not None:
+                return architecture, parents, operation, constraint_metadata
+        raise RuntimeError(
+            "Candidate constraint rejected the maximum number of consecutive attempts "
+            f"({self.max_constraint_attempts})"
+        )
+
     def _aggregate_components(self, population: Sequence[Candidate]) -> None:
         if self.component_aggregator is None:
             return
@@ -395,7 +454,15 @@ class EvolutionSearch:
             population = list(self._partial_population or [])
             initial_records = list(zip(population, self._partial_cache_hits, strict=True))
             while len(population) < self.population_size:
-                architecture = self.space.sample(self.rng.randrange(2**31))
+                architecture, _parents, _operation, constraint_metadata = (
+                    self._constrained_candidate(
+                        lambda: (
+                            self.space.sample(self.rng.randrange(2**31)),
+                            (),
+                            "sample",
+                        )
+                    )
+                )
                 score, components, hit, metadata = self._score(architecture)
                 population.append(
                     Candidate(
@@ -403,6 +470,7 @@ class EvolutionSearch:
                         score,
                         evaluation_metadata=metadata,
                         components=components,
+                        constraint_metadata=constraint_metadata,
                     )
                 )
                 initial_records.append((population[-1], hit))
@@ -430,19 +498,35 @@ class EvolutionSearch:
             next_population = list(elites)
             new_records: list[tuple[Candidate, bool]] = []
             while len(next_population) < self.population_size:
-                if len(elites) > 1 and self.rng.random() < 0.35:
-                    left, right = self.rng.sample(elites, 2)
-                    architecture = self.space.crossover(
-                        left.architecture, right.architecture, self.rng.randrange(2**31)
+                def generate(
+                    current_elites: tuple[Candidate, ...] = tuple(elites),
+                ) -> tuple[Architecture, tuple[str, ...], str]:
+                    if len(current_elites) > 1 and self.rng.random() < 0.35:
+                        left, right = self.rng.sample(current_elites, 2)
+                        return (
+                            self.space.crossover(
+                                left.architecture,
+                                right.architecture,
+                                self.rng.randrange(2**31),
+                            ),
+                            (
+                                left.architecture.architecture_id,
+                                right.architecture.architecture_id,
+                            ),
+                            "crossover",
+                        )
+                    parent = self.rng.choice(current_elites)
+                    return (
+                        self.space.mutate(
+                            parent.architecture, self.rng.randrange(2**31)
+                        ),
+                        (parent.architecture.architecture_id,),
+                        "mutation",
                     )
-                    parents, operation = (
-                        (left.architecture.architecture_id, right.architecture.architecture_id),
-                        "crossover",
-                    )
-                else:
-                    parent = self.rng.choice(elites)
-                    architecture = self.space.mutate(parent.architecture, self.rng.randrange(2**31))
-                    parents, operation = (parent.architecture.architecture_id,), "mutation"
+
+                architecture, parents, operation, constraint_metadata = (
+                    self._constrained_candidate(generate)
+                )
                 score, components, hit, metadata = self._score(architecture)
                 candidate = Candidate(
                     architecture,
@@ -451,6 +535,7 @@ class EvolutionSearch:
                     operation,
                     metadata,
                     components,
+                    constraint_metadata,
                 )
                 next_population.append(candidate)
                 new_records.append((candidate, hit))
@@ -471,6 +556,7 @@ class EvolutionSearch:
         self.writer.append(
             {
                 **self.record_metadata,
+                **(candidate.constraint_metadata or {}),
                 **(candidate.evaluation_metadata or {}),
                 "record_kind": "candidate",
                 "generation": generation,
@@ -485,6 +571,8 @@ class EvolutionSearch:
                 "selected": selected,
                 "cumulative_evaluations": self.evaluations,
                 "cumulative_cache_hits": self.cache_hits,
+                "cumulative_constraint_attempts": self.constraint_attempts,
+                "cumulative_constraint_rejections": self.constraint_rejections,
                 "elapsed_seconds": self._elapsed(),
             }
         )
@@ -515,6 +603,8 @@ class EvolutionSearch:
                 / len(population),
                 "cumulative_evaluations": self.evaluations,
                 "cumulative_cache_hits": self.cache_hits,
+                "cumulative_constraint_attempts": self.constraint_attempts,
+                "cumulative_constraint_rejections": self.constraint_rejections,
                 "elapsed_seconds": self._elapsed(),
             }
         )

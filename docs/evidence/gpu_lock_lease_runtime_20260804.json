@@ -38,7 +38,7 @@
   "limitations": [
     "SIGKILL cannot run shell metadata cleanup; kernel flock still releases automatically, and a later real acquirer atomically replaces stale observability metadata.",
     "Lease expiry is intentionally not an unlock mechanism.",
-    "Single-GPU ImageNet candidate, DARTS resume, and AutoFormer search lanes use the shared task-scoped wrapper; the all-GPU DDP path retains atomic multi-lock acquisition for one active DDP task and releases all descriptors when that task exits.",
+    "Single-GPU ImageNet candidate and DARTS resume launchers reacquire the shared task-scoped wrapper for every serial scientific task; concurrent AutoFormer search groups retain a lock only while their active searches run. The all-GPU DDP path retains atomic multi-lock acquisition for one active DDP task and releases all descriptors when that task exits.",
     "Acceptance jobs launched from older immutable source snapshots retain their snapshotted lock implementation until they finish; they are audited through kernel flock and active child/GPU PID checks rather than modified in place."
   ]
 }

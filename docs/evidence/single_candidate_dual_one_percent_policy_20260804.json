@@ -1,0 +1,20 @@
+{
+  "schema_version": "1.0",
+  "effective_at": "2026-08-04T12:40:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "policy": "Future engineering dual-one-percent acceptance trains one zcp-selected architecture under two protocols.",
+  "required_runs": [
+    "full data times at least one percent of the formal epoch schedule",
+    "exactly one percent data times the complete formal epoch schedule"
+  ],
+  "required_candidate_role": "zcp_selected",
+  "run_count": 2,
+  "removed_from_engineering_acceptance": [
+    "fixed_random",
+    "params_flops_matched"
+  ],
+  "rationale": "Short training validates implementation and recovery but cannot reliably establish ZCP search gain. Training three candidates approximately triples GPU cost without providing a sufficiently converged or multi-seed comparison.",
+  "scientific_boundary": "Claims that ZCP selection outperforms random or resource baselines require a separate predeclared, sufficiently trained, multi-seed research experiment.",
+  "historical_results": "Completed and already-running immutable three-candidate runs remain unchanged and may finish naturally; they do not define the future engineering gate.",
+  "launcher": "tools/acceptance/run-imagenet-candidate-dual-one-percent.sh"
+}
