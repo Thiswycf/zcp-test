@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T10:58:24+08:00",
+  "status": "completed",
+  "protocol": "synthetic_full_batch_memory_and_checkpoint_load_smoke_v1",
+  "configured_micro_batch": 256,
+  "input_size": 224,
+  "candidates": [
+    {
+      "role": "zcp_selected",
+      "architecture_id": "42e6457ccb580a092454",
+      "run_id": "7c282a17da2a",
+      "peak_memory_mb": 10373.07763671875,
+      "peak_reserved_memory_mb": 11818.0,
+      "checkpoint_bytes": 101123438,
+      "resume_run_id": "043910208a32",
+      "resumed_training_rows": 1
+    },
+    {
+      "role": "fixed_random",
+      "architecture_id": "d904aacf51d2b0867df6",
+      "run_id": "2d4a9e716296",
+      "peak_memory_mb": 8379.23388671875,
+      "peak_reserved_memory_mb": 9826.0,
+      "checkpoint_bytes": 83797166,
+      "resume_run_id": "104226bd767b",
+      "resumed_training_rows": 1
+    },
+    {
+      "role": "params_flops_matched",
+      "architecture_id": "41b5e6d4dc3279909487",
+      "run_id": "1d2f8a250461",
+      "peak_memory_mb": 10098.30712890625,
+      "peak_reserved_memory_mb": 11906.0,
+      "checkpoint_bytes": 100248366,
+      "resume_run_id": "bbb9fe1f7a18",
+      "resumed_training_rows": 1
+    }
+  ],
+  "validation": [
+    "All three manifests completed on physical GPU UUIDs with logical cuda:0.",
+    "The configured micro-batch of 256 was not reduced by ordinary smoke behavior.",
+    "Each run wrote atomic last.pt and best.pt checkpoints.",
+    "Each trusted resume run loaded one prior training row and completed without architecture, config, or protocol mismatch.",
+    "All project GPU locks were released after the transient services exited."
+  ],
+  "scientific_boundary": "Synthetic random tensors validate model construction, memory capacity, optimizer/checkpoint plumbing, and trusted recovery only. Accuracy values are meaningless and this is not ImageNet training evidence.",
+  "next_gate": "Run the real ImageNet full-data 5-epoch and deterministic one-percent-data 500-epoch acceptance protocols for all three candidates."
+}

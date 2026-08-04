@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T10:55:31.721795+08:00",
+  "status": "completed",
+  "protocol": "predeclared_primary_run_supporting_seed_robustness_v1",
+  "primary_seed": 20260731,
+  "supporting_seeds": [20260732, 20260733],
+  "selection_rule": "Only the primary run selects zcp_selected; supporting runs are provenance-only and are neither averaged nor cherry-picked.",
+  "manifest_sha256": "42dc72f29e141fa97c042c1979f390486962a97fa34cdbcd3394b556148bdb4a",
+  "candidates": [
+    {
+      "role": "zcp_selected",
+      "architecture_id": "42e6457ccb580a092454",
+      "sha256": "ca1b7558013c9f67e8cd88ca762659dccdfba989189e5ef5132e7f21b1f200bc",
+      "parameters": 8403052,
+      "official_complexity_ops": 1908477648
+    },
+    {
+      "role": "fixed_random",
+      "architecture_id": "d904aacf51d2b0867df6",
+      "sha256": "e8803c2dbc7e2d322b954577422e548f842cd5bec55e2924eb3816a9266ebcae",
+      "parameters": 6962296,
+      "official_complexity_ops": 1559853900
+    },
+    {
+      "role": "params_flops_matched",
+      "architecture_id": "41b5e6d4dc3279909487",
+      "sha256": "2398d5485d7d1370b81a0adc15473a001259939de80294ecbb20c6f557bb5f2b",
+      "parameters": 8330116,
+      "official_complexity_ops": 1879034256
+    }
+  ],
+  "validation": [
+    "Primary architecture equals the predeclared seed-20260731 winner.",
+    "All three canonical architecture IDs are unique.",
+    "Candidate SHA-256 values match candidates-manifest.json.",
+    "Supporting winners appear only as supporting_robustness_only provenance.",
+    "Resource matching uses Cream AutoFormer official complexity ops, not generic FLOPs.",
+    "No test metric participates in selection."
+  ],
+  "next_gate": "Each frozen candidate must pass configured full-batch memory and checkpoint-resume smoke before dual one-percent ImageNet acceptance starts."
+}
