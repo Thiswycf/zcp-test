@@ -25,6 +25,11 @@ OFA/Proxyless-MBV2 的 1% scratch 验收使用
 224 固定官方训练复现。scratch 与 inherited 边界、逐 batch cosine 及 BN 协议见
 [`evidence/OFA_PROXYLESS_TRAINING_PROTOCOL_CN.md`](evidence/OFA_PROXYLESS_TRAINING_PROTOCOL_CN.md)。
 
+Proxyless 1% 搜索 winner `968893a0cc5f0f687688` 已通过 batch 256、resolution 128 的原 batch
+synthetic smoke，峰值分配显存约 4.63 GiB；证据见
+[`evidence/proxyless_one_percent_winner_full_batch_smoke_20260804.json`](evidence/proxyless_one_percent_winner_full_batch_smoke_20260804.json)。
+该结果只允许启动后续真实数据双重 1% 工程验收，不能解释为 ImageNet 精度或正式训练完成。
+
 模型为 `reference_model` 不自动表示训练协议完备。非 smoke 训练同时要求配置
 `formal_training_ready: true`，并且 `protocol` 及关键超参数必须匹配当前版本代码内置的已验收
 profile；用户自写 YAML 不能通过设置该布尔值自行放行。未满足时 CLI 会列出 blocker 或不一致字段

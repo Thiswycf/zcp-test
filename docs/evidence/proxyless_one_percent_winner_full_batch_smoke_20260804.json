@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "status": "completed",
+  "run_id": "ddffb1e50c91",
+  "git_commit": "fdfc5d0ad690bf46fb1837bcbc24aeec8c1a2b1c",
+  "training_mode": "synthetic_full_batch_memory_smoke",
+  "scientific_result": false,
+  "architecture_id": "968893a0cc5f0f687688",
+  "configured_input_size": 224,
+  "candidate_resolution": 128,
+  "resolved_input_size": 128,
+  "batch_size": 256,
+  "per_device_batch_size": 256,
+  "epochs": 1,
+  "peak_memory_mb": 4626.3623046875,
+  "peak_reserved_memory_mb": 6300,
+  "train_samples_per_second": 518.6793893178457,
+  "gpu": {
+    "uuid": "GPU-3ebef771-98d5-bb9b-2115-18c02e49f676",
+    "pci_bus_id": "00000000:38:00.0",
+    "model": "NVIDIA GeForce RTX 4090 D"
+  },
+  "started_at": "2026-08-04T15:27:23.323706+08:00",
+  "ended_at": "2026-08-04T15:27:26.514064+08:00",
+  "artifacts": {
+    "manifest_sha256": "e90732779eb836899c799d4e173db6b6d77580dcdacac1e6b71af8783756e502",
+    "config_sha256": "fc093cdac0db0f4d0b29a91c66263363170e30f0a3aa7e7eb4860cc5b7032775",
+    "training_jsonl_sha256": "bf8ab32d56a51db1a06decbd6ca0bccb129b4223426f49a3111ab4d4e2206d39",
+    "events_jsonl_sha256": "b4ac7fa3d4e7b94da4feb093f62cc3b800ec9eb338859a502cea4a13dd593784",
+    "last_checkpoint_sha256": "1567c29692cf4dd334171e8ae96a0b9ebf22a2e65681ca94059abd058e317298",
+    "best_checkpoint_sha256": "12e25a7b1e54af1606f48436b9046d05663af4c4abd877c772dadcdaa808e07a"
+  },
+  "claim_boundary": "Synthetic memory and training-plumbing smoke only; accuracy values are meaningless and this is not ImageNet training evidence."
+}

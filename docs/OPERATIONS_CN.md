@@ -920,7 +920,10 @@ CLI 会拒绝不等于 1,000 次的该协议。结果必须带 `search_budget_fr
 `controller_fidelity=project_controller_not_ofa_tutorial`、`direct_search_protocol_evidence=false`。
 ZenNAS 只提供 MobileNet-style 同族依据；本项目 OFA-Proxyless 域上的应用是推广实验，不是论文直接复现。
 历史 3-candidate GPU smoke 仅证明兼容性；2026-08-04 起后续训练严格只使用重新冻结的唯一 winner。见
-`docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`。
+`docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`。新预算 run
+`a353e301f420` 已完成 1,000 candidate + 1 summary，winner 为
+`968893a0cc5f0f687688`（resolution 128）；机器可读证据见
+`docs/evidence/proxyless_one_percent_search_completion_20260804.json`。
 
 | 空间 | 启动器 | 全数据协议 | 1% 数据协议 |
 |---|---|---:|---:|

@@ -266,9 +266,10 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 2. PlainNet-MBV2 与 Proxyless-MBV2 的单候选双重 1% 训练尚未完成。二者搜索验收预算均已缩减为
    1,000 次：PlainNet 是上游 100k 有效候选的 1%，Proxyless 是预声明 100k 项目评估预算的 1%，
    后者不得解释为搜索空间基数或 OFA 官方控制器预算。AutoFormer 的单候选双重 1% 已完成并解除
-   profile 启动门禁，但 500 epoch 全数据精度复现与多 seed 搜索收益仍未完成。PlainNet 只完成 3 个
-   one-percent search，明确 `formal_search_completed=false`；Proxyless-MBV2 150 epoch
-   正式训练仍未放行。
+   profile 启动门禁，但 500 epoch 全数据精度复现与多 seed 搜索收益仍未完成。PlainNet 三档均完成
+   one-percent search，并明确 `formal_search_completed=false`。Proxyless 新预算 run `a353e301f420`
+   已完成 1,000 次评估并重新冻结唯一 winner；这只关闭搜索预算重启项，不关闭后续双重 1% 训练门禁，
+   Proxyless-MBV2 150 epoch 正式训练仍未放行。
 3. 在第二台干净机器完成 benchmark 下载、checksum 和来源核验。
 4. 在其余 benchmark 的目标 dataset、split、budget、task 上运行各自 1% 协议；NB201、NATS-TSS、
    NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成各自上述限定协议，

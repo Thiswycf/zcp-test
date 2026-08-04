@@ -352,6 +352,11 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const ofaProtocolCorrection = data.evidence.find((entry) => entry.id === "EV-OFA-PROXYLESS-PROTOCOL-CORRECTION-20260804");
   const proxylessCompleteEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-PROJECT-TRANSFER-COMPLETE-20260804");
   const proxylessRerunPreparedEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-ONE-PERCENT-PLANNED-100K-PREPARED-20260804");
+  const proxylessRerunLaunchEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-ONE-PERCENT-PLANNED-100K-LAUNCHED-20260804");
+  const proxylessRerunCompleteEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-ONE-PERCENT-PLANNED-100K-COMPLETE-20260804");
+  const proxylessRefrozenEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-ONE-PERCENT-SELECTED-REFROZEN-20260804");
+  const proxylessMemorySmokeEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-FULL-BATCH-SYNTHETIC-MEMORY-SMOKE-LAUNCHED-20260804");
+  const proxylessMemorySmokeCompleteEvidence = data.evidence.find((entry) => entry.id === "EV-PROXYLESS-FULL-BATCH-SYNTHETIC-MEMORY-SMOKE-COMPLETE-20260804");
   const ofaDirectSearchRisk = data.risks.find((entry) => entry.id === "R-OFA-DIRECT-SEARCH-FIDELITY");
   assert(plainnetTask?.status === "已完成" && plainnetTask?.progress === 100, "PlainNet 结构与候选协议任务未标记完成");
   assert(plainnetTask?.title.includes("PlainNet 真实 structure-string 与候选协议"), "PlainNet 任务标题未更新");
@@ -384,14 +389,32 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     assert(ofaTask?.detail.includes(marker) || proxylessRerunPreparedEvidence?.result.includes(marker), `Proxyless 可审计重跑准备缺少 ${marker}`);
   }
   assert(proxylessRerunPreparedEvidence?.result.includes("不表示已启动、running 或 completed") && proxylessRerunPreparedEvidence?.result.includes("不得作为本次重跑完成证据"), "Proxyless 重跑未启动或历史完成证据边界缺失");
+  for (const marker of ["2026-08-04 15:23:51 Asia/Shanghai", "status=running", "PID 3399642", "GPU UUID=GPU-3ebef771-98d5-bb9b-2115-18c02e49f676", "nvidia-smi index 1", "run_id=a353e301f420", "output=runs/acceptance/proxyless-mbv2-zen-project-transfer-one-percent", "one_percent_planned_100k=1000/100000"]) {
+    assert(proxylessRerunLaunchEvidence?.result.includes(marker), `Proxyless 可审计 1% 启动证据缺少 ${marker}`);
+  }
+  assert(proxylessRerunLaunchEvidence?.result.includes("不得写成 completed") && !proxylessRerunLaunchEvidence?.result.includes("status=completed"), "Proxyless 可审计 1% 启动证据越界为 completed");
+  for (const marker of ["2026-08-04 15:25:49 Asia/Shanghai completed", "1000 candidate rows + 1 generation_summary", "winner=968893a0cc5f0f687688", "score=-3.017962694168091", "resolution=128", "预算字段完整"]) {
+    assert(proxylessRerunCompleteEvidence?.result.includes(marker), `Proxyless 可审计 1% 完成证据缺少 ${marker}`);
+  }
+  assert(proxylessRerunCompleteEvidence?.result.includes("不表示 synthetic memory smoke 或训练 completed"), "Proxyless 1% 搜索完成证据越界为 smoke 或训练完成");
+  assert(proxylessRefrozenEvidence?.result.includes("2026-08-04 15:27:05 Asia/Shanghai") && proxylessRefrozenEvidence?.result.includes("runs/acceptance/proxyless-mbv2-selected-candidate-one-percent") && proxylessRefrozenEvidence?.result.includes("仅含 2 个冻结文件"), "Proxyless selected-only 重冻结证据缺失");
+  assert(proxylessRefrozenEvidence?.result.includes("不表示 memory smoke 或训练 completed"), "Proxyless 重冻结证据越界为 smoke 或训练完成");
+  for (const marker of ["2026-08-04 15:27:20 Asia/Shanghai", "GPU1", "PID 3401969", "run_id=ddffb1e50c91", "status=running"]) {
+    assert(proxylessMemorySmokeEvidence?.result.includes(marker), `Proxyless synthetic memory smoke 启动证据缺少 ${marker}`);
+  }
+  assert(proxylessMemorySmokeEvidence?.result.includes("smoke 尚未 completed") && proxylessMemorySmokeEvidence?.result.includes("不得据此把训练写成 completed"), "Proxyless synthetic memory smoke 完成边界缺失");
+  for (const marker of ["2026-08-04 15:27:26 Asia/Shanghai completed", "无错误", "training_mode=synthetic_full_batch_memory_smoke", "resolution/input_size=128", "configured_input_size=224", "batch/per_device=256", "peak_memory_mb=4626.36", "1 epoch"]) {
+    assert(proxylessMemorySmokeCompleteEvidence?.result.includes(marker), `Proxyless synthetic memory smoke 完成证据缺少 ${marker}`);
+  }
+  assert(proxylessMemorySmokeCompleteEvidence?.result.includes("不是真实训练或科学结果") && proxylessMemorySmokeCompleteEvidence?.result.includes("真实双重 1% 训练尚未启动"), "Proxyless smoke 与真实训练终态边界缺失");
   assert(ofaEvidence?.result.includes("c5234b8"), "OFA 证据缺少 MAC golden commit");
   assert(ofaEvidence?.result.includes("265,526,256") && ofaEvidence?.result.includes("265,526,240"), "OFA 证据缺少 MAC 数值");
   assert(ofaEvidence?.result.includes("双重 1% / distributed validation / reporting"), "OFA 证据缺少训练阻断边界");
   assert(ofaProtocolCorrection?.result.includes("commit f03b267") && ofaProtocolCorrection?.result.includes("20-block/5-stage") && ofaProtocolCorrection?.result.includes("resolution={160,176,192,208,224}") && ofaProtocolCorrection?.result.includes("OFA-MBV3"), "OFA-MBV3 tutorial 归属纠错缺失");
   assert(ofaProtocolCorrection?.result.includes("21 个动态 ks/e 位置") && ofaProtocolCorrection?.result.includes("6 个 block groups") && ofaProtocolCorrection?.result.includes("前 5 组 depth 可变") && ofaProtocolCorrection?.result.includes("最后一组 depth 固定为 1"), "Proxyless 动态位置或 block-group depth 边界缺失");
   assert(ofaProtocolCorrection?.result.includes("width=1.3") && ofaProtocolCorrection?.result.includes("resolution=128..224"), "Proxyless width 或 resolution 范围缺失");
-  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("历史 project_zcp_transfer") && ofaDirectSearchRisk?.description.includes("one_percent_planned_100k") && ofaDirectSearchRisk?.description.includes("不能写成 completed"), "Proxyless 重跑准备后的 fidelity 风险缺失");
-  assert(ofaDirectSearchRisk?.mitigation.includes("controller_fidelity=project_controller_not_ofa_tutorial") && ofaDirectSearchRisk?.mitigation.includes("direct_search_protocol_evidence=false") && ofaDirectSearchRisk?.mitigation.includes("formal_training_ready=false") && ofaDirectSearchRisk?.mitigation.includes("无 zcp-test GPU 进程"), "Proxyless 重跑准备后的 fidelity 约束缺失");
+  assert(ofaDirectSearchRisk?.status === "监控" && ofaDirectSearchRisk?.description.includes("run a353e301f420") && ofaDirectSearchRisk?.description.includes("run ddffb1e50c91 均已 completed") && ofaDirectSearchRisk?.description.includes("真实双重 1% 训练尚未启动"), "Proxyless 搜索与 smoke 完成后的 fidelity 风险缺失");
+  assert(ofaDirectSearchRisk?.mitigation.includes("controller_fidelity=project_controller_not_ofa_tutorial") && ofaDirectSearchRisk?.mitigation.includes("direct_search_protocol_evidence=false") && ofaDirectSearchRisk?.mitigation.includes("formal_training_ready=false") && ofaDirectSearchRisk?.mitigation.includes("独立状态"), "Proxyless 最终 smoke 后的 fidelity 约束缺失");
   const proxyRegistryTask = data.tasks.find((entry) => entry.id === "E1");
   const proxyRegistryRisk = data.risks.find((entry) => entry.id === "R-PROXY");
   const proxyRegistryEvidence = data.evidence.find((entry) => entry.id === "EV-PROXY-REGISTRY-AUDIT-24-20260804");
@@ -493,14 +516,16 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(ddpRankRngEvidence?.command.includes("docs/evidence/ddp_rank_local_rng_roundtrip.json"), "DDP rank-local RNG JSON 证据链接缺失");
   const gpuOwnerTask = data.tasks.find((entry) => entry.id === "J6");
   assert(gpuOwnerTask?.detail.includes("GPU0/1/3 旧任务是 PlainNet 100k ZCP 搜索而非三候选训练") && gpuOwnerTask?.detail.includes("已中断并释放锁"), "PlainNet 旧 100k 搜索身份或锁释放缺失");
-  assert(gpuOwnerTask?.detail.includes("PlainNet 450m/600m/1g one_percent_acceptance 三档") && gpuOwnerTask?.detail.includes("历史 GPU5 Proxyless project_zcp_transfer 均已 completed"), "GPU owner 任务未保留 PlainNet 与 Proxyless 历史终态");
-  assert(gpuOwnerTask?.detail.includes("不再把这四项写成 running"), "GPU owner 任务仍保留四项 running 旧状态");
-  assert(gpuOwnerTask?.detail.includes("one_percent_planned_100k") && gpuOwnerTask?.detail.includes("当前无 zcp-test GPU 进程") && gpuOwnerTask?.detail.includes("重跑尚未启动或完成"), "GPU owner 任务未同步 Proxyless 重跑准备状态");
+  assert(gpuOwnerTask?.detail.includes("PlainNet 450m/600m/1g one_percent_acceptance 三档") && gpuOwnerTask?.detail.includes("历史 GPU5 Proxyless project_zcp_transfer") && gpuOwnerTask?.detail.includes("run a353e301f420 均已 completed"), "GPU owner 任务未保留 PlainNet 与 Proxyless 搜索终态");
+  assert(gpuOwnerTask?.detail.includes("1000 candidate rows + 1 generation_summary") && gpuOwnerTask?.detail.includes("selected-only 重冻结为 2 文件"), "GPU owner 任务未同步 Proxyless 搜索完成或重冻结");
+  assert(gpuOwnerTask?.detail.includes("run ddffb1e50c91 已于 15:27:26 completed") && gpuOwnerTask?.detail.includes("无错误") && gpuOwnerTask?.detail.includes("peak_memory_mb=4626.36") && gpuOwnerTask?.detail.includes("1 epoch"), "GPU owner 任务未同步 Proxyless smoke 完成结果");
+  assert(gpuOwnerTask?.detail.includes("不是真实训练或科学结果") && gpuOwnerTask?.detail.includes("真实双重 1% 训练尚未启动"), "GPU owner 任务缺少 smoke 或真实训练终态边界");
   assert(gpuOwnerTask?.status === "进行中" && gpuOwnerTask?.detail.includes("kernel flock 仍是唯一锁权威") && gpuOwnerTask?.detail.includes("陈旧 lock 文件不阻塞获取"), "GPU owner 实时巡检任务或锁权威边界缺失");
   assert(gpuOwnerTask?.detail.includes("task5/6 interrupted") && gpuOwnerTask?.detail.includes("task4 completed"), "GPU owner 任务未保留 AutoFormer 历史终态边界");
   const gpuOwnerRisk = data.risks.find((entry) => entry.id === "R-GPU-LOCK-RUNTIME-OWNER");
   assert(gpuOwnerRisk?.status === "监控" && gpuOwnerRisk?.mitigation.includes("非阻塞 flock") && gpuOwnerRisk?.mitigation.includes("唯一权威"), "GPU runtime owner 监控风险或处置边界缺失");
-  assert(gpuOwnerRisk?.description.includes("旧 PlainNet 100k 三档已中断") && gpuOwnerRisk?.description.includes("历史 Proxyless project-transfer 均 completed") && gpuOwnerRisk?.description.includes("当前无 zcp-test GPU 进程") && gpuOwnerRisk?.description.includes("prepared/not_started"), "GPU runtime owner 风险未同步当前锁状态");
+  assert(gpuOwnerRisk?.description.includes("one_percent_planned_100k 搜索与 synthetic memory smoke 均 completed") && gpuOwnerRisk?.description.includes("run ddffb1e50c91 于 15:27:26 无错误结束") && gpuOwnerRisk?.description.includes("真实双重 1% 训练尚未启动"), "GPU runtime owner 风险未同步最终 smoke 状态");
+  assert(gpuOwnerRisk?.mitigation.includes("后续真实训练 owner") && gpuOwnerRisk?.mitigation.includes("内核 flock 为唯一权威"), "GPU runtime owner 风险缺少后续训练或锁权威边界");
   const gpuLeaseEvidence = data.evidence.find((entry) => entry.id === "EV-GPU-LOCK-LEASE-RUNTIME-20260804");
   assert(gpuLeaseEvidence?.result.includes("ImageNet candidate") && gpuLeaseEvidence?.result.includes("DARTS resume") && gpuLeaseEvidence?.result.includes("AutoFormer 8,000-candidate"), "GPU lock wrapper launcher 接入范围缺失");
   assert(gpuLeaseEvidence?.result.includes("内核 flock 是唯一权威") && gpuLeaseEvidence?.result.includes(".lease heartbeat") && gpuLeaseEvidence?.result.includes("supervisor 可继续存活"), "GPU lock/lease 权威或释放边界缺失");

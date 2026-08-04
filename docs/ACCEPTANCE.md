@@ -281,6 +281,8 @@ The following work is explicitly **not accepted** and must not be reported as co
    selected-candidate dual one-percent gate is complete and its profile launch gate is released, but
    full-data 500-epoch accuracy reproduction and multi-seed search-gain validation remain incomplete.
    PlainNet completed its truncated one-percent search with `formal_search_completed=false`;
+   Proxyless run `a353e301f420` completed the new 1,000-evaluation budget and re-froze its single
+   winner. This closes the search-budget restart only, not the dual-one-percent training gate;
    Proxyless-MBV2 formal 150-epoch training is not released.
 3. Full benchmark download, checksum and provenance validation on a clean second machine.
 4. Remaining benchmark protocols beyond the accepted scoped NB101, NB201, NATS-TSS,

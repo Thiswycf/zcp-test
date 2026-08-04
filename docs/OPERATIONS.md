@@ -786,7 +786,10 @@ any other candidate count under this protocol. Rows must retain `search_budget_f
 to this OFA-Proxyless domain is a project extension, not a direct paper reproduction. The retained
 three-candidate GPU run is compatibility smoke only. Launches after 2026-08-04 freeze and train only
 the single winner; see
-`docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`.
+`docs/evidence/proxyless_mbv2_zen_project_transfer_smoke_20260804.json`. The new-budget run
+`a353e301f420` completed 1,000 candidate rows plus one summary and selected
+`968893a0cc5f0f687688` at resolution 128; see
+`docs/evidence/proxyless_one_percent_search_completion_20260804.json`.
 
 From 2026-08-04 onward, engineering acceptance trains only one `zcp_selected.json`; its
 `candidates-manifest.json` must bind search provenance, architecture ID, and checksum. The freeze

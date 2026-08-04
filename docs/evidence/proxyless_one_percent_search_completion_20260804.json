@@ -1,0 +1,45 @@
+{
+  "schema_version": "1.0",
+  "recorded_at": "2026-08-04T15:27:05+08:00",
+  "status": "completed",
+  "run_id": "a353e301f420",
+  "git_commit": "fdfc5d0ad690bf46fb1837bcbc24aeec8c1a2b1c",
+  "search_space_id": "ofa_proxyless_mbv2",
+  "proxy_id": "zen",
+  "proxy_version": "portable-v1",
+  "proxy_implementation_fidelity": "paper_formula_port_unverified",
+  "experiment_kind": "project_zcp_transfer",
+  "controller_fidelity": "project_controller_not_ofa_tutorial",
+  "direct_search_protocol_evidence": false,
+  "search_budget_protocol": "one_percent_planned_100k",
+  "search_budget_reference_evaluations": 100000,
+  "search_budget_evaluations": 1000,
+  "search_budget_fraction": 0.01,
+  "search_budget_scope": "engineering_acceptance_not_search_space_fraction",
+  "candidate_rows": 1000,
+  "summary_rows": 1,
+  "winner": {
+    "architecture_id": "968893a0cc5f0f687688",
+    "score": -3.017962694168091,
+    "resolution": 128,
+    "tie_count": 1
+  },
+  "gpu": {
+    "uuid": "GPU-3ebef771-98d5-bb9b-2115-18c02e49f676",
+    "pci_bus_id": "00000000:38:00.0",
+    "model": "NVIDIA GeForce RTX 4090 D",
+    "logical_index": 0
+  },
+  "started_at": "2026-08-04T15:23:54.370985+08:00",
+  "ended_at": "2026-08-04T15:25:49.036873+08:00",
+  "artifacts": {
+    "manifest_sha256": "7f3990938b401afc6af8916beaa340e48ad818decbf84ef3b7d204755441ebd0",
+    "config_sha256": "da6f559c1916d4c04a1fceac8d3c1d40c4867f190112378b6959636d5b488374",
+    "search_jsonl_sha256": "1598a114edcd0137e1b80c8131b3bab8c301dc610407c0f46a7c7e8ca95393f3",
+    "search_state_sha256": "453c1ab8fb39a6b79305f80d17649110adefc68581bfab6adf2f777ec4e60fef",
+    "best_architecture_sha256": "10b173b5fd68fd284a346a2f3e1bf6755f44e3aa4494e895b4ef0f64bb89a2b2",
+    "frozen_candidate_sha256": "09ab153a15ea0ddc91efce5abf04b1dec4eb932ad2309f459e5d1d6dfd711947",
+    "frozen_manifest_sha256": "24022fad893aad6838af54d610db33b667ae2c3db4418fb47efa190f1bc35c74"
+  },
+  "claim_boundary": "This is a truncated project engineering budget, not 1% of the search-space cardinality and not an OFA paper-controller reproduction."
+}
