@@ -24,9 +24,10 @@ OFA Proxyless 的官方 active-subnet 域是 21 个 `ks/e` 位置、width 1.3、
 tutorial 的 20-block/5-stage 域属于 MobileNetV3，不能移植后称为官方 Proxyless tutorial。项目在
 Proxyless 域上运行 ZCP + 通用进化控制器时固定标记为 `project_zcp_transfer`，不是官方 OFA 搜索协议。
 
-Engineering search acceptance is capped at 1%: PlainNet evaluates 1,000 of the upstream 100,000
-valid-candidate budget, while Proxyless evaluates 1,000 of a predeclared 100,000-evaluation project
-budget. The latter is not 1% of the combinatorial search-space cardinality.
+Current formal proxy-sweep acceptance is a **10-minute feasibility plan**, not a coverage claim.
+After a measured pilot, `acceptance plan-feasibility` selects the largest feasible tier among 1%,
+1‰, 1‱, and one architecture, and always records `coverage_claim=false`. Earlier fixed-one-percent
+PlainNet/Proxyless runs remain immutable historical evidence and do not define the current gate.
 
 ### 首次使用 checklist
 
@@ -177,8 +178,8 @@ Research manuals:
 - [Retained reproducible examples](examples/studies/README_CN.md)
 - [Acceptance status](docs/ACCEPTANCE.md) / [中文验收状态](docs/ACCEPTANCE_CN.md)
 
-The PlainNet-MBV2 engineering-acceptance search must not be replaced by a generic
-`population × generations` example. Its stable one-percent entry point is:
+The following PlainNet-MBV2 command documents the **superseded fixed-one-percent protocol** retained
+for historical reproducibility; it is not the current formal feasibility gate:
 
 ```bash
 zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
@@ -186,7 +187,7 @@ zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
   --output /path/to/runs/search/plainnet-aznas-450m
 ```
 
-This evaluates exactly 1,000 valid candidates, or 1% of the upstream 100,000-candidate budget,
+The retained runs evaluated exactly 1,000 valid candidates, or 1% of the upstream 100,000-candidate budget,
 with batch 64/224, source-aligned four-component log-rank, no crossover, and the explicit fidelity
 `source_aligned_control_flow_port_truncated_one_percent_budget`. It is an engineering acceptance,
 not a completed 100k AZ-NAS reproduction. The retained 450M/600M/1G runs each contain 1,000
@@ -194,8 +195,8 @@ candidate rows plus one summary row and are already complete; do not restart the
 acceptance. See the [operations guide](docs/OPERATIONS.md#az-nas-plainnet-mbv2-search) for the
 separate upstream 100k protocol and the one-percent boundary.
 
-Before engineering training acceptance, freeze the selected architecture from a completed,
-versioned one-percent search run:
+When auditing that historical training lineage, freeze the selected architecture from its completed,
+versioned search run:
 
 ```bash
 zcp-test acceptance freeze-candidates \
@@ -283,7 +284,7 @@ Dataset-specific CIFAR-100 and ImageNet16-120 ZCPs require separate evaluations.
 12-shard `analyze benchmark --benchmark nats_sss --view size` study then keeps source scores and
 input fingerprints fixed for target-only joins and emits separate matrix, stability, target-rank,
 and controlled-transfer tables. Both new datasets completed 7,216/7,216 rows with zero duplicate
-keys. See [operations](docs/OPERATIONS.md), [one-percent status](docs/ONE_PERCENT_ACCEPTANCE.md), and
+keys. See [operations](docs/OPERATIONS.md), [historical fixed-one-percent status](docs/ONE_PERCENT_ACCEPTANCE.md), and
 the [cross-dataset evidence](docs/evidence/NATS_SSS_CROSS_DATASET_CN.md).
 
 ## Artifacts
@@ -304,7 +305,7 @@ Each new run creates `YYYYMMDDTHHMMSS+0800_<run-id>/` in the fixed `Asia/Shangha
   41/33-architecture micro/macro 1% manifests are checksum-locked, and a safe seven-task input
   contract provider is implemented. The paper's 24-building/120K split and final config are not
   public, and separately licensed Taskonomy data is not present on this machine. The formal real-input
-  22-proxy sweep therefore remains blocked; arbitrary Taskonomy splits and random/CIFAR fixtures are
+  current-registry sweep therefore remains blocked; arbitrary Taskonomy splits and random/CIFAR fixtures are
   not substitutes.
   See the [TransNAS preflight evidence](docs/evidence/TRANSNAS_PREFLIGHT_CN.md).
 - The formal NAS-Bench-101 1% scoped protocol is accepted on 4,237 stratified architectures:
@@ -360,11 +361,29 @@ Each new run creates `YYYYMMDDTHHMMSS+0800_<run-id>/` in the fixed `Asia/Shangha
 
 Every proxy is registered with model-family, label, device, component, direction, and dependency metadata. Accuracy-prediction direction and resource-constraint direction are separate fields; Params/FLOPs use `direction=maximize` for raw size-accuracy association and `resource_direction=minimize` for constraints. Calls run in a model-state isolation context. Unsupported combinations return `unsupported`; failures remain failures and are never replaced by fabricated losses or values.
 
+The active registry has 23 IDs; `ntkt`, `er_pr`, `er_conn`, `er_deg`, and `er_dist` are retired.
+`ac/hi/hc` are ACL 2023 `2d76e01` cross-domain ViT ports, not exact CVPR 2026 reproductions.
+`dss` is CVPR 2022 DSS; DSS++ is not implemented without official code and an exact public protocol.
+ER consumes semantic-edge 4-D activations, while TER additionally consumes directed endpoints.
+TE-NAS is the TER-Score `a646c5a` RN-minus-NTK-condition scalar. AZ-NAS formal ranking uses
+`--score-selector aggregate:az_nas_log_rank`; repeated protocols record `--proxy-batches` and
+`--proxy-repetitions`. See [the official-source audit](docs/PROXY_OFFICIAL_AUDIT.md).
+
+```bash
+zcp-test acceptance plan-feasibility \
+  --total-architectures TOTAL --pilot-architectures PILOT_N \
+  --pilot-seconds PILOT_SECONDS --max-seconds 600
+```
+
+The planner tries 1%, 1‰, 1‱, then one architecture and always emits `coverage_claim=false`.
+Files under `docs/evidence/**` preserve superseded counts and proxy versions read-only; they are
+audit history, not current registry coverage.
+
 ## Validation scope
 
-Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. The scoped 1%
-proxy sweeps for NB101, NB201, NATS-TSS, and NATS-SSS/CIFAR-10-valid are accepted under their
-documented protocols; the scoped NB301 deterministic-surrogate protocol is also accepted. Project-wide
+Unit tests use small fixtures. GPU smoke uses synthetic batches and short epochs. Earlier scoped
+proxy sweeps for NB101, NB201, NATS-TSS, NATS-SSS/CIFAR-10-valid, and the NB301 deterministic
+surrogate are superseded-version evidence, not current proxy coverage. Project-wide
 H1 remains incomplete: TransNAS-Bench-101, ViT-Bench-101, and other remaining protocols are pending.
 The DARTS CIFAR dual one-percent protocol is accepted, but full-data 600-epoch CIFAR accuracy
 reproduction and 250-epoch ImageNet training remain unaccepted; see the

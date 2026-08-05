@@ -875,10 +875,54 @@ def validate_plainnet_search(
     }
 
 
+def plan_adaptive_feasibility_sweep(
+    *,
+    total_architectures: int,
+    pilot_architectures: int,
+    pilot_seconds: float,
+    max_seconds: float = 600.0,
+) -> dict[str, Any]:
+    import math
+
+    if total_architectures <= 0 or pilot_architectures <= 0:
+        raise ValueError("architecture counts must be positive")
+    if not math.isfinite(pilot_seconds) or pilot_seconds <= 0:
+        raise ValueError("pilot_seconds must be finite and positive")
+    if not math.isfinite(max_seconds) or max_seconds <= 0:
+        raise ValueError("max_seconds must be finite and positive")
+    seconds_per_architecture = pilot_seconds / pilot_architectures
+    for label, fraction in (("one_percent", 0.01), ("one_per_mille", 0.001), ("one_per_ten_thousand", 0.0001)):
+        count = max(1, math.ceil(total_architectures * fraction))
+        projected = count * seconds_per_architecture
+        if projected <= max_seconds:
+            return {
+                "status": "planned",
+                "protocol": "adaptive_feasibility_sweep",
+                "fraction_label": label,
+                "fraction": fraction,
+                "architecture_count": count,
+                "projected_seconds": projected,
+                "max_seconds": max_seconds,
+                "coverage_claim": False,
+            }
+    projected = seconds_per_architecture
+    return {
+        "status": "planned" if projected <= max_seconds else "timeout_feasibility",
+        "protocol": "adaptive_feasibility_sweep",
+        "fraction_label": "minimum_one",
+        "fraction": 1 / total_architectures,
+        "architecture_count": 1,
+        "projected_seconds": projected,
+        "max_seconds": max_seconds,
+        "coverage_claim": False,
+    }
+
+
 __all__ = [
     "ResourceMeasurement",
     "freeze_training_candidates",
     "measure_architecture_resources",
+    "plan_adaptive_feasibility_sweep",
     "reconcile_search_cohort",
     "validate_plainnet_search",
 ]

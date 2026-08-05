@@ -8,9 +8,9 @@
   "counting_rule": "Count argparse choices directly below the root parser as level_one_commands. Count choices below those parsers as level_two_commands. Root commands without a nested action remain direct_endpoints and are not added to the level_two count.",
   "counts": {
     "level_one_commands": 15,
-    "level_two_commands": 33,
+    "level_two_commands": 34,
     "direct_endpoints": 6,
-    "total_leaf_endpoints": 39,
+    "total_leaf_endpoints": 40,
     "p0_documentation_gaps": 0
   },
   "level_one_commands": [
@@ -39,7 +39,7 @@
     "train"
   ],
   "level_two_commands": {
-    "acceptance": ["freeze-candidates", "reconcile-search-cohort", "validate-plainnet-search"],
+    "acceptance": ["freeze-candidates", "plan-feasibility", "reconcile-search-cohort", "validate-plainnet-search"],
     "analyze": ["benchmark", "compare", "correlation", "search", "sensitivity", "training"],
     "benchmark": ["inspect", "list", "sample"],
     "data": ["bootstrap", "checklist", "convert-imagenet16", "convert-vit", "export-manifest", "fetch", "import-manifest", "list", "prepare-transnas-input", "register", "verify"],

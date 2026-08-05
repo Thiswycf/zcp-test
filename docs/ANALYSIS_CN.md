@@ -60,8 +60,8 @@ Spearman、Kendall tau-b、Pearson、共同样本数和覆盖率，并生成 `se
 
 schema 2 的原始 `scores.jsonl` 每个架构/代理一行；reader 会在内存中展开具名组件，但
 `analyze correlation|compare|sensitivity`、`analyze benchmark` 和 `report bundle` 默认只保留
-每行声明的 `primary_component`。因此 ER 默认使用 `mean`，不会同时把 `sum` 当成第二个 ZCP。
-只有显式传入 `--component sum` 时才研究该辅助分量。旧 schema 若没有
+每行声明的 `primary_component`。当前 ER 与 TE-NAS 均只使用 `score`；旧 ER `mean/sum` 仅作
+只读历史记录，不进入当前正式汇总。旧 schema 若没有
 `primary_component` 无法可靠推断主分量，reader 会保留其全部组件；此时应先检查字段并显式指定
 `--component`。组件展开是派生视图，不是重复评估。
 

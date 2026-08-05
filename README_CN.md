@@ -43,7 +43,7 @@ zcp-test doctor --catalog configs/data.example.json
 - [ZCP 官方实现逐项审计与无官方实现清单](docs/PROXY_OFFICIAL_AUDIT_CN.md)
 - [配置优先级、RUN 目录与运维边界](docs/OPERATIONS_CN.md)
 - [DARTS 搜索与训练](docs/DARTS_TRAINING_CN.md)
-- [1% Benchmark 相关性验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)
+- [历史固定 1% 验收（只读旧证据）](docs/ONE_PERCENT_ACCEPTANCE_CN.md)
 - [当前完整验收状态](docs/ACCEPTANCE_CN.md)
 
 ```bash
@@ -149,7 +149,10 @@ target-only/controlled transfer 表；不得把两类数字混写。CIFAR-100 �
 [1% 验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)与
 [跨数据集证据](docs/evidence/NATS_SSS_CROSS_DATASET_CN.md)。
 
-## 正式训练
+## 历史正式训练验收（只读）
+
+本节记录策略调整前已完成的固定 1% 工程实验，不是当前代理忠实度 gate。当前新任务一律使用
+10 分钟上限的 `adaptive_feasibility_sweep`，不得按下列旧规模重新下发。
 
 PlainNet-MBV2 的工程验收搜索不能使用 generic `population × generations` 示例代替。固定 1% 入口为：
 
@@ -232,6 +235,27 @@ catalog 中的 benchmark 路径在实际查询前会再次核对文件 SHA、ver
 events、status 和隔离文件名均携带 `+08:00`/`+0800`。历史 `...Z_...` run 保持只读兼容，不原地
 改写；报告展示历史记录时应按其原始 offset 解析并转换为北京时间。
 
+## 当前代理与可行性口径
+
+当前 registry 为 23 个 ID；`ntkt`、`er_pr`、`er_conn`、`er_deg`、`er_dist` 已删除。
+`ac/hi/hc` 是 ACL 2023 official `2d76e01` 的跨域 ViT 端口，不是 CVPR 2026 精确复现；`dss`
+是 CVPR 2022 DSS，DSS++ 因无官方代码和精确公开协议而不实现。ER 需要语义边 4-D 激活，TER
+还需要有向端点；TE-NAS 是 `TER-Score@a646c5a` 的 RN 减 NTK condition 单标量。AZ-NAS 正式
+多组件排序使用 `--score-selector aggregate:az_nas_log_rank`，重复协议显式记录
+`--proxy-batches` 与 `--proxy-repetitions`。
+
+正式 proxy sweep 先测 pilot，再按 10 分钟上限规划：
+
+```bash
+zcp-test acceptance plan-feasibility \
+  --total-architectures TOTAL --pilot-architectures PILOT_N \
+  --pilot-seconds PILOT_SECONDS --max-seconds 600
+```
+
+规划器依次尝试 1%、1‰、1‱，必要时降为 1 个架构，并始终输出 `coverage_claim=false`。
+`docs/evidence/**` 中旧数量、旧 ID 和旧公式结果保持只读，只是已撤销版本的审计证据，不证明
+当前 registry 覆盖。详见[官方来源审计](docs/PROXY_OFFICIAL_AUDIT_CN.md)。
+
 ## 当前边界
 
 - 评估命令支持 `--start/--count` 范围切分；多 GPU 目前采用每张卡独立启动一个范围并在结束后合并 JSONL，尚未内置多进程调度器。
@@ -241,7 +265,7 @@ events、status 和隔离文件名均携带 `+08:00`/`+0800`。历史 `...Z_...`
 - TransNAS 的 tabular 标准答案与 Taskonomy 输入是不同资产。原始/转换标准答案和 41/33 个架构的
   1% micro/macro manifest 已锁定；安全七任务 contract input provider 已实现。论文所用
   24-building/120K split 与最终 config 未公开，Taskonomy 数据还受独立 EULA 约束且本机尚未取得，
-  因此正式真实输入 22-ZCP sweep 仍为 blocked，不能用任意 Taskonomy split、random/CIFAR fixture
+  因此正式真实输入当前 registry sweep 仍为 blocked，不能用任意 Taskonomy split、random/CIFAR fixture
   冒充。见 [TransNAS 预检证据](docs/evidence/TRANSNAS_PREFLIGHT_CN.md)。
 - OFA MobileNetV3 保持可选 adapter；本次验收不把它的现代环境兼容性作为其他搜索空间的阻塞条件。
 - DARTS 正式 profile 已放行，且 CIFAR-10/100 与 ImageNet 双重 1% 限定验收均已完成；这不等于

@@ -141,6 +141,9 @@ kernel flock with `flock -n`. The recorded intervention is
 Dataset input is the default and requires `--data-root` or a valid `dataset_<name>` catalog asset.
 `--input-source random|noise` is an explicit ablation and is fingerprinted separately. Missing real
 data is an error and never causes a synthetic fallback.
+`--data-root` is the root of the selected **training dataset**, not the common benchmark-asset root:
+use `/path/to/data/cifar10` for CIFAR-10 and `/path/to/data/ImageNet1k` for ImageNet. Benchmark truth
+is resolved independently through `--benchmark-path` or the catalog.
 
 ```bash
 zcp-test evaluate --space nb201_topology --proxies er,naswot,synflow \
@@ -158,6 +161,23 @@ the result protocol explicit:
 - **scratch**: an independently trained architecture metric.
 
 Do not pool these result types or substitute NAS-Bench-201 truth for NATS-TSS truth.
+
+Proxy protocol identity also includes `--proxy-batches`, `--proxy-repetitions`, and the selected
+score semantics. Use `--score-selector primary`, `component:NAME`,
+`aggregate:az_nas_log_rank`, or `aggregate:mean_percentile_rank` explicitly. Formal AZ-NAS ranking
+uses log-rank; `te_nas` exposes only its RN-minus-NTK-condition primary scalar.
+
+Before a formal sweep, time a representative pilot and plan against the 600-second ceiling:
+
+```bash
+zcp-test acceptance plan-feasibility \
+  --total-architectures TOTAL --pilot-architectures PILOT_N \
+  --pilot-seconds PILOT_SECONDS --max-seconds 600
+```
+
+The planner tries 1%, 1‰, 1‱, then one architecture. `coverage_claim=false` is mandatory: this is
+a feasibility plan, not search-space coverage. Prior fixed-one-percent runs and all files under
+`docs/evidence/**` remain read-only evidence of superseded versions.
 
 ## Run directories
 
@@ -312,6 +332,12 @@ read-only wheel/site-packages installation is not a supported scaffold target. I
 return `ProxyOutput(score=..., primary_component=..., components=...)`. Validation checks a small
 synthetic model for finite output, model-state isolation and hook cleanup; it is not a benchmark-wide
 scientific validation.
+
+The active registry contains 23 IDs. `ntkt`, `er_pr`, `er_conn`, `er_deg`, and `er_dist` are
+retired. ER requires semantic-edge 4-D activations; TER additionally requires directed endpoints.
+`ac/hi/hc` are ACL 2023 `2d76e01` cross-domain ViT ports, while `dss` is CVPR 2022 DSS. DSS++ is
+not implemented because no official code and exact public protocol are available. See
+[PROXY_OFFICIAL_AUDIT.md](PROXY_OFFICIAL_AUDIT.md).
 
 ## Training and architecture files
 
@@ -702,7 +728,7 @@ zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
   --output /path/to/runs/search/plainnet-aznas-450m
 ```
 
-`--flops-target` also accepts `600m` and `1g`. The project default now explicitly uses
+`--flops-target` also accepts `600m` and `1g`. The retained historical configuration used
 `source_budget_protocol=one_percent_acceptance`: 1,000 valid candidates per target (1% of upstream
 100k), batch 64, resolution 224, ImageNet-1k random input, four-component aggregation, and
 independent scratch initialization. Artifacts record `search_budget_fraction=0.01` and truncated
@@ -724,7 +750,8 @@ host, the 2026-08-04 conservative cumulative rerank estimate was about 15,166 se
 with measured GPU time when planning a full reproduction. It is not completion evidence for the
 1,000-candidate acceptance run.
 
-Use the one-target immutable launcher for a one-percent background acceptance run. Assign one UUID per target;
+The following launcher belongs to the superseded fixed-one-percent acceptance protocol. Preserve
+its artifacts read-only; do not treat it as the current formal feasibility gate. Assign one UUID per target;
 450M/600M/1G may run independently on three GPUs:
 
 ```bash

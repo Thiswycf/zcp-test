@@ -10,7 +10,7 @@ import sys
 import tempfile
 import time
 from contextlib import ExitStack, contextmanager
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -20,7 +20,6 @@ from zcp_test.artifacts import (
     RunContext,
     read_jsonl,
     read_score_records,
-    score_component,
 )
 from zcp_test.artifacts.run import file_sha256
 from zcp_test.acceptance import freeze_training_candidates, measure_architecture_resources
@@ -48,7 +47,12 @@ from zcp_test.gpu import (
     gpu_lock_status,
     select_gpu,
 )
-from zcp_test.inputs import CandidateInputResolver, make_dataset_batch_stream
+from zcp_test.inputs import (
+    CandidateInputResolver,
+    InputBatch,
+    make_dataset_batch_stream,
+    make_input_batch,
+)
 from zcp_test.legacy import import_pickle
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.evaluator import evaluate_proxy
@@ -92,7 +96,7 @@ from zcp_test.search import (
 )
 from zcp_test.spaces import SPACES, load_builtin_spaces
 from zcp_test.training import TrainingConfig, train_model
-from zcp_test.types import MetricSpec, ModelFidelity
+from zcp_test.types import MetricSpec, ModelFidelity, ProxyContext
 
 
 def _json(value: Any) -> None:
@@ -139,6 +143,150 @@ def _candidate_input_resolver(args: argparse.Namespace, device: Any) -> Candidat
         device=device,
         data_root=_resolve_data_root(args, args.dataset),
         explicit_input_size=_argument_was_explicit(args, "input_size"),
+    )
+
+
+@dataclass(frozen=True)
+class _ProxyBatchPlan:
+    batches: tuple[tuple[Any, Any | None], ...]
+    batch_fingerprints: tuple[str, ...]
+    fingerprint: str
+    protocol: dict[str, Any]
+
+    def provider(self):
+        return iter(self.batches)
+
+
+def _proxy_batch_fingerprint(
+    inputs: Any,
+    labels: Any | None,
+    protocol: dict[str, Any],
+) -> str:
+    digest = hashlib.sha256(json.dumps(protocol, sort_keys=True).encode())
+    digest.update(inputs.detach().cpu().contiguous().numpy().tobytes())
+    if labels is not None:
+        digest.update(labels.detach().cpu().contiguous().numpy().tobytes())
+    return digest.hexdigest()
+
+
+def _make_proxy_batch_plan(
+    args: argparse.Namespace,
+    input_size: int,
+    device: Any,
+    first_batch: InputBatch,
+    *,
+    role: str,
+) -> _ProxyBatchPlan:
+    batch_count = int(args.proxy_batches)
+    if batch_count <= 0:
+        raise ValueError("proxy_batches must be positive")
+    if batch_count == 1:
+        return _ProxyBatchPlan(
+            ((first_batch.inputs, first_batch.labels),),
+            (first_batch.fingerprint,),
+            first_batch.fingerprint,
+            json.loads(json.dumps(first_batch.protocol)),
+        )
+
+    input_batches: list[tuple[Any, Any | None]]
+    batch_fingerprints: tuple[str, ...]
+    if args.input_source == "dataset":
+        from zcp_test.data.transnas_inputs import is_transnas_task
+
+        if is_transnas_task(args.dataset):
+            resolved = [first_batch]
+            resolved.extend(
+                make_input_batch(
+                    args.input_source,
+                    args.dataset,
+                    args.batch_size,
+                    input_size,
+                    args.classes,
+                    args.seed + batch_index,
+                    device,
+                    _resolve_data_root(args, args.dataset),
+                )
+                for batch_index in range(1, batch_count)
+            )
+            input_batches = [(batch.inputs, batch.labels) for batch in resolved]
+            batch_fingerprints = tuple(batch.fingerprint for batch in resolved)
+            protocol = {
+                "source": "dataset",
+                "role": role,
+                "protocol": "zcp-test-deterministic-v1",
+                "dataset": args.dataset,
+                "seed": args.seed,
+                "batch_seed_protocol": "base-seed-plus-batch-index",
+                "batch_size": args.batch_size,
+                "batches": batch_count,
+                "input_size": input_size,
+            }
+        else:
+            stream = make_dataset_batch_stream(
+                args.dataset,
+                _resolve_data_root(args, args.dataset),
+                args.batch_size,
+                input_size,
+                args.seed,
+                batch_count,
+                device,
+                role=role,
+            )
+            input_batches = list(stream)
+            fingerprints = []
+            for batch_index, (inputs, labels) in enumerate(input_batches):
+                batch_protocol = {
+                    **stream.protocol,
+                    "batch_index": batch_index,
+                    "batch_sample_ids": stream.sample_ids[batch_index],
+                }
+                fingerprints.append(_proxy_batch_fingerprint(inputs, labels, batch_protocol))
+            batch_fingerprints = tuple(fingerprints)
+            protocol = {
+                **stream.protocol,
+                "batch_seed_protocol": "single-seed-without-replacement",
+            }
+    else:
+        resolved = [first_batch]
+        resolved.extend(
+            make_input_batch(
+                args.input_source,
+                args.dataset,
+                args.batch_size,
+                input_size,
+                args.classes,
+                args.seed + batch_index,
+                device,
+            )
+            for batch_index in range(1, batch_count)
+        )
+        input_batches = [(batch.inputs, batch.labels) for batch in resolved]
+        batch_fingerprints = tuple(batch.fingerprint for batch in resolved)
+        protocol = {
+            "source": args.input_source,
+            "dataset": None,
+            "role": role,
+            "protocol": "zcp-test-deterministic-v1",
+            "seed": args.seed,
+            "batch_seed_protocol": "base-seed-plus-batch-index",
+            "batch_seeds": [args.seed + index for index in range(batch_count)],
+            "transform": (
+                "synthetic-normal" if args.input_source == "random" else "synthetic-uniform"
+            ),
+            "batch_size": args.batch_size,
+            "batches": batch_count,
+            "input_size": input_size,
+            "label_protocol": "synthetic-uniform",
+        }
+
+    aggregate = hashlib.sha256(json.dumps(protocol, sort_keys=True).encode())
+    for fingerprint in batch_fingerprints:
+        aggregate.update(fingerprint.encode())
+    return _ProxyBatchPlan(
+        tuple(input_batches),
+        batch_fingerprints,
+        aggregate.hexdigest(),
+        json.loads(json.dumps({**protocol, "batch_fingerprints": batch_fingerprints})),
     )
 
 
@@ -1032,6 +1180,15 @@ def _proxy_capability_payload(capability: Any) -> dict[str, Any]:
             if capability.resource_direction is None
             else capability.resource_direction.value
         ),
+        "source_commit": capability.source_commit,
+        "license": capability.license,
+        "official_code_available": capability.official_code_available,
+        "protocol_domain": capability.protocol_domain,
+        "default_batches": capability.default_batches,
+        "default_repetitions": capability.default_repetitions,
+        "requires_edge_activations": capability.requires_edge_activations,
+        "requires_topology": capability.requires_topology,
+        "formal_use": capability.formal_use,
     }
 
 
@@ -1624,6 +1781,17 @@ def command_evaluate(args: argparse.Namespace) -> None:
             architecture.architecture_id: input_resolver.resolve(architecture)
             for architecture in architectures
         }
+        proxy_batch_plans_by_size: dict[int, _ProxyBatchPlan] = {}
+        for architecture in architectures:
+            resolved_input_size = input_resolver.input_size(architecture)
+            if resolved_input_size not in proxy_batch_plans_by_size:
+                proxy_batch_plans_by_size[resolved_input_size] = _make_proxy_batch_plan(
+                    args,
+                    resolved_input_size,
+                    device,
+                    resolved_batches[architecture.architecture_id],
+                    role="evaluate-proxy",
+                )
         if space.search_space_id == "ofa_proxyless_mbv2":
             input_protocol = {
                 **input_resolver.protocol_summary(space.search_space_id),
@@ -1631,12 +1799,16 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     {batch.protocol["input_size"] for batch in resolved_batches.values()}
                 ),
                 "input_fingerprints_by_size": {
-                    str(batch.protocol["input_size"]): batch.fingerprint
-                    for batch in resolved_batches.values()
+                    str(input_size): plan.fingerprint
+                    for input_size, plan in proxy_batch_plans_by_size.items()
+                },
+                "proxy_batch_protocols_by_size": {
+                    str(input_size): plan.protocol
+                    for input_size, plan in proxy_batch_plans_by_size.items()
                 },
             }
         else:
-            input_protocol = next(iter(resolved_batches.values())).protocol
+            input_protocol = next(iter(proxy_batch_plans_by_size.values())).protocol
         bn_recalibration_streams: dict[int, Any] = {}
         if args.bn_recalibration_batches:
             weight_provenance = {
@@ -1687,15 +1859,20 @@ def command_evaluate(args: argparse.Namespace) -> None:
             primary_components: dict[str, str] = {}
             for architecture in architectures:
                 batch = resolved_batches[architecture.architecture_id]
+                actual_input_size = input_resolver.input_size(architecture)
+                proxy_batch_plan = proxy_batch_plans_by_size[actual_input_size]
+                proxy_inputs, proxy_labels = proxy_batch_plan.batches[0]
                 model_initialization_seed = _seed_search_model(
                     args.seed, architecture.architecture_id
                 )
                 input_metadata = {
                     **input_resolver.metadata(architecture, batch),
+                    "input_fingerprint": proxy_batch_plan.fingerprint,
+                    "input_protocol": proxy_batch_plan.protocol,
+                    "batch_fingerprints": list(proxy_batch_plan.batch_fingerprints),
                     "model_initialization_seed": model_initialization_seed,
                     "model_initialization_protocol": "architecture-hash-v1",
                 }
-                actual_input_size = int(input_metadata["actual_input_size"])
                 model = (
                     adapter.build_model(architecture, args.dataset)
                     if adapter
@@ -1742,18 +1919,45 @@ def command_evaluate(args: argparse.Namespace) -> None:
                     ).get(args.target_metric)
                 for proxy_name in args.proxies.split(","):
                     proxy_id = proxy_name.strip().lower()
+                    edge_activations = None
+                    if proxy_id in {"er", "ter"}:
+                        from zcp_test.proxies.edge_adapters import (
+                            capture_semantic_edge_activations,
+                        )
+                        from zcp_test.proxies.isolation import isolated_model
+
+                        with isolated_model(model):
+                            edge_activations = capture_semantic_edge_activations(
+                                model, proxy_inputs
+                            )
+                    proxy_context = ProxyContext(
+                        inputs=proxy_inputs,
+                        labels=proxy_labels,
+                        loss_fn=loss_fn,
+                        seed=args.seed,
+                        device=str(device),
+                        model_family=space.model_family,
+                        benchmark_id=adapter.benchmark_id if adapter else None,
+                        search_space_id=space.search_space_id,
+                        input_fingerprint=proxy_batch_plan.fingerprint,
+                        batch_fingerprints=proxy_batch_plan.batch_fingerprints,
+                        proxy_batches=args.proxy_batches,
+                        proxy_repetitions=args.proxy_repetitions,
+                        batch_provider=proxy_batch_plan.provider,
+                        edge_activations=edge_activations,
+                    )
                     result = evaluate_proxy(
                         proxy_id,
                         model,
-                        batch.inputs,
-                        batch.labels,
+                        proxy_inputs,
+                        proxy_labels,
                         loss_fn,
-                        space.model_family,
                         unsupported_reason=_transnas_unsupported_reason(
                             adapter.benchmark_id if adapter else None,
                             args.dataset,
                             proxy_id,
                         ),
+                        context=proxy_context,
                     )
                     calls += 1
                     statuses.append(result.status.value)
@@ -1773,6 +1977,10 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "proxy_version": result.proxy_version,
                             "proxy_implementation_fidelity": result.implementation_fidelity,
                             "proxy_source": result.source,
+                            "proxy_source_commit": result.source_commit,
+                            "proxy_license": result.license,
+                            "proxy_protocol_domain": result.protocol_domain,
+                            "proxy_formal_use": result.formal_use,
                             "proxy_alias_of": result.alias_of,
                             "direction": result.direction.value,
                             "resource_direction": (
@@ -1783,6 +1991,8 @@ def command_evaluate(args: argparse.Namespace) -> None:
                             "primary_component": result.primary_component,
                             "score": result.score,
                             "components": result.components,
+                            "proxy_batches": args.proxy_batches,
+                            "proxy_repetitions": args.proxy_repetitions,
                             "target_metric": args.target_metric,
                             "target_split": args.target_split,
                             "target_value": target,
@@ -1831,20 +2041,61 @@ def command_correlate(args: argparse.Namespace) -> None:
         serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
         return serialized, payload
 
+    score_selector = args.score_selector or (
+        f"component:{args.component}" if args.component else "primary"
+    )
     score_protocols: dict[str, dict[str, Any]] = {}
     scores: dict[tuple[str, Any, Any], tuple[Any, str]] = {}
-    for row in read_score_records(args.scores):
-        if row.get("status", "ok") != "ok":
-            continue
+    score_rows = [
+        row
+        for row in read_score_records(args.scores)
+        if row.get("status", "ok") == "ok"
+    ]
+    aggregate_values: dict[int, float] = {}
+    if score_selector.startswith("aggregate:"):
+        from collections import defaultdict
+
+        from zcp_test.proxies.scalarizers import aggregate_rank
+
+        grouped: dict[tuple[str, Any], list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+        for index, row in enumerate(score_rows):
+            protocol_key, _protocol = protocol_identity(row, PROTOCOL_FIELDS)
+            grouped[(protocol_key, row.get("proxy_id"))].append((index, row))
+        method = score_selector.split(":", 1)[1]
+        for (_protocol_key, proxy_id), entries in grouped.items():
+            component_sets = [set(row.get("components", {})) for _, row in entries]
+            component_names = sorted(set.intersection(*component_sets)) if component_sets else []
+            if proxy_id in {"az_nas", "az_nas_autoformer"}:
+                component_names = ["expressivity", "trainability", "complexity"]
+            elif proxy_id == "az_nas_plainnet":
+                component_names = ["expressivity", "progressivity", "trainability", "complexity"]
+            result = aggregate_rank(
+                [row["components"] for _, row in entries],
+                component_names,
+                method=method,
+                architecture_ids=[str(row[args.id_field]) for _, row in entries],
+            )
+            aggregate_values.update(
+                {index: value for (index, _row), value in zip(entries, result.values, strict=True)}
+            )
+    for index, row in enumerate(score_rows):
         protocol_key, protocol = protocol_identity(row, PROTOCOL_FIELDS)
         score_protocols[protocol_key] = protocol
         key = (protocol_key, row[args.id_field], row.get("proxy_id"))
         if key in scores:
             raise ValueError(f"Duplicate score key in correlate input: {key}")
-        scores[key] = (
-            score_component(row, args.component) if args.component else row.get(args.score_field),
-            str(row.get("direction", "maximize")),
-        )
+        if score_selector.startswith("aggregate:"):
+            selected_score = aggregate_values[index]
+            selected_direction = "maximize"
+        elif score_selector == "primary" and args.score_field != "score":
+            selected_score = row.get(args.score_field)
+            selected_direction = str(row.get("direction", "maximize"))
+        else:
+            from zcp_test.proxies.scalarizers import select_pointwise
+
+            selected_score = select_pointwise(row, score_selector)
+            selected_direction = str(row.get("direction", "maximize"))
+        scores[key] = (selected_score, selected_direction)
     target_protocols: dict[str, dict[str, Any]] = {}
     targets: dict[tuple[str, Any], Any] = {}
     for row in read_jsonl(args.targets):
@@ -1934,6 +2185,13 @@ def command_search(args: argparse.Namespace) -> None:
     load_builtin_spaces()
     space = SPACES.create(args.space)
     source_aligned_plainnet = args.controller == "plainnet_source_aligned"
+    score_selector = args.score_selector
+    if score_selector is None:
+        score_selector = (
+            f"aggregate:{args.aggregator}"
+            if args.aggregator != "primary"
+            else "primary"
+        )
     project_one_percent = args.project_budget_protocol == "one_percent_planned_100k"
     resource_limits = {
         name: int(value)
@@ -1966,7 +2224,7 @@ def command_search(args: argparse.Namespace) -> None:
         required = {
             "space": (args.space, "zennas_plainnet_mbv2"),
             "proxy": (args.proxy, "az_nas_plainnet"),
-            "aggregator": (args.aggregator, "az_nas_log_rank"),
+            "score_selector": (score_selector, "aggregate:az_nas_log_rank"),
             "population": (args.population, 1024),
             "generations": (args.generations, 0),
             "batch_size": (args.batch_size, 64),
@@ -2042,6 +2300,22 @@ def command_search(args: argparse.Namespace) -> None:
             if space.search_space_id != "ofa_proxyless_mbv2"
             else None
         )
+        proxy_batch_plans_by_size: dict[int, _ProxyBatchPlan] = {}
+
+        def proxy_batch_plan(input_size: int, batch: InputBatch) -> _ProxyBatchPlan:
+            if input_size not in proxy_batch_plans_by_size:
+                proxy_batch_plans_by_size[input_size] = _make_proxy_batch_plan(
+                    args,
+                    input_size,
+                    device,
+                    batch,
+                    role="search-proxy",
+                )
+            return proxy_batch_plans_by_size[input_size]
+
+        fixed_proxy_batch_plan = (
+            proxy_batch_plan(args.input_size, fixed_batch) if fixed_batch is not None else None
+        )
         bn_recalibration_streams: dict[int, Any] = {}
         if args.bn_recalibration_batches:
             weight_provenance = {
@@ -2063,6 +2337,11 @@ def command_search(args: argparse.Namespace) -> None:
             )
         component_aggregator = None
         az_nas_components = {
+            "az_nas": (
+                ("expressivity", "trainability", "complexity")
+                if space.search_space_id == "autoformer"
+                else ("expressivity", "progressivity", "trainability", "complexity")
+            ),
             "az_nas_autoformer": ("expressivity", "trainability", "complexity"),
             "az_nas_plainnet": (
                 "expressivity",
@@ -2075,20 +2354,33 @@ def command_search(args: argparse.Namespace) -> None:
             "az_nas_autoformer": "autoformer",
             "az_nas_plainnet": "zennas_plainnet_mbv2",
         }
-        if args.aggregator == "az_nas_log_rank":
+        if score_selector.startswith("aggregate:"):
+            aggregate_name = score_selector.split(":", 1)[1]
+            if aggregate_name not in {"az_nas_log_rank", "mean_percentile_rank"}:
+                raise ValueError(f"Unknown score selector {score_selector!r}")
             if args.proxy not in az_nas_components:
                 raise ValueError(
-                    "az_nas_log_rank requires --proxy az_nas_autoformer or az_nas_plainnet"
+                    f"{aggregate_name} requires a component-valued proxy"
                 )
-            from zcp_test.proxies.az_nas import log_rank_aggregate
+            from zcp_test.proxies.scalarizers import aggregate_rank
 
             def component_aggregator(rows: Any) -> list[float]:
-                return log_rank_aggregate(rows, az_nas_components[args.proxy])
-        elif args.proxy in az_nas_components:
+                result = aggregate_rank(
+                    rows,
+                    az_nas_components[args.proxy],
+                    method=aggregate_name,
+                    architecture_ids=[str(index) for index in range(len(rows))],
+                )
+                return list(result.values)
+        elif args.proxy in az_nas_components and not (
+            score_selector.startswith("component:") and args.allow_component_ablation
+        ):
             raise ValueError(
-                f"{args.proxy} requires --aggregator az_nas_log_rank; "
-                "expressivity alone is not the AZ-NAS search score"
+                f"{args.proxy} requires --score-selector aggregate:az_nas_log_rank; "
+                "a single component is only allowed with --allow-component-ablation"
             )
+        if args.proxy == "te_nas" and score_selector != "primary":
+            raise ValueError("te_nas exposes exactly one scalar and requires --score-selector primary")
         expected_az_nas_space = az_nas_spaces.get(args.proxy)
         if expected_az_nas_space and space.search_space_id != expected_az_nas_space:
             raise ValueError(
@@ -2096,7 +2388,9 @@ def command_search(args: argparse.Namespace) -> None:
                 f"it is not defined for {space.search_space_id}"
             )
         search_input_fingerprint = (
-            "per_candidate_input_size" if fixed_batch is None else fixed_batch.fingerprint
+            "per_candidate_input_size"
+            if fixed_proxy_batch_plan is None
+            else fixed_proxy_batch_plan.fingerprint
         )
         search_input_size: int | str = (
             "candidate_resolution" if fixed_batch is None else args.input_size
@@ -2110,6 +2404,7 @@ def command_search(args: argparse.Namespace) -> None:
             "proxy_version": proxy_capability.version,
             "proxy_direction": proxy_capability.direction.value,
             "aggregator": args.aggregator,
+            "score_selector": score_selector,
             "model_initialization_protocol": "architecture-hash-v1",
             "dataset": args.dataset,
             "input_source": args.input_source,
@@ -2124,6 +2419,15 @@ def command_search(args: argparse.Namespace) -> None:
             "model_checkpoint_sha256": weight_provenance.get("model_checkpoint_sha256"),
             "bn_recalibration_fingerprint": weight_provenance.get("bn_recalibration_fingerprint"),
         }
+        if score_selector.startswith("aggregate:"):
+            search_identity.update(
+                {
+                    "aggregation_scope": "current_generation_population",
+                    "aggregation_tie_method": "average",
+                    "aggregation_cohort_digest_protocol": "sorted-architecture-id-sha256-v1",
+                    "aggregation_reranks_each_generation": True,
+                }
+            )
         if space.search_space_id == "ofa_proxyless_mbv2":
             resource_objectives = {"params", "flops"}
             search_identity.update(
@@ -2205,8 +2509,8 @@ def command_search(args: argparse.Namespace) -> None:
             **_args_config(args),
             "input_protocol": (
                 input_resolver.protocol_summary(space.search_space_id)
-                if fixed_batch is None
-                else fixed_batch.protocol
+                if fixed_proxy_batch_plan is None
+                else fixed_proxy_batch_plan.protocol
             ),
             **model_provenance,
             **weight_provenance,
@@ -2264,32 +2568,43 @@ def command_search(args: argparse.Namespace) -> None:
                     return None
                 return {**metadata, "resource_constraints": resource_limits}
 
-            def candidate_input(architecture: Any) -> tuple[Any, dict[str, Any]]:
+            def candidate_input(
+                architecture: Any,
+            ) -> tuple[Any, _ProxyBatchPlan, dict[str, Any]]:
                 batch = input_resolver.resolve(architecture)
-                return batch, {
-                    **input_resolver.metadata(architecture, batch),
-                    "model_initialization_seed": _search_model_seed(
-                        args.seed, architecture.architecture_id
-                    ),
-                    "model_initialization_protocol": "architecture-hash-v1",
-                }
+                plan = proxy_batch_plan(input_resolver.input_size(architecture), batch)
+                return (
+                    batch,
+                    plan,
+                    {
+                        **input_resolver.metadata(architecture, batch),
+                        "input_fingerprint": plan.fingerprint,
+                        "input_protocol": plan.protocol,
+                        "batch_fingerprints": list(plan.batch_fingerprints),
+                        "model_initialization_seed": _search_model_seed(
+                            args.seed, architecture.architecture_id
+                        ),
+                        "model_initialization_protocol": "architecture-hash-v1",
+                    },
+                )
 
             def evaluation_identity(
                 architecture: Any,
             ) -> tuple[str, dict[str, Any]]:
-                batch, metadata = candidate_input(architecture)
+                _batch, plan, metadata = candidate_input(architecture)
                 identity = cache_key(
                     architecture,
                     args.proxy,
                     args.dataset,
                     args.seed,
-                    batch.fingerprint,
+                    plan.fingerprint,
                     proxy_capability.version,
                 )
                 return identity, {**metadata, "evaluation_cache_key": identity}
 
             def evaluator(architecture: Any) -> float | dict[str, float]:
-                batch, input_metadata = candidate_input(architecture)
+                batch, plan, input_metadata = candidate_input(architecture)
+                proxy_inputs, proxy_labels = plan.batches[0]
                 actual_input_size = int(input_metadata["actual_input_size"])
                 _seed_search_model(args.seed, architecture.architecture_id)
                 model = space.build_model(architecture, args.classes)
@@ -2309,21 +2624,53 @@ def command_search(args: argparse.Namespace) -> None:
                         )
                     bn_recalibration = bn_recalibration_streams[actual_input_size]
                     recalibrate_batch_norm(model, bn_recalibration, device=device)
+                edge_activations = None
+                if args.proxy in {"er", "ter"}:
+                    from zcp_test.proxies.edge_adapters import (
+                        capture_semantic_edge_activations,
+                    )
+                    from zcp_test.proxies.isolation import isolated_model
+
+                    with isolated_model(model):
+                        edge_activations = capture_semantic_edge_activations(model, proxy_inputs)
                 result = evaluate_proxy(
                     args.proxy,
                     model,
-                    batch.inputs,
-                    batch.labels,
+                    proxy_inputs,
+                    proxy_labels,
                     loss_fn,
-                    space.model_family,
+                    context=ProxyContext(
+                        inputs=proxy_inputs,
+                        labels=proxy_labels,
+                        loss_fn=loss_fn,
+                        seed=args.seed,
+                        device=str(device),
+                        model_family=space.model_family,
+                        search_space_id=space.search_space_id,
+                        input_fingerprint=plan.fingerprint,
+                        batch_fingerprints=plan.batch_fingerprints,
+                        proxy_batches=args.proxy_batches,
+                        proxy_repetitions=args.proxy_repetitions,
+                        batch_provider=plan.provider,
+                        edge_activations=edge_activations,
+                    ),
                 )
                 if result.status.value != "ok" or result.score is None:
                     raise RuntimeError(
                         result.error_message or "proxy did not return a primary score"
                     )
-                if args.aggregator == "az_nas_log_rank":
+                if score_selector.startswith("aggregate:"):
                     return result.components
-                return result.score if result.direction.value == "maximize" else -result.score
+                if score_selector.startswith("component:"):
+                    from zcp_test.proxies.scalarizers import select_pointwise
+
+                    selected = select_pointwise(
+                        {"score": result.score, "components": result.components},
+                        score_selector,
+                    )
+                else:
+                    selected = result.score
+                return selected if result.direction.value == "maximize" else -selected
 
             if source_aligned_plainnet:
                 assert source_target is not None
@@ -3169,7 +3516,22 @@ def command_legacy(args: argparse.Namespace) -> None:
 
 
 def command_acceptance(args: argparse.Namespace) -> None:
-    from zcp_test.acceptance import reconcile_search_cohort, validate_plainnet_search
+    from zcp_test.acceptance import (
+        plan_adaptive_feasibility_sweep,
+        reconcile_search_cohort,
+        validate_plainnet_search,
+    )
+
+    if args.action == "plan-feasibility":
+        _json(
+            plan_adaptive_feasibility_sweep(
+                total_architectures=args.total_architectures,
+                pilot_architectures=args.pilot_architectures,
+                pilot_seconds=args.pilot_seconds,
+                max_seconds=args.max_seconds,
+            )
+        )
+        return
 
     if args.action == "freeze-candidates":
         _json(
@@ -3399,6 +3761,8 @@ def build_parser() -> argparse.ArgumentParser:
     evaluate.add_argument("--seed", type=int, default=42)
     _add_gpu_arguments(evaluate)
     evaluate.add_argument("--batch-size", type=int, default=4)
+    evaluate.add_argument("--proxy-batches", type=int, default=1)
+    evaluate.add_argument("--proxy-repetitions", type=int, default=1)
     evaluate.add_argument("--input-size", type=int, default=32)
     evaluate.add_argument("--classes", type=int, default=10)
     evaluate.add_argument(
@@ -3416,6 +3780,13 @@ def build_parser() -> argparse.ArgumentParser:
     correlate.add_argument("--id-field", default="architecture_id")
     correlate.add_argument("--score-field", default="score")
     correlate.add_argument("--component")
+    correlate.add_argument(
+        "--score-selector",
+        help=(
+            "primary, component:NAME, aggregate:az_nas_log_rank, or "
+            "aggregate:mean_percentile_rank"
+        ),
+    )
     correlate.add_argument("--target-field", required=True)
     correlate.add_argument(
         "--target-direction", choices=("maximize", "minimize"), default="maximize"
@@ -3435,8 +3806,19 @@ def build_parser() -> argparse.ArgumentParser:
         "--aggregator",
         choices=("primary", "az_nas_log_rank"),
         default="primary",
+        help="deprecated compatibility alias; prefer --score-selector",
     )
+    search.add_argument(
+        "--score-selector",
+        help=(
+            "primary, component:NAME, aggregate:az_nas_log_rank, or "
+            "aggregate:mean_percentile_rank"
+        ),
+    )
+    search.add_argument("--allow-component-ablation", action="store_true")
     search.add_argument("--population", type=int, default=10)
+    search.add_argument("--proxy-batches", type=int, default=1)
+    search.add_argument("--proxy-repetitions", type=int, default=1)
     search.add_argument("--generations", type=int, default=3)
     search.add_argument("--elite-ratio", type=float, default=0.2)
     search.add_argument("--valid-candidates", type=int)
@@ -3639,6 +4021,12 @@ def build_parser() -> argparse.ArgumentParser:
     monitor.set_defaults(function=command_monitor)
     acceptance = subparsers.add_parser("acceptance")
     acceptance_actions = acceptance.add_subparsers(dest="action", required=True)
+    feasibility = acceptance_actions.add_parser("plan-feasibility")
+    feasibility.add_argument("--total-architectures", type=int, required=True)
+    feasibility.add_argument("--pilot-architectures", type=int, required=True)
+    feasibility.add_argument("--pilot-seconds", type=float, required=True)
+    feasibility.add_argument("--max-seconds", type=float, default=600.0)
+    feasibility.set_defaults(function=command_acceptance)
     freeze_candidates = acceptance_actions.add_parser("freeze-candidates")
     freeze_candidates.add_argument("--search-run", required=True)
     freeze_candidates.add_argument(

@@ -403,7 +403,9 @@ def test_cli_registry_lists_and_inspects(capsys):
     cli.main(["proxy", "inspect", "er"])
     proxy = _output(capsys)
     assert proxy["proxy_id"] == "er"
-    assert proxy["primary_component"] == "mean"
+    assert proxy["primary_component"] == "score"
+    assert proxy["requires_edge_activations"] is True
+    assert proxy["requires_topology"] is False
     cli.main(["proxy", "inspect", "params"])
     params = _output(capsys)
     assert params["version"] == "count-v2"
@@ -428,6 +430,15 @@ def test_cli_registry_lists_and_inspects(capsys):
         "source",
         "alias_of",
         "resource_direction",
+        "source_commit",
+        "license",
+        "official_code_available",
+        "protocol_domain",
+        "default_batches",
+        "default_repetitions",
+        "requires_edge_activations",
+        "requires_topology",
+        "formal_use",
     }
     assert all(set(row) == capability_fields for row in matrix)
     assert [row["proxy_id"] for row in matrix] == sorted(
@@ -761,12 +772,12 @@ def test_cli_search_resume_rejects_identity_mismatch(monkeypatch, capsys, tmp_pa
     assert not mismatched_output.exists()
 
 
-def test_cli_search_rejects_approximate_proxy_without_explicit_override(
+def test_cli_search_rejects_aznas_on_unsupported_space(
     monkeypatch, tmp_path
 ):
     monkeypatch.setattr(cli.SPACES, "create", lambda name: _TinyReferenceSpace())
 
-    with pytest.raises(ValueError, match="explicitly exploratory search"):
+    with pytest.raises(ValueError, match="requires --score-selector aggregate:az_nas_log_rank"):
         cli.main([
             "search",
             "--space", "tiny_reference",
@@ -787,9 +798,9 @@ def test_cli_search_rejects_approximate_proxy_without_explicit_override(
 @pytest.mark.parametrize(
     ("proxy", "aggregator", "message"),
     [
-        ("az_nas_autoformer", "primary", "expressivity alone"),
-        ("az_nas_plainnet", "primary", "expressivity alone"),
-        ("params", "az_nas_log_rank", "requires --proxy az_nas_autoformer or az_nas_plainnet"),
+        ("az_nas_autoformer", "primary", "requires --score-selector aggregate:az_nas_log_rank"),
+        ("az_nas_plainnet", "primary", "requires --score-selector aggregate:az_nas_log_rank"),
+        ("params", "az_nas_log_rank", "requires a component-valued proxy"),
     ],
 )
 def test_cli_search_rejects_invalid_proxy_aggregator_pairs_before_run_creation(

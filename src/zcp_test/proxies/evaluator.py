@@ -7,12 +7,34 @@ from typing import Any
 
 from zcp_test.proxies import PROXIES, load_builtin_proxies
 from zcp_test.proxies.isolation import isolated_model
-from zcp_test.types import ProxyOutput, RecordStatus, ScoreResult
+from zcp_test.types import ProxyContext, ProxyOutput, RecordStatus, ScoreResult
 
 
-def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = None, loss_fn: Any = None, model_family: str = "cnn", unsupported_reason: str | None = None) -> ScoreResult:
+def evaluate_proxy(
+    proxy_id: str,
+    model: Any,
+    inputs: Any = None,
+    labels: Any = None,
+    loss_fn: Any = None,
+    model_family: str = "cnn",
+    unsupported_reason: str | None = None,
+    *,
+    context: ProxyContext | None = None,
+) -> ScoreResult:
     load_builtin_proxies()
     proxy = PROXIES.create(proxy_id)
+    context = context or ProxyContext(
+        inputs=inputs,
+        labels=labels,
+        loss_fn=loss_fn,
+        model_family=model_family,
+    )
+    inputs = context.inputs
+    labels = context.labels
+    loss_fn = context.loss_fn
+    model_family = context.model_family
+    if context.proxy_batches <= 0 or context.proxy_repetitions <= 0:
+        raise ValueError("proxy_batches and proxy_repetitions must be positive")
     result_metadata = {
         "proxy_version": proxy.capability.version,
         "direction": proxy.capability.direction,
@@ -21,6 +43,10 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         "source": proxy.capability.source,
         "alias_of": proxy.capability.alias_of,
         "resource_direction": proxy.capability.resource_direction,
+        "source_commit": proxy.capability.source_commit,
+        "license": proxy.capability.license,
+        "protocol_domain": proxy.capability.protocol_domain,
+        "formal_use": proxy.capability.formal_use,
     }
     if unsupported_reason is not None:
         return ScoreResult(
@@ -41,6 +67,8 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         missing_contract.append("labels")
     if proxy.capability.requires_loss_fn and loss_fn is None:
         missing_contract.append("loss_fn")
+    if proxy.capability.requires_edge_activations and context.edge_activations is None:
+        missing_contract.append("edge_activations")
     missing_dependencies = [
         name for name in proxy.capability.dependencies if importlib.util.find_spec(name) is None
     ]
@@ -66,7 +94,7 @@ def evaluate_proxy(proxy_id: str, model: Any, inputs: Any = None, labels: Any = 
         except (ImportError, RuntimeError):
             torch = None
         with isolated_model(model):
-            value = proxy.compute(model, inputs, labels, loss_fn)
+            value = proxy.compute_context(model, context)
         if isinstance(value, ProxyOutput):
             if value.primary_component != proxy.capability.primary_component:
                 raise ValueError(

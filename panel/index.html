@@ -7,195 +7,56 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
   <meta http-equiv="Pragma" content="no-cache">
   <meta http-equiv="Expires" content="0">
-  <meta name="description" content="zcp-test 任务进度、风险与验收证据看板">
-  <title>zcp-test 任务与验收看板</title>
+  <meta name="description" content="代理忠实度审计进度看板">
+  <title>代理忠实度审计</title>
   <link rel="stylesheet" href="styles.css">
+  <script src="data.js" defer></script>
+  <script src="app.js" defer></script>
 </head>
 <body>
-  <a class="skip-link" href="#main-content">跳到主要内容</a>
-
-  <header class="hero" aria-labelledby="page-title">
-    <div class="hero-copy">
-      <p class="eyebrow">ZCP-TEST · DELIVERY CONTROL</p>
-      <h1 id="page-title">任务与验收看板</h1>
-      <p id="project-status" class="muted"></p>
-      <p id="project-purpose" class="hero-purpose"></p>
-      <p id="last-updated" class="muted"></p>
+  <main class="page-shell">
+    <div class="refresh-bar" aria-label="刷新控制">
+      <button id="refresh-data" class="button primary" type="button">立即刷新</button>
+      <button id="auto-refresh-toggle" class="button" type="button" aria-pressed="true">自动刷新：开</button>
+      <label class="interval-control" for="refresh-interval">
+        <span>间隔</span>
+        <select id="refresh-interval">
+          <option value="5">5 秒</option>
+          <option value="15">15 秒</option>
+          <option value="30" selected>30 秒</option>
+          <option value="60">1 分钟</option>
+        </select>
+      </label>
+      <span id="refresh-status" class="refresh-status" role="status" aria-live="polite">自动刷新已开启</span>
     </div>
-    <div class="hero-actions">
-      <div class="refresh-control">
-        <div class="refresh-actions">
-          <button id="refresh-data" class="button refresh-primary" type="button" aria-describedby="refresh-status refresh-countdown">
-            <span aria-hidden="true">↻</span>
-            <span>立即刷新</span>
-          </button>
-          <button id="auto-refresh-toggle" class="button secondary" type="button" aria-pressed="true" aria-describedby="refresh-status refresh-countdown">
-            <span id="auto-refresh-label">自动刷新：开</span>
-          </button>
-          <label class="refresh-interval" for="refresh-interval">
-            <span>间隔</span>
-            <select id="refresh-interval" aria-describedby="refresh-status refresh-countdown">
-              <option value="5">5 秒</option>
-              <option value="15">15 秒</option>
-              <option value="30" selected>30 秒</option>
-              <option value="60">1 分钟</option>
-            </select>
-          </label>
-        </div>
-        <div class="refresh-meta">
-          <span id="refresh-status" class="muted" role="status" aria-live="polite" aria-atomic="true">自动刷新已开启</span>
-          <span aria-hidden="true">·</span>
-          <span id="refresh-success" class="muted">最后成功刷新：页面载入</span>
-          <span aria-hidden="true">·</span>
-          <span id="refresh-checked" class="muted">上次检查：页面载入</span>
-          <span aria-hidden="true">·</span>
-          <span id="refresh-countdown" class="muted">30 秒后检查</span>
-        </div>
-        <p id="refresh-file-hint" class="refresh-file-hint" role="note" hidden>
-          当前通过 <code>file://</code> 打开：页面会先尝试局部更新；若浏览器阻止动态脚本，则保留筛选状态并自动重载页面。
-          为获得稳定的局部刷新，建议在项目根目录运行 <code>python -m http.server 8768 --directory panel</code>，
-          再访问 <code>http://127.0.0.1:8768/</code>。
-        </p>
-      </div>
-      <button id="theme-toggle" class="button secondary" type="button" aria-pressed="false">
-        <span aria-hidden="true">◐</span>
-        <span id="theme-label">切换主题</span>
-      </button>
-    </div>
-  </header>
 
-  <main id="main-content" tabindex="-1">
-    <section aria-labelledby="summary-title">
-      <div class="section-heading compact-heading">
+    <article class="audit-card" aria-labelledby="audit-title">
+      <header class="card-header">
+        <h1 id="audit-title">代理忠实度审计</h1>
+      </header>
+
+      <div class="progress-block">
+        <strong id="audit-percentage" class="percentage">--%</strong>
+        <div id="audit-progress" class="progress-track" role="progressbar" aria-label="审计进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+          <span id="audit-progress-bar"></span>
+        </div>
+      </div>
+
+      <dl class="audit-details">
         <div>
-          <p class="eyebrow">STATUS SNAPSHOT</p>
-          <h2 id="summary-title">状态概览</h2>
+          <dt>当前阶段</dt>
+          <dd id="audit-phase">载入中</dd>
         </div>
-        <p class="muted section-note">选择状态卡可快速筛选任务</p>
-      </div>
-      <div id="summary" class="summary-grid"></div>
-    </section>
-
-    <section class="panel progress-panel" aria-labelledby="progress-title">
-      <div class="section-heading">
         <div>
-          <p class="eyebrow">PROGRESS</p>
-          <h2 id="progress-title">总体完成度</h2>
+          <dt>结论</dt>
+          <dd id="audit-conclusion">正在读取审计状态。</dd>
         </div>
-        <strong id="progress-label" class="progress-label"></strong>
-      </div>
-      <div id="progress-track" class="progress-track" role="progressbar"
-           aria-label="总体完成度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-        <span id="progress-bar"></span>
-      </div>
-      <div id="status-legend" class="legend" aria-label="状态数量"></div>
-    </section>
-
-    <section class="panel live-panel" aria-labelledby="live-status-title">
-      <div class="section-heading">
         <div>
-          <p class="eyebrow">LIVE RUNS</p>
-          <h2 id="live-status-title">实时运行</h2>
+          <dt>预计完成（北京时间）</dt>
+          <dd id="audit-eta">--</dd>
         </div>
-        <span id="live-freshness" class="count-pill" role="status">等待 live.json</span>
-      </div>
-      <p id="live-warning" class="live-warning" role="status" aria-live="polite"></p>
-      <div id="live-status-content" class="live-status-grid">
-        <div class="live-empty">实时状态源尚未加载；静态任务看板仍可正常使用。</div>
-      </div>
-    </section>
-
-    <section class="panel controls-panel" aria-labelledby="filters-title">
-      <div class="section-heading compact-heading">
-        <div>
-          <p class="eyebrow">FILTERS</p>
-          <h2 id="filters-title">筛选与搜索</h2>
-        </div>
-        <span id="filter-summary" class="muted" aria-live="polite"></span>
-      </div>
-      <form id="filters" class="controls" role="search">
-        <label class="search-field">
-          <span>关键词</span>
-          <input id="search" type="search" autocomplete="off"
-                 placeholder="搜索内容、目的、风险、证据或任务编号">
-        </label>
-        <label>
-          <span>状态</span>
-          <select id="status-filter"><option value="all">全部状态</option></select>
-        </label>
-        <label>
-          <span>阶段</span>
-          <select id="phase-filter"><option value="all">全部阶段</option></select>
-        </label>
-        <label>
-          <span>优先级</span>
-          <select id="priority-filter"><option value="all">全部优先级</option></select>
-        </label>
-        <label>
-          <span>排序</span>
-          <select id="sort-order">
-            <option value="priority">优先级</option>
-            <option value="status">状态</option>
-            <option value="phase">阶段</option>
-            <option value="updated">最近更新</option>
-          </select>
-        </label>
-        <button id="reset-filters" class="button" type="reset">重置</button>
-      </form>
-    </section>
-
-    <section class="panel" aria-labelledby="tasks-title">
-      <div class="section-heading">
-        <div>
-          <p class="eyebrow">WORK ITEMS</p>
-          <h2 id="tasks-title">工作清单</h2>
-        </div>
-        <span id="visible-count" class="muted" aria-live="polite"></span>
-      </div>
-      <div class="task-table-head" aria-hidden="true">
-        <span>编号</span><span>任务</span><span>目的与进展</span><span>时间</span><span>状态</span>
-      </div>
-      <div id="task-board" class="task-board"></div>
-    </section>
-
-    <section class="two-column" aria-label="风险与证据">
-      <article class="panel" aria-labelledby="risks-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">RISKS</p>
-            <h2 id="risks-title">阻断与风险</h2>
-          </div>
-          <span id="risk-count" class="count-pill"></span>
-        </div>
-        <div id="risk-list" class="risk-list"></div>
-      </article>
-      <article class="panel" aria-labelledby="evidence-title">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">ACCEPTANCE EVIDENCE</p>
-            <h2 id="evidence-title">验收证据</h2>
-          </div>
-          <span id="evidence-count" class="count-pill"></span>
-        </div>
-        <ol id="evidence-list" class="timeline"></ol>
-      </article>
-    </section>
+      </dl>
+    </article>
   </main>
-
-  <dialog id="task-dialog" aria-labelledby="dialog-title">
-    <div class="dialog-header">
-      <div>
-        <p id="dialog-kicker" class="eyebrow"></p>
-        <h2 id="dialog-title"></h2>
-      </div>
-      <button id="dialog-close" class="icon-button" type="button" aria-label="关闭任务详情">×</button>
-    </div>
-    <div id="dialog-content"></div>
-  </dialog>
-
-  <div id="announcer" class="sr-only" aria-live="polite"></div>
-  <noscript><p class="noscript">此看板需要启用 JavaScript 才能加载任务数据。</p></noscript>
-  <script src="data.js"></script>
-  <script src="app.js"></script>
 </body>
 </html>

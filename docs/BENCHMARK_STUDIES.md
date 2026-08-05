@@ -50,9 +50,8 @@ sample-local one-operation or one-edge edits using indexed signatures rather tha
 scan. `budget_structure_controlled.png/svg` and `budget_neighborhood_agreement.png/svg` make the
 controlled and local-edit results directly comparable across budgets. These controls and neighborhood contrasts are benchmark-driven project extensions, not
 causal claims reproduced directly from the NAS-Bench-101 paper. Analysis defaults to each proxy's
-declared `primary_component`, so ER uses `mean` without also treating `sum` as another proxy.
-Use `--component sum` only for an explicit ER auxiliary-component study; it excludes proxies that
-do not expose a component with that name.
+declared `primary_component`; current ER exposes only `score`. Historical ER `mean/sum` records are
+read-only superseded artifacts and are excluded from current formal summaries.
 
 ## Topology and size
 

@@ -183,11 +183,14 @@ class TinyNetwork(nn.Module):
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.classifier = nn.Linear(previous, num_classes)
 
-    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+    def forward_pre_GAP(self, inputs: torch.Tensor) -> torch.Tensor:
         features = self.stem(inputs)
         for cell in self.cells:
             features = cell(features)
-        features = self.pool(self.last_activation(features)).flatten(1)
+        return self.last_activation(features)
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        features = self.pool(self.forward_pre_GAP(inputs)).flatten(1)
         return self.classifier(features)
 
 

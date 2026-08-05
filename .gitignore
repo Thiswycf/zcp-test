@@ -19,6 +19,7 @@ dist/
 *.tar
 *.tar.gz
 *.part
+docs/26 CVPR Vision-Oriented Lightweight NAS.pdf
 *.invalid-*
 *.bin
 *.sqlite3

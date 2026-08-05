@@ -166,7 +166,7 @@ def test_params_and_flops_separate_accuracy_and_resource_directions():
 def test_proxy_state_isolation_removes_injected_buffers():
     model = torch.nn.Sequential(
         torch.nn.Conv2d(3, 4, 3, padding=1),
-        torch.nn.SiLU(),
+        torch.nn.ReLU(),
         torch.nn.AdaptiveAvgPool2d(1),
         torch.nn.Flatten(),
         torch.nn.Linear(4, 3),
@@ -191,7 +191,7 @@ def test_synflow_uses_float64_for_deep_models_and_restores_dtype():
 
     assert result.status.value == "ok"
     assert result.score is not None and math.isfinite(result.score)
-    assert result.proxy_version == "double-v2"
+    assert result.proxy_version == "zero-cost-nas-b5059bc"
     assert all(parameter.dtype == torch.float32 for parameter in model.parameters())
     assert all(torch.equal(before[name], value) for name, value in model.state_dict().items())
     assert PROXIES.create("synflow").capability.requires_data is False
@@ -224,7 +224,7 @@ def test_unsupported_multicomponent_proxy_preserves_declared_primary_component()
     )
 
     assert result.status.value == "unsupported"
-    assert "labels, loss_fn" in result.error_message
+    assert "StaticAutoFormer and AZPlainNetMobileNetV2" in result.error_message
     assert result.primary_component == "expressivity"
 
 
@@ -289,11 +289,16 @@ def test_input_independent_proxy_runs_without_tensor(monkeypatch):
 
 def test_builtin_loss_contracts_are_explicit():
     load_builtin_proxies()
-    for proxy_id in ("gradnorm", "zico", "te_nas", "az_nas"):
+    for proxy_id in ("gradnorm", "zico"):
         capability = PROXIES.create(proxy_id).capability
         assert capability.requires_inputs is True
         assert capability.requires_labels is True
         assert capability.requires_loss_fn is True
+    for proxy_id in ("te_nas", "az_nas"):
+        capability = PROXIES.create(proxy_id).capability
+        assert capability.requires_inputs is True
+        assert capability.requires_labels is False
+        assert capability.requires_loss_fn is False
     assert PROXIES.create("params").capability.requires_inputs is False
 
 
@@ -306,19 +311,31 @@ def test_all_builtin_proxies_have_finite_cpu_contracts_and_provenance():
     labels = torch.tensor([0, 1, 2, 0])
     for proxy_id in PROXIES.names():
         capability = PROXIES.create(proxy_id).capability
+        context = None
+        if proxy_id in {"er", "ter"}:
+            from zcp_test.proxies.edge_adapters import capture_semantic_edge_activations
+            from zcp_test.types import ProxyContext
+
+            context = ProxyContext(
+                inputs=inputs,
+                labels=labels,
+                loss_fn=torch.nn.CrossEntropyLoss(),
+                model_family="cnn",
+                edge_activations=capture_semantic_edge_activations(model, inputs),
+            )
         result = evaluate_proxy(
             proxy_id,
             model,
             inputs,
             labels,
             torch.nn.CrossEntropyLoss(),
+            context=context,
         )
         if "cnn" not in capability.model_families:
             assert result.status.value == "unsupported"
             continue
-        if proxy_id == "az_nas_plainnet":
+        if proxy_id in {"az_nas", "az_nas_plainnet"}:
             assert result.status.value == "unsupported"
-            assert "AZPlainNetMobileNetV2" in (result.error_message or "")
             continue
         assert result.status.value == "ok", (proxy_id, result.error_message)
         assert result.score is not None and math.isfinite(result.score)
@@ -623,10 +640,15 @@ def test_rank_aggregated_evolution_records_components_and_resumes(tmp_path):
     first.run(1)
     rows = list(read_jsonl(tmp_path / "rank-first.jsonl"))
     candidate_rows = [row for row in rows if row["record_kind"] == "candidate"]
+    summary_rows = [row for row in rows if row["record_kind"] == "generation_summary"]
 
     assert candidate_rows
     assert all(set(row["components"]) == {"expressivity", "trainability", "complexity"} for row in candidate_rows)
     assert all(math.isfinite(row["score"]) for row in candidate_rows)
+    assert all(row["cohort_size"] == 4 for row in summary_rows)
+    assert all(len(row["cohort_digest"]) == 64 for row in summary_rows)
+    assert all(row["tie_method"] == "average" for row in summary_rows)
+    assert all(row["rerank_scope"] == "current_generation_population" for row in summary_rows)
 
     resumed = EvolutionSearch(
         space,

@@ -8,36 +8,42 @@ reproduction or formal benchmark accuracy.
 
 | Area | Recorded evidence | Status | What it establishes |
 |---|---|---|---|
-| Unit/integration baseline | Current 2026-08-05 tree: **599 tests passed** across 38 files | Passed | Full pytest, Ruff, compileall, pip check, Bash syntax, JSON validation, and diff checks passed; panel consistency is rechecked separately after its parallel update; four upstream THOP `distutils` deprecation warnings remain non-failing |
+| Unit/integration baseline | 2026-08-05 current tree: **656 tests passed across 44 files** | Passed | Full pytest completed with four non-failing THOP deprecation warnings |
 | Static quality gates | Ruff, compileall, pip check, repository hygiene, panel check, and `git diff --check` all passed | Passed | Syntax, dependencies, panel validation, and basic repository hygiene; not scientific correctness |
-| Coverage | First-party source **87%**; CLI **82%**, analysis 93%, proxy studies 94%, and the ImageNet16 converter 83% | Passed | Meets the planned aggregate 85% and critical-module gates; native-data contracts still require separate real-data evidence |
-| Proxy sweep | Acceptance sweep included **22 registered proxies** | Partial evidence | Registry coverage and explicit status handling, not numerical reproduction on every model family |
-| H1 one-percent correlations | NB101, NB201, NATS-TSS, three-dataset NATS-SSS and the NB301 deterministic surrogate completed their scoped protocols | In progress overall | NATS-SSS transfer covers one stratified sample and one input/initialization seed; TNB101 and formal ViT-Bench remain |
+| Coverage | Current source coverage **87.14%**; CLI 81.73%, evaluator 88.89%, search evolution 86.53%, JSONL 87.93% | Passed | Meets the 85% project target and 80% critical-module targets; real-data evidence remains separate |
+| Proxy registry | Current registry has **23 IDs**; five legacy IDs are retired | Implementation scope | Registry membership is not numerical reproduction or search-space coverage |
+| Formal proxy sweep | Pilot-derived 600-second adaptive plan: 1%, 1‰, 1‱, then one architecture | Planned per run | Feasibility only; every plan records `coverage_claim=false` |
+| Current feasibility sweep | NB201: 2 architectures × 11 repaired proxies, 22/22 ok; AutoFormer: 5 architectures × AC/HI/HC/DSS, 20/20 ok | Passed | NB201 selected 1‱ from the measured pilot and completed an 11-row canonical-ID correlation join; sample sizes are not scientific estimates |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`: `completed`, one synthetic epoch, checkpoints written | Passed smoke | DARTS construction, optimizer/AMP path, training JSONL and checkpoint writing on an RTX 4090 |
 | DARTS CIFAR dual one-percent | Three candidates on CIFAR-10/100: six full-data × 6-epoch runs and six 1%-data × 600-epoch runs; deterministic preflight, two recovery audits, and reporting complete | Scoped protocol passed | Engineering/scoped acceptance only; not 600-epoch full-data accuracy reproduction or multi-seed search gain, and the protocols must not be averaged |
-| Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A 10-architecture, three-proxy pipeline completed; it is not the 22-proxy sweep artifact |
+| Evaluation smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`: `completed` | Historical smoke | A superseded-version pipeline completed; it is not current registry coverage |
 | Legacy AutoFormer search/freeze evidence | The pre-policy AZ-NAS `3×8,000` cohort is reconciled: 24,000 candidates, 23,999 unique evaluations, and one cache hit | Historical evidence only | It does not define the current approximately-one-percent engineering search gate; only the single `zcp-selected` enters engineering training acceptance |
 | AutoFormer candidate smokes | All three frozen candidates completed batch-256 synthetic memory, atomic-checkpoint, and trusted checkpoint-load/resume smokes | Smoke passed | Construction, memory, optimizer/checkpoint, and recovery plumbing only; random-input accuracy is meaningless and is not ImageNet evidence |
 | AutoFormer selected-candidate real dual one-percent V2 | `zcp-selected` completed full-data 5 epochs and one-percent-data 500 epochs with 5/500 rows, terminal manifests, and last/best checkpoints | **Scoped protocol passed** | Baseline tasks 5/6 were policy-interrupted and excluded; this proves implementation readiness, not full-data paper accuracy or search gain |
 
-The current full gate executes and passes 599 tests across 38 files. First-party source coverage of
-87% and CLI coverage of 82% remain from the latest retained coverage run. Ruff, compileall, pip check,
-Bash syntax, panel validation, JSON validation, and `git diff --check` pass; four THOP `distutils`
-deprecation warnings are non-failing. Machine-readable summaries and checksums for the real NB201 and
-NATS-TSS sweeps are tracked under `docs/evidence/`; raw JSONL, plots and checkpoints remain in the
-external audit root. Under Conda, coverage is invoked as `python -m coverage`; a host `coverage`
-entry point may carry the wrong Python shebang.
+Numeric test, coverage, and sweep summaries under `docs/evidence/**` describe superseded versions.
+They remain immutable for auditability but must not be presented as current-tree results. Current
+claims require a new run. Historical sibling audit directories were removed to keep the final
+delivery self-contained; only the small, sanitized evidence committed under `docs/evidence/`
+remains, and raw runs must be regenerated with the documented commands.
+The current compact record is `docs/evidence/adaptive_feasibility_20260805.json`. Unlike the older
+fixed-percentage artifacts, it records `coverage_claim=false`, measured pilot times, selected tiers,
+and checksums; its two-point correlation output is plumbing evidence only.
+The current compact feasibility record is `docs/evidence/adaptive_feasibility_20260805.json`; unlike
+the older fixed-percentage artifacts, it explicitly records `coverage_claim=false` and the measured
+pilot used to choose each tier.
 
 ## Proxy sweep scope
 
-The 22 names are `az_nas`, `er`, `er_conn`, `er_deg`, `er_dist`, `er_pr`, `flops`, `gradnorm`,
-`jacob_cov`, `meco`, `meco_opt`, `naswot`, `near`, `ntkt`, `params`, `swap`, `synflow`, `te_nas`,
-`ter`, `vkdnw`, `zen`, and `zico`.
+The active registry contains 23 IDs: `ac`, `az_nas`, `az_nas_autoformer`, `az_nas_plainnet`,
+`dss`, `er`, `flops`, `gradnorm`, `hc`, `hi`, `jacob_cov`, `meco`, `meco_opt`, `naswot`, `near`,
+`params`, `swap`, `synflow`, `te_nas`, `ter`, `vkdnw`, `zen`, and `zico`. `ntkt`, `er_pr`,
+`er_conn`, `er_deg`, and `er_dist` are retired.
 
-A sweep means each name was exercised through the common evaluator and produced an explicit
-`ok`, `unsupported`, or `failed` outcome. It does not mean every proxy supports every model
-family, every `portable-v1` implementation matches its paper numerically, or all scores have been
-validated against standard answers.
+Formal acceptance no longer fixes a one-percent sample or claims registry coverage. Time a pilot,
+run `zcp-test acceptance plan-feasibility ... --max-seconds 600`, and execute the selected 1%, 1‰,
+1‱, or one-architecture tier. The planner always records `coverage_claim=false`. Old sweeps remain
+read-only superseded-version evidence.
 
 On 2026-08-04, `meco` and `meco_opt` were corrected against the authors' fixed commit `0d830dd`.
 The former `portable-v1` implementation computed a cross-batch activation log-determinant and
@@ -69,8 +75,9 @@ The scoped NAS-Bench-101 H1 evidence is recorded in
 [`evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) and
 [`evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json). It covers
 4,237 stratified architectures, all 22 proxies at seed 2026, the core 11 proxies at three seeds,
-and 4/12/36/108-epoch repeat `mean/min/max` studies. TE-NAS `portable-v2` remains an approximation,
-and the evidence must not be extrapolated to all 423,624 architectures.
+and 4/12/36/108-epoch repeat `mean/min/max` studies. The proxy versions in that artifact are
+superseded; the evidence must not be extrapolated to all 423,624 architectures or treated as
+current registry coverage.
 
 The locked NAS-Bench-301 evidence is recorded in
 [`evidence/NB301_ONE_THOUSAND_CN.md`](evidence/NB301_ONE_THOUSAND_CN.md) and
@@ -221,10 +228,13 @@ deterministic/noisy modes are distinct. ViT-Bench metrics may be **scratch**, di
 
 ## Known partial acceptance
 
-- The retained evaluation covers 3 proxies, not 22, and uses an older 40-row component-long score
+Fixed fractions, proxy counts, and row counts in this section are read-only results from superseded
+versions. Their original values are preserved, but they do not establish coverage of the current
+23-ID registry, current formulas, or the adaptive feasibility protocol.
+
+- The retained evaluation covers an old three-proxy set and uses an older 40-row component-long score
   schema rather than the current one-row-plus-components layout.
-- Only the registry count, not the dedicated 22-proxy sweep artifact, is independently reproducible
-  from the current tree.
+- The dedicated old sweep artifact is not current-tree registry coverage.
 - The source-pinned `az_nas_autoformer` port captures attention/MLP residual features and computes
   expressivity, trainability, official complexity, and three-component log-rank aggregation. Its
   two-candidate ImageNet-224 GPU smoke writes two candidates plus one summary and resumable component
@@ -342,13 +352,12 @@ layerwise numerical parity are unavailable.
 
 ## Official ZCP implementation audit (2026-08-05)
 
-The 24 legacy IDs and the new `dss` ID were checked against source-pinned author repositories or,
-where none exists, the paper formula. The outcome is deliberately not reported as an all-pass:
-`gradnorm/near/swap/zen/ntkt/zico/ter` are known incorrect legacy implementations, generic `te_nas`
-and `az_nas` are misnamed approximations, and `synflow/naswot/jacob_cov` are only partial ports.
-No author code was found for NEAR or NTKT.
+The current registry has 23 IDs after retiring `ntkt` and four `er_*` extensions. The CVPR 2026
+paper and its CVF URL exist, but official `tf-nas@58e3806` is an unlicensed placeholder. `ac/hi/hc`
+are ACL 2023 official `2d76e01` cross-domain ViT ports, not exact CVPR reproductions. `dss` is the
+CVPR 2022 DSS port; DSS++ remains unimplemented because official code and an exact public protocol
+are unavailable.
 
-The new Transformer-only `dss` is an independent TF-TAS formula/code-protocol port tested on static
-AutoFormer and PiT. The inspected upstream has no software license, so no source was copied. The
-requested AC/HI/HC/DSS++ set is ambiguous, contains only four written names, and has no DSS++ entry
-in the target source; no proxy was invented. See [`PROXY_OFFICIAL_AUDIT.md`](PROXY_OFFICIAL_AUDIT.md).
+ER consumes semantic-edge 4-D activations; TER additionally consumes directed endpoints. TE-NAS
+is the `TER-Score@a646c5a` RN-minus-NTK-condition scalar. Formal AZ-NAS cohort scoring uses log-rank.
+Full provenance and fidelity boundaries are in [`PROXY_OFFICIAL_AUDIT.md`](PROXY_OFFICIAL_AUDIT.md).

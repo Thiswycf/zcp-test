@@ -149,6 +149,9 @@ params/FLOPs-matched baseline 的任务不再获得启动授权，必须取消�
 
 `evaluate` 和 `search` 默认 `--input-source dataset`，必须提供 `--data-root` 或有效的
 `dataset_<name>` catalog asset。真实数据缺失时直接失败，不会自动改用随机输入。
+这里的 `--data-root` 指向所选**训练数据集自身根目录**，不是 benchmark 资产总目录：CIFAR-10
+应传 `/path/to/data/cifar10`，ImageNet 应传 `/path/to/data/ImageNet1k`；标准答案文件由
+`--benchmark-path` 或 catalog 独立解析。
 
 - **standard answer**：带 dataset/split/budget/seed 协议的 benchmark 发布记录；
 - **surrogate**：例如 NAS-Bench-301 的模型预测，不是完整训练观测；
@@ -156,6 +159,21 @@ params/FLOPs-matched baseline 的任务不再获得启动授权，必须取消�
 - **scratch**：架构独立从头训练得到的指标。
 
 四类结果不得混合，NAS-Bench-201 真值也不能替代 NATS-TSS 真值。
+
+代理协议身份还必须记录 `--proxy-batches`、`--proxy-repetitions` 和 `--score-selector`。
+AZ-NAS 正式多组件排序使用 `aggregate:az_nas_log_rank`；`component:NAME` 只用于显式消融；
+`te_nas` 只暴露 RN 减 NTK condition 的主标量。
+
+正式 sweep 前先测代表性 pilot，再按 600 秒上限规划：
+
+```bash
+zcp-test acceptance plan-feasibility \
+  --total-architectures TOTAL --pilot-architectures PILOT_N \
+  --pilot-seconds PILOT_SECONDS --max-seconds 600
+```
+
+规划器依次尝试 1%、1‰、1‱，必要时降为 1 个架构，并始终返回 `coverage_claim=false`。
+它只证明时间可行性，不证明覆盖。旧固定 1% 运行及 `docs/evidence/**` 保持只读，属于已撤销版本证据。
 
 ## RUN 目录
 
@@ -291,11 +309,11 @@ zcp-test benchmark inspect nats_sss --catalog "$CATALOG" --trusted \
   --epoch-budget 90 --metric-seed-reduction mean
 ```
 
-四个 shard 应分别启动，下面只展示 `--sample-shard 0`。正式 22 代理和核心 11 代理列表应沿用
-锁定验收协议，不要把示例变量中的代理集合当作新的协议定义。
+四个 shard 应分别启动，下面只展示 `--sample-shard 0`。旧 manifest 与旧代理集合只能用于只读复核；
+新运行使用当前 23 ID，并重新生成协议身份，不能把旧行数解释为当前覆盖。
 
 ```bash
-PROXIES=az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico
+PROXIES=ac,az_nas,az_nas_autoformer,az_nas_plainnet,dss,er,flops,gradnorm,hc,hi,jacob_cov,meco,meco_opt,naswot,near,params,swap,synflow,te_nas,ter,vkdnw,zen,zico
 MANIFEST="$AUDIT/sampling/nats-sss-1pct-seed2026.json"
 
 # CIFAR-100 dataset-specific ZCP：输入和 benchmark target 都是 CIFAR-100。
@@ -579,7 +597,7 @@ zcp-test benchmark sample transnasbench101 --catalog "$CATALOG" \
 
 架构 1% manifest 保存 `search_space_id`、micro/macro variant、原始标准答案 SHA-256 和转换文件
 SHA-256；它与输入 split fidelity 相互独立。下面的 class-object micro **contract-input** 示例产生
-`41 × 22 = 902` 行，每个“架构 × 代理”一行，但在缺少作者 24-building split/config 时不得标为
+`41 × 23 = 943` 行，每个“架构 × 代理”一行，但在缺少作者 24-building split/config 时不得标为
 正式 TransNAS H1：
 
 ```bash
@@ -589,7 +607,7 @@ zcp-test evaluate --benchmark transnasbench101 \
   --dataset class_object --target-split valid --target-metric valid_top1 \
   --epoch-budget 25 --target-direction maximize --metric-seed-reduction mean \
   --input-source dataset --batch-size 2 --input-size 256 --classes 75 \
-  --proxies az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico \
+  --proxies ac,az_nas,az_nas_autoformer,az_nas_plainnet,dss,er,flops,gradnorm,hc,hi,jacob_cov,meco,meco_opt,naswot,near,params,swap,synflow,te_nas,ter,vkdnw,zen,zico \
   --seed 2026 --gpu auto --output "$AUDIT/runs/transnas-micro-class-object"
 ```
 
@@ -804,7 +822,7 @@ zcp-test data register dataset_cifar100 /path/to/cifar100 \
 main 单 seed 示例：
 
 ```bash
-PROXIES=az_nas,er,er_conn,er_deg,er_dist,er_pr,flops,gradnorm,jacob_cov,meco,meco_opt,naswot,near,ntkt,params,swap,synflow,te_nas,ter,vkdnw,zen,zico
+PROXIES=ac,az_nas,az_nas_autoformer,az_nas_plainnet,dss,er,flops,gradnorm,hc,hi,jacob_cov,meco,meco_opt,naswot,near,params,swap,synflow,te_nas,ter,vkdnw,zen,zico
 zcp-test evaluate --benchmark vitbench101 --slice-id autoformer_main \
   --catalog "$CATALOG" \
   --sample-manifest "$AUDIT/sampling/vitbench-autoformer_main-minimum5-seed2026.json" \
@@ -816,9 +834,8 @@ zcp-test evaluate --benchmark vitbench101 --slice-id autoformer_main \
   --output "$AUDIT/runs/vitbench-autoformer-main-preacceptance"
 ```
 
-预期核心 22 个迁移代理产生 5×22=`110` 行：`az_nas_autoformer` 是开放 AutoFormer 专用的第 23 个
-显式代理，不纳入旧 22-proxy 兼容 sweep。当前支持矩阵为 80 `ok`、30 `unsupported`、0 `failed`。CLI 分别打印
-`succeeded/failed/unsupported/skipped/non_ok`。切换 extension 时目标使用 `accuracy_kd`；PiT 可用
+这里保留的旧行数与支持矩阵只对应已撤销 proxy 版本，不能用于当前 23 ID。新运行必须按模型族能力
+生成 `ok/failed/unsupported/skipped/non_ok`，不得预设覆盖数量。切换 extension 时目标使用 `accuracy_kd`；PiT 可用
 `accuracy_vanilla` 或 `accuracy_kd`，不能查询 ImageNet inherited。
 
 ```bash
@@ -875,7 +892,7 @@ zcp-test search --config configs/search/plainnet_mbv2_source_aligned.yaml \
   --output /path/to/runs/search/plainnet-aznas-450m
 ```
 
-可将 `450m` 改为 `600m` 或 `1g`。项目默认配置现使用显式
+可将 `450m` 改为 `600m` 或 `1g`。已撤销旧版本的配置使用显式
 `source_budget_protocol=one_percent_acceptance`：每档 1,000 个有效候选（上游 100k 的 1%）、batch
 64、resolution 224、ImageNet-1k 随机输入、四组件 `az_nas_log_rank` 和独立 scratch 初始化。结果记录
 `search_budget_fraction=0.01` 和截断 fidelity，不得称为 AZ-NAS 完整搜索复现。
@@ -895,8 +912,8 @@ API 暂停；state 必须保持 `running`、不得出现 `search_summary`，并�
 测得完整 100k 的 CPU rerank 保守累计估计约 15,166 秒。该估计解释了工程验收改用显式 1% 预算；
 它不是 1,000 候选任务的完成证据。
 
-1% 后台验收使用单目标 immutable launcher；每个目标声明一张 GPU UUID，三档可在三张卡上互不
-共享 state 地并行：
+以下 1% 后台 launcher 属于已撤销固定比例协议，只用于只读复核历史 artifact，不是当前正式可行性
+gate；每个目标声明一张 GPU UUID，三档可在三张卡上互不共享 state 地并行：
 
 ```bash
 export CUDA_DEVICE_ORDER=PCI_BUS_ID

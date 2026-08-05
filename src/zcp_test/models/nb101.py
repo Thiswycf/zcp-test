@@ -84,29 +84,48 @@ class Module(nn.Module):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         states = [inputs]
         output_inputs = []
+        captured = getattr(self, "_edge_activation_capture", None)
+        prefix = getattr(self, "_edge_activation_prefix", "nb101")
         for target in range(1, len(self.matrix) - 1):
             incoming = []
             for source in range(target):
                 if not self.matrix[source][target]:
                     continue
                 if source == 0:
-                    incoming.append(self.input_projections[str(target)](states[0]))
+                    edge_value = self.input_projections[str(target)](states[0])
                 else:
-                    incoming.append(states[source][:, : self.channels[target]])
+                    edge_value = states[source][:, : self.channels[target]]
+                incoming.append(edge_value)
+                if captured is not None:
+                    captured.append((f"{prefix}:{source}", f"{prefix}:{target}", edge_value))
             if not incoming:
                 raise RuntimeError(f"NAS-Bench-101 vertex {target} has no input")
             value = incoming[0] if len(incoming) == 1 else torch.stack(incoming).sum(0)
             states.append(self.vertex_operations[str(target)](value))
             if self.matrix[target][-1]:
                 output_inputs.append(states[target])
+                if captured is not None:
+                    captured.append(
+                        (f"{prefix}:{target}", f"{prefix}:{len(self.matrix) - 1}", states[target])
+                    )
         if output_inputs:
             output = output_inputs[0] if len(output_inputs) == 1 else torch.cat(output_inputs, dim=1)
             if self.output_projection is not None:
-                output = output + self.output_projection(inputs)
+                projected = self.output_projection(inputs)
+                output = output + projected
+                if captured is not None:
+                    captured.append(
+                        (f"{prefix}:0", f"{prefix}:{len(self.matrix) - 1}", projected)
+                    )
             return output
         if self.output_projection is None:
             raise RuntimeError("NAS-Bench-101 output is disconnected")
-        return self.output_projection(inputs)
+        projected = self.output_projection(inputs)
+        if captured is not None:
+            captured.append(
+                (f"{prefix}:0", f"{prefix}:{len(self.matrix) - 1}", projected)
+            )
+        return projected
 
 
 class Network(nn.Module):

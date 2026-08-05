@@ -7,49 +7,32 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-08-05 当前工作树：**599 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
+| 单元/集成基线 | 2026-08-05 当前树：**44 个测试文件、656 项测试全部通过** | 通过 | 全量 pytest 仅有 4 条 THOP 上游弃用警告，不影响结果 |
 | 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
-| 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
-| H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
+| 覆盖率 | 当前 source **87.14%**；CLI 81.73%、evaluator 88.89%、search evolution 86.53%、JSONL 87.93% | 通过 | 达到全仓 85% 与关键模块 80% 门槛；真实数据证据仍单独判定 |
+| 当前代理 registry | 23 个 ID，5 个 legacy ID 已删除 | 实现范围 | 注册成员不等于数值复现或搜索空间覆盖 |
+| 正式 proxy sweep | pilot 推导的 600 秒自适应 1%/1‰/1‱/单架构计划 | 每次运行单独规划 | 仅证明时间可行；始终 `coverage_claim=false` |
+| 当前可行性重跑 | NB201：2 架构 × 11 个修复代理，22/22 成功；AutoFormer：5 架构 × AC/HI/HC/DSS，20/20 成功 | 通过 | NB201 由 pilot 选择 1‱ 并完成 11 行 canonical-ID join；样本量不足以解释代理质量 |
 | DARTS smoke | `runs/training/20260729T055707Z_6737dcdb935c`：`completed`，1 个合成 epoch，写出 checkpoint | smoke 通过 | RTX 4090 上的 DARTS 构模、optimizer/AMP、training JSONL 和 checkpoint 写入 |
 | DARTS CIFAR 双重 1% | CIFAR-10/100 三候选：全数据 × 6 epoch 共 6 runs；1% 数据 × 600 epoch 共 6 runs；确定性预检、两次恢复审计和报告完成 | **限定协议通过** | 关闭工程与限定协议验收；不是 600 epoch 全数据精度复现或多 seed 搜索收益，两个协议不得平均 |
-| Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 10 架构、3 代理流水线完成；它不是 22-proxy sweep 产物 |
+| Evaluate smoke | `runs/evaluate/20260729T055018Z_aa69ffaeb008`：`completed` | 仅历史 smoke | 已撤销版本流水线完成；不证明当前 registry 覆盖 |
 | AutoFormer 历史搜索与冻结 | 政策生效前的 AZ-NAS `3×8,000` cohort 已 reconcile：24,000 candidates、23,999 unique evaluations、1 cache hit | 仅历史证据 | 不定义当前约 1% 的搜索工程 gate；工程训练验收只使用唯一 `zcp-selected` |
 | AutoFormer 三候选 smoke | 三个冻结候选均完成 batch 256 synthetic memory smoke、原子 checkpoint 与可信 checkpoint-load/resume smoke | smoke 通过 | 证明构模、显存、optimizer/checkpoint 与恢复路径；随机输入精度无意义，不是 ImageNet 训练证据 |
 | AutoFormer 单候选 real dual-1% V2 | `zcp-selected` 完成 full-data 5 epoch 与 one-percent-data 500 epoch，分别为 5/500 行，均有 terminal manifest、`last.pt` 与 `best.pt` | **限定协议通过** | task 5/6 基线因违反新政策而中止并排除；只证明实现、调度和恢复就绪，不是 500-epoch 全数据论文精度或搜索收益 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-当前完整 gate 实际执行并通过 599 tests（38 个测试文件）。第一方 source coverage 87%、CLI
-coverage 82% 仍来自最近一次保留的 coverage gate；Ruff、compileall、pip check、Bash 语法、看板、
-JSON 与 `git diff --check` 均通过，仅有 4 条来自 THOP 上游 `distutils` 的非失败弃用警告。
-NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
-`scores.jsonl` SHA、失败键和相关性摘要见
-[`evidence/NB201_ONE_PERCENT_22ZCP_CN.md`](evidence/NB201_ONE_PERCENT_22ZCP_CN.md)。原始 score 留在
-外部审计目录，不进入 Git。Conda 下 coverage 必须使用
-`python -m coverage`，避免系统 `coverage` shebang 误用 base Python。
-
-核心 11 代理的 seed 2027/2028 也已完成；与 seed 2026 合并后为 5,181 行、5,172 成功、9 失败、
-0 重复键。三 seed Spearman、跨 seed 排名稳定性、八个新增 run 和 score SHA 见
-[`evidence/NB201_CORE_THREE_SEED_CN.md`](evidence/NB201_CORE_THREE_SEED_CN.md)。这只关闭 NB201
-既定 seed 子项，H1 仍等待其余 benchmark。
+`docs/evidence/**` 中测试、coverage、旧 sweep 行数与相关性摘要均对应已撤销版本，原数值保持只读。
+它们可用于追溯旧运行，不能作为当前工作树、当前 23 ID 或当前公式版本的通过证明。当前结论必须重跑。
 
 ## 代理 ID 的口径
 
-registry 当前有 24 个可调用 ID；历史 sweep 的 22 个名称为 `az_nas`、`er`、`er_conn`、`er_deg`、`er_dist`、`er_pr`、`flops`、`gradnorm`、
-`jacob_cov`、`meco`、`meco_opt`、`naswot`、`near`、`ntkt`、`params`、`swap`、`synflow`、
-`te_nas`、`ter`、`vkdnw`、`zen`、`zico`。
+当前 registry 有 23 个 ID：`ac`、`az_nas`、`az_nas_autoformer`、`az_nas_plainnet`、`dss`、`er`、
+`flops`、`gradnorm`、`hc`、`hi`、`jacob_cov`、`meco`、`meco_opt`、`naswot`、`near`、`params`、
+`swap`、`synflow`、`te_nas`、`ter`、`vkdnw`、`zen`、`zico`。`ntkt` 与四个 `er_*` 已删除。
 
-sweep 表示每个名称经过统一 evaluator，并产生明确 `ok`、`unsupported` 或 `failed`。NB201 seed
-2026 的 22 个名称均有记录，但 `az_nas`、`naswot`、`te_nas` 各有一条非有限失败；`near` 和
-`swap` 为常数，相关系数未定义。该结果不表示每个代理支持所有模型族，也不表示 `portable-v1`
-与论文数值一致。`meco`/`meco_opt` 已于 2026-08-04 对照作者仓库 `0d830dd` 修复：旧
-`portable-v1` 错用了跨 batch 激活 log-determinant，并把官方独立的八通道抽样 `meco_opt` 当成
-alias。因此此前两者同值的相关性 evidence 只保留为历史错误实现结果，必须用
-`hamstermimi-0d830dd-v2` 重跑后才能引用为 MeCo。`vkdnw` 也已于 2026-08-05 对照作者仓库
-`d2ff276` 修复：旧版输入 Jacobian 奇异值公式不是参数 Fisher 谱分位数熵，因此历史 VKDNW 数值同样
-失效并等待分 benchmark 重跑。当前 24 ID 包含 1 个 alias、5 个项目扩展、2 个组合近似、9 个未完成
-公式 golden 的 port 和 5 个固定来源的稳定化 port，不能表述为“24 个
-独立论文方法”。完整分层和使用规则见 [PROXIES_CN.md](PROXIES_CN.md)。
+正式 sweep 先测 pilot，再运行 `zcp-test acceptance plan-feasibility ... --max-seconds 600`，按输出选择
+1%、1‰、1‱ 或单架构。规划结果始终为 `coverage_claim=false`，不能称覆盖。完整分层见
+[PROXIES_CN.md](PROXIES_CN.md)。
 
 ## DARTS CIFAR 双重 1% 与 smoke 边界
 
@@ -184,11 +167,14 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
 
 ## 当前部分验收
 
+本节记录的固定比例、旧代理数量和旧行数均为**已撤销版本的只读历史结果**。不改写原数值，但不得
+解释为当前 23 ID、当前公式版本或当前自适应可行性协议的覆盖证明。
+
 - 保留 evaluate 只有 3 个代理，不是 22；其 40 行历史 score 是旧 component-long schema。
 - Git 不保存 3,454 行原始 score；当前树可独立复核精简摘要、四个 score SHA、失败键和 registry
-  provenance，但逐行重算仍需要外部审计目录或按手册重新运行。
+  provenance；同级历史审计目录已按最终交付约束删除，逐行重算必须按手册重新运行。
 - AutoFormer `3×8,000` 搜索 cohort 与候选冻结已经完成；post-completion supervisor failure 仍作为
-  orchestration 证据保留。V2 dual-1% 仍为非终态 `running`，不得称训练验收完成。
+  orchestration 证据保留。V2 单候选 dual-1% 已终态完成，但只证明工程链路，不证明正式精度或搜索收益。
 - 多个上游原生资产没有固定 checksum，路径存在不等于真实性。
 - bootstrap 和 index-0 smoke 不证明全记录、全部 budget/split 或跨机器覆盖。
 - `--start/--count` 没有已验收 launcher/merge CLI；多文件分析可用，端到端多 GPU 尚未验收。
@@ -196,7 +182,7 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   NB201 真值的 20 架构 run 完成工作流验收。每个 run 60 行；NASWOT 对 index 12 的非有限结果
   保留为 failed。该连续小样本不是 feature-stratified 1%，不得作为论文数值。证据见
   `docs/evidence/E2_E3_NB201_REAL_CN.md`。
-- H1 已完成 NB201 seed 2026 的 feature-stratified 1% × 22 ZCP：157 架构、3,454 原始行、
+- 已撤销版本曾完成 NB201 seed 2026 的 feature-stratified 1% × 22 ZCP：157 架构、3,454 原始行、
   3,451 成功、3 失败且无重复键；修复 shard grouping 后，topology 报告含 157 architecture、
   942 edge、5 operation、6,720 correlation、840 operation effect 和 588 matched pair。核心 11 代理另两个 seed
   也已完成，三 seed 合并为 5,181 行、5,172 成功、9 失败。
@@ -204,23 +190,23 @@ ViT-Bench 可能是 **scratch**、蒸馏或 **inherited-supernet**，不得混�
   `direction=maximize` 与 `resource_direction=minimize`，旧记录由 reader 显式迁移，相关证据按原始
   规模—精度方向重建。精简证据见
   `docs/evidence/NB201_ONE_PERCENT_22ZCP_CN.md`。
-- H1 已独立完成 NATS-TSS 的同规模协议：22 代理 seed 2026 为 3,454 行、3,451 成功、3 失败；
+- 已撤销版本曾完成 NATS-TSS 的同规模协议：22 代理 seed 2026 为 3,454 行、3,451 成功、3 失败；
   核心 11 代理三 seed 为 5,181 行、5,172 成功、9 失败。NATS-TSS 使用独立 adapter、版本、manifest
   和真值；与 NB201 共同的 157 个 topology 中有 31 个真值不同。当前状态为
   **“NB201 与 NATS-TSS 既定 seed 协议完成，H1 整体进行中”**。证据见
   `docs/evidence/NATS_TSS_ONE_PERCENT_CN.md`。
-- H1 已完成 NATS-SSS 的 CIFAR-10-valid/90-epoch 协议：328 架构 × 22 代理为 7,216 行且全部成功；
+- 已撤销版本曾完成 NATS-SSS 的 CIFAR-10-valid/90-epoch 协议：328 架构 × 22 代理为 7,216 行且全部成功；
   核心 11 代理三 seed 为 10,824 行且全部成功。修复了专属研究把 `run_id` 当协议、导致每 shard
   单独统计的错误；正式 size 表合并为 n=328，并按 evaluation seed 分离。CIFAR-100 与
   ImageNet16-120 dataset-specific 扩展也分别完成 328 × 22 = 7,216 行，全部成功且无重复稳定键；
   三数据集报告将 dataset-specific、固定源 score 的 target-only transfer、proxy 排名稳定性和
   size/stage 控制相关性分表保存。该扩展只覆盖同一 1% 分层样本和单 seed 2026。证据见
   `docs/evidence/NATS_SSS_ONE_PERCENT_CN.md` 与 `docs/evidence/NATS_SSS_CROSS_DATASET_CN.md`。
-- H1 已完成 NB101 的正式 1% 既定协议：从 423,624 个架构中按 seed 2026 分层抽取 4,237 个；
+- 已撤销版本曾运行 NB101 固定 1% 协议：从 423,624 个架构中按 seed 2026 分层抽取 4,237 个；
   22 代理 seed 2026 为 93,214/93,214 成功，核心 11 代理 seed 2026/2027/2028 为
   139,821/139,821 成功，均无失败或重复任务键。4/12/36/108 epoch 的 repeat `mean/min/max`
-  预算分析均已完成。TE-NAS `portable-v2` 仅为仓库可移植近似，不等同官方完整 TE-NAS；本结论
-  只覆盖该固定样本和协议。证据见
+  预算分析均已完成。这些代理版本已被替换；该结果只用于旧运行追溯，不覆盖当前 TE-NAS 或当前
+  registry。证据见
   [`docs/evidence/NB101_ONE_PERCENT_CN.md`](evidence/NB101_ONE_PERCENT_CN.md) 与
   [`docs/evidence/nb101_one_percent_summary.json`](evidence/nb101_one_percent_summary.json)。
 - `portable-v1` 与 topology port 在论文复现声明前仍需对照官方实现。
@@ -347,11 +333,14 @@ catalog，或逐项传入准确 `--path`。
 
 ## ZCP 官方实现审计（2026-08-05）
 
-对当前 24 个旧注册 ID 和新增 `dss` 完成固定来源审计。结果不是“全部通过”：`gradnorm/near/swap/zen/ntkt/zico/ter`
-为已知错误 legacy；`te_nas` 与通用 `az_nas` 是同名近似；`synflow/naswot/jacob_cov` 仅部分一致；
-`near/ntkt` 未找到作者官方代码。旧相关性和搜索证据保留只读，但相应论文复现主张失效。
+当前 registry 为 23 个 ID；`ntkt`、`er_pr`、`er_conn`、`er_deg`、`er_dist` 已删除。旧相关性、
+旧测试统计和旧搜索证据保持只读，但只代表已撤销版本，不得作为当前公式或当前 registry 的覆盖证明。
 
-新增 `dss` 依据 CVPR 2022 论文和 `TF_TAS@42616bc` 独立实现，支持 StaticAutoFormer/PiT，并通过公式、
-状态恢复、模型族和组件测试。上游仓库无许可证，因此没有复制源码。用户给出的 AC/HI/HC/DSS++ 只有
-四个名称且跨论文歧义；`DSS++` 在目标来源不存在，本次不伪造实现。完整矩阵见
+CVPR 2026 论文及 CVF URL 存在；官方 `tf-nas@58e3806` 仍为无许可证占位仓库。`ac/hi/hc` 按
+ACL 2023 official `2d76e01` 移植到 ViT，是跨域端口而非 CVPR 精确复现。`dss` 是 CVPR 2022
+`TF_TAS@42616bc` 的 DSS 端口。论文中的 DSS++ 确实存在，但未找到官方代码和足够精确的公开协议，
+因此状态为 **blocked**，不实现，也不以 DSS 替代。
+
+ER 只需语义边 4-D 激活；TER 还需有向端点与激活。TE-NAS 是 `TER-Score@a646c5a` 的 RN 减
+NTK condition 单标量；AZ-NAS 正式多组件排序使用 log-rank。完整矩阵见
 [`PROXY_OFFICIAL_AUDIT_CN.md`](PROXY_OFFICIAL_AUDIT_CN.md)。

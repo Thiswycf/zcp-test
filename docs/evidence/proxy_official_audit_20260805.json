@@ -1,39 +1,38 @@
 {
-  "schema_version": "1.0",
-  "generated_at": "2026-08-05T11:31:55+08:00",
+  "schema_version": "2.0",
+  "generated_at": "2026-08-05T13:30:00+08:00",
   "timezone": "Asia/Shanghai",
-  "audit_scope": "registered zcp-test proxies after MeCo and VKDNW corrections",
+  "audit_scope": "23 registered proxy IDs after formula replacement and retirement",
   "source_correction": {
-    "requested_title_found": false,
-    "closest_verified_paper": "Training-free Transformer Architecture Search",
-    "paper_url": "https://openaccess.thecvf.com/content/CVPR2022/html/Zhou_Training-Free_Transformer_Architecture_Search_CVPR_2022_paper.html",
-    "official_repository": "https://github.com/decemberzhou/TF_TAS",
-    "official_commit": "42616bcf1b6bb643bf968a8342f8aaddc4f53f32",
-    "official_registered_indicators": ["dss", "grasp", "snip", "naswot", "te_nas"],
-    "requested_names": ["ac", "hi", "hc", "dss", "dss++"],
-    "requested_names_problem": "Only four distinct written names; AC/HC are ambiguous/overlapping across another paper and DSS++ is absent from the target source."
+    "requested_title_found": true,
+    "paper": "Vision-Oriented Lightweight Neural Architecture Search with Budget-Adaptive Evaluation",
+    "paper_url": "https://openaccess.thecvf.com/content/CVPR2026/html/Fan_Vision-Oriented_Lightweight_Neural_Architecture_Search_with_Budget-Adaptive_Evaluation_CVPR_2026_paper.html",
+    "official_repository": "https://github.com/fanyi-plus/tf-nas",
+    "official_commit": "58e38062d617e242a7fe915a37ef6db3eeb90085",
+    "repository_status": "placeholder_without_license",
+    "table_one_requested_proxies": ["ac", "hi", "hc", "dss_pp"]
   },
   "statuses": {
+    "fixed_source_formula_port": ["gradnorm", "synflow", "naswot", "jacob_cov", "near", "swap", "zen", "zico"],
+    "source_paper_official_port_to_vit": ["ac", "hi", "hc"],
+    "ter_score_first_party_port": ["er", "ter"],
+    "ter_score_first_party_adaptation": ["te_nas"],
+    "paper_formula_space_dispatch": ["az_nas"],
+    "paper_formula_port_stabilized": ["meco", "meco_opt", "vkdnw", "az_nas_autoformer", "az_nas_plainnet", "dss"],
     "structural_measure": ["params", "flops"],
-    "stabilized_source_pinned_port": ["meco", "meco_opt", "vkdnw", "az_nas_autoformer", "dss"],
-    "partial_official_port": ["synflow", "naswot", "jacob_cov", "az_nas_plainnet"],
-    "known_incorrect_legacy": ["gradnorm", "near", "swap", "zen", "ntkt", "zico", "ter"],
-    "misnamed_approximation": ["te_nas", "az_nas"],
-    "project_extension": ["er", "er_pr", "er_conn", "er_deg", "er_dist"],
-    "no_author_code_found": ["near", "ntkt"],
-    "requested_but_not_found": ["dss++"]
+    "retired": ["ntkt", "er_pr", "er_conn", "er_deg", "er_dist"],
+    "official_implementation_not_found": ["dss_pp"]
   },
   "local_first_party_source": {
     "path_env": "TER_SCORE_ROOT",
     "repository": "https://github.com/Thiswycf/TER-Score",
     "commit": "a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f",
-    "read_only": true,
-    "note": "Used only for local ER/TER comparison; current zcp-test er/ter/topology variants are not equivalent."
+    "read_only": true
   },
   "historical_results": {
     "preserve_read_only": true,
-    "must_rerun": ["gradnorm", "near", "swap", "zen", "ntkt", "zico", "te_nas", "ter"],
-    "rerun_for_official_comparability": ["synflow", "naswot", "jacob_cov"],
-    "unaffected": ["params", "flops", "benchmark_ground_truth", "trained_accuracy"]
+    "exclude_retired_and_superseded_versions_from_formal_reports": true,
+    "coverage_claim_for_new_runs": false,
+    "replacement_protocol": "adaptive_feasibility_sweep"
   }
 }

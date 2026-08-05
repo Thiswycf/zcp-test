@@ -18,6 +18,7 @@ def test_nb201_reference_macro_has_reductions_and_logits():
     model = model_builder(architecture, "cifar10")
     assert isinstance(model, TinyNetwork)
     assert len(model.cells) == 17
+    assert model.forward_pre_GAP(torch.randn(2, 3, 32, 32)).shape == (2, 64, 8, 8)
     assert model(torch.randn(2, 3, 32, 32)).shape == (2, 10)
 
 

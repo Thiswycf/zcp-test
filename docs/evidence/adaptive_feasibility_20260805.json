@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-05T13:54:00+08:00",
+  "timezone": "Asia/Shanghai",
+  "protocol": "adaptive_feasibility_sweep",
+  "coverage_claim": false,
+  "hard_wall_clock_limit_seconds": 600,
+  "software_gate": {
+    "tests_passed": 656,
+    "test_files": 44,
+    "source_coverage_percent": 87.13120378135244,
+    "ruff": "passed",
+    "compileall": "passed",
+    "pip_check": "passed",
+    "panel_check": "passed"
+  },
+  "nb201": {
+    "pilot_seconds": 71.56,
+    "planner": {
+      "total_architectures": 15625,
+      "fraction_label": "one_per_ten_thousand",
+      "fraction": 0.0001,
+      "architecture_count": 2,
+      "projected_seconds": 143.12
+    },
+    "executed_seconds": 73.62,
+    "architectures": 2,
+    "proxy_calls": 22,
+    "statuses": {
+      "ok": 22
+    },
+    "proxy_ids": [
+      "er",
+      "gradnorm",
+      "jacob_cov",
+      "naswot",
+      "near",
+      "swap",
+      "synflow",
+      "te_nas",
+      "ter",
+      "zen",
+      "zico"
+    ],
+    "scores_sha256": "43f3c7880928f8c1ad441559922cb4d28e2e5460071affbc040250a5814eee8e",
+    "correlation_chain": {
+      "dataset": "cifar10-valid",
+      "split": "valid",
+      "epoch_budget": 200,
+      "target_seed_reduction": "mean",
+      "score_rows": 22,
+      "target_rows": 2,
+      "correlation_rows": 11,
+      "paired_count_per_proxy": 2,
+      "scores_sha256": "72203d6b4b5b1a5d4e83f8c04dbdab40eaedda0f1f5e008f9a4711cc35e38365",
+      "correlations_sha256": "1d833a775a004e2a85875cb7762c3a667bf6fe87ea7358b9a0aa1c71d172a830"
+    }
+  },
+  "autoformer": {
+    "pilot_seconds": 13.66,
+    "planner": {
+      "total_architectures": 500,
+      "fraction_label": "one_percent",
+      "fraction": 0.01,
+      "architecture_count": 5,
+      "projected_seconds": 68.3
+    },
+    "executed_seconds": 26.73,
+    "architectures": 5,
+    "proxy_calls": 20,
+    "statuses": {
+      "ok": 20
+    },
+    "proxy_ids": [
+      "ac",
+      "dss",
+      "hc",
+      "hi"
+    ],
+    "scores_sha256": "1203586083d6dd97135168efe8497bdef465b78909b74b3bafe0e289cce96270"
+  },
+  "interpretation": "Engineering feasibility only. Two-point correlations are not scientific estimates and must not be cited as proxy quality or coverage."
+}

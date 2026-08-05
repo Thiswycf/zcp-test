@@ -9,18 +9,21 @@ from zcp_test.proxies import PROXIES, load_builtin_proxies
 def test_runtime_proxy_fidelity_matches_official_audit() -> None:
     load_builtin_proxies()
     expected = {
-        "gradnorm": "known_incorrect_legacy",
-        "near": "known_incorrect_legacy",
-        "swap": "known_incorrect_legacy",
-        "zen": "known_incorrect_legacy",
-        "ntkt": "known_incorrect_legacy",
-        "zico": "known_incorrect_legacy",
-        "synflow": "partial_official_port",
-        "naswot": "partial_official_port",
-        "jacob_cov": "partial_official_port",
-        "te_nas": "portable_composite_approximation",
-        "az_nas": "portable_composite_approximation",
-        "ter": "known_incorrect_legacy_alias",
+        "gradnorm": "fixed_source_formula_port",
+        "near": "fixed_source_formula_port",
+        "swap": "fixed_source_formula_port",
+        "zen": "fixed_source_formula_port",
+        "zico": "fixed_source_formula_port",
+        "synflow": "fixed_source_formula_port",
+        "naswot": "fixed_source_formula_port",
+        "jacob_cov": "fixed_source_formula_port",
+        "te_nas": "ter_score_first_party_adaptation",
+        "az_nas": "paper_formula_space_dispatch",
+        "er": "ter_score_first_party_port",
+        "ter": "ter_score_first_party_port",
+        "ac": "source_paper_official_port_to_vit",
+        "hi": "source_paper_official_port_to_vit",
+        "hc": "source_paper_official_port_to_vit",
         "dss": "paper_formula_port_stabilized",
     }
     assert {
@@ -29,18 +32,20 @@ def test_runtime_proxy_fidelity_matches_official_audit() -> None:
     } == expected
 
 
+def test_zico_declares_its_multi_batch_default() -> None:
+    load_builtin_proxies()
+    assert PROXIES.create("zico").capability.default_batches == 2
+
+
 def test_proxy_audit_evidence_tracks_ambiguous_and_unreleased_methods() -> None:
     path = Path("docs/evidence/proxy_official_audit_20260805.json")
     evidence = json.loads(path.read_text(encoding="utf-8"))
 
     assert evidence["timezone"] == "Asia/Shanghai"
-    assert evidence["source_correction"]["official_registered_indicators"] == [
-        "dss",
-        "grasp",
-        "snip",
-        "naswot",
-        "te_nas",
+    assert evidence["source_correction"]["requested_title_found"] is True
+    assert evidence["source_correction"]["repository_status"] == "placeholder_without_license"
+    assert evidence["statuses"]["official_implementation_not_found"] == ["dss_pp"]
+    assert evidence["statuses"]["retired"] == [
+        "ntkt", "er_pr", "er_conn", "er_deg", "er_dist"
     ]
-    assert evidence["statuses"]["no_author_code_found"] == ["near", "ntkt"]
-    assert evidence["statuses"]["requested_but_not_found"] == ["dss++"]
     assert evidence["local_first_party_source"]["read_only"] is True

@@ -1,97 +1,77 @@
 # ZCP 代理口径、能力与研究使用说明
 
-## 1. 注册 ID 不等于独立论文方法
+## 1. 当前注册 ID
 
-`zcp-test proxy matrix` 当前展示 **25 个可调用 ID**（新增 Transformer-only `dss`）。历史 benchmark sweep 使用其中 22 个，排除
-搜索空间专用的 `az_nas_autoformer`、`az_nas_plainnet`。这 22 个名称不是 22 个相互独立、已经逐值
-复现论文的 ZCP。
+当前 registry 共 23 个 ID：
 
-| fidelity | ID | 可主张范围 |
-|---|---|---|
-| `structural_measure` | `params`, `flops` | 结构资源指标；仍须注明 parameter/MAC 口径 |
-| `known_incorrect_legacy_alias` | `ter→er` | 当前不是本地 TER；旧结果只读，不得作为 TER-Score |
-| `project_extension` | `er` | 项目公式推广，不是本地 ER 端口 |
-| `project_extension_name_collision` | `er_pr`, `er_conn`, `er_deg`, `er_dist` | 与本地同名公式不等价，必须按 FX 扩展解释 |
-| `portable_composite_approximation` | `te_nas`, `az_nas` | 便携近似；不得宣称正式论文公式一致 |
-| `known_incorrect_legacy` | `gradnorm`, `near`, `swap`, `zen`, `ntkt`, `zico` | 已证明与论文/作者公式冲突；必须修复后重跑 |
-| `partial_official_port` | `synflow`, `naswot`, `jacob_cov` | 主公式部分一致，但层选择、激活或谱处理不同 |
-| `paper_formula_port_stabilized` | `meco`, `meco_opt`, `vkdnw`, `az_nas_autoformer`, `az_nas_plainnet`, `dss` | 固定 commit 的独立公式 port；稳定化处理使其不声称逐位一致 |
+`ac`、`az_nas`、`az_nas_autoformer`、`az_nas_plainnet`、`dss`、`er`、`flops`、`gradnorm`、`hc`、`hi`、`jacob_cov`、`meco`、`meco_opt`、`naswot`、`near`、`params`、`swap`、`synflow`、`te_nas`、`ter`、`vkdnw`、`zen`、`zico`。
 
-报告应写“22 个注册名称完成 sweep”，不能写“复现 22 个独立论文 ZCP”。alias 必须折叠；常数输出
-应报告 ties 与未定义相关性，不能用 0 替代。
+已删除：`ntkt`、`er_pr`、`er_conn`、`er_deg`、`er_dist`。旧 artifact 可保留这些名称，但只能按已撤销旧版本的只读证据解释。
 
-完整逐项来源、差异、无官方实现清单和旧结果失效范围见
-[ZCP 官方实现一致性审计](PROXY_OFFICIAL_AUDIT_CN.md)。
+注册 ID 不等于独立论文方法。`params/flops` 是结构计量；空间专用端口、稳定化端口、跨域端口和第一方协议端口必须分别表述。
 
-## 2. 使用前检查
+## 2. 官方来源边界
+
+- CVPR 2026《Vision-Oriented Lightweight Neural Architecture Search with Budget-Adaptive Evaluation》及 [CVF 页面](https://openaccess.thecvf.com/content/CVPR2026/html/Fan_Vision-Oriented_Lightweight_Neural_Architecture_Search_with_Budget-Adaptive_Evaluation_CVPR_2026_paper.html) 存在。
+- 官方 `tf-nas@58e3806` 是无许可证占位仓库，没有可执行实现；不得复制源码或声称代码复现。
+- `ac/hi/hc` 使用 ACL 2023 官方 `training-free-nas@2d76e01` 的 ViT 跨域端口，不是 CVPR 2026 精确复现。
+- `dss` 来自 CVPR 2022 `TF_TAS@42616bc`；`DSS++` 因无官方代码和精确公开协议而处于 **blocked**，不实现。
+- NEAR 按可核验官方代码处理。
+
+详细来源和忠实度见 [PROXY_OFFICIAL_AUDIT_CN.md](PROXY_OFFICIAL_AUDIT_CN.md)。
+
+## 3. ER、TER 与 TE-NAS
+
+- `er`：需要 `EdgeActivationBatch` 提供语义边 4-D 激活，不需要端点拓扑参与计分。
+- `ter`：除 4-D 激活外，还需要唯一的有向 `source/target` 端点和拓扑。
+- `te_nas`：按 `TER-Score@a646c5a` 计算 RN 减 NTK condition number，只返回一个标量；它不是已删除的 `ntkt`。
+
+没有注册语义边 provider 的模型应返回 `unsupported`，不得退回 FX 模块节点或普通层输出近似。
+
+## 4. 分数选择
+
+评估、相关性和搜索必须显式记录分数语义：
 
 ```bash
-zcp-test proxy list
-zcp-test proxy inspect zen
-zcp-test proxy matrix
-zcp-test proxy validate zen --device cpu
+zcp-test search --space autoformer --proxy az_nas_autoformer \
+  --score-selector aggregate:az_nas_log_rank \
+  --proxy-batches 1 --proxy-repetitions 1
 ```
 
-`validate` 证明返回结构、有限值、状态/RNG/hook 清理等工程契约，不证明论文公式一致。正式研究还要
-核对 `implementation_fidelity`、`source`、`version`、`alias_of`、输入协议和 benchmark evidence。
-能力矩阵现在分别公开 `requires_data`、`requires_inputs`、`requires_labels` 和
-`requires_loss_fn`。evaluator 会在进入代理实现前检查 tensor、标签、损失函数和可选依赖；缺失时返回
-结构化 `unsupported`，不会调用 `compute` 后再归类为普通失败。`requires_data=false` 只表示不依赖
-真实数据分布，不表示不需要输入 tensor；例如 SynFlow 仍为 `requires_inputs=true`。
+- `primary`：主分数。
+- `component:NAME`：组件消融；不能冒充正式综合分数。
+- `aggregate:az_nas_log_rank`：AZ-NAS 正式多组件 cohort log-rank。
+- `aggregate:mean_percentile_rank`：通用百分位聚合，与 AZ-NAS log-rank 含义不同。
 
-### MeCo 语义修复（2026-08-04）
+`te_nas` 只能选择 `primary`。AZ-NAS 组件代理默认必须使用 `aggregate:az_nas_log_rank`；单组件搜索还需 `--allow-component-ablation`。
 
-官方实现固定为 [`HamsterMimi/MeCo@0d830dd`](https://github.com/HamsterMimi/MeCo/tree/0d830dd2f639f9d1ba3b5831a65df768d70fc93b)：
-`meco` 对每个可用层取首个样本的 feature map，按通道构造相关矩阵，取最小实特征值并跨层求和；
-`meco_opt` 是官方独立近似变体，会随机抽取 8 个通道并乘以 `channel_count / 8`，不是 `meco` alias。
-项目 port 跳过不具备二维通道特征的 logits/标量输出、把 NaN/Inf 相关项置零，并始终清理 hook，故标为
-`paper_formula_port_stabilized`。旧 `portable-v1` 实际计算跨 batch 拼接激活的 log-determinant，公式错误；
-此前 evidence 中 `meco == meco_opt` 的相关性只能作为历史错误实现结果，不得引用为 MeCo 论文复现，需用
-`hamstermimi-0d830dd-v2` 重新评估。
+## 5. 重复批次协议
 
-### VKDNW 语义修复（2026-08-05）
+`--proxy-batches` 控制一次候选评估的 batch 数，`--proxy-repetitions` 控制重复初始化/测量次数。二者必须进入 artifact 身份，不能把不同设置的分数直接合并。默认值均为 1，不代表论文推荐值。
 
-官方依据为 CVPR 2025 论文与作者仓库
-[`ondratybl/VKDNW@d2ff276`](https://github.com/ondratybl/VKDNW/tree/d2ff276d37d8ba2e9f8c04beb71499d0bd346146)。
-`vkdnw` 从首 128 个可训练参数张量各取一个权重，计算分类预测关于这些权重的 Jacobian，以平滑类别
-概率协方差构造经验 Fisher，再取 Fisher 谱的 10%–90% 九个分位数。`entropy` 是这些分位数归一化
-后的熵，`dimension` 记录可训练参数张量数；论文 Eq. 12 的正式单代理排名
-`single = dimension + entropy` 是默认主分数。项目使用对称协方差特征分解代替上游手写 Cholesky，
-并统一支持普通 logits/`(features, logits)` 输出，因此标为 `paper_formula_port_stabilized`。
+## 6. 正式可行性计划
 
-旧 `portable-v1` 使用的是**输入 Jacobian**奇异值的对数组合，不包含参数 Fisher、类别概率协方差或
-谱分位数熵，不能解释为 VKDNW。此前所有 `vkdnw` 相关性 evidence 仅保留为历史错误实现结果，必须用
-`ondratybl-d2ff276-v2` 分 benchmark 重跑后才能引用为 VKDNW 论文复现。当前固定实现只声明 CNN；
-Transformer 需独立上游协议与 golden 后再开放。
+先运行小 pilot，记录架构数和总秒数，再生成 10 分钟上限计划：
 
-### DSS 与请求名称纠错（2026-08-05）
+```bash
+zcp-test acceptance plan-feasibility \
+  --total-architectures 15625 \
+  --pilot-architectures 10 \
+  --pilot-seconds 42.0 \
+  --max-seconds 600
+```
 
-可核验目标来源是 CVPR 2022《Training-free Transformer Architecture Search》和
-[`TF_TAS@42616bc`](https://github.com/decemberzhou/TF_TAS/tree/42616bcf1b6bb643bf968a8342f8aaddc4f53f32)。
-其五项注册指标是 DSS/GraSP/SNIP/NASWOT/TE-NAS，并非 AC/HI/HC/DSS/DSS++；`DSS++` 未在该来源
-出现，AC/HI/HC 属另一研究线且存在同义/缩写歧义。因此本次只加入无歧义的 `dss`：对 MSA 权重
-使用梯度与权重核范数乘积，对 MLP、patch embedding 和分类头权重使用 `abs(weight * grad)`，并分别
-保存 MLP 与辅助显著性组件。当前仅支持
-`StaticAutoFormer` 与 `StaticPiT`，CNN 返回 `unsupported`。
+规划器依次尝试 1%、1‰、1‱，必要时只计划 1 个架构。输出 `coverage_claim=false`，所以该流程只能称“自适应可行性 sweep”，不能称搜索空间覆盖或固定 1% 验收。
 
-## 3. 相关性与对比规则
+## 7. 结果与历史证据
 
-1. 按 canonical architecture ID join，不按列表位置对齐。
-2. alias 只保留一个代表；项目扩展和 approximation 单独分组。
-3. 默认使用 `ProxyOutput.score`；辅助组件必须显式指定 `--component`。
-4. `params/flops` 的 accuracy direction 与 resource direction 分开记录。
-5. 常数、NaN、Inf、failed、unsupported 和 ties 必须保留数量。
-6. 搜索/聚合权重只由 validation 协议决定，test 仅进入最终报告。
+1. 按 canonical architecture ID join，不按行位置对齐。
+2. 常数、NaN、Inf、failed、unsupported、skipped 和 ties 均保留计数。
+3. `params/flops` 的资源方向与 accuracy 方向分开。
+4. validation 决定搜索或融合，test 只进入最终报告。
+5. `docs/evidence/**` 的旧数值不改写；含旧 ID、旧公式或旧计数的文件是已撤销版本的只读证据，不证明当前 23 ID 覆盖。
 
-## 4. 当前开放风险
-
-- `te_nas` 和通用 `az_nas` 是组合近似；正式 AZ-NAS 搜索使用空间专用 ID。
-- `gradnorm/near/swap/zen/ntkt/zico` 已确认错误；`synflow/naswot/jacob_cov` 仅部分一致。
-- `DSS++` 和请求中的第五个互异代理没有可核验来源，不能自行补造。
-- `zen` 的 Proxyless 使用属于 project transfer，不能冒充官方 OFA controller 或直接论文协议。
-- 输入契约字段与 fail-fast evaluator 已完成；剩余风险是论文公式 golden 与 alias/approximation 强制折叠。
-
-## 5. 新增代理
+## 8. 新增代理
 
 ```bash
 zcp-test proxy scaffold my_proxy
@@ -99,5 +79,4 @@ zcp-test proxy validate my_proxy --device cpu
 zcp-test proxy matrix
 ```
 
-模板和安全边界见 [ADD_PROXY_CN.md](ADD_PROXY_CN.md)。新增代理必须声明主分数、组件、方向、模型族、
-输入/标签/损失需求、来源和版本；无论文依据时必须标记为项目扩展。
+新增代理必须声明主分数、组件、方向、模型族、输入/标签/损失需求、来源、commit、许可证状态和版本；无可核验论文或官方代码时必须明确标为项目扩展。

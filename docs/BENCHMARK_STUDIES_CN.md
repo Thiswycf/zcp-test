@@ -112,9 +112,8 @@ zcp-test analyze benchmark \
 多个 `scores.jsonl` 会按科学协议合并：`run_id` 和读取时生成的 `source_run` 只用于溯源，不能把
 四个 shard 拆成四个相关性；evaluation `seed` 仍是协议字段，因此不同初始化 seed 独立报告。
 失败和非有限分数不会被填成 0；`score_coverage.csv` 与 `correlations.csv` 中的 `failed_count`、
-`coverage` 必须与原始调用数一致。默认自动选择各代理声明的主分量，因此 ER 使用 `mean`，其他
-代理可使用 `score` 或各自具名主组件。`--component sum` 只在明确研究 ER 辅助分量时使用；它会
-排除没有同名组件的其他代理。
+`coverage` 必须与原始调用数一致。默认自动选择各代理声明的主分量；当前 ER 只使用 `score`。
+旧版 ER `mean/sum` 记录仅作只读历史证据，默认从当前正式汇总中排除。
 
 一编辑邻居的定义是：canonical 邻接矩阵相同且仅一个中间操作不同，或 canonical 操作序列相同
 且严格上三角邻接仅一条边不同。它是当前分层样本内的局部敏感性分析；缺少邻居对时只能报告
@@ -229,9 +228,9 @@ zcp-test analyze benchmark \
   --output /path/to/reports/nb301-darts
 ```
 
-默认按每个代理声明的 `primary_component` 分析，因而会保留 ER `mean`、TE-NAS `synflow` 和
-AZ-NAS `expressivity`。只有研究一个同名辅助分量时才传 `--component`；显式写
-`--component score` 会排除上述主组件，不能作为“全部代理”报告。
+默认按每个代理声明的 `primary_component` 分析。ER 与 TE-NAS 都只暴露 `score`；AZ-NAS 的
+正式搜索使用 cohort `aggregate:az_nas_log_rank`，单组件仅用于显式消融。只有研究具名辅助分量
+时才传 `--component`，不能把组件消融写成“全部代理”报告。
 
 Params/FLOPs 在 accuracy 关联中使用原始值（`direction=maximize`），资源预算另由
 `resource_direction=minimize` 表示；禁止为了“越小越省资源”而把 accuracy 相关性的符号反转。

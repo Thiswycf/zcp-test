@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from enum import Enum
-from typing import Any, Mapping
+from typing import Any, Callable, Iterator, Mapping
 
 
 class ScoreDirection(str, Enum):
@@ -67,6 +67,33 @@ class ProxyCapability:
     source: str | None = None
     alias_of: str | None = None
     resource_direction: ScoreDirection | None = None
+    source_commit: str | None = None
+    license: str | None = None
+    official_code_available: bool | None = None
+    protocol_domain: str | None = None
+    default_batches: int = 1
+    default_repetitions: int = 1
+    requires_edge_activations: bool = False
+    requires_topology: bool = False
+    formal_use: str = "proxy_score"
+
+
+@dataclass(frozen=True)
+class ProxyContext:
+    inputs: Any = None
+    labels: Any = None
+    loss_fn: Any = None
+    seed: int = 0
+    device: str | None = None
+    model_family: str = "cnn"
+    benchmark_id: str | None = None
+    search_space_id: str | None = None
+    input_fingerprint: str | None = None
+    batch_fingerprints: tuple[str, ...] = ()
+    proxy_batches: int = 1
+    proxy_repetitions: int = 1
+    batch_provider: Callable[[], Iterator[tuple[Any, Any | None]]] | None = None
+    edge_activations: Any = None
 
 
 @dataclass(frozen=True)
@@ -92,6 +119,10 @@ class ScoreResult:
     source: str | None = None
     alias_of: str | None = None
     resource_direction: ScoreDirection | None = None
+    source_commit: str | None = None
+    license: str | None = None
+    protocol_domain: str | None = None
+    formal_use: str | None = None
 
     @property
     def values(self) -> dict[str, float]:

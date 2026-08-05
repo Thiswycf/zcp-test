@@ -136,6 +136,7 @@ class EvolutionSearch:
         self.record_metadata = dict(record_metadata or {})
         self.evaluation_identity = evaluation_identity
         self.component_aggregator = component_aggregator
+        self.aggregation_metadata: dict[str, Any] | None = None
         self.state_path = None if state_path is None else Path(state_path)
         self.state_identity = dict(state_identity or {})
         if initial_checkpoint_interval <= 0:
@@ -219,6 +220,26 @@ class EvolutionSearch:
         if summary_generations != list(range(completed_generation + 1)):
             raise ValueError("Search state history has incomplete or duplicate generation summaries")
         restored_population = [self._candidate_from_state(item) for item in population]
+        aggregation = state.get("aggregation")
+        if self.component_aggregator is None:
+            if aggregation is not None:
+                raise ValueError("Scalar search state must not contain cohort aggregation")
+        elif partial_initial_population:
+            if aggregation is not None:
+                raise ValueError("Partial search state must not contain cohort aggregation")
+        else:
+            from zcp_test.proxies.scalarizers import cohort_digest
+
+            expected_aggregation = {
+                "cohort_digest": cohort_digest(
+                    [candidate.architecture.architecture_id for candidate in restored_population]
+                ),
+                "cohort_size": len(restored_population),
+                "tie_method": "average",
+                "rerank_scope": "current_generation_population",
+            }
+            if aggregation != expected_aggregation:
+                raise ValueError("Search state cohort aggregation does not match its population")
         cache_payload = state.get("cache")
         if not isinstance(cache_payload, Mapping):
             raise ValueError("Search state cache must be an object")
@@ -296,6 +317,7 @@ class EvolutionSearch:
         self.evaluations = evaluations
         self.constraint_attempts = constraint_attempts
         self.constraint_rejections = constraint_rejections
+        self.aggregation_metadata = None if aggregation is None else dict(aggregation)
         self.elapsed_offset = elapsed_seconds
         self.started = time.perf_counter()
         self.rng.setstate(restored_rng.getstate())
@@ -327,6 +349,7 @@ class EvolutionSearch:
             "constraint_attempts": self.constraint_attempts,
             "constraint_rejections": self.constraint_rejections,
             "elapsed_seconds": self._elapsed(),
+            "aggregation": self.aggregation_metadata,
             "rng_state": self.rng.getstate(),
             "history": list(read_jsonl(self.writer.path)),
         }
@@ -351,6 +374,7 @@ class EvolutionSearch:
             "constraint_attempts": self.constraint_attempts,
             "constraint_rejections": self.constraint_rejections,
             "elapsed_seconds": self._elapsed(),
+            "aggregation": self.aggregation_metadata,
             "rng_state": self.rng.getstate(),
             "history": [],
         }
@@ -424,28 +448,28 @@ class EvolutionSearch:
     def _aggregate_components(self, population: Sequence[Candidate]) -> None:
         if self.component_aggregator is None:
             return
-        cached_items = [
-            (identity, value)
-            for identity, value in sorted(self.cache.items())
-            if isinstance(value, dict)
-        ]
-        component_rows = [value for _identity, value in cached_items]
+        component_rows = []
+        architecture_ids = []
+        for candidate in population:
+            if candidate.components is None:
+                raise ValueError("Aggregated candidate is missing components")
+            component_rows.append(candidate.components)
+            architecture_ids.append(candidate.architecture.architecture_id)
         aggregate_scores = list(self.component_aggregator(component_rows))
         if len(aggregate_scores) != len(component_rows) or not all(
             math.isfinite(float(score)) for score in aggregate_scores
         ):
             raise ValueError("Component aggregator returned invalid scores")
-        score_by_identity = {
-            identity: float(score)
-            for (identity, _components), score in zip(
-                cached_items, aggregate_scores, strict=True
-            )
+        for candidate, score in zip(population, aggregate_scores, strict=True):
+            candidate.score = float(score)
+        from zcp_test.proxies.scalarizers import cohort_digest
+
+        self.aggregation_metadata = {
+            "cohort_digest": cohort_digest(architecture_ids),
+            "cohort_size": len(architecture_ids),
+            "tie_method": "average",
+            "rerank_scope": "current_generation_population",
         }
-        for candidate in population:
-            identity, _metadata = self._resolve_evaluation_identity(candidate.architecture)
-            if candidate.components is None or identity not in score_by_identity:
-                raise ValueError("Aggregated candidate is missing cached components")
-            candidate.score = score_by_identity[identity]
 
     def run(self, generations: int) -> Candidate:
         if generations < 0:
@@ -588,6 +612,7 @@ class EvolutionSearch:
                 **self.record_metadata,
                 "record_kind": "generation_summary",
                 "generation": generation,
+                **(self.aggregation_metadata or {}),
                 "best_so_far": (
                     max(self.cache.values())
                     if self.component_aggregator is None

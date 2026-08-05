@@ -15,19 +15,11 @@ zcp-test evaluate \
 预期终端摘要为 10 个架构、30 次代理调用、30 行 `scores.jsonl`。ER 的记录示意：
 
 ```json
-{"proxy_id":"er","score":1.23,"primary_component":"mean","components":{"mean":1.23,"sum":8.61}}
+{"proxy_id":"er","score":1.23,"primary_component":"score","components":{"score":1.23}}
 ```
 
-`score` 是排序和默认相关性使用的规范值；`components` 保留完整研究数据。需要研究 ER sum 时使用：
-
-```bash
-zcp-test correlate \
-  --scores RUN/scores.jsonl \
-  --targets /path/to/targets.jsonl \
-  --output RUN/correlations-sum.jsonl \
-  --target-field accuracy --target-direction maximize --component sum
-zcp-test analyze correlation --scores RUN/scores.jsonl --component sum --output REPORT
-```
+`score` 是排序和默认相关性使用的规范值。当前 ER 按第一方语义边协议只暴露一个 `score`；旧版
+`mean/sum` 长表仅可只读，不得作为当前 ER 组件继续分析。
 
 兼容入口 `correlate` 的 target 文件至少需要一行一个
 `{"architecture_id":"...","accuracy":...}`；它按 canonical ID inner join、拒绝重复 ID，并把
