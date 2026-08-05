@@ -332,7 +332,8 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(fullGate467?.result.includes("已由 EV-FULL-GATE-545 取代"), "历史 467 门禁链缺失");
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
-  for (const task of [baselineTask, qualityGateTask]) {
+  assert(baselineTask?.detail.includes("604 tests") && baselineTask?.evidence.includes("EV-FULL-GATE-604"), "任务 A1 缺少当前 604 gate");
+  for (const task of [qualityGateTask]) {
     assert(task?.detail.includes("38 files") && task?.detail.includes("599 tests"), `任务 ${task?.id || "?"} 缺少当前 599 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check") && task?.detail.includes("node panel checks") && task?.detail.includes("diff"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
     assert(task?.detail.includes("4 条 THOP warning") && task?.detail.includes("非失败 warning") && task?.detail.includes("597") && task?.detail.includes("581") && task?.detail.includes("历史"), `任务 ${task?.id || "?"} 缺少 warning 或历史 gate 边界`);
@@ -634,6 +635,26 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
     const task = data.tasks.find((entry) => entry.id === taskId);
     assert(task?.status !== "已完成", `任务 ${taskId} 不应标记为全部完成`);
   }
+  const officialZcpAuditTask = data.tasks.find((entry) => entry.id === "K1");
+  assert(officialZcpAuditTask?.title === "全 ZCP 官方实现审计与 TF-TAS DSS 接入", "全 ZCP 官方实现审计任务标题缺失");
+  assert(officialZcpAuditTask?.status === "已完成" && officialZcpAuditTask?.progress === 100, "全 ZCP 官方实现审计未同步完成状态");
+  assert(officialZcpAuditTask?.evidence.includes("EV-ZCP-OFFICIAL-AUDIT-20260805") && officialZcpAuditTask?.evidence.includes("EV-DSS-CLI-SMOKE-20260805"), "全 ZCP 审计或 DSS CLI smoke 证据缺失");
+  assert(officialZcpAuditTask?.priority === "P0" && officialZcpAuditTask?.status === "已完成", "全 ZCP 官方实现审计任务优先级或状态错误");
+  assert(officialZcpAuditTask?.startedAt.startsWith("2026-08-05") && officialZcpAuditTask?.updatedAt.startsWith("2026-08-05"), "全 ZCP 官方实现审计任务日期不是北京时间 2026-08-05");
+  for (const proxyName of ["DSS", "GraSP", "SNIP", "NASWOT", "TE-NAS"]) {
+    assert(officialZcpAuditTask?.detail.includes(proxyName), `目标论文五项缺少 ${proxyName}`);
+  }
+  for (const ambiguousName of ["AC", "HI", "HC", "DSS++"]) {
+    assert(officialZcpAuditTask?.detail.includes(ambiguousName), `歧义代理缺少 ${ambiguousName}`);
+  }
+  assert(officialZcpAuditTask?.detail.includes("题名") && officialZcpAuditTask?.detail.includes("计数/来源歧义"), "用户代理清单的题名或计数/来源歧义未记录");
+  assert(officialZcpAuditTask?.detail.includes("仅接入") && officialZcpAuditTask?.detail.includes("DSS"), "当前仅接入可证实 DSS 的边界缺失");
+  const staleProxyEvidenceRisk = data.risks.find((entry) => entry.id === "R-ZCP-STALE-EVIDENCE");
+  assert(staleProxyEvidenceRisk?.status === "开放" && staleProxyEvidenceRisk?.description.includes("evidence"), "旧错误代理 evidence 失效风险缺失");
+  assert(staleProxyEvidenceRisk?.mitigation.includes("重跑"), "旧错误代理 evidence 风险未要求重跑");
+  const tfTasLicenseRisk = data.risks.find((entry) => entry.id === "R-TF-TAS-LICENSE");
+  assert(tfTasLicenseRisk?.status === "开放" && tfTasLicenseRisk?.title.includes("无许可证 TF_TAS"), "TF_TAS 无许可证风险缺失");
+  assert(tfTasLicenseRisk?.description.includes("独立实现 DSS") && tfTasLicenseRisk?.mitigation.includes("独立实现"), "TF_TAS 仅独立公式 port 的边界缺失");
 
   checkTime(data.updatedAt, "面板 updatedAt", now);
   for (const task of data.tasks) {

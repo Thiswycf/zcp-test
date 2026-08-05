@@ -1,7 +1,7 @@
 window.ZCP_PANEL_DATA = {
   schemaVersion: 2,
   timeZone: "Asia/Shanghai",
-  updatedAt: "2026-08-05 11:02 Asia/Shanghai",
+  updatedAt: "2026-08-05 11:34 Asia/Shanghai",
   project: {
     name: "zcp-test",
     status: "active",
@@ -26,9 +26,9 @@ window.ZCP_PANEL_DATA = {
       content: "记录仓库状态、测试基线、依赖环境和最终全量 gate，区分定向 smoke 与全仓结论。",
       purpose: "建立可复现验收起点，防止局部通过被误写为全量通过。",
       estimate: "1–2 小时", startedAt: "2026-07-30 11:30", finishedAt: "2026-07-31 01:02", status: "已完成", progress: 100,
-      detail: "2026-08-05 当前工作树全仓 599 tests（38 files）全部通过，Ruff、compileall、pip check、node panel checks 与 diff 检查全部通过；4 条 THOP warning 为上游非失败 warning。597、581、579、566、565、564、563、545、467、465、456、448 及更早门禁保留为历史证据。467 coverage gate 的第一方 source coverage 87%、CLI coverage 82% 保留为最近一次覆盖率口径。",
+      detail: "2026-08-05 当前工作树全仓 604 tests 全部通过，Ruff、compileall、pip check、node panel checks 与 diff 检查全部通过；4 条 THOP warning 为上游非失败 warning。599、597、581、579、566、565、564、563、545、467、465、456、448 及更早门禁保留为历史证据。467 coverage gate 的第一方 source coverage 87%、CLI coverage 82% 保留为最近一次覆盖率口径。",
       acceptance: ["记录 Python/依赖环境", "全量 pytest 与 Ruff 结果可追溯", "报告并发未提交改动"],
-      evidence: ["EV-FULL-GATE-599", "EV-FULL-GATE-597", "EV-FULL-GATE-581", "EV-FULL-GATE-579", "EV-FULL-GATE-566", "EV-FULL-GATE-565", "EV-FULL-GATE-564", "EV-FULL-GATE-563", "EV-FULL-GATE-545", "EV-FULL-GATE-467", "EV-FULL-GATE-465", "EV-FULL-GATE-456-COLLECT", "EV-FULL-GATE-448-COLLECT", "EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL", "EV-LIVE-TRAINING-HEARTBEAT", "EV-RUNCONTEXT-FLUSH-ACCEPTANCE"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-08-05 11:02"
+      evidence: ["EV-FULL-GATE-604", "EV-FULL-GATE-599", "EV-FULL-GATE-597", "EV-FULL-GATE-581", "EV-FULL-GATE-579", "EV-FULL-GATE-566", "EV-FULL-GATE-565", "EV-FULL-GATE-564", "EV-FULL-GATE-563", "EV-FULL-GATE-545", "EV-FULL-GATE-467", "EV-FULL-GATE-465", "EV-FULL-GATE-456-COLLECT", "EV-FULL-GATE-448-COLLECT", "EV-FULL-GATE-438", "EV-FULL-GATE-398", "EV-FULL-GATE-396", "EV-FULL-GATE-380", "EV-BASELINE", "EV-LOW-COST-GATE", "EV-COVERAGE", "EV-GIT-CHECKPOINT", "EV-DIRECTION-CURRENT-SCOPE-CLOSED", "EV-SECURITY-BOUNDARY-309", "EV-FINAL-2RANK-ACCEPTANCE", "EV-ACCEPTANCE-CLI", "EV-IMAGENET-DDP-RESUME", "EV-DDP-SMOKE", "EV-AUTOFORMER-COMPLEXITY", "EV-OFA-INHERITED", "EV-OFA-BN-REAL", "EV-TRANSNAS-HEADS", "EV-TRANSNAS-PREFLIGHT", "EV-AUTOFORMER-PROTOCOL", "EV-LIVE-TRAINING-HEARTBEAT", "EV-RUNCONTEXT-FLUSH-ACCEPTANCE"], risks: ["R-CONCURRENCY", "R-DIRECTION-MIGRATION"], updatedAt: "2026-08-05 11:34"
     },
     {
       id: "A2", phase: "审计", priority: "P0", title: "统一模型 fidelity 与协议",
@@ -317,9 +317,20 @@ window.ZCP_PANEL_DATA = {
       detail: "工作区已收敛：旧 integration worktree 已删除，旧 audit 工作区已移入 <project-runs>/acceptance/audit-archive，工作区父目录仅保留主仓。NB301 scoped H1、ViT release-slice preacceptance 与 NATS-SSS 单 seed 子项证据继续保留；项目总状态仍为 active，完整发布仍等待正式输入、ViT 完整 identity 及高成本训练验收。",
       acceptance: ["无凭据和本机路径", "无数据/大模型误提交", "状态与验收报告一致"],
       evidence: ["EV-WORKSPACE-CONSOLIDATION", "EV-REPO-HYGIENE", "EV-GIT-PUSH-28943B4", "EV-GIT-PUSH-43F1A503", "EV-NATS-SSS-CROSS-DATASET-1PCT", "EV-FULL-GATE-379", "EV-SECURITY-BOUNDARY-309"], risks: ["R-CONCURRENCY", "R-TRANSNAS", "R-VIT-H1-IDENTITIES", "R-NATS-SSS-CROSS-SEED", "R-BUDGET"], updatedAt: "2026-07-31 13:19"
+    },
+    {
+      id: "K1", phase: "审计", priority: "P0", title: "全 ZCP 官方实现审计与 TF-TAS DSS 接入",
+      content: "逐项核对全 ZCP 注册实现与官方固定来源，优先按独立公式接入可证实的 TF-TAS DSS，并隔离名称、计数或来源尚不明确的候选。",
+      purpose: "消除代理实现与官方定义不一致造成的错误结论，同时避免把存在题名、计数或来源歧义的代理误记为已确认实现。",
+      estimate: "约 1 小时 35 分", startedAt: "2026-08-05 11:02", finishedAt: "2026-08-05 11:34", status: "已完成", progress: 100,
+      detail: "已完成 24 个旧 ID 与新增 DSS 的固定来源审计。目标论文实际五项为 DSS、GraSP、SNIP、NASWOT、TE-NAS；用户给出的 AC、HI、HC、DSS++ 存在题名以及计数/来源歧义。当前仅接入可证实 DSS：AutoFormer/PiT 公式、状态恢复、CNN unsupported 与 224 CLI 一行成功 smoke 均通过。已知错误、部分一致、项目扩展和无官方代码项已写入 runtime metadata 与中英文审计；旧 evidence 已标失效，分 benchmark 重跑作为开放风险单独跟踪。全仓 604 tests 及静态 gate 通过。",
+      acceptance: ["全 ZCP 实现逐项绑定固定官方来源或明确无官方代码", "DSS 独立公式 port 与回归检查通过", "旧错误代理 evidence 标记失效且重跑列为后续风险", "AC/HI/HC/DSS++ 的题名、计数和来源歧义已阻断伪实现"],
+      evidence: ["EV-ZCP-OFFICIAL-AUDIT-20260805", "EV-DSS-CLI-SMOKE-20260805", "EV-FULL-GATE-604"], risks: ["R-ZCP-STALE-EVIDENCE", "R-TF-TAS-LICENSE"], updatedAt: "2026-08-05 11:34"
     }
   ],
   risks: [
+    { id: "R-ZCP-STALE-EVIDENCE", severity: "高", status: "开放", title: "旧错误代理 evidence 失效需重跑", description: "现有多项代理实现已确认与官方定义不一致，因此依赖旧错误实现生成的 evidence、分数和相关性结论均失效，不能继续作为当前实现的证明。", mitigation: "完成逐项官方来源审计和版本修复后，按 benchmark 与固定协议重跑；新结果产出前保留失效标记，不覆盖或误用历史 evidence。", taskIds: ["K1"] },
+    { id: "R-TF-TAS-LICENSE", severity: "高", status: "开放", title: "无许可证 TF_TAS 仅独立公式 port", description: "TF_TAS 来源未提供可确认的代码许可证，不能复制、改写或分发其仓库代码；当前范围仅允许依据论文和可公开核验公式独立实现 DSS。", mitigation: "保留公式出处、独立实现过程和回归检查；除 DSS 外，AC、HI、HC、DSS++ 在题名、计数、来源与许可边界确认前均不接入。", taskIds: ["K1"] },
     { id: "R-CONCURRENCY", severity: "高", status: "开放", title: "并发工作区冲突", description: "多个工作者正在修改仓库，状态和测试基线可能快速变化。", mitigation: "只修改授权路径；最终 gate 前重新读取 git status，不回退他人改动。", taskIds: ["A1", "F1", "G1", "I1"] },
     { id: "R-NATIVE", severity: "高", status: "关闭", title: "真实 Benchmark index-0 smoke 已完成", description: "十个 benchmark/切片的真实 query、构模与 params proxy 均通过；external catalog 资产仍不等于 data root 自包含。", mitigation: "跨机器继续执行 bootstrap/checklist；后续 1% 相关性必须使用真实 dataset input。", taskIds: ["B1", "B3", "G2"] },
     { id: "R-TRANSNAS", severity: "高", status: "受阻", title: "TransNAS 正式 H1 受 EULA 数据与未公开协议阻断", description: "安全 contract provider、manifest、final5k masks、Jigsaw 与正式 input size 256/64 已实现，但论文 24-building/120K split 及最终 config/transform 未公开；Taskonomy 数据受独立 EULA 且本机没有。", mitigation: "取得合规 Taskonomy 数据并确认论文最终 split/config/transform 后才能执行正式 H1；在此之前任意 Taskonomy split 只能标 contract partial，random/CIFAR 不得替代。", taskIds: ["B2", "E2", "E3", "F2", "H1"] },
@@ -356,6 +367,9 @@ window.ZCP_PANEL_DATA = {
     { id: "R-LIVE-DARTS-IMAGENET-PREFLIGHT", severity: "高", status: "关闭", title: "DARTS ImageNet artifact/checkpoint 恢复闭环完成", description: "四卡零增量 resume audit 已 completed，resumed_training_rows=1，training JSONL SHA-256 与旧 failed run 完全一致；旧原始 manifest 保持 failed，未被篡改。", mitigation: "保留脱敏 run、两个修复 commit 和 SHA 一致性证据；六项正式验收由 R-DARTS-IMAGENET-DATA 继续跟踪。", taskIds: ["J4", "D1", "H2"] }
   ],
   evidence: [
+    { id: "EV-FULL-GATE-604", time: "2026-08-05 11:34", title: "当前工作树全仓质量门禁 604", result: "604 tests 全部通过；Ruff、compileall、pip check、node panel checks、JSON 与 diff 检查全部通过。4 条 THOP warning 为非失败上游 warning。", command: "pytest -q; ruff check .; compileall; pip check; node panel/check-data.js; git diff --check", taskIds: ["A1", "K1"] },
+    { id: "EV-ZCP-OFFICIAL-AUDIT-20260805", time: "2026-08-05 11:34", title: "全 ZCP 固定来源与无官方实现审计", result: "完成 24 个旧 ID 与新增 DSS 的逐项矩阵。已知错误、部分一致、误命名近似、项目扩展、无作者代码和 TER 本地第一方边界均已进入 runtime metadata、审计 JSON 与中英文文档；旧错误 evidence 保留只读并标记失效。", command: "docs/PROXY_OFFICIAL_AUDIT_CN.md; docs/evidence/proxy_official_audit_20260805.json", taskIds: ["K1", "E1"] },
+    { id: "EV-DSS-CLI-SMOKE-20260805", time: "2026-08-05 11:33", title: "TF-TAS DSS AutoFormer CPU CLI smoke", result: "固定 224 输入的单 AutoFormer 候选完成 1 architecture × 1 DSS = 1 成功行；attention_diversity、mlp_saliency、auxiliary_saliency 与 score 一致。该证据仅验收工程链路，不是相关性或论文精度复现。", command: "docs/evidence/dss_cli_smoke_20260805.json", taskIds: ["K1"] },
     { id: "EV-FULL-GATE-599", time: "2026-08-05 11:02", title: "当前工作树全仓质量门禁 599", result: "2026-08-05 当前工作树共 38 个测试文件，599 tests 全部通过；Ruff、compileall、pip check、node panel checks 与 diff 检查全部通过。4 条 THOP warning 为非失败 warning。EV-FULL-GATE-597 及更早门禁继续只读保留为历史证据。", command: "pytest -q; ruff check .; compileall; pip check; node --check panel/data.js; node --check panel/check-data.js; node panel/check-data.js; git diff --check", taskIds: ["A1", "E1", "G1"] },
     { id: "EV-VKDNW-ONDRATYBL-V2-20260805", time: "2026-08-05 11:02", title: "VKDNW ondratybl 固定提交公式修复", result: "旧 VKDNW portable-v1 使用输入 Jacobian 奇异值的 log 组合，并非作者官方 VKDNW，旧 VKDNW 相关性证据无效。当前实现固定作者 ondratybl/VKDNW commit d2ff276：首 128 个参数张量各取首权重，计算预测 Fisher 谱 10%-90% 分位数熵；论文 Eq.12 的正式单代理排名为 VKDNW_single = dimension + entropy，项目契约为 primary_component=single、components=(single,entropy,dimension)，纯 entropy 仅保留供结构正交性分析；version=ondratybl-d2ff276-v2，CNN-only、random-input/data-independent。状态恢复和独立 autograd golden 均通过。各 benchmark 旧 VKDNW 结果仍需重跑；修复测试不等于论文相关性复现。", command: "VKDNW 专项测试：状态恢复与独立 autograd golden；node panel/check-data.js", taskIds: ["E1", "H1"] },
     { id: "EV-MECO-HAMSTERMIMI-V2-20260804", time: "2026-08-04 16:58", title: "MeCo HamsterMimi 公式与 meco_opt C/8 修复", result: "旧 MeCo portable-v1 错误地跨 batch 计算 logdet，且 meco_opt 被错当 alias。当前实现按 HamsterMimi/MeCo commit 0d830dd 修复：MeCo 为各层最小特征值之和，meco_opt 为官方 8 通道 C/8 变体，version=hamstermimi-0d830dd-v2。3 项专项测试通过，当前全量 gate 为 597 tests / 38 files passed。旧 MeCo 相关性证据无效，仍需分 benchmark 重跑；该实现修复与测试不得引用为论文复现。", command: "pytest -q tests/test_core.py -k meco；全量 pytest、Ruff、compileall、pip check、node panel checks 与 diff", taskIds: ["E1", "H1"] },

@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-05T11:31:55+08:00",
+  "timezone": "Asia/Shanghai",
+  "audit_scope": "registered zcp-test proxies after MeCo and VKDNW corrections",
+  "source_correction": {
+    "requested_title_found": false,
+    "closest_verified_paper": "Training-free Transformer Architecture Search",
+    "paper_url": "https://openaccess.thecvf.com/content/CVPR2022/html/Zhou_Training-Free_Transformer_Architecture_Search_CVPR_2022_paper.html",
+    "official_repository": "https://github.com/decemberzhou/TF_TAS",
+    "official_commit": "42616bcf1b6bb643bf968a8342f8aaddc4f53f32",
+    "official_registered_indicators": ["dss", "grasp", "snip", "naswot", "te_nas"],
+    "requested_names": ["ac", "hi", "hc", "dss", "dss++"],
+    "requested_names_problem": "Only four distinct written names; AC/HC are ambiguous/overlapping across another paper and DSS++ is absent from the target source."
+  },
+  "statuses": {
+    "structural_measure": ["params", "flops"],
+    "stabilized_source_pinned_port": ["meco", "meco_opt", "vkdnw", "az_nas_autoformer", "dss"],
+    "partial_official_port": ["synflow", "naswot", "jacob_cov", "az_nas_plainnet"],
+    "known_incorrect_legacy": ["gradnorm", "near", "swap", "zen", "ntkt", "zico", "ter"],
+    "misnamed_approximation": ["te_nas", "az_nas"],
+    "project_extension": ["er", "er_pr", "er_conn", "er_deg", "er_dist"],
+    "no_author_code_found": ["near", "ntkt"],
+    "requested_but_not_found": ["dss++"]
+  },
+  "local_first_party_source": {
+    "path_env": "TER_SCORE_ROOT",
+    "repository": "https://github.com/Thiswycf/TER-Score",
+    "commit": "a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f",
+    "read_only": true,
+    "note": "Used only for local ER/TER comparison; current zcp-test er/ter/topology variants are not equivalent."
+  },
+  "historical_results": {
+    "preserve_read_only": true,
+    "must_rerun": ["gradnorm", "near", "swap", "zen", "ntkt", "zico", "te_nas", "ter"],
+    "rerun_for_official_comparability": ["synflow", "naswot", "jacob_cov"],
+    "unaffected": ["params", "flops", "benchmark_ground_truth", "trained_accuracy"]
+  }
+}

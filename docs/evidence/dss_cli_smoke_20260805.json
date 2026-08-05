@@ -1,0 +1,35 @@
+{
+  "schema_version": "1.0",
+  "generated_at": "2026-08-05T11:33:21+08:00",
+  "timezone": "Asia/Shanghai",
+  "command": "zcp-test evaluate --space autoformer --proxies dss --count 1 --seed 7 --device cpu --input-source random --batch-size 1 --input-size 224 --classes 3 --output <temporary-root>",
+  "summary": {
+    "architectures": 1,
+    "proxy_calls": 1,
+    "score_rows": 1,
+    "succeeded": 1,
+    "failed": 0,
+    "unsupported": 0
+  },
+  "record": {
+    "architecture_id": "bca36fd337aa7933313c",
+    "search_space_id": "autoformer",
+    "model_profile": "aznas-scratch-5e6683",
+    "model_fidelity": "reference_model",
+    "proxy_id": "dss",
+    "proxy_version": "tf-tas-42616bc-code-protocol-port-v2",
+    "proxy_implementation_fidelity": "paper_formula_port_stabilized",
+    "primary_component": "score",
+    "components": {
+      "attention_diversity": 2670.1506208605338,
+      "auxiliary_saliency": 157.4206992402325,
+      "mlp_saliency": 195.98156655810232,
+      "score": 3023.5528866588684
+    },
+    "score": 3023.5528866588684,
+    "status": "ok",
+    "input_source": "random",
+    "actual_input_size": 224
+  },
+  "boundary": "CPU engineering smoke on one random-input AutoFormer candidate; not a correlation, search, or paper-accuracy reproduction."
+}

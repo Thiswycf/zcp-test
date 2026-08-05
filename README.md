@@ -83,6 +83,7 @@ GPU、评估、分析、benchmark 定制研究、训练、代理扩展和验收�
 - [`docs/BENCHMARK_STUDIES_CN.md`](docs/BENCHMARK_STUDIES_CN.md)
 - [`docs/TRAINING_CN.md`](docs/TRAINING_CN.md)
 - [`docs/PROXIES_CN.md`](docs/PROXIES_CN.md)
+- [`docs/PROXY_OFFICIAL_AUDIT.md`](docs/PROXY_OFFICIAL_AUDIT.md) / [`docs/PROXY_OFFICIAL_AUDIT_CN.md`](docs/PROXY_OFFICIAL_AUDIT_CN.md)
 - [`docs/ADD_PROXY.md`](docs/ADD_PROXY.md) / [`docs/ADD_PROXY_CN.md`](docs/ADD_PROXY_CN.md)
 - [`docs/ACCEPTANCE_CN.md`](docs/ACCEPTANCE_CN.md)
 

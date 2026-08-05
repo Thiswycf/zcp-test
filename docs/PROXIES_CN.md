@@ -2,21 +2,26 @@
 
 ## 1. 注册 ID 不等于独立论文方法
 
-`zcp-test proxy matrix` 当前展示 **24 个可调用 ID**。历史 benchmark sweep 使用其中 22 个，排除
+`zcp-test proxy matrix` 当前展示 **25 个可调用 ID**（新增 Transformer-only `dss`）。历史 benchmark sweep 使用其中 22 个，排除
 搜索空间专用的 `az_nas_autoformer`、`az_nas_plainnet`。这 22 个名称不是 22 个相互独立、已经逐值
 复现论文的 ZCP。
 
 | fidelity | ID | 可主张范围 |
 |---|---|---|
 | `structural_measure` | `params`, `flops` | 结构资源指标；仍须注明 parameter/MAC 口径 |
-| `alias` | `ter→er` | 兼容名称；不得作为独立方法重复计数 |
-| `project_extension` | `er`, `er_pr`, `er_conn`, `er_deg`, `er_dist` | 项目公式/拓扑推广，不是外部论文复现 |
+| `known_incorrect_legacy_alias` | `ter→er` | 当前不是本地 TER；旧结果只读，不得作为 TER-Score |
+| `project_extension` | `er` | 项目公式推广，不是本地 ER 端口 |
+| `project_extension_name_collision` | `er_pr`, `er_conn`, `er_deg`, `er_dist` | 与本地同名公式不等价，必须按 FX 扩展解释 |
 | `portable_composite_approximation` | `te_nas`, `az_nas` | 便携近似；不得宣称正式论文公式一致 |
-| `paper_formula_port_unverified` | `gradnorm`, `synflow`, `naswot`, `jacob_cov`, `near`, `swap`, `zen`, `ntkt`, `zico` | 接口和有限值已验证，但缺固定上游逐值/排序 golden |
-| `paper_formula_port_stabilized` | `meco`, `meco_opt`, `vkdnw`, `az_nas_autoformer`, `az_nas_plainnet` | 固定 commit 的公式 port；稳定化处理使其不声称逐位一致 |
+| `known_incorrect_legacy` | `gradnorm`, `near`, `swap`, `zen`, `ntkt`, `zico` | 已证明与论文/作者公式冲突；必须修复后重跑 |
+| `partial_official_port` | `synflow`, `naswot`, `jacob_cov` | 主公式部分一致，但层选择、激活或谱处理不同 |
+| `paper_formula_port_stabilized` | `meco`, `meco_opt`, `vkdnw`, `az_nas_autoformer`, `az_nas_plainnet`, `dss` | 固定 commit 的独立公式 port；稳定化处理使其不声称逐位一致 |
 
 报告应写“22 个注册名称完成 sweep”，不能写“复现 22 个独立论文 ZCP”。alias 必须折叠；常数输出
 应报告 ties 与未定义相关性，不能用 0 替代。
+
+完整逐项来源、差异、无官方实现清单和旧结果失效范围见
+[ZCP 官方实现一致性审计](PROXY_OFFICIAL_AUDIT_CN.md)。
 
 ## 2. 使用前检查
 
@@ -59,6 +64,16 @@ zcp-test proxy validate zen --device cpu
 `ondratybl-d2ff276-v2` 分 benchmark 重跑后才能引用为 VKDNW 论文复现。当前固定实现只声明 CNN；
 Transformer 需独立上游协议与 golden 后再开放。
 
+### DSS 与请求名称纠错（2026-08-05）
+
+可核验目标来源是 CVPR 2022《Training-free Transformer Architecture Search》和
+[`TF_TAS@42616bc`](https://github.com/decemberzhou/TF_TAS/tree/42616bcf1b6bb643bf968a8342f8aaddc4f53f32)。
+其五项注册指标是 DSS/GraSP/SNIP/NASWOT/TE-NAS，并非 AC/HI/HC/DSS/DSS++；`DSS++` 未在该来源
+出现，AC/HI/HC 属另一研究线且存在同义/缩写歧义。因此本次只加入无歧义的 `dss`：对 MSA 权重
+使用梯度与权重核范数乘积，对 MLP、patch embedding 和分类头权重使用 `abs(weight * grad)`，并分别
+保存 MLP 与辅助显著性组件。当前仅支持
+`StaticAutoFormer` 与 `StaticPiT`，CNN 返回 `unsupported`。
+
 ## 3. 相关性与对比规则
 
 1. 按 canonical architecture ID join，不按列表位置对齐。
@@ -71,7 +86,8 @@ Transformer 需独立上游协议与 golden 后再开放。
 ## 4. 当前开放风险
 
 - `te_nas` 和通用 `az_nas` 是组合近似；正式 AZ-NAS 搜索使用空间专用 ID。
-- 9 个 `paper_formula_port_unverified` 仍需固定论文/官方 commit 和逐值 golden。
+- `gradnorm/near/swap/zen/ntkt/zico` 已确认错误；`synflow/naswot/jacob_cov` 仅部分一致。
+- `DSS++` 和请求中的第五个互异代理没有可核验来源，不能自行补造。
 - `zen` 的 Proxyless 使用属于 project transfer，不能冒充官方 OFA controller 或直接论文协议。
 - 输入契约字段与 fail-fast evaluator 已完成；剩余风险是论文公式 golden 与 alias/approximation 强制折叠。
 

@@ -339,3 +339,16 @@ published in the pinned repository. AutoFormer main, extension, and PiT remain s
 vanilla, KD, and inherited-supernet metrics. PiT is now conservatively classified as
 `reference_topology_pytorch_port`: structural, parameter, and MAC fixtures pass, but checkpoint and
 layerwise numerical parity are unavailable.
+
+## Official ZCP implementation audit (2026-08-05)
+
+The 24 legacy IDs and the new `dss` ID were checked against source-pinned author repositories or,
+where none exists, the paper formula. The outcome is deliberately not reported as an all-pass:
+`gradnorm/near/swap/zen/ntkt/zico/ter` are known incorrect legacy implementations, generic `te_nas`
+and `az_nas` are misnamed approximations, and `synflow/naswot/jacob_cov` are only partial ports.
+No author code was found for NEAR or NTKT.
+
+The new Transformer-only `dss` is an independent TF-TAS formula/code-protocol port tested on static
+AutoFormer and PiT. The inspected upstream has no software license, so no source was copied. The
+requested AC/HI/HC/DSS++ set is ambiguous, contains only four written names, and has no DSS++ entry
+in the target source; no proxy was invented. See [`PROXY_OFFICIAL_AUDIT.md`](PROXY_OFFICIAL_AUDIT.md).

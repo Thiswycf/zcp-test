@@ -6,6 +6,7 @@
 - AutoFormer in Microsoft Cream: MIT license. Architecture definitions and training profiles are independently adapted.
 - AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`: GPL-3.0 repository. This project uses it as a source-pinned behavioral reference and independently implements the static AutoFormer profile; review GPL obligations before copying upstream source rather than reimplementing behavior.
 - VKDNW commit `d2ff276d37d8ba2e9f8c04beb71499d0bd346146`: GPL-3.0 repository. This project uses the paper and fixed implementation as a behavioral/formula reference and independently implements a stabilized generic Fisher-spectrum port; no upstream source file is vendored.
+- TF_TAS commit `42616bcf1b6bb643bf968a8342f8aaddc4f53f32`: the inspected public repository has no declared software license. This project does not copy its source. The `dss` proxy is an independent implementation from the published CVPR 2022 formula, with the fixed repository used only to document behavioral details and provenance.
 - Once-for-All / OFA: MIT license. MobileNet search-space definitions and training defaults are independently adapted.
 - PiT: source notices identify NAVER and Apache-2.0.
 - DARTS: upstream implementation is MIT licensed.

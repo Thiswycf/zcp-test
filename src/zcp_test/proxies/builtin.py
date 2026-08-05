@@ -6,6 +6,7 @@ from typing import Any, Callable
 
 from zcp_test.proxies import PROXIES
 from zcp_test.proxies.base import ZeroCostProxy
+from zcp_test.proxies.vision_transformer import dss_indicator
 from zcp_test.types import ProxyCapability, ScoreDirection
 
 
@@ -498,24 +499,25 @@ def _unsupported(name: str) -> Callable[..., float]:
 _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
     "params": (_params, ProxyCapability("params", version="count-v2", model_families=("cnn", "transformer"), requires_data=False, requires_inputs=False, resource_direction=ScoreDirection.MINIMIZE)),
     "flops": (_flops, ProxyCapability("flops", version="thop-v2", model_families=("cnn", "transformer"), dependencies=("thop",), resource_direction=ScoreDirection.MINIMIZE)),
-    "gradnorm": (_gradnorm, ProxyCapability("gradnorm", requires_labels=True, requires_loss_fn=True)),
+    "gradnorm": (_gradnorm, ProxyCapability("gradnorm", version="legacy-global-l2-v1", model_families=("cnn",), requires_labels=True, requires_loss_fn=True)),
     "synflow": (_synflow, ProxyCapability("synflow", version="double-v2", model_families=("cnn", "transformer"), requires_data=False)),
-    "naswot": (_naswot, ProxyCapability("naswot", model_families=("cnn", "transformer"))),
+    "naswot": (_naswot, ProxyCapability("naswot", version="legacy-multiactivation-v1", model_families=("cnn",))),
     "er": (_effective_rank, ProxyCapability("er", model_families=("cnn", "transformer"), components=("mean", "sum"), primary_component="mean")),
     "ter": (_effective_rank, ProxyCapability("ter", model_families=("cnn",), components=("mean", "sum"), primary_component="mean")),
     "meco": (_meco, ProxyCapability("meco", version="hamstermimi-0d830dd-v2", model_families=("cnn",), requires_data=False)),
     "meco_opt": (_meco_opt, ProxyCapability("meco_opt", version="hamstermimi-0d830dd-v2", model_families=("cnn",), requires_data=False)),
-    "jacob_cov": (_jacob_cov, ProxyCapability("jacob_cov", version="portable-v1", model_families=("cnn", "transformer"))),
+    "jacob_cov": (_jacob_cov, ProxyCapability("jacob_cov", version="legacy-eigvalsh-v1", model_families=("cnn",))),
     "vkdnw": (_vkdnw, ProxyCapability("vkdnw", version="ondratybl-d2ff276-v2", model_families=("cnn",), requires_data=False, components=("single", "entropy", "dimension"), primary_component="single")),
-    "near": (_near, ProxyCapability("near", version="portable-v1", model_families=("cnn", "transformer"))),
-    "swap": (_swap, ProxyCapability("swap", version="portable-v1", model_families=("cnn", "transformer"))),
-    "zen": (_zen, ProxyCapability("zen", version="portable-v1", model_families=("cnn", "transformer"))),
-    "ntkt": (_ntkt, ProxyCapability("ntkt", version="portable-v1", model_families=("cnn", "transformer"))),
-    "zico": (_zico, ProxyCapability("zico", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, requires_loss_fn=True)),
+    "near": (_near, ProxyCapability("near", version="legacy-concatenated-rank-v1", model_families=("cnn", "transformer"))),
+    "swap": (_swap, ProxyCapability("swap", version="legacy-sample-pattern-v1", model_families=("cnn",))),
+    "zen": (_zen, ProxyCapability("zen", version="legacy-logit-perturbation-v1", model_families=("cnn",))),
+    "ntkt": (_ntkt, ProxyCapability("ntkt", version="legacy-sample-gram-logdet-v1", model_families=("transformer",))),
+    "zico": (_zico, ProxyCapability("zico", version="legacy-per-sample-v1", model_families=("cnn",), requires_labels=True, requires_loss_fn=True)),
     "te_nas": (_te_nas, ProxyCapability("te_nas", version="portable-v2", model_families=("cnn", "transformer"), requires_labels=True, requires_loss_fn=True, components=("synflow", "naswot", "gradnorm"), primary_component="synflow")),
     "az_nas": (_az_nas, ProxyCapability("az_nas", version="portable-v1", model_families=("cnn", "transformer"), requires_labels=True, requires_loss_fn=True, components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
     "az_nas_autoformer": (_az_nas_autoformer, ProxyCapability("az_nas_autoformer", version="aznas-5e6683-autoformer-stable-v1", model_families=("transformer",), components=("expressivity", "trainability", "complexity"), primary_component="expressivity")),
     "az_nas_plainnet": (_az_nas_plainnet, ProxyCapability("az_nas_plainnet", version="aznas-5e6683-plainnet-stabilized-v1", model_families=("cnn",), components=("expressivity", "progressivity", "trainability", "complexity"), primary_component="expressivity")),
+    "dss": (dss_indicator, ProxyCapability("dss", version="tf-tas-42616bc-code-protocol-port-v2", model_families=("transformer",), requires_data=False, components=("score", "attention_diversity", "mlp_saliency", "auxiliary_saliency"), primary_component="score")),
     "er_pr": (_topology_er("pr"), ProxyCapability("er_pr", version="fx-v1", model_families=("cnn",))),
     "er_conn": (_topology_er("conn"), ProxyCapability("er_conn", version="fx-v1", model_families=("cnn",))),
     "er_deg": (_topology_er("deg"), ProxyCapability("er_deg", version="fx-v1", model_families=("cnn",))),
@@ -525,31 +527,47 @@ _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
 _SPECIALIZED: dict[str, tuple[str, ...]] = {}
 
 _SOURCES = {
-    "gradnorm": "https://arxiv.org/abs/2101.08134",
-    "synflow": "https://arxiv.org/abs/2006.05467",
-    "naswot": "https://proceedings.mlr.press/v139/mellor21a.html",
+    "gradnorm": "https://github.com/mohsaied/zero-cost-nas/blob/b5059bc42e2275534f584bc21a2d28ab8427cd8e/foresight/pruners/measures/grad_norm.py",
+    "synflow": "https://github.com/mohsaied/zero-cost-nas/blob/b5059bc42e2275534f584bc21a2d28ab8427cd8e/foresight/pruners/measures/synflow.py",
+    "naswot": "https://github.com/BayesWatch/nas-without-training/blob/b3a82a6642564df115f989ff940ec6b8ef9ca9d3/scores.py",
+    "er": "https://github.com/Thiswycf/TER-Score/blob/a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f/ZeroShotProxy/compute_ER_score.py",
+    "ter": "https://github.com/Thiswycf/TER-Score/blob/a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f/ZeroShotProxy/compute_TER_score.py",
     "meco": "https://github.com/HamsterMimi/MeCo/blob/0d830dd2f639f9d1ba3b5831a65df768d70fc93b/zero-cost-nas/foresight/pruners/measures/meco.py",
     "meco_opt": "https://github.com/HamsterMimi/MeCo/blob/0d830dd2f639f9d1ba3b5831a65df768d70fc93b/correlation/NAS_Bench_201.py",
-    "jacob_cov": "https://arxiv.org/abs/2101.08134",
+    "jacob_cov": "https://github.com/mohsaied/zero-cost-nas/blob/b5059bc42e2275534f584bc21a2d28ab8427cd8e/foresight/pruners/measures/jacob_cov.py",
     "vkdnw": "https://github.com/ondratybl/VKDNW/blob/d2ff276d37d8ba2e9f8c04beb71499d0bd346146/NB201/ZeroShotProxy/compute_vkdnw_score.py",
-    "zen": "https://arxiv.org/abs/2102.01063",
-    "zico": "https://openreview.net/forum?id=rwo-ls5GqGn",
-    "te_nas": "https://arxiv.org/abs/2102.11535",
+    "near": "https://arxiv.org/abs/2408.08776",
+    "swap": "https://github.com/pym1024/SWAP/blob/0853fc866051dca2b3b99d068502549de3686bd1/src/metrics/swap.py",
+    "zen": "https://github.com/idstcv/ZenNAS/blob/d1d617e0352733d39890fb64ea758f9c85b28c1a/ZeroShotProxy/compute_zen_score.py",
+    "ntkt": "https://aclanthology.org/2024.findings-acl.405/",
+    "zico": "https://github.com/SLDGroup/ZiCo/blob/b0fec65923a90e84501593f675b1e2f422d79e3d/ZeroShotProxy/compute_zico.py",
+    "te_nas": "https://github.com/VITA-Group/TENAS/tree/9df78ffd98573035375b12e19b9007578cc4155d",
     "az_nas": "https://arxiv.org/abs/2403.19232",
     "az_nas_autoformer": "https://github.com/cvlab-yonsei/AZ-NAS/tree/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_AutoFormer",
     "az_nas_plainnet": "https://github.com/cvlab-yonsei/AZ-NAS/blob/5e6683a2cfa5c6d0dc34a1317a842497ba7eae47/ImageNet_MBV2/ZeroShotProxy/compute_az_nas_score.py",
+    "dss": "https://github.com/decemberzhou/TF_TAS/blob/42616bcf1b6bb643bf968a8342f8aaddc4f53f32/lib/training_free/indicators/dss.py",
+    "er_pr": "https://github.com/Thiswycf/TER-Score/blob/a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f/ZeroShotProxy/compute_ER%2BPR_score.py",
+    "er_conn": "https://github.com/Thiswycf/TER-Score/blob/a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f/ZeroShotProxy/compute_ER%2Bconn_score.py",
+    "er_deg": "https://github.com/Thiswycf/TER-Score/blob/a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f/ZeroShotProxy/compute_ER%2Bdeg_score.py",
+    "er_dist": "https://github.com/Thiswycf/TER-Score/blob/a646c5a6e0b4633d06a153fe3cdc9b6ca3d9f06f/ZeroShotProxy/compute_ER%2Bdist_score.py",
 }
 for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.items()):
     if _proxy_name in {"params", "flops"}:
         _fidelity = "structural_measure"
     elif _proxy_name == "ter":
-        _fidelity = "alias"
+        _fidelity = "known_incorrect_legacy_alias"
     elif _proxy_name in {"te_nas", "az_nas"}:
         _fidelity = "portable_composite_approximation"
-    elif _proxy_name in {"meco", "meco_opt", "vkdnw", "az_nas_autoformer", "az_nas_plainnet"}:
+    elif _proxy_name in {"gradnorm", "near", "swap", "zen", "ntkt", "zico"}:
+        _fidelity = "known_incorrect_legacy"
+    elif _proxy_name in {"synflow", "naswot", "jacob_cov"}:
+        _fidelity = "partial_official_port"
+    elif _proxy_name in {"meco", "meco_opt", "vkdnw", "az_nas_autoformer", "az_nas_plainnet", "dss"}:
         _fidelity = "paper_formula_port_stabilized"
-    elif _proxy_name == "er" or _proxy_name.startswith("er_"):
+    elif _proxy_name == "er":
         _fidelity = "project_extension"
+    elif _proxy_name.startswith("er_"):
+        _fidelity = "project_extension_name_collision"
     else:
         _fidelity = "paper_formula_port_unverified"
     _IMPLEMENTATIONS[_proxy_name] = (

@@ -344,3 +344,14 @@ catalog，或逐项传入准确 `--path`。
 `239,802`、ViT main `5,710,180`、ViT extension `8,755,324`、PiT `893,828`。该 smoke 显式使用
 `input_source=random` 且只运行数据无关的 `params`，因此仅证明真实架构能够构模并进入统一 evaluator，
 不能作为真实输入消融或相关性结果。
+
+## ZCP 官方实现审计（2026-08-05）
+
+对当前 24 个旧注册 ID 和新增 `dss` 完成固定来源审计。结果不是“全部通过”：`gradnorm/near/swap/zen/ntkt/zico/ter`
+为已知错误 legacy；`te_nas` 与通用 `az_nas` 是同名近似；`synflow/naswot/jacob_cov` 仅部分一致；
+`near/ntkt` 未找到作者官方代码。旧相关性和搜索证据保留只读，但相应论文复现主张失效。
+
+新增 `dss` 依据 CVPR 2022 论文和 `TF_TAS@42616bc` 独立实现，支持 StaticAutoFormer/PiT，并通过公式、
+状态恢复、模型族和组件测试。上游仓库无许可证，因此没有复制源码。用户给出的 AC/HI/HC/DSS++ 只有
+四个名称且跨论文歧义；`DSS++` 在目标来源不存在，本次不伪造实现。完整矩阵见
+[`PROXY_OFFICIAL_AUDIT_CN.md`](PROXY_OFFICIAL_AUDIT_CN.md)。

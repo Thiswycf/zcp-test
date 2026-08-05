@@ -40,6 +40,7 @@ zcp-test doctor --catalog configs/data.example.json
 - [分析与监控](docs/ANALYSIS_CN.md)
 - [训练协议、恢复与正式门禁](docs/TRAINING_CN.md)
 - [代理身份、公式 fidelity 与开放风险](docs/PROXIES_CN.md)
+- [ZCP 官方实现逐项审计与无官方实现清单](docs/PROXY_OFFICIAL_AUDIT_CN.md)
 - [配置优先级、RUN 目录与运维边界](docs/OPERATIONS_CN.md)
 - [DARTS 搜索与训练](docs/DARTS_TRAINING_CN.md)
 - [1% Benchmark 相关性验收](docs/ONE_PERCENT_ACCEPTANCE_CN.md)
