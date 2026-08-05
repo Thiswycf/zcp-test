@@ -1,3 +1,4 @@
+import copy
 import json
 import math
 from pathlib import Path
@@ -9,7 +10,7 @@ from zcp_test.artifacts import JsonlWriter, RunContext, merge_jsonl, read_jsonl
 from zcp_test.artifacts.run import PROJECT_TIMEZONE_NAME, _package_versions, project_now_iso
 from zcp_test.proxies.evaluator import evaluate_proxy
 from zcp_test.proxies import PROXIES, load_builtin_proxies
-from zcp_test.proxies.builtin import FunctionProxy, _meco, _meco_opt
+from zcp_test.proxies.builtin import FunctionProxy, _meco, _meco_opt, _vkdnw
 from zcp_test.reporting import correlation_summary
 from zcp_test.search import EvolutionSearch, cache_key, load_search_state
 from zcp_test.spaces import SPACES, load_builtin_spaces
@@ -400,6 +401,65 @@ def test_meco_opt_matches_pinned_upstream_channel_sampling_formula():
     actual = _meco_opt(model, inputs)
     assert actual == pytest.approx(expected, abs=1e-6)
     assert all(not module._forward_hooks for module in model.modules())
+
+
+def test_vkdnw_matches_pinned_fisher_decile_entropy_formula():
+    model = torch.nn.Sequential(
+        torch.nn.Flatten(),
+        torch.nn.Linear(12, 5),
+        torch.nn.ReLU(),
+        torch.nn.Linear(5, 3),
+    ).eval()
+    reference = copy.deepcopy(model)
+    inputs = torch.randn(3, 3, 2, 2)
+
+    torch.manual_seed(43)
+    actual = _vkdnw(model, inputs)
+
+    torch.manual_seed(43)
+    for module in reference.modules():
+        if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
+            torch.nn.init.kaiming_normal_(module.weight, mode="fan_in", nonlinearity="relu")
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+    parameters = list(reference.parameters())[:128]
+    fisher = torch.zeros(len(parameters), len(parameters))
+    for sample in inputs:
+        logits = reference(sample.unsqueeze(0)).squeeze(0)
+        jacobian_rows = []
+        for class_index in range(logits.numel()):
+            gradients = torch.autograd.grad(
+                logits[class_index], parameters, retain_graph=True
+            )
+            jacobian_rows.append(
+                torch.stack([gradient.flatten()[0] for gradient in gradients])
+            )
+        jacobian = torch.stack(jacobian_rows)
+        probability = torch.softmax(logits, dim=0) * 0.95 + 0.05 / logits.numel()
+        covariance = torch.diag(probability) - probability[:, None] * probability[None, :]
+        fisher += jacobian.T @ covariance @ jacobian
+    fisher /= len(inputs)
+    spectrum = torch.linalg.svdvals(fisher)
+    quantiles = torch.quantile(spectrum, torch.arange(0.1, 1.0, 0.1))
+    normalized = quantiles / quantiles.sum().clamp_min(1e-10)
+    expected = -(normalized * torch.log(normalized + 1e-10)).sum()
+
+    assert actual["entropy"] == pytest.approx(float(expected), abs=1e-5)
+    assert actual["dimension"] == 4.0
+    assert actual["single"] == pytest.approx(4.0 + float(expected), abs=1e-5)
+
+
+def test_vkdnw_capability_uses_official_entropy_protocol():
+    load_builtin_proxies()
+    capability = PROXIES.create("vkdnw").capability
+
+    assert capability.version == "ondratybl-d2ff276-v2"
+    assert capability.model_families == ("cnn",)
+    assert capability.requires_data is False
+    assert capability.primary_component == "single"
+    assert capability.components == ("single", "entropy", "dimension")
+    assert capability.implementation_fidelity == "paper_formula_port_stabilized"
+    assert "ondratybl/VKDNW" in (capability.source or "")
 
 
 def test_aznas_autoformer_residual_features_components_and_rank_aggregation():

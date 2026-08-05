@@ -7,7 +7,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 
 | 范围 | 已记录证据 | 状态 | 能证明什么 |
 |---|---|---|---|
-| 单元/集成基线 | 2026-08-04 当前工作树：**597 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
+| 单元/集成基线 | 2026-08-05 当前工作树：**599 tests passed**（38 个测试文件） | 通过 | 全量 pytest、Ruff、compileall、pip check、Bash 语法、JSON 与 diff 检查均通过；看板一致性在并行更新后单独复验；仅保留 4 条来自 THOP 上游 `distutils` 的非失败弃用警告 |
 | 静态质量门禁 | Ruff、compileall、pip check、repository hygiene、panel check、`git diff --check` 均通过 | 通过 | 语法、依赖、面板检查和基础仓库卫生；不代表科学正确性 |
 | 覆盖率 | 第一方 source 总计 **87%**；CLI **82%**、analysis 93%、proxy studies 94%、benchmark report 96%、reports 100%、ImageNet16 converter 83%、doctor/legacy 100% | 通过 | 达到总计 85% 与列出的关键模块 80% 门槛；adapter 的真实数据契约仍需独立 smoke |
 | H1：1% proxy sweep | NB201、NATS-TSS、NATS-SSS 三数据集、NB101 与 NB301 deterministic surrogate 已完成限定协议；ViT 三公开切片完成 minimum-5 单 seed 预验收 | **五个 benchmark 的当前既定协议完成，H1 整体进行中** | NATS-SSS 跨数据集扩展为 1% 分层样本、单输入/初始化 seed，不是全空间结论；ViT 公开身份不完整，TNB101 仍受作者 split/config 与许可输入阻塞 |
@@ -19,7 +19,7 @@ epoch 都不能证明论文数值复现或正式 benchmark 精度。
 | AutoFormer 单候选 real dual-1% V2 | `zcp-selected` 完成 full-data 5 epoch 与 one-percent-data 500 epoch，分别为 5/500 行，均有 terminal manifest、`last.pt` 与 `best.pt` | **限定协议通过** | task 5/6 基线因违反新政策而中止并排除；只证明实现、调度和恢复就绪，不是 500-epoch 全数据论文精度或搜索收益 |
 | ViT/PiT 模型 fidelity | PiT 参数量、MAC、stage、QKV、pool、LN epsilon 与 drop-path fixture 已通过 | topology port 通过 | 仍缺官方 checkpoint/逐层数值对照，因此降为 `reference_topology_pytorch_port`，不称 `reference_model` |
 
-当前完整 gate 实际执行并通过 597 tests（38 个测试文件）。第一方 source coverage 87%、CLI
+当前完整 gate 实际执行并通过 599 tests（38 个测试文件）。第一方 source coverage 87%、CLI
 coverage 82% 仍来自最近一次保留的 coverage gate；Ruff、compileall、pip check、Bash 语法、看板、
 JSON 与 `git diff --check` 均通过，仅有 4 条来自 THOP 上游 `distutils` 的非失败弃用警告。
 NB201 已有专门的 22-proxy、1% 分层抽样单 seed 证据：sample manifest SHA、四个 run ID、四个
@@ -45,8 +45,10 @@ sweep 表示每个名称经过统一 evaluator，并产生明确 `ok`、`unsuppo
 与论文数值一致。`meco`/`meco_opt` 已于 2026-08-04 对照作者仓库 `0d830dd` 修复：旧
 `portable-v1` 错用了跨 batch 激活 log-determinant，并把官方独立的八通道抽样 `meco_opt` 当成
 alias。因此此前两者同值的相关性 evidence 只保留为历史错误实现结果，必须用
-`hamstermimi-0d830dd-v2` 重跑后才能引用为 MeCo。当前 24 ID 包含 1 个 alias、5 个项目扩展、
-2 个组合近似、10 个未完成公式 golden 的 port 和 4 个固定来源的稳定化 port，不能表述为“24 个
+`hamstermimi-0d830dd-v2` 重跑后才能引用为 MeCo。`vkdnw` 也已于 2026-08-05 对照作者仓库
+`d2ff276` 修复：旧版输入 Jacobian 奇异值公式不是参数 Fisher 谱分位数熵，因此历史 VKDNW 数值同样
+失效并等待分 benchmark 重跑。当前 24 ID 包含 1 个 alias、5 个项目扩展、2 个组合近似、9 个未完成
+公式 golden 的 port 和 5 个固定来源的稳定化 port，不能表述为“24 个
 独立论文方法”。完整分层和使用规则见 [PROXIES_CN.md](PROXIES_CN.md)。
 
 ## DARTS CIFAR 双重 1% 与 smoke 边界

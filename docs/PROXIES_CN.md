@@ -12,8 +12,8 @@
 | `alias` | `ter→er` | 兼容名称；不得作为独立方法重复计数 |
 | `project_extension` | `er`, `er_pr`, `er_conn`, `er_deg`, `er_dist` | 项目公式/拓扑推广，不是外部论文复现 |
 | `portable_composite_approximation` | `te_nas`, `az_nas` | 便携近似；不得宣称正式论文公式一致 |
-| `paper_formula_port_unverified` | `gradnorm`, `synflow`, `naswot`, `jacob_cov`, `vkdnw`, `near`, `swap`, `zen`, `ntkt`, `zico` | 接口和有限值已验证，但缺固定上游逐值/排序 golden |
-| `paper_formula_port_stabilized` | `meco`, `meco_opt`, `az_nas_autoformer`, `az_nas_plainnet` | 固定 commit 的公式 port；稳定化处理使其不声称逐位一致 |
+| `paper_formula_port_unverified` | `gradnorm`, `synflow`, `naswot`, `jacob_cov`, `near`, `swap`, `zen`, `ntkt`, `zico` | 接口和有限值已验证，但缺固定上游逐值/排序 golden |
+| `paper_formula_port_stabilized` | `meco`, `meco_opt`, `vkdnw`, `az_nas_autoformer`, `az_nas_plainnet` | 固定 commit 的公式 port；稳定化处理使其不声称逐位一致 |
 
 报告应写“22 个注册名称完成 sweep”，不能写“复现 22 个独立论文 ZCP”。alias 必须折叠；常数输出
 应报告 ties 与未定义相关性，不能用 0 替代。
@@ -44,6 +44,21 @@ zcp-test proxy validate zen --device cpu
 此前 evidence 中 `meco == meco_opt` 的相关性只能作为历史错误实现结果，不得引用为 MeCo 论文复现，需用
 `hamstermimi-0d830dd-v2` 重新评估。
 
+### VKDNW 语义修复（2026-08-05）
+
+官方依据为 CVPR 2025 论文与作者仓库
+[`ondratybl/VKDNW@d2ff276`](https://github.com/ondratybl/VKDNW/tree/d2ff276d37d8ba2e9f8c04beb71499d0bd346146)。
+`vkdnw` 从首 128 个可训练参数张量各取一个权重，计算分类预测关于这些权重的 Jacobian，以平滑类别
+概率协方差构造经验 Fisher，再取 Fisher 谱的 10%–90% 九个分位数。`entropy` 是这些分位数归一化
+后的熵，`dimension` 记录可训练参数张量数；论文 Eq. 12 的正式单代理排名
+`single = dimension + entropy` 是默认主分数。项目使用对称协方差特征分解代替上游手写 Cholesky，
+并统一支持普通 logits/`(features, logits)` 输出，因此标为 `paper_formula_port_stabilized`。
+
+旧 `portable-v1` 使用的是**输入 Jacobian**奇异值的对数组合，不包含参数 Fisher、类别概率协方差或
+谱分位数熵，不能解释为 VKDNW。此前所有 `vkdnw` 相关性 evidence 仅保留为历史错误实现结果，必须用
+`ondratybl-d2ff276-v2` 分 benchmark 重跑后才能引用为 VKDNW 论文复现。当前固定实现只声明 CNN；
+Transformer 需独立上游协议与 golden 后再开放。
+
 ## 3. 相关性与对比规则
 
 1. 按 canonical architecture ID join，不按列表位置对齐。
@@ -56,7 +71,7 @@ zcp-test proxy validate zen --device cpu
 ## 4. 当前开放风险
 
 - `te_nas` 和通用 `az_nas` 是组合近似；正式 AZ-NAS 搜索使用空间专用 ID。
-- 10 个 `paper_formula_port_unverified` 仍需固定论文/官方 commit 和逐值 golden。
+- 9 个 `paper_formula_port_unverified` 仍需固定论文/官方 commit 和逐值 golden。
 - `zen` 的 Proxyless 使用属于 project transfer，不能冒充官方 OFA controller 或直接论文协议。
 - 输入契约字段与 fail-fast evaluator 已完成；剩余风险是论文公式 golden 与 alias/approximation 强制折叠。
 

@@ -305,6 +305,7 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   assert(!/\/public\/|\/home\/|\bPID\b/.test(`${httpRecoveryEvidence?.result || ""} ${httpRecoveryEvidence?.command || ""}`), "看板 HTTP 恢复证据不得泄露绝对路径或 PID");
   const panelTask = data.tasks.find((entry) => entry.id === "F4");
   assert(panelTask?.detail.includes("8768/8769") && panelTask?.detail.includes("curl 超时") && panelTask?.detail.includes("已重启服务") && panelTask?.detail.includes("monitor 根目录"), "F4 未同步 HTTP 服务恢复状态");
+  const fullGate599 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-599");
   const fullGate597 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-597");
   const fullGate581 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-581");
   const fullGate579 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-579");
@@ -313,9 +314,10 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const fullGate564 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-564");
   const fullGate563 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-563");
   const fullGate545 = data.evidence.find((entry) => entry.id === "EV-FULL-GATE-545");
-  assert(fullGate597?.result.includes("38 个测试文件") && fullGate597?.result.includes("597 tests 全部通过"), "当前工作树 597 pytest 结果缺失");
-  assert(fullGate597?.result.includes("Ruff") && fullGate597?.result.includes("compileall") && fullGate597?.result.includes("pip check") && fullGate597?.result.includes("node panel checks") && fullGate597?.result.includes("diff"), "当前工作树 597 静态门禁缺失");
-  assert(fullGate597?.result.includes("4 条 THOP warning") && fullGate597?.result.includes("非失败 warning"), "当前工作树 597 THOP warning 边界缺失");
+  assert(fullGate599?.result.includes("38 个测试文件") && fullGate599?.result.includes("599 tests 全部通过"), "当前工作树 599 pytest 结果缺失");
+  assert(fullGate599?.result.includes("Ruff") && fullGate599?.result.includes("compileall") && fullGate599?.result.includes("pip check") && fullGate599?.result.includes("node panel checks") && fullGate599?.result.includes("diff"), "当前工作树 599 静态门禁缺失");
+  assert(fullGate599?.result.includes("4 条 THOP warning") && fullGate599?.result.includes("非失败 warning"), "当前工作树 599 THOP warning 边界缺失");
+  assert(fullGate597?.result.includes("38 个测试文件") && fullGate597?.result.includes("597 tests 全部通过") && fullGate597?.result.includes("已由 EV-FULL-GATE-599 取代"), "历史工作树 597 pytest 或取代链缺失");
   assert(fullGate581?.result.includes("38 个测试文件") && fullGate581?.result.includes("581 tests 全部通过") && fullGate581?.result.includes("已由 EV-FULL-GATE-597 取代"), "历史工作树 581 pytest 或取代链缺失");
   assert(fullGate579?.result.includes("38 个测试文件") && fullGate579?.result.includes("579 tests 全部通过"), "历史工作树 579 pytest 结果缺失");
   assert(fullGate566?.result.includes("38 个测试文件") && fullGate566?.result.includes("566 tests 全部通过"), "历史工作树 566 pytest 结果缺失");
@@ -331,9 +333,10 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const baselineTask = data.tasks.find((entry) => entry.id === "A1");
   const qualityGateTask = data.tasks.find((entry) => entry.id === "G1");
   for (const task of [baselineTask, qualityGateTask]) {
-    assert(task?.detail.includes("38 files") && task?.detail.includes("597 tests"), `任务 ${task?.id || "?"} 缺少当前 597 gate`);
+    assert(task?.detail.includes("38 files") && task?.detail.includes("599 tests"), `任务 ${task?.id || "?"} 缺少当前 599 gate`);
     assert(task?.detail.includes("Ruff") && task?.detail.includes("compileall") && task?.detail.includes("pip check") && task?.detail.includes("node panel checks") && task?.detail.includes("diff"), `任务 ${task?.id || "?"} 缺少当前静态门禁`);
-    assert(task?.detail.includes("4 条 THOP warning") && task?.detail.includes("非失败 warning") && task?.detail.includes("581") && task?.detail.includes("历史"), `任务 ${task?.id || "?"} 缺少 warning 或历史 gate 边界`);
+    assert(task?.detail.includes("4 条 THOP warning") && task?.detail.includes("非失败 warning") && task?.detail.includes("597") && task?.detail.includes("581") && task?.detail.includes("历史"), `任务 ${task?.id || "?"} 缺少 warning 或历史 gate 边界`);
+    assert(task?.evidence.includes("EV-FULL-GATE-599") && task?.evidence.includes("EV-FULL-GATE-597"), `任务 ${task?.id || "?"} 缺少 599 当前门禁或 597 历史门禁关联`);
   }
   const releaseTask = data.tasks.find((entry) => entry.id === "I1");
   const workspaceEvidence = data.evidence.find((entry) => entry.id === "EV-WORKSPACE-CONSOLIDATION");
@@ -432,20 +435,38 @@ if (data && Array.isArray(data.tasks) && Array.isArray(data.risks) && Array.isAr
   const proxyRegistryEvidence = data.evidence.find((entry) => entry.id === "EV-PROXY-REGISTRY-AUDIT-24-20260804");
   const mecoRisk = data.risks.find((entry) => entry.id === "R-MECO-PORTABLE-V1");
   const mecoEvidence = data.evidence.find((entry) => entry.id === "EV-MECO-HAMSTERMIMI-V2-20260804");
-  for (const marker of ["24", "1 alias", "5 project extensions", "2 approximations", "10 unverified", "4 stabilized ports"]) {
+  const vkdnwRisk = data.risks.find((entry) => entry.id === "R-VKDNW-PORTABLE-V1");
+  const vkdnwEvidence = data.evidence.find((entry) => entry.id === "EV-VKDNW-ONDRATYBL-V2-20260805");
+  const h1Task = data.tasks.find((entry) => entry.id === "H1");
+  for (const marker of ["24", "1 alias", "5 project extensions", "2 approximations", "9 unverified", "5 stabilized ports"]) {
     assert(proxyRegistryTask?.detail.includes(marker), `24 registry 任务缺少风险分层 ${marker}`);
     assert(proxyRegistryRisk?.description.includes(marker), `24 registry 风险缺少分层 ${marker}`);
     assert(proxyRegistryEvidence?.result.includes(marker), `24 registry 证据缺少分层 ${marker}`);
   }
   assert(proxyRegistryRisk?.status === "开放" && proxyRegistryEvidence?.result.includes("不等于复现 22 个独立论文公式"), "24 registry 开放风险或历史 sweep 边界缺失");
-  for (const marker of ["跨 batch", "logdet", "meco_opt", "HamsterMimi/MeCo commit 0d830dd", "最小特征值之和", "官方 8 通道 C/8 变体", "hamstermimi-0d830dd-v2", "3 项专项测试", "597 tests"]) {
+  for (const marker of ["跨 batch", "logdet", "meco_opt", "HamsterMimi/MeCo commit 0d830dd", "最小特征值之和", "官方 8 通道 C/8 变体", "hamstermimi-0d830dd-v2", "3 项专项测试"]) {
     assert(proxyRegistryTask?.detail.includes(marker), `MeCo 任务缺少 ${marker}`);
     assert(mecoEvidence?.result.includes(marker), `MeCo 修复证据缺少 ${marker}`);
   }
+  assert(proxyRegistryTask?.detail.includes("599 tests") && proxyRegistryTask?.evidence.includes("EV-FULL-GATE-599"), "E1 缺少当前 599 gate");
+  assert(mecoEvidence?.result.includes("597 tests"), "MeCo 历史修复证据缺少当时 597 gate");
   assert(mecoRisk?.status === "开放" && mecoRisk?.description.includes("旧 portable-v1") && mecoRisk?.description.includes("相关性、排序和论文复现口径均无效"), "MeCo 旧证据失效风险缺失");
   assert(mecoRisk?.mitigation.includes("分 benchmark 重跑") && mecoRisk?.mitigation.includes("不得引用旧 MeCo 数值") && mecoRisk?.mitigation.includes("不得把当前实现测试写成论文复现"), "MeCo 重跑或论文复现边界缺失");
   assert(mecoEvidence?.result.includes("旧 MeCo 相关性证据无效") && mecoEvidence?.result.includes("仍需分 benchmark 重跑") && mecoEvidence?.result.includes("不得引用为论文复现"), "MeCo 修复证据缺少科学边界");
   assert(proxyRegistryTask?.evidence.includes("EV-MECO-HAMSTERMIMI-V2-20260804") && proxyRegistryTask?.risks.includes("R-MECO-PORTABLE-V1"), "E1 未关联 MeCo 修复证据或开放风险");
+  for (const marker of ["输入 Jacobian 奇异值", "log 组合", "ondratybl/VKDNW", "commit d2ff276", "首 128 个参数张量各取首权重", "预测 Fisher 谱 10%-90% 分位数熵", "Eq.12", "VKDNW_single = dimension + entropy", "primary_component=single", "components=(single,entropy,dimension)", "纯 entropy 仅保留供结构正交性分析", "version=ondratybl-d2ff276-v2", "CNN-only", "random-input/data-independent", "状态恢复", "独立 autograd golden"]) {
+    assert(proxyRegistryTask?.detail.includes(marker), `VKDNW 任务缺少 ${marker}`);
+    assert(vkdnwEvidence?.result.includes(marker), `VKDNW 修复证据缺少 ${marker}`);
+  }
+  assert(vkdnwRisk?.status === "开放" && vkdnwRisk?.description.includes("并非作者") && vkdnwRisk?.description.includes("相关性、排序和论文复现口径均无效"), "VKDNW 旧证据失效风险缺失");
+  assert(vkdnwRisk?.description.includes("VKDNW_single = dimension + entropy") && vkdnwRisk?.description.includes("纯 entropy 仅用于结构正交性分析") && vkdnwRisk?.mitigation.includes("primary_component=single"), "VKDNW 风险缺少正式主分数与 entropy 辅助边界");
+  assert(vkdnwRisk?.mitigation.includes("分 benchmark 重跑") && vkdnwRisk?.mitigation.includes("不得引用旧 VKDNW 数值") && vkdnwRisk?.mitigation.includes("不得把修复测试写成论文相关性复现"), "VKDNW 重跑或论文相关性复现边界缺失");
+  assert(vkdnwEvidence?.result.includes("旧 VKDNW 相关性证据无效") && vkdnwEvidence?.result.includes("各 benchmark 旧 VKDNW 结果仍需重跑") && vkdnwEvidence?.result.includes("修复测试不等于论文相关性复现"), "VKDNW 修复证据缺少科学边界");
+  for (const task of [proxyRegistryTask, h1Task]) {
+    assert(task?.evidence.includes("EV-VKDNW-ONDRATYBL-V2-20260805") && task?.risks.includes("R-VKDNW-PORTABLE-V1"), `${task?.id || "?"} 未关联 VKDNW 修复证据或开放风险`);
+  }
+  assert(h1Task?.detail.includes("各 benchmark") && h1Task?.detail.includes("ondratybl-d2ff276-v2") && h1Task?.detail.includes("修复测试") && h1Task?.detail.includes("不等于论文相关性复现"), "H1 缺少 VKDNW 重跑与科学边界");
+  assert(!proxyRegistryTask?.detail.includes("primary=entropy") && !vkdnwEvidence?.result.includes("primary=entropy"), "VKDNW 不得将纯 entropy 标为 primary");
   assert(!JSON.stringify(data).includes("ofa_proxyless_official_tutorial"), "不得新增或宣称虚构的 Proxyless official tutorial 协议名");
   const pitTask = data.tasks.find((entry) => entry.id === "C4");
   const pitEvidence = data.evidence.find((entry) => entry.id === "EV-PIT-REFERENCE");

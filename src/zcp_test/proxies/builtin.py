@@ -253,9 +253,73 @@ def _jacob_cov(model: Any, inputs: Any, *_: Any) -> float:
 
 def _vkdnw(model: Any, inputs: Any, *_: Any) -> float:
     import torch
+    from torch.func import functional_call, jacrev, vmap
 
-    singular = torch.linalg.svdvals(_input_jacobian(model, inputs)).clamp_min(1e-8)
-    return float(torch.log(singular).sum() - torch.log(singular.max() / singular.min()))
+    def initialize(module: Any) -> None:
+        if isinstance(module, (torch.nn.Conv2d, torch.nn.Linear)):
+            torch.nn.init.kaiming_normal_(module.weight, mode="fan_in", nonlinearity="relu")
+            if module.bias is not None:
+                torch.nn.init.zeros_(module.bias)
+        elif isinstance(module, (torch.nn.BatchNorm2d, torch.nn.GroupNorm)) and module.affine:
+            torch.nn.init.ones_(module.weight)
+            torch.nn.init.zeros_(module.bias)
+
+    def logits(output: Any) -> Any:
+        if isinstance(output, (tuple, list)):
+            tensors = [value for value in output if isinstance(value, torch.Tensor)]
+            if not tensors:
+                raise ValueError("VKDNW model output contains no tensor logits")
+            output = tensors[-1]
+        if not isinstance(output, torch.Tensor) or output.ndim != 2:
+            raise ValueError("VKDNW requires two-dimensional classification logits")
+        return output
+
+    model.eval()
+    model.apply(initialize)
+    named_parameters = [(name, parameter) for name, parameter in model.named_parameters() if parameter.numel()]
+    selected = dict(named_parameters[:128])
+    if not selected:
+        raise ValueError("VKDNW requires at least one trainable parameter tensor")
+    selected_values = {
+        name: parameter.detach().flatten()[:1] for name, parameter in selected.items()
+    }
+    base_parameters = {name: parameter.detach() for name, parameter in named_parameters}
+    buffers = {name: buffer.detach() for name, buffer in model.named_buffers()}
+
+    def predict(selected_parameters: dict[str, Any], sample: Any) -> Any:
+        parameters = dict(base_parameters)
+        for name, value in selected_parameters.items():
+            base = base_parameters[name]
+            parameters[name] = torch.cat((value, base.flatten()[1:])).reshape_as(base)
+        return logits(
+            functional_call(model, (parameters, buffers), (sample.unsqueeze(0),))
+        ).squeeze(0)
+
+    jacobian = vmap(jacrev(predict), in_dims=(None, 0))(selected_values, inputs)
+    jacobian_matrix = torch.cat(
+        [value.flatten(start_dim=2) for value in jacobian.values()], dim=2
+    )
+    prediction = logits(model(inputs))
+    alpha = prediction.new_tensor(0.05)
+    probability = torch.softmax(prediction, dim=1) * (1 - alpha) + alpha / prediction.shape[1]
+    covariance = torch.diag_embed(probability) - probability.unsqueeze(2) * probability.unsqueeze(1)
+    eigenvalues, eigenvectors = torch.linalg.eigh(covariance)
+    covariance_sqrt = eigenvectors @ torch.diag_embed(eigenvalues.clamp_min(0).sqrt()) @ eigenvectors.transpose(1, 2)
+    weighted_jacobian = covariance_sqrt @ jacobian_matrix
+    fisher = torch.mean(weighted_jacobian.transpose(1, 2) @ weighted_jacobian, dim=0)
+    spectrum = torch.linalg.svdvals(fisher)
+    quantiles = torch.quantile(
+        spectrum,
+        torch.arange(0.1, 1.0, 0.1, device=spectrum.device, dtype=spectrum.dtype),
+    )
+    normalized = quantiles / quantiles.sum().clamp_min(1e-10)
+    entropy = -(normalized * torch.log(normalized + 1e-10)).sum()
+    dimension = float(len(named_parameters))
+    return {
+        "single": dimension + float(entropy.item()),
+        "entropy": float(entropy.item()),
+        "dimension": dimension,
+    }
 
 
 def _near(model: Any, inputs: Any, *_: Any) -> float:
@@ -442,7 +506,7 @@ _IMPLEMENTATIONS: dict[str, tuple[Callable[..., Any], ProxyCapability]] = {
     "meco": (_meco, ProxyCapability("meco", version="hamstermimi-0d830dd-v2", model_families=("cnn",), requires_data=False)),
     "meco_opt": (_meco_opt, ProxyCapability("meco_opt", version="hamstermimi-0d830dd-v2", model_families=("cnn",), requires_data=False)),
     "jacob_cov": (_jacob_cov, ProxyCapability("jacob_cov", version="portable-v1", model_families=("cnn", "transformer"))),
-    "vkdnw": (_vkdnw, ProxyCapability("vkdnw", version="portable-v1", model_families=("cnn", "transformer"))),
+    "vkdnw": (_vkdnw, ProxyCapability("vkdnw", version="ondratybl-d2ff276-v2", model_families=("cnn",), requires_data=False, components=("single", "entropy", "dimension"), primary_component="single")),
     "near": (_near, ProxyCapability("near", version="portable-v1", model_families=("cnn", "transformer"))),
     "swap": (_swap, ProxyCapability("swap", version="portable-v1", model_families=("cnn", "transformer"))),
     "zen": (_zen, ProxyCapability("zen", version="portable-v1", model_families=("cnn", "transformer"))),
@@ -467,6 +531,7 @@ _SOURCES = {
     "meco": "https://github.com/HamsterMimi/MeCo/blob/0d830dd2f639f9d1ba3b5831a65df768d70fc93b/zero-cost-nas/foresight/pruners/measures/meco.py",
     "meco_opt": "https://github.com/HamsterMimi/MeCo/blob/0d830dd2f639f9d1ba3b5831a65df768d70fc93b/correlation/NAS_Bench_201.py",
     "jacob_cov": "https://arxiv.org/abs/2101.08134",
+    "vkdnw": "https://github.com/ondratybl/VKDNW/blob/d2ff276d37d8ba2e9f8c04beb71499d0bd346146/NB201/ZeroShotProxy/compute_vkdnw_score.py",
     "zen": "https://arxiv.org/abs/2102.01063",
     "zico": "https://openreview.net/forum?id=rwo-ls5GqGn",
     "te_nas": "https://arxiv.org/abs/2102.11535",
@@ -481,7 +546,7 @@ for _proxy_name, (_proxy_function, _proxy_capability) in tuple(_IMPLEMENTATIONS.
         _fidelity = "alias"
     elif _proxy_name in {"te_nas", "az_nas"}:
         _fidelity = "portable_composite_approximation"
-    elif _proxy_name in {"meco", "meco_opt", "az_nas_autoformer", "az_nas_plainnet"}:
+    elif _proxy_name in {"meco", "meco_opt", "vkdnw", "az_nas_autoformer", "az_nas_plainnet"}:
         _fidelity = "paper_formula_port_stabilized"
     elif _proxy_name == "er" or _proxy_name.startswith("er_"):
         _fidelity = "project_extension"

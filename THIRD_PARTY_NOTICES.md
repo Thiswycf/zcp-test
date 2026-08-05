@@ -5,6 +5,7 @@
 - Auto-Prox, commit `90ed458`: repository root carries Apache-2.0 while its README says MIT. This project conservatively treats Auto-Prox-owned material as Apache-2.0 and references its benchmark files externally.
 - AutoFormer in Microsoft Cream: MIT license. Architecture definitions and training profiles are independently adapted.
 - AZ-NAS commit `5e6683a2cfa5c6d0dc34a1317a842497ba7eae47`: GPL-3.0 repository. This project uses it as a source-pinned behavioral reference and independently implements the static AutoFormer profile; review GPL obligations before copying upstream source rather than reimplementing behavior.
+- VKDNW commit `d2ff276d37d8ba2e9f8c04beb71499d0bd346146`: GPL-3.0 repository. This project uses the paper and fixed implementation as a behavioral/formula reference and independently implements a stabilized generic Fisher-spectrum port; no upstream source file is vendored.
 - Once-for-All / OFA: MIT license. MobileNet search-space definitions and training defaults are independently adapted.
 - PiT: source notices identify NAVER and Apache-2.0.
 - DARTS: upstream implementation is MIT licensed.

@@ -63,6 +63,6 @@
     "monitor_custom_output_semantics": "resolved_code_docs_cli_tests_full_code_gate_passed",
     "machine_readable_json_output_contracts": "resolved_explicit_proxy_serializer_docs_tests_full_code_gate_passed"
   },
-  "latest_code_gate": {"tests": 597, "test_files": 38, "status": "passed"},
+  "latest_code_gate": {"tests": 599, "test_files": 38, "status": "passed"},
   "correction": "The earlier 32 level-two / 38 leaf count was correct before validate-plainnet-search was added. Parser introspection now proves 33 level-two and 39 leaf endpoints."
 }
